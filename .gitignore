@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+data/*.db
+data/*.db-journal
+data/cache/*
+!data/cache/.gitkeep
+*.log
