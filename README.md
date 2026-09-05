@@ -74,6 +74,25 @@ dans `.env` pour un autre emplacement). Ces cookies expirent au bout d'un
 moment ("Sign in to confirm..." qui revient après avoir fonctionné) — il
 suffit de refaire un export.
 
+**Avec des cookies, `yt-dlp` a aussi besoin d'un moteur JavaScript** (pour
+déchiffrer les flux YouTube — voir le
+[wiki EJS de yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/EJS)), sans quoi
+le téléchargement échoue avec *"Requested format is not available"*. Le plus
+simple est [Deno](https://deno.com/) (détecté automatiquement s'il est dans
+le `PATH`, aucune configuration `yt-dlp` supplémentaire nécessaire) :
+
+```bash
+curl -fsSL https://deno.land/install.sh | sh
+sudo ln -sf ~/.deno/bin/deno /usr/local/bin/deno   # pour qu'il soit trouvable par tous les process (ex: PM2)
+```
+
+`requirements.txt` installe déjà `yt-dlp[default]`, qui inclut les scripts de
+déchiffrement (EJS) nécessaires — pas d'étape supplémentaire côté Python.
+
+Même avec cookies + Deno, le déchiffrement échoue parfois de façon
+intermittente (observé en usage réel) ; Sona réessaie automatiquement
+jusqu'à 3 fois avant d'afficher "indisponible".
+
 ## Lancer le bot
 
 ```bash
