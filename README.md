@@ -54,6 +54,26 @@ limitées (titre + cover, pas d'artiste/album fiables). Avec des identifiants
 Credentials Flow, gratuit), la recherche et les pages morceau/album/artiste
 Spotify deviennent aussi complètes que Deezer.
 
+### Cookies YouTube (quasi obligatoire en hébergement VPS)
+
+Depuis un serveur (IP de datacenter), YouTube bloque presque systématiquement
+les téléchargements avec *"Sign in to confirm you're not a bot"* — ça ne se
+voit généralement pas en local (IP résidentielle) mais ça bloque tout en
+production. Le contournement documenté par `yt-dlp` est de fournir des
+cookies d'un compte YouTube connecté :
+
+1. Installe une extension navigateur du type
+   [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   (Chrome/Edge) ou équivalent Firefox.
+2. Connecte-toi sur [youtube.com](https://youtube.com) avec un compte Google.
+3. Exporte les cookies du site en format Netscape (`cookies.txt`).
+4. Place le fichier dans `data/cookies.txt` (déjà exclu de git).
+
+Sona le détecte automatiquement à ce chemin (ou via `YOUTUBE_COOKIES_FILE`
+dans `.env` pour un autre emplacement). Ces cookies expirent au bout d'un
+moment ("Sign in to confirm..." qui revient après avoir fonctionné) — il
+suffit de refaire un export.
+
 ## Lancer le bot
 
 ```bash
@@ -86,6 +106,9 @@ d'appel réseau réel pour rester rapide et déterministe en CI.
   anti-bot, ce qui casse les vieilles versions de `yt-dlp` (erreur type *"The
   page needs to be reloaded"*). Si l'audio devient indisponible partout,
   commence par `pip install -U yt-dlp`.
+- **"Sign in to confirm you're not a bot" en hébergement VPS** : voir la
+  section Cookies YouTube ci-dessus — quasi systématique depuis une IP de
+  datacenter tant qu'aucun `cookies.txt` n'est fourni.
 - **Qualité audio** : "Meilleure disponible" vs "Standard (débit réduit)"
   changent réellement le flux demandé à YouTube ; il n'y a pas de FLAC ou de
   qualité supérieure à ce que YouTube fournit (cohérent avec la contrainte du

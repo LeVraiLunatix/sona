@@ -40,7 +40,12 @@ def _format_selector_for(quality: str) -> str:
 
 
 def _download_sync(
-    video_id: str, out_template: str, ffmpeg_path: str, quality: str, format_pref: str
+    video_id: str,
+    out_template: str,
+    ffmpeg_path: str,
+    quality: str,
+    format_pref: str,
+    cookies_file: Path | None,
 ) -> Path:
     url = f"https://www.youtube.com/watch?v={video_id}"
     codec = _codec_for(format_pref)
@@ -58,6 +63,11 @@ def _download_sync(
         "socket_timeout": 20,
         "retries": 3,
     }
+    if cookies_file is not None:
+        # Contourne le mur anti-bot YouTube ("Sign in to confirm you're not
+        # a bot"), fréquent sur les IP de datacenter (VPS) mais rare sur une
+        # IP résidentielle — voir README pour comment exporter ce fichier.
+        opts["cookiefile"] = str(cookies_file)
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
@@ -143,7 +153,13 @@ async def download_and_tag(
     out_template = str(settings.downloads_dir / f"{safe_name}.%(ext)s")
     try:
         path = await asyncio.to_thread(
-            _download_sync, video_id, out_template, settings.ffmpeg_path, quality, format_pref
+            _download_sync,
+            video_id,
+            out_template,
+            settings.ffmpeg_path,
+            quality,
+            format_pref,
+            settings.youtube_cookies_file,
         )
     except yt_dlp.utils.DownloadError as exc:
         raise DownloadError("Téléchargement audio impossible.") from exc

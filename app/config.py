@@ -31,6 +31,7 @@ class Settings:
     spotify_client_secret: str | None
     ffmpeg_path: str
     database_path: Path
+    youtube_cookies_file: Path | None
     downloads_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "cache")
 
     @property
@@ -57,6 +58,13 @@ def load_settings() -> Settings:
     downloads_dir = BASE_DIR / "data" / "cache"
     downloads_dir.mkdir(parents=True, exist_ok=True)
 
+    cookies_raw = os.getenv("YOUTUBE_COOKIES_FILE", "").strip()
+    cookies_file = Path(cookies_raw) if cookies_raw else (BASE_DIR / "data" / "cookies.txt")
+    if not cookies_file.is_absolute():
+        cookies_file = BASE_DIR / cookies_file
+    if not cookies_file.is_file():
+        cookies_file = None
+
     return Settings(
         bot_token=token,
         allowed_user_ids=_parse_ids(os.getenv("ALLOWED_USER_IDS")),
@@ -64,5 +72,6 @@ def load_settings() -> Settings:
         spotify_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET", "").strip() or None,
         ffmpeg_path=ffmpeg,
         database_path=db_path,
+        youtube_cookies_file=cookies_file,
         downloads_dir=downloads_dir,
     )
