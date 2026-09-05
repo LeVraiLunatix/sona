@@ -43,3 +43,20 @@ CREATE TABLE IF NOT EXISTS audio_cache (
     created_at TEXT NOT NULL,
     PRIMARY KEY (source, source_id, format, quality)
 );
+
+CREATE TABLE IF NOT EXISTS allowed_users (
+    user_id INTEGER PRIMARY KEY,
+    display_name TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    added_by INTEGER,
+    added_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS invites (
+    token TEXT PRIMARY KEY,
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_by INTEGER,
+    used_at TEXT
+);

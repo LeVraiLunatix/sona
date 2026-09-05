@@ -37,11 +37,6 @@ class Settings:
     def is_private_mode(self) -> bool:
         return len(self.allowed_user_ids) > 0
 
-    def is_allowed(self, user_id: int) -> bool:
-        if not self.is_private_mode:
-            return False
-        return user_id in self.allowed_user_ids
-
 
 def load_settings() -> Settings:
     token = os.getenv("BOT_TOKEN", "").strip()

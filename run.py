@@ -32,25 +32,34 @@ async def main() -> None:
     db = Database(settings.database_path)
     await db.connect()
     repo = Repository(db)
+    await repo.bootstrap_admins(list(settings.allowed_user_ids))
 
     bot = Bot(token=settings.bot_token)
+    me = await bot.get_me()
     dp = Dispatcher()
 
     deezer = DeezerClient()
     apple = AppleMusicClient()
     spotify = SpotifyClient(settings.spotify_client_id, settings.spotify_client_secret)
 
-    deps = Deps(bot=bot, settings=settings, repo=repo, deezer=deezer, apple=apple, spotify=spotify)
+    deps = Deps(
+        bot=bot,
+        bot_username=me.username,
+        settings=settings,
+        repo=repo,
+        deezer=deezer,
+        apple=apple,
+        spotify=spotify,
+    )
     dp["deps"] = deps
 
-    dp.message.outer_middleware(WhitelistMiddleware(settings))
-    dp.callback_query.outer_middleware(WhitelistMiddleware(settings))
+    dp.message.outer_middleware(WhitelistMiddleware(repo))
+    dp.callback_query.outer_middleware(WhitelistMiddleware(repo))
 
     setup_routers(dp)
 
-    logger.info(
-        "Sona démarre (bot privé, %d utilisateur(s) autorisé(s))", len(settings.allowed_user_ids)
-    )
+    allowed_count = len(await repo.list_allowed_users())
+    logger.info("Sona démarre (bot privé, %d utilisateur(s) autorisé(s))", allowed_count)
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)

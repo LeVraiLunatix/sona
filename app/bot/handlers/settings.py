@@ -23,7 +23,8 @@ async def render_settings_menu(deps: Deps, target: RenderTarget, user_id: int, p
         f"Format : {FORMAT_CHOICES[s.format]}\n"
         f"Notifications : {'Activées' if s.notifications else 'Désactivées'}"
     )
-    return await show_text(deps.bot, target, text, keyboards.settings_menu_keyboard())
+    is_admin = await deps.repo.is_admin(user_id)
+    return await show_text(deps.bot, target, text, keyboards.settings_menu_keyboard(is_admin))
 
 
 @navigation.register("settings_quality")

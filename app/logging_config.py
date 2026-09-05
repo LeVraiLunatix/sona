@@ -11,4 +11,3 @@ def setup_logging(level: int = logging.INFO) -> None:
     )
     # Bruit connu, peu utile en usage normal.
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("aiogram.event").setLevel(logging.WARNING)

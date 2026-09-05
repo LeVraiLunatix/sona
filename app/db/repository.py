@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.db.database import Database
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
@@ -22,11 +23,22 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+INVITE_TTL_HOURS = 24
+
+
 @dataclass(slots=True)
 class UserSettings:
     quality: str
     format: str
     notifications: bool
+
+
+@dataclass(slots=True)
+class AllowedUser:
+    user_id: int
+    display_name: str | None
+    is_admin: bool
+    added_at: str
 
 
 @dataclass(slots=True)
@@ -211,3 +223,108 @@ class Repository:
             (source, source_id, fmt, quality, file_id, file_unique_id, _now()),
         )
         await self._db.conn.commit()
+
+    # -- Accès (whitelist + invitations) -------------------------------
+
+    async def bootstrap_admins(self, user_ids: list[int]) -> None:
+        """Assure que les IDs configurés via .env existent en base comme admins.
+
+        Idempotent : n'écrase jamais un utilisateur déjà présent (ex: un admin
+        rétrogradé/retiré manuellement en base ne serait pas ré-ajouté... en
+        fait si, par design : .env reste la source de vérité de démarrage).
+        """
+        for user_id in user_ids:
+            await self._db.conn.execute(
+                """INSERT INTO allowed_users (user_id, is_admin, added_by, added_at)
+                   VALUES (?, 1, NULL, ?)
+                   ON CONFLICT(user_id) DO UPDATE SET is_admin=1""",
+                (user_id, _now()),
+            )
+        await self._db.conn.commit()
+
+    async def is_allowed(self, user_id: int) -> bool:
+        cursor = await self._db.conn.execute(
+            "SELECT 1 FROM allowed_users WHERE user_id=?", (user_id,)
+        )
+        return (await cursor.fetchone()) is not None
+
+    async def is_admin(self, user_id: int) -> bool:
+        cursor = await self._db.conn.execute(
+            "SELECT is_admin FROM allowed_users WHERE user_id=?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["is_admin"])
+
+    async def set_admin(self, user_id: int, is_admin: bool) -> None:
+        await self._db.conn.execute(
+            "UPDATE allowed_users SET is_admin=? WHERE user_id=?", (int(is_admin), user_id)
+        )
+        await self._db.conn.commit()
+
+    async def touch_display_name(self, user_id: int, display_name: str | None) -> None:
+        if not display_name:
+            return
+        await self._db.conn.execute(
+            "UPDATE allowed_users SET display_name=? WHERE user_id=?",
+            (display_name, user_id),
+        )
+        await self._db.conn.commit()
+
+    async def list_allowed_users(self) -> list[AllowedUser]:
+        cursor = await self._db.conn.execute(
+            "SELECT user_id, display_name, is_admin, added_at FROM allowed_users ORDER BY added_at ASC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            AllowedUser(r["user_id"], r["display_name"], bool(r["is_admin"]), r["added_at"])
+            for r in rows
+        ]
+
+    async def add_allowed_user(
+        self, user_id: int, added_by: int | None, display_name: str | None = None
+    ) -> None:
+        await self._db.conn.execute(
+            """INSERT OR IGNORE INTO allowed_users (user_id, display_name, is_admin, added_by, added_at)
+               VALUES (?, ?, 0, ?, ?)""",
+            (user_id, display_name, added_by, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def remove_allowed_user(self, user_id: int) -> None:
+        await self._db.conn.execute(
+            "DELETE FROM allowed_users WHERE user_id=? AND is_admin=0", (user_id,)
+        )
+        await self._db.conn.commit()
+
+    async def create_invite(self, created_by: int) -> str:
+        token = secrets.token_urlsafe(12)
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=INVITE_TTL_HOURS)).isoformat()
+        await self._db.conn.execute(
+            "INSERT INTO invites (token, created_by, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (token, created_by, _now(), expires_at),
+        )
+        await self._db.conn.commit()
+        return token
+
+    async def consume_invite(
+        self, token: str, user_id: int, display_name: str | None
+    ) -> bool:
+        cursor = await self._db.conn.execute(
+            "SELECT created_by, expires_at, used_by FROM invites WHERE token=?", (token,)
+        )
+        row = await cursor.fetchone()
+        if row is None or row["used_by"] is not None:
+            return False
+        if row["expires_at"] < datetime.now(timezone.utc).isoformat():
+            return False
+
+        await self._db.conn.execute(
+            "UPDATE invites SET used_by=?, used_at=? WHERE token=?", (user_id, _now(), token)
+        )
+        await self._db.conn.execute(
+            """INSERT OR IGNORE INTO allowed_users (user_id, display_name, is_admin, added_by, added_at)
+               VALUES (?, ?, 0, ?, ?)""",
+            (user_id, display_name, row["created_by"], _now()),
+        )
+        await self._db.conn.commit()
+        return True

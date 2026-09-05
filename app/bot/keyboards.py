@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.callbacks import (
+    AdminCB,
     AlbumCB,
     ArtistCB,
     HistoryCB,
@@ -253,13 +254,52 @@ def history_clear_confirm_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def settings_menu_keyboard() -> InlineKeyboardMarkup:
+def settings_menu_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
+    admin_row = (
+        [InlineKeyboardButton(text="Gestion des accès", callback_data=AdminCB(action="menu").pack())]
+        if is_admin
+        else []
+    )
     return _rows(
         [InlineKeyboardButton(text="Qualité audio", callback_data=SettingsCB(action="quality").pack())],
         [InlineKeyboardButton(text="Format", callback_data=SettingsCB(action="format").pack())],
         [InlineKeyboardButton(text="Notifications", callback_data=SettingsCB(action="notif_toggle").pack())],
+        admin_row,
         _back_row(NavCB(action="home").pack(), "← Accueil"),
     )
+
+
+def admin_menu_keyboard() -> InlineKeyboardMarkup:
+    return _rows(
+        [InlineKeyboardButton(text="Inviter quelqu'un", callback_data=AdminCB(action="invite").pack())],
+        [InlineKeyboardButton(text="Retirer un accès", callback_data=AdminCB(action="remove_list").pack())],
+        _back_row(SettingsCB(action="menu").pack()),
+    )
+
+
+def admin_invite_keyboard(share_url: str) -> InlineKeyboardMarkup:
+    return _rows(
+        [InlineKeyboardButton(text="Partager le lien", url=share_url)],
+        _back_row(AdminCB(action="menu").pack()),
+    )
+
+
+def admin_remove_list_keyboard(users: list) -> InlineKeyboardMarkup:
+    rows = []
+    for u in users:
+        label = u.display_name or str(u.user_id)
+        if u.is_admin:
+            rows.append([InlineKeyboardButton(text=f"{label} (admin)", callback_data="noop")])
+        else:
+            rows.append(
+                [
+                    InlineKeyboardButton(text=label, callback_data="noop"),
+                    InlineKeyboardButton(
+                        text="✕ Retirer", callback_data=AdminCB(action="remove", id=str(u.user_id)).pack()
+                    ),
+                ]
+            )
+    return _rows(*rows, _back_row(AdminCB(action="menu").pack()))
 
 
 def settings_quality_keyboard(current: str) -> InlineKeyboardMarkup:

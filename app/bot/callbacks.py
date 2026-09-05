@@ -9,7 +9,7 @@ class NavCB(CallbackData, prefix="nav"):
 
 class SearchCB(CallbackData, prefix="search"):
     action: str  # prompt | page | new
-    qid: str = ""
+    qid: str | None = None
     page: int = 1
 
 
@@ -34,19 +34,24 @@ class ArtistCB(CallbackData, prefix="artist"):
 
 class LibraryCB(CallbackData, prefix="library"):
     action: str  # menu | tab | remove | open
-    kind: str = ""
-    source: str = ""
-    id: str = ""
+    kind: str | None = None
+    source: str | None = None
+    id: str | None = None
     page: int = 1
 
 
 class HistoryCB(CallbackData, prefix="history"):
     action: str  # menu | open | clear | clear_confirm | clear_cancel | page
-    source: str = ""
-    id: str = ""
+    source: str | None = None
+    id: str | None = None
     page: int = 1
 
 
 class SettingsCB(CallbackData, prefix="settings"):
     action: str  # menu | quality | quality_set | format | format_set | notif_toggle
-    value: str = ""
+    value: str | None = None
+
+
+class AdminCB(CallbackData, prefix="admin"):
+    action: str  # menu | invite | remove_list | remove
+    id: str | None = None

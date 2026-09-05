@@ -14,6 +14,7 @@ from app.providers.spotify import SpotifyClient
 @dataclass(slots=True)
 class Deps:
     bot: Bot
+    bot_username: str
     settings: Settings
     repo: Repository
     deezer: DeezerClient
