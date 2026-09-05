@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from aiogram import Bot, Dispatcher
 
@@ -19,8 +20,26 @@ from app.providers.spotify import SpotifyClient
 logger = logging.getLogger(__name__)
 
 
+def _clear_node_ipc_env() -> None:
+    """Retire les variables d'IPC Node héritées du superviseur de process.
+
+    PM2 lance Sona comme un process enfant de Node et expose NODE_CHANNEL_FD
+    dans l'environnement. Deno — utilisé par yt-dlp pour résoudre les
+    challenges JS de YouTube — est compatible Node : il hérite de la variable,
+    tente d'ouvrir ce canal IPC qui ne lui appartient pas et sort en erreur
+    ("fd is not from BiPipe"). Résultat : plus aucun format audio n'est
+    déchiffrable et tous les morceaux paraissent indisponibles.
+
+    Python n'utilise pas ce canal ; on le masque donc aux process enfants.
+    """
+    for var in ("NODE_CHANNEL_FD", "NODE_CHANNEL_SERIALIZATION_MODE"):
+        if os.environ.pop(var, None) is not None:
+            logger.info("Variable d'IPC Node %s retirée de l'environnement", var)
+
+
 async def main() -> None:
     setup_logging()
+    _clear_node_ipc_env()
     settings = load_settings()
 
     if not settings.is_private_mode:
