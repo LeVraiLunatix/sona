@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from pathlib import Path
 
 import httpx
@@ -68,9 +69,23 @@ def _download_sync(
         # a bot"), fréquent sur les IP de datacenter (VPS) mais rare sur une
         # IP résidentielle — voir README pour comment exporter ce fichier.
         opts["cookiefile"] = str(cookies_file)
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
+
+    # Le solveur de challenge JS de yt-dlp (déchiffrement des flux YouTube)
+    # échoue de façon intermittente (observé en prod) sans raison stable —
+    # un nouvel essai immédiat réussit généralement.
+    last_exc: yt_dlp.utils.DownloadError | None = None
+    for attempt in range(3):
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+            break
+        except yt_dlp.utils.DownloadError as exc:
+            last_exc = exc
+            logger.warning("Tentative %d/3 échouée pour %s: %s", attempt + 1, video_id, exc)
+            time.sleep(2)
+    else:
+        raise last_exc
 
     final_path = Path(filename).with_suffix(f".{codec}")
     if not final_path.exists():
