@@ -9,4 +9,5 @@ data/*.db-journal
 data/cache/*
 !data/cache/.gitkeep
 data/cookies.txt
+data/backups/
 *.log

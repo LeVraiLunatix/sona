@@ -172,6 +172,23 @@ déploiement sur le VPS : GitHub se connecte en SSH et le serveur exécute
 [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md). Tant que les secrets ne sont pas
 créés, l'étape de déploiement est ignorée avec un avertissement.
 
+## Sauvegardes de la base
+
+`data/sona.db` porte les accès, la bibliothèque, l'historique et le cache des
+`file_id` Telegram : la perdre, ce sont toutes les invitations à refaire et
+tous les morceaux à retélécharger. Sona en fait donc une copie par jour, dans
+`data/backups/` (modifiable avec `BACKUP_DIR` dans `.env`) :
+
+- la copie passe par l'API `backup` de SQLite, qui sait copier une base
+  ouverte — un `cp` pendant une écriture donnerait un fichier tronqué ;
+- les fichiers sont en `600`, les 7 plus récents sont conservés ;
+- la première copie part dès le démarrage si la dernière date de plus de 24 h ;
+- chaque sauvegarde et chaque échec sont journalisés (`pm2 logs sona`), et un
+  échec n'arrête jamais le bot.
+
+Pour restaurer, bot arrêté : remplace `data/sona.db` par la sauvegarde
+choisie, puis redémarre (`pm2 restart sona`).
+
 ## Commandes
 
 | Commande | Qui | Effet |

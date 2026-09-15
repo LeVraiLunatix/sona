@@ -18,6 +18,7 @@ from app.logging_config import setup_logging
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
 from app.providers.spotify import SpotifyClient
+from app.services.backup import run_backups
 from app.services.youtube_session import register_notifier, schedule_session_check
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,22 @@ async def _publish_commands(bot: Bot, repo: Repository) -> None:
         logger.warning("Publication des commandes impossible: %s", exc)
 
 
+async def _stop_task(task: asyncio.Task | None) -> None:
+    """Arrête une tâche de fond et attend qu'elle ait rendu la main.
+
+    Sans ça, l'arrêt du bot laisse une tâche annulée en suspens et asyncio
+    signale « Task was destroyed but it is pending »."""
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception as exc:
+        logger.warning("Tâche de fond terminée en erreur: %s", exc)
+
+
 async def _shutdown(db, bot, *clients) -> None:
     """Ferme tout, quoi qu'il arrive : chaque fermeture est isolée pour qu'un
     échec n'empêche pas les suivantes — notamment celle de la base, dont le
@@ -105,6 +122,7 @@ async def main() -> None:
     # que rien ne redémarre.
     db = Database(settings.database_path)
     await db.connect()
+    backups: asyncio.Task | None = None
     bot = Bot(token=settings.bot_token)
     deezer = DeezerClient()
     apple = AppleMusicClient()
@@ -140,6 +158,11 @@ async def main() -> None:
 
         setup_routers(dp)
 
+        # Sauvegarde quotidienne : la base porte les accès, la bibliothèque et
+        # le cache des file_id Telegram. Une base perdue, ce sont toutes les
+        # invitations à refaire et tous les morceaux à retélécharger.
+        backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
+
         allowed_count = len(await repo.list_allowed_users())
         logger.info("Sona démarre (bot privé, %d utilisateur(s) autorisé(s))", allowed_count)
 
@@ -155,6 +178,7 @@ async def main() -> None:
         await _publish_commands(bot, repo)
         await dp.start_polling(bot)
     finally:
+        await _stop_task(backups)
         await _shutdown(db, bot, deezer, apple, spotify)
 
 

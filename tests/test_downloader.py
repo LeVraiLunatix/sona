@@ -146,6 +146,7 @@ def _settings(tmp_path, cookies_file):
         ffmpeg_path="ffmpeg",
         database_path=tmp_path / "sona.db",
         youtube_cookies_file=cookies_file,
+        backup_dir=tmp_path / "backups",
         downloads_dir=tmp_path,
     )
 
