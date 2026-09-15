@@ -55,7 +55,16 @@ def search_prompt_keyboard(suggestions: list | None = None) -> InlineKeyboardMar
 
     Les suggestions viennent de l'historique — un clic relance l'écran morceau
     sans avoir à retaper quoi que ce soit."""
-    rows = []
+    rows = [
+        # `switch_inline_query_current_chat` pré-remplit le champ de saisie avec
+        # "@<bot> " : Telegram ouvre alors le panneau de suggestions au-dessus
+        # du clavier et le rafraîchit à chaque frappe (voir handlers/inline.py).
+        [
+            InlineKeyboardButton(
+                text="🔍 Suggestions en direct", switch_inline_query_current_chat=""
+            )
+        ]
+    ]
     for item in suggestions or []:
         artist = (item.subtitle or "").split(" • ")[0]
         label = f"{artist} — {item.title}" if artist else item.title

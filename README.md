@@ -118,6 +118,7 @@ avec Ctrl+C.
 | `/start` | tout le monde | Ouvre l'accueil ; hors whitelist, utilise le jeton d'invitation ou envoie une demande d'accès |
 | `/search` | autorisés | Ouvre l'écran de recherche |
 | `/search <requête>` | autorisés | Affiche directement le menu des morceaux trouvés |
+| `@<bot> <requête>` | autorisés | Suggestions en direct au-dessus du champ de saisie (voir ci-dessous) |
 | `/help` | autorisés | Revient à l'accueil |
 | `/id` | tout le monde | Affiche son identifiant Telegram |
 | `/invite` | admins | Crée un lien d'invitation |
@@ -126,6 +127,40 @@ avec Ctrl+C.
 Ces commandes sont déclarées auprès de Telegram au démarrage : elles
 apparaissent dans le bouton « Menu » de la conversation (les deux dernières
 uniquement pour les admins).
+
+## Suggestions en direct (mode inline)
+
+Sona peut afficher un **panneau de suggestions au-dessus du champ de saisie**,
+rafraîchi à chaque lettre tapée — comme la recherche de GIF de Telegram. C'est
+le chemin le plus rapide : on tape, on touche le morceau, c'est fini.
+
+Ça demande une activation côté Telegram, une seule fois :
+
+1. Ouvre [@BotFather](https://t.me/BotFather) → `/setinline`
+2. Choisis ton bot
+3. Entre le texte d'invite affiché dans le champ, par exemple
+   `Un titre, un artiste…`
+
+Ensuite, dans la conversation avec Sona :
+
+- soit tu touches **« 🔍 Suggestions en direct »** sur l'écran Recherche
+  (bouton « Rechercher » ou `/search`) — Telegram pré-remplit le champ et
+  ouvre le panneau ;
+- soit tu tapes `@<nom_du_bot> ` suivi de ta recherche, depuis n'importe
+  quelle conversation.
+
+Un morceau déjà envoyé une fois (donc présent dans le cache) apparaît
+directement comme fichier audio prêt à envoyer : un seul tap et il arrive,
+sans re-téléchargement. Les autres renvoient leur lien, que Sona redétecte
+aussitôt pour ouvrir l'écran Morceau.
+
+Le mode inline est soumis à la même whitelist que le reste : quelqu'un qui
+n'est pas autorisé ne voit aucun résultat, juste un bouton pour demander
+l'accès.
+
+Sans cette activation, rien n'est cassé — le bouton « Suggestions en direct »
+renvoie simplement une erreur Telegram, et la recherche classique (taper le
+titre dans la conversation, ou `/search <titre>`) fonctionne comme avant.
 
 ## Inviter quelqu'un
 

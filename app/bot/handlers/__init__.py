@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from aiogram import Dispatcher
 
-from app.bot.handlers import admin, album, artist, history, library, links, search, settings, start, track
+from app.bot.handlers import (
+    admin,
+    album,
+    artist,
+    history,
+    inline,
+    library,
+    links,
+    search,
+    settings,
+    start,
+    track,
+)
 
 
 def setup_routers(dp: Dispatcher) -> None:
@@ -15,6 +27,9 @@ def setup_routers(dp: Dispatcher) -> None:
     dp.include_router(history.router)
     dp.include_router(settings.router)
     dp.include_router(admin.router)
+    # Suggestions au-dessus du champ de saisie (mode inline) : un type
+    # d'update à part, jamais en concurrence avec les messages.
+    dp.include_router(inline.router)
     # links.router doit rester après les autres routers "commande explicite" :
     # il capte tout le texte libre restant (recherche directe / lien collé).
     dp.include_router(links.router)

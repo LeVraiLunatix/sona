@@ -4,7 +4,13 @@ import logging
 from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram.types import (
+    CallbackQuery,
+    InlineQuery,
+    InlineQueryResultsButton,
+    Message,
+    TelegramObject,
+)
 
 from app.bot import access
 from app.bot.deps import Deps
@@ -53,6 +59,20 @@ class WhitelistMiddleware(BaseMiddleware):
         if isinstance(event, Message):
             logger.info("Message d'un utilisateur non autorisé: user_id=%s", user.id)
             await access.handle_denied_message(self.deps, event)
+            return None
+
+        if isinstance(event, InlineQuery):
+            # Le mode inline est ouvert à quiconque connaît le nom du bot :
+            # sans ce filtre, la recherche fuiterait hors de la whitelist.
+            logger.info("Requête inline refusée pour user_id=%s", user.id)
+            await event.answer(
+                [],
+                cache_time=5,
+                is_personal=True,
+                button=InlineQueryResultsButton(
+                    text="Demander l'accès à Sona", start_parameter="access"
+                ),
+            )
             return None
 
         return None
