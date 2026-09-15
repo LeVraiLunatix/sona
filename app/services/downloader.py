@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 _FORBIDDEN_CHARS_RE = re.compile(r'[\\/*?:"<>|]')
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_AUDIO_SUFFIXES = (".m4a", ".mp3", ".opus", ".ogg", ".webm", ".aac", ".flac", ".wav", ".mp4")
+_TEMP_PREFIX = "sona-dl-"
 
 
 class DownloadError(Exception):
@@ -27,6 +31,7 @@ class DownloadError(Exception):
 def _sanitize_filename(name: str) -> str:
     name = _FORBIDDEN_CHARS_RE.sub("", name)
     name = " ".join(name.split())
+    name = name.strip(". ")
     return name[:120] or "sona_track"
 
 
@@ -34,24 +39,43 @@ def _codec_for(format_pref: str) -> str:
     return "mp3" if format_pref == "mp3" else "m4a"
 
 
-def _format_selector_for(quality: str) -> str:
+def _format_selector_for(quality: str, broad: bool = False) -> str:
+    """Sélecteur de flux yt-dlp.
+
+    On privilégie le m4a quand il existe : c'est le format que Telegram lit
+    nativement, et ça évite un ré-encodage ffmpeg inutile (donc une source
+    d'échec en moins). `broad` sert aux dernières tentatives : on prend
+    n'importe quoi plutôt que d'échouer.
+    """
+    if broad:
+        return "bestaudio/best/bestaudio*"
     if quality == "standard":
-        return "bestaudio[abr<=128]/bestaudio/best"
-    return "bestaudio/best"
+        return "bestaudio[abr<=128][ext=m4a]/bestaudio[abr<=128]/bestaudio/best"
+    return "bestaudio[ext=m4a]/bestaudio/best"
 
 
-def _download_sync(
-    video_id: str,
+# Stratégies successives : YouTube casse régulièrement l'un ou l'autre de ses
+# clients (déchiffrement JS, mur anti-bot). Ce qui échoue avec le client par
+# défaut passe très souvent avec le client "tv", et inversement — d'où cette
+# cascade plutôt que trois fois la même tentative.
+_ATTEMPTS: tuple[dict, ...] = (
+    {"label": "client par défaut"},
+    {"label": "client tv", "player_client": ["tv"]},
+    {"label": "client web_safari", "player_client": ["web_safari", "mweb"]},
+    {"label": "sans cookies", "drop_cookies": True, "broad_format": True},
+)
+
+
+def _build_opts(
+    attempt: dict,
     out_template: str,
     ffmpeg_path: str,
     quality: str,
-    format_pref: str,
+    codec: str,
     cookies_file: Path | None,
-) -> Path:
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    codec = _codec_for(format_pref)
+) -> dict:
     opts = {
-        "format": _format_selector_for(quality),
+        "format": _format_selector_for(quality, broad=attempt.get("broad_format", False)),
         "outtmpl": out_template,
         "ffmpeg_location": ffmpeg_path,
         "postprocessors": [
@@ -64,36 +88,71 @@ def _download_sync(
         "socket_timeout": 20,
         "retries": 3,
     }
-    if cookies_file is not None:
+    if cookies_file is not None and not attempt.get("drop_cookies"):
         # Contourne le mur anti-bot YouTube ("Sign in to confirm you're not
         # a bot"), fréquent sur les IP de datacenter (VPS) mais rare sur une
         # IP résidentielle — voir README pour comment exporter ce fichier.
         opts["cookiefile"] = str(cookies_file)
+    if attempt.get("player_client"):
+        opts["extractor_args"] = {"youtube": {"player_client": attempt["player_client"]}}
+    return opts
 
-    # Le solveur de challenge JS de yt-dlp (déchiffrement des flux YouTube)
-    # échoue de façon intermittente (observé en prod) sans raison stable —
-    # un nouvel essai immédiat réussit généralement.
-    last_exc: yt_dlp.utils.DownloadError | None = None
-    for attempt in range(3):
+
+def _find_output(expected: Path) -> Path:
+    """Retrouve le fichier produit par yt-dlp.
+
+    Le nom exact dépend du post-traitement ffmpeg (titre nettoyé, extension
+    changée) : on liste le dossier de travail — unique à ce téléchargement —
+    au lieu de deviner. Un `glob` sur le nom attendu ne conviendrait pas, les
+    crochets des titres YouTube y étant des métacaractères.
+    """
+    if expected.exists():
+        return expected
+    if not expected.parent.is_dir():
+        raise DownloadError("Fichier audio introuvable après téléchargement.")
+    found = [p for p in expected.parent.iterdir() if p.is_file()]
+    audio = [p for p in found if p.suffix.lower() in _AUDIO_SUFFIXES and not p.name.endswith(".part")]
+    if not audio:
+        raise DownloadError("Fichier audio introuvable après téléchargement.")
+    # Le fichier au format demandé prime (c'est celui qu'a produit ffmpeg) ;
+    # sinon on prend le plus récent, le flux brut étant écrit en premier.
+    converted = [p for p in audio if p.suffix.lower() == expected.suffix.lower()]
+    return max(converted or audio, key=lambda p: p.stat().st_mtime)
+
+
+def _download_sync(
+    video_id: str,
+    out_template: str,
+    ffmpeg_path: str,
+    quality: str,
+    format_pref: str,
+    cookies_file: Path | None,
+) -> Path:
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    codec = _codec_for(format_pref)
+    last_error: Exception | None = None
+
+    for index, attempt in enumerate(_ATTEMPTS):
+        opts = _build_opts(attempt, out_template, ffmpeg_path, quality, codec, cookies_file)
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
-            break
-        except yt_dlp.utils.DownloadError as exc:
-            last_exc = exc
-            logger.warning("Tentative %d/3 échouée pour %s: %s", attempt + 1, video_id, exc)
-            time.sleep(2)
-    else:
-        raise last_exc
+            return _find_output(Path(filename).with_suffix(f".{codec}"))
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "Téléchargement de %s : tentative %d/%d (%s) échouée: %s",
+                video_id,
+                index + 1,
+                len(_ATTEMPTS),
+                attempt["label"],
+                exc,
+            )
+            if index < len(_ATTEMPTS) - 1:
+                time.sleep(2)
 
-    final_path = Path(filename).with_suffix(f".{codec}")
-    if not final_path.exists():
-        candidates = list(final_path.parent.glob(final_path.stem + ".*"))
-        if not candidates:
-            raise DownloadError("Fichier audio introuvable après téléchargement.")
-        final_path = candidates[0]
-    return final_path
+    raise DownloadError("Téléchargement audio impossible.") from last_error
 
 
 async def _fetch_cover_bytes(cover_url: str | None) -> bytes | None:
@@ -148,8 +207,18 @@ def _tag_sync(path: Path, track: TrackInfo, cover_bytes: bytes | None) -> None:
             _tag_mp3(path, track, cover_bytes)
         else:
             _tag_mp4(path, track, cover_bytes)
-    except Exception as exc:  # fichier corrompu ou format inattendu
-        raise DownloadError("Impossible de préparer les métadonnées du fichier.") from exc
+    except Exception as exc:
+        # Un tag raté ne doit pas priver l'utilisateur de son morceau : le
+        # fichier est lisible, il lui manque juste la pochette/les métadonnées.
+        logger.warning("Métadonnées non appliquées sur %s: %s", path.name, exc)
+
+
+def cleanup_download(path: Path) -> None:
+    """Supprime le fichier et son dossier de travail temporaire."""
+    parent = path.parent
+    path.unlink(missing_ok=True)
+    if parent.name.startswith(_TEMP_PREFIX):
+        shutil.rmtree(parent, ignore_errors=True)
 
 
 async def download_and_tag(
@@ -163,9 +232,13 @@ async def download_and_tag(
 
     Le fichier final est nommé et tagué d'après les métadonnées de la source
     d'origine (Deezer/Spotify/Apple/YouTube), pas d'après le titre brut YouTube.
+    Il atterrit dans un dossier temporaire dédié : deux utilisateurs qui
+    demandent le même morceau en même temps ne se marchent pas dessus, et
+    `cleanup_download` efface tout, y compris les flux intermédiaires.
     """
     safe_name = _sanitize_filename(f"{track.artist} - {track.title}")
-    out_template = str(settings.downloads_dir / f"{safe_name}.%(ext)s")
+    work_dir = Path(tempfile.mkdtemp(prefix=_TEMP_PREFIX, dir=settings.downloads_dir))
+    out_template = str(work_dir / f"{safe_name}.%(ext)s")
     try:
         path = await asyncio.to_thread(
             _download_sync,
@@ -176,7 +249,11 @@ async def download_and_tag(
             format_pref,
             settings.youtube_cookies_file,
         )
-    except yt_dlp.utils.DownloadError as exc:
+    except DownloadError:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(work_dir, ignore_errors=True)
         raise DownloadError("Téléchargement audio impossible.") from exc
 
     cover_bytes = await _fetch_cover_bytes(track.cover_url)

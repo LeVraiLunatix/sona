@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
-from app.bot import keyboards, navigation
-from app.bot.callbacks import NavCB
+from app.bot import access, keyboards, navigation
+from app.bot.callbacks import AccessCB, NavCB
 from app.bot.deps import Deps
 from app.bot.navigation import Screen
 from app.bot.render import RenderTarget, show_text
@@ -30,28 +30,40 @@ async def render_link_help(deps: Deps, target: RenderTarget, user_id: int, param
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, deps: Deps, command: CommandObject) -> None:
-    user_id = message.from_user.id
+async def cmd_start(message: Message, deps: Deps) -> None:
+    """Accueil d'un utilisateur déjà autorisé.
 
-    if not await deps.repo.is_allowed(user_id):
-        token = None
-        if command.args and command.args.startswith("invite_"):
-            token = command.args[len("invite_") :]
-        granted = bool(token) and await deps.repo.consume_invite(
-            token, user_id, message.from_user.full_name
-        )
-        if not granted:
-            await message.answer("Ce bot est privé et réservé à certains utilisateurs.")
-            return
-
-    await deps.repo.touch_display_name(user_id, message.from_user.full_name)
-    await deps.repo.ensure_user(user_id)
-    await navigation.goto(deps, user_id, message.chat.id, Screen("home"), reset=True)
+    Les utilisateurs non autorisés n'arrivent jamais ici : le filtre de
+    whitelist les confie à `app.bot.access` (invitation, demande d'accès…).
+    """
+    await access.open_home(deps, message.from_user, message.chat.id)
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, deps: Deps) -> None:
     await navigation.goto(deps, message.from_user.id, message.chat.id, Screen("home"), reset=True)
+
+
+@router.message(Command("id"))
+async def cmd_id(message: Message) -> None:
+    """Affiche l'identifiant Telegram — le moyen le plus simple pour un admin
+    d'ajouter quelqu'un sans passer par un lien d'invitation."""
+    await message.answer(f"Ton identifiant Telegram : {message.from_user.id}")
+
+
+@router.callback_query(AccessCB.filter(F.action == "request"))
+async def on_access_request(callback: CallbackQuery, deps: Deps) -> None:
+    """Bouton « Demander l'accès ».
+
+    Accessible aux utilisateurs hors whitelist (le filtre laisse passer les
+    callbacks `access:`) ; un utilisateur déjà autorisé qui reclique sur un
+    vieux message est simplement ramené à l'accueil.
+    """
+    await callback.answer()
+    if await deps.repo.is_allowed(callback.from_user.id):
+        await access.open_home(deps, callback.from_user, callback.message.chat.id)
+        return
+    await access.submit_request(deps, callback.from_user, callback.message.chat.id)
 
 
 @router.callback_query(NavCB.filter(F.action == "home"))

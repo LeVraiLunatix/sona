@@ -12,12 +12,21 @@ utilisateur (écrans, navigation, callbacks).
 - **Métadonnées** (recherche, covers, tracklists, infos artiste) : API
   publique Deezer, iTunes/Apple Music, et l'API Spotify (ou son oEmbed public
   si aucune credential n'est configurée).
+- **Recherche** : Deezer en premier (métadonnées riches, vraie pagination),
+  puis iTunes et YouTube Music en secours si Deezer ne répond pas ou ne
+  connaît pas le titre. La source qui a répondu est conservée pour toute la
+  pagination de la recherche.
 - **Audio** : le morceau trouvé (Deezer/Spotify/Apple/YouTube) est résolu vers
-  son équivalent sur YouTube Music (`ytmusicapi`), téléchargé avec `yt-dlp`,
-  puis tagué (titre/artiste/album/cover) avec `mutagen` avant d'être envoyé
-  comme fichier audio Telegram natif.
+  son équivalent YouTube — plusieurs formulations de requête sont essayées sur
+  YouTube Music (`ytmusicapi`), puis sur la recherche de `yt-dlp` si besoin —
+  téléchargé avec `yt-dlp`, puis tagué (titre/artiste/album/cover) avec
+  `mutagen` avant d'être envoyé comme fichier audio Telegram natif. Le
+  téléchargement réessaie avec plusieurs clients YouTube (défaut, `tv`,
+  `web_safari`, puis sans cookies) : quand l'un est cassé, un autre passe
+  généralement.
 - **Bot privé** : seuls les `user_id` Telegram listés dans `ALLOWED_USER_IDS`
-  peuvent utiliser le bot ; tous les autres sont rejetés silencieusement.
+  (les admins de départ) et les personnes qu'ils ont ajoutées depuis le bot
+  peuvent l'utiliser. Voir [Inviter quelqu'un](#inviter-quelquun).
 - **Cache** : une fois un morceau envoyé, son `file_id` Telegram est mis en
   cache (par source/format/qualité) — les demandes suivantes du même morceau
   sont donc instantanées, sans re-télécharger.
@@ -102,13 +111,52 @@ jusqu'à 3 fois avant d'afficher "indisponible".
 Le bot tourne en *polling* (pas besoin de serveur public / webhook). Arrête-le
 avec Ctrl+C.
 
+## Commandes
+
+| Commande | Qui | Effet |
+|---|---|---|
+| `/start` | tout le monde | Ouvre l'accueil ; hors whitelist, utilise le jeton d'invitation ou envoie une demande d'accès |
+| `/search` | autorisés | Ouvre l'écran de recherche |
+| `/search <requête>` | autorisés | Affiche directement le menu des morceaux trouvés |
+| `/help` | autorisés | Revient à l'accueil |
+| `/id` | tout le monde | Affiche son identifiant Telegram |
+| `/invite` | admins | Crée un lien d'invitation |
+| `/allow <id>` | admins | Autorise un identifiant Telegram directement |
+
+Ces commandes sont déclarées auprès de Telegram au démarrage : elles
+apparaissent dans le bouton « Menu » de la conversation (les deux dernières
+uniquement pour les admins).
+
+## Inviter quelqu'un
+
+Trois chemins, à utiliser dans cet ordre :
+
+1. **Lien d'invitation.** Paramètres > Gestion des accès > « Inviter
+   quelqu'un » (ou `/invite`). Le lien vaut 7 jours, en usage unique ou pour
+   10 personnes. Si l'invité a **déjà une conversation ouverte** avec le bot,
+   Telegram n'envoie pas toujours le paramètre du lien et son `/start` arrive
+   sans jeton : il peut alors simplement **coller le lien dans la
+   conversation**, Sona le reconnaît.
+2. **Demande d'accès.** L'invité envoie `/start` : Sona enregistre sa demande
+   et notifie les admins en message direct, avec un bouton « Autoriser ».
+   Validée, la personne reçoit un message et arrive sur l'accueil.
+3. **Ajout manuel.** L'invité envoie `/id` et communique le nombre affiché ;
+   l'admin fait `/allow <id>`.
+
+Un refus explique toujours sa raison (lien inconnu, expiré, déjà utilisé) —
+jamais un simple « bot privé » qui laisserait croire à une panne.
+
 ## Tests
 
 ```bash
 .venv\Scripts\python -m pytest
 ```
 
-Les tests couvrent la détection de liens (Deezer/Spotify/Apple Music/YouTube).
+Les tests couvrent la détection de liens (Deezer/Spotify/Apple Music/YouTube),
+le cycle de vie des invitations et des demandes d'accès (y compris la
+migration d'une base créée par une version antérieure), la sélection du
+meilleur résultat YouTube pour un morceau, la cascade de recherche
+Deezer → iTunes → YouTube Music, et la gestion des fichiers téléchargés.
 Les providers et le pipeline de téléchargement ont été vérifiés manuellement
 en conditions réelles pendant le développement (recherche Deezer, résolution
 YouTube Music, téléchargement + tag ffmpeg/mutagen, lecture/écriture SQLite) —
@@ -121,6 +169,10 @@ d'appel réseau réel pour rester rapide et déterministe en CI.
   Album). Les playlists Deezer/Spotify/Apple Music ne sont pas prises en
   charge (endpoints non implémentés) — le lien est reconnu mais annoncé
   comme indisponible.
+- **Recherche de la source** : si aucun résultat YouTube ne ressemble
+  suffisamment au morceau (titre *et* durée), Sona préfère annoncer « Aucune
+  source audio trouvée » plutôt que d'envoyer un autre morceau. Sur un titre
+  rare, essayer une autre version (album, live) aboutit souvent.
 - **yt-dlp se périme vite** : YouTube change régulièrement ses mécanismes
   anti-bot, ce qui casse les vieilles versions de `yt-dlp` (erreur type *"The
   page needs to be reloaded"*). Si l'audio devient indisponible partout,

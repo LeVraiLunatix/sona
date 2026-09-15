@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.callbacks import (
+    AccessCB,
     AdminCB,
     AlbumCB,
     ArtistCB,
@@ -49,8 +50,24 @@ def link_help_keyboard() -> InlineKeyboardMarkup:
     return _rows(_back_row(NavCB(action="back").pack()))
 
 
-def search_prompt_keyboard() -> InlineKeyboardMarkup:
-    return _rows(_back_row(NavCB(action="back").pack()))
+def search_prompt_keyboard(suggestions: list | None = None) -> InlineKeyboardMarkup:
+    """Écran de recherche : un menu de morceaux récents plutôt qu'un écran nu.
+
+    Les suggestions viennent de l'historique — un clic relance l'écran morceau
+    sans avoir à retaper quoi que ce soit."""
+    rows = []
+    for item in suggestions or []:
+        artist = (item.subtitle or "").split(" • ")[0]
+        label = f"{artist} — {item.title}" if artist else item.title
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=TrackCB(action="view", source=item.source, id=item.source_id).pack(),
+                )
+            ]
+        )
+    return _rows(*rows, _back_row(NavCB(action="back").pack()))
 
 
 def _pagination_row(page: int, total_pages: int, on_page_cb) -> list[InlineKeyboardButton]:
@@ -269,17 +286,86 @@ def settings_menu_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
     )
 
 
-def admin_menu_keyboard() -> InlineKeyboardMarkup:
+def admin_menu_keyboard(pending_count: int = 0) -> InlineKeyboardMarkup:
+    requests_row = (
+        [
+            InlineKeyboardButton(
+                text=f"Demandes en attente ({pending_count})",
+                callback_data=AdminCB(action="requests").pack(),
+            )
+        ]
+        if pending_count
+        else []
+    )
     return _rows(
+        requests_row,
         [InlineKeyboardButton(text="Inviter quelqu'un", callback_data=AdminCB(action="invite").pack())],
+        [
+            InlineKeyboardButton(
+                text="Lien de groupe (10 personnes)",
+                callback_data=AdminCB(action="invite_multi").pack(),
+            )
+        ],
         [InlineKeyboardButton(text="Retirer un accès", callback_data=AdminCB(action="remove_list").pack())],
         _back_row(SettingsCB(action="menu").pack()),
     )
 
 
-def admin_invite_keyboard(share_url: str) -> InlineKeyboardMarkup:
+def admin_requests_keyboard(requests: list) -> InlineKeyboardMarkup:
+    rows = []
+    for req in requests:
+        label = req.display_name or (f"@{req.username}" if req.username else str(req.user_id))
+        rows.append([InlineKeyboardButton(text=label, callback_data="noop")])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="✓ Autoriser",
+                    callback_data=AdminCB(action="approve", id=str(req.user_id)).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="✕ Refuser",
+                    callback_data=AdminCB(action="deny", id=str(req.user_id)).pack(),
+                ),
+            ]
+        )
+    return _rows(*rows, _back_row(AdminCB(action="menu").pack()))
+
+
+def admin_request_notice_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Clavier du message envoyé aux admins quand quelqu'un demande l'accès.
+
+    Ce message est hors pile de navigation (c'est une notification, pas un
+    écran) : ses boutons agissent donc directement sans « Retour »."""
+    return _rows(
+        [
+            InlineKeyboardButton(
+                text="✓ Autoriser", callback_data=AdminCB(action="approve", id=str(user_id)).pack()
+            ),
+            InlineKeyboardButton(
+                text="✕ Refuser", callback_data=AdminCB(action="deny", id=str(user_id)).pack()
+            ),
+        ]
+    )
+
+
+def access_request_keyboard() -> InlineKeyboardMarkup:
+    return _rows(
+        [
+            InlineKeyboardButton(
+                text="Demander l'accès", callback_data=AccessCB(action="request").pack()
+            )
+        ]
+    )
+
+
+def admin_invite_keyboard(share_url: str, token: str) -> InlineKeyboardMarkup:
     return _rows(
         [InlineKeyboardButton(text="Partager le lien", url=share_url)],
+        [
+            InlineKeyboardButton(
+                text="Annuler ce lien", callback_data=AdminCB(action="revoke", id=token).pack()
+            )
+        ],
         _back_row(AdminCB(action="menu").pack()),
     )
 

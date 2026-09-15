@@ -7,6 +7,7 @@ import httpx
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 
 LOOKUP_URL = "https://itunes.apple.com/lookup"
+SEARCH_URL = "https://itunes.apple.com/search"
 
 
 class AppleMusicError(Exception):
@@ -56,6 +57,24 @@ class AppleMusicClient:
         except httpx.HTTPError as exc:
             raise AppleMusicError(str(exc)) from exc
         return resp.json().get("results", [])
+
+    async def search_tracks(self, query: str, limit: int = 25) -> list[TrackInfo]:
+        """Recherche de morceaux via l'API iTunes Search.
+
+        Sert de source de secours quand Deezer ne répond pas ou ne connaît
+        pas le morceau. L'API n'a pas de décalage (`offset`) : on ramène un
+        lot une fois pour toutes et l'appelant pagine dedans.
+        """
+        try:
+            resp = await self._client.get(
+                SEARCH_URL,
+                params={"term": query, "entity": "song", "media": "music", "limit": limit},
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise AppleMusicError(str(exc)) from exc
+        results = resp.json().get("results", [])
+        return [_track_from_json(r) for r in results if r.get("trackId")]
 
     async def get_track(self, track_id: str) -> TrackInfo:
         results = await self._lookup({"id": track_id, "entity": "song"})

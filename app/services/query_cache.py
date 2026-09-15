@@ -11,6 +11,9 @@ _TTL_SECONDS = 3600
 class CachedQuery:
     text: str
     artist_scope_name: str | None = None
+    # Source qui a répondu (deezer/apple/youtube) : renseignée à la première
+    # page pour que la pagination reste sur le même catalogue.
+    provider: str | None = None
 
 
 _store: dict[str, tuple[float, CachedQuery]] = {}

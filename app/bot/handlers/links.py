@@ -57,10 +57,24 @@ async def _handle_detected_link(deps: Deps, message: Message, detected: Detected
 @router.message(F.text)
 async def on_text(message: Message, deps: Deps) -> None:
     text = (message.text or "").strip()
-    if not text or text.startswith("/"):
+    if not text:
+        return
+    if text.startswith("/"):
+        # Commande inconnue : les commandes gérées ont été captées par les
+        # routers précédents. On renvoie vers ce qui existe plutôt que de
+        # laisser le message sans réponse.
+        await message.answer(
+            "Commande inconnue. Utilise /search pour chercher un morceau, "
+            "/start pour revenir à l'accueil."
+        )
         return
 
-    detected = await resolve_link(text)
+    try:
+        detected = await resolve_link(text)
+    except Exception as exc:  # résolution de lien court en panne, DNS…
+        logger.warning("Détection de lien impossible pour %r: %s", text, exc)
+        detected = None
+
     if detected:
         await _handle_detected_link(deps, message, detected)
         return

@@ -111,6 +111,7 @@ async def on_album_playall(callback: CallbackQuery, callback_data: AlbumCB, deps
 
     user_settings = await deps.repo.get_settings(user_id)
     total = len(tracks)
+    failed = 0
     for i, track in enumerate(tracks, start=1):
         track_uid = f"{track.source}:{track.source_id}"
         if not antispam.try_acquire(user_id, track_uid):
@@ -119,8 +120,20 @@ async def on_album_playall(callback: CallbackQuery, callback_data: AlbumCB, deps
             target = navigation.current_target(user_id)
             target = await update_in_place(deps.bot, target, f"Envoi {i}/{total}…")
             navigation.set_target(user_id, target)
-            await deliver_track_audio(deps, chat_id, track, user_settings)
+            if await deliver_track_audio(deps, chat_id, track, user_settings):
+                failed += 1
+        except Exception as exc:
+            failed += 1
+            errors.log_and_hide(logger, "playall (envoi morceau)", exc)
         finally:
             antispam.release(user_id, track_uid)
 
     await navigation.rerender(deps, user_id)
+    if failed:
+        # Message à part plutôt qu'une réponse au callback : « Tout écouter »
+        # dure parfois plusieurs minutes, et la requête callback est alors
+        # expirée côté Telegram. Sans ce mot, l'utilisateur doit compter
+        # lui-même les morceaux reçus.
+        await deps.bot.send_message(
+            chat_id, f"{failed} morceau(x) sur {total} n'ont pas pu être envoyés."
+        )

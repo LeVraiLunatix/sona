@@ -59,7 +59,17 @@ def current_screen(user_id: int) -> Screen:
 async def _render_current(deps: Deps, user_id: int) -> None:
     state = state_for(user_id)
     screen = state.stack[-1]
-    renderer = _renderers[screen.kind]
+    renderer = _renderers.get(screen.kind)
+    if renderer is None:
+        # Écran inconnu (pile héritée d'une version antérieure du bot) : on
+        # repart de l'accueil plutôt que de lever une KeyError silencieuse.
+        logger.warning("Écran inconnu %r, retour à l'accueil", screen.kind)
+        state.stack = [Screen("home")]
+        screen = state.stack[-1]
+        renderer = _renderers.get("home")
+        if renderer is None:  # aucun écran enregistré : les handlers n'ont pas été importés
+            logger.error("Aucun renderer d'accueil enregistré")
+            return
     try:
         state.message = await renderer(deps, state.message, user_id, screen.params)
     except Exception:
@@ -70,14 +80,20 @@ async def _render_current(deps: Deps, user_id: int) -> None:
         # imprévus (bug, API tierce en panne...).
         logger.exception("Erreur inattendue au rendu de l'écran %r", screen.kind)
 
-        if state.message is None:
-            return
         text = "Impossible d'afficher cet écran pour le moment."
         markup = keyboards.error_keyboard(NavCB(action="dismiss").pack())
-        if state.message.message_id:
-            state.message = await update_in_place(deps.bot, state.message, text, markup)
-        else:
-            state.message = await show_text(deps.bot, state.message, text, markup)
+        # Sona ne fonctionne qu'en conversation privée : à défaut de cible
+        # connue, chat_id == user_id.
+        target = state.message or RenderTarget(user_id, None, False)
+        try:
+            if target.message_id:
+                state.message = await update_in_place(deps.bot, target, text, markup)
+            else:
+                state.message = await show_text(deps.bot, target, text, markup)
+        except Exception:
+            # Dernier filet : sans ça l'utilisateur ne voit *rien* se passer
+            # (symptôme « le bot ne répond pas ») et le log est le seul indice.
+            logger.exception("Message d'erreur non délivré à user_id=%s", user_id)
 
 
 async def goto(

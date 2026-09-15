@@ -5,6 +5,7 @@ import logging
 import os
 
 from aiogram import Bot, Dispatcher
+from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
 
 from app.bot.deps import Deps
 from app.bot.handlers import setup_routers
@@ -35,6 +36,33 @@ def _clear_node_ipc_env() -> None:
     for var in ("NODE_CHANNEL_FD", "NODE_CHANNEL_SERIALIZATION_MODE"):
         if os.environ.pop(var, None) is not None:
             logger.info("Variable d'IPC Node %s retirée de l'environnement", var)
+
+
+BASE_COMMANDS = [
+    BotCommand(command="start", description="Ouvrir Sona"),
+    BotCommand(command="search", description="Rechercher un morceau"),
+    BotCommand(command="help", description="Aide"),
+    BotCommand(command="id", description="Afficher mon identifiant Telegram"),
+]
+ADMIN_COMMANDS = BASE_COMMANDS + [
+    BotCommand(command="invite", description="Créer un lien d'invitation"),
+    BotCommand(command="allow", description="Autoriser un identifiant Telegram"),
+]
+
+
+async def _publish_commands(bot: Bot, repo: Repository) -> None:
+    """Déclare les commandes dans le menu Telegram.
+
+    Sans ça, le bouton « Menu » de la conversation reste vide : /search n'est
+    découvrable nulle part et l'utilisateur doit deviner qu'il peut taper du
+    texte libre.
+    """
+    try:
+        await bot.set_my_commands(BASE_COMMANDS, scope=BotCommandScopeDefault())
+        for admin_id in await repo.list_admins():
+            await bot.set_my_commands(ADMIN_COMMANDS, scope=BotCommandScopeChat(chat_id=admin_id))
+    except Exception as exc:  # non bloquant : le bot reste utilisable sans menu
+        logger.warning("Publication des commandes impossible: %s", exc)
 
 
 async def main() -> None:
@@ -72,8 +100,9 @@ async def main() -> None:
     )
     dp["deps"] = deps
 
-    dp.message.outer_middleware(WhitelistMiddleware(repo))
-    dp.callback_query.outer_middleware(WhitelistMiddleware(repo))
+    whitelist = WhitelistMiddleware(deps)
+    dp.message.outer_middleware(whitelist)
+    dp.callback_query.outer_middleware(whitelist)
 
     setup_routers(dp)
 
@@ -82,6 +111,7 @@ async def main() -> None:
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)
+        await _publish_commands(bot, repo)
         await dp.start_polling(bot)
     finally:
         await deezer.aclose()
