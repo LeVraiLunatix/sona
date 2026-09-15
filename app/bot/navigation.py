@@ -4,6 +4,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from aiogram.types import Message
+
 from app.bot import keyboards
 from app.bot.callbacks import NavCB
 from app.bot.deps import Deps
@@ -52,6 +54,39 @@ def set_target(user_id: int, target: RenderTarget) -> None:
     state_for(user_id).message = target
 
 
+def adopt_message(user_id: int, message: object, screen: Screen | None = None) -> RenderTarget | None:
+    """Rattache la navigation au message dont l'utilisateur vient d'appuyer un bouton.
+
+    La pile de navigation vit en mémoire : après un redémarrage du bot elle
+    repart de zéro, alors que les anciens messages et leurs boutons restent
+    dans la conversation. Sans cible connue, « Écouter » plantait au premier
+    appui (`'NoneType' object has no attribute 'is_photo'`). Si rien n'est
+    suivi, on adopte donc ce message, et l'écran qu'il affiche quand
+    l'appelant le connaît, pour que la suite le redessine au lieu de l'accueil.
+    Un message devenu inaccessible (trop ancien) n'est pas adopté.
+    Retourne la cible courante.
+    """
+    state = state_for(user_id)
+    if state.message is None and isinstance(message, Message):
+        state.message = RenderTarget(message.chat.id, message.message_id, is_photo=bool(message.photo))
+        if screen is not None and len(state.stack) == 1 and state.stack[0].kind == "home":
+            state.stack.append(screen)
+    return state.message
+
+
+async def show_status(deps: Deps, user_id: int, text: str) -> None:
+    """Affiche un état d'attente (« Préparation… », « Envoi 3/12… ») à la
+    place de l'écran courant.
+
+    Sans écran connu, rien : mieux vaut pas de message d'attente qu'une
+    exception qui fait échouer toute l'action.
+    """
+    target = current_target(user_id)
+    if target is None or target.message_id is None:
+        return
+    set_target(user_id, await update_in_place(deps.bot, target, text))
+
+
 def current_screen(user_id: int) -> Screen:
     return state_for(user_id).stack[-1]
 
@@ -70,6 +105,11 @@ async def _render_current(deps: Deps, user_id: int) -> None:
         if renderer is None:  # aucun écran enregistré : les handlers n'ont pas été importés
             logger.error("Aucun renderer d'accueil enregistré")
             return
+    if state.message is None:
+        # Aucun message suivi (bot redémarré depuis l'affichage de l'écran) :
+        # l'écran part dans un nouveau message. Sona ne fonctionne qu'en
+        # conversation privée, donc chat_id == user_id.
+        state.message = RenderTarget(user_id, None, False)
     try:
         state.message = await renderer(deps, state.message, user_id, screen.params)
     except Exception:

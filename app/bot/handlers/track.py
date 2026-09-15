@@ -12,7 +12,7 @@ from app.bot import errors, keyboards, lookup, navigation
 from app.bot.callbacks import TrackCB
 from app.bot.deps import Deps
 from app.bot.navigation import Screen
-from app.bot.render import RenderTarget, show_photo, show_text, update_in_place
+from app.bot.render import RenderTarget, show_photo, show_text
 from app.db.repository import UserSettings
 from app.providers.base import TrackInfo
 from app.services import antispam
@@ -78,6 +78,9 @@ async def on_track_view(callback: CallbackQuery, callback_data: TrackCB, deps: D
 @router.callback_query(TrackCB.filter(F.action.in_({"lib_add", "lib_del"})))
 async def on_track_library_toggle(callback: CallbackQuery, callback_data: TrackCB, deps: Deps) -> None:
     user_id = callback.from_user.id
+    navigation.adopt_message(
+        user_id, callback.message, Screen("track", {"source": callback_data.source, "id": callback_data.id})
+    )
     if callback_data.action == "lib_add":
         try:
             track = await lookup.get_track(deps, callback_data.source, callback_data.id)
@@ -231,6 +234,9 @@ async def on_track_play(callback: CallbackQuery, callback_data: TrackCB, deps: D
     source, source_id = callback_data.source, callback_data.id
     track_uid = f"{source}:{source_id}"
     retry_data = callback.data
+    # Après un redémarrage, la navigation (en mémoire) ne connaît plus ce
+    # message : sans ça, « Préparation… » plantait au premier appui.
+    navigation.adopt_message(user_id, callback.message, Screen("track", {"source": source, "id": source_id}))
 
     if not antispam.try_acquire(user_id, track_uid):
         await callback.answer("Préparation déjà en cours…", show_alert=False)
@@ -259,9 +265,7 @@ async def on_track_play(callback: CallbackQuery, callback_data: TrackCB, deps: D
                 errors.log_and_hide(logger, "envoi depuis cache", exc)
 
         async def status_cb(text: str) -> None:
-            target = navigation.current_target(user_id)
-            target = await update_in_place(deps.bot, target, text)
-            navigation.set_target(user_id, target)
+            await navigation.show_status(deps, user_id, text)
 
         await status_cb("Préparation du morceau…")
         failure = await deliver_track_audio(deps, chat_id, track, user_settings, status_cb)
