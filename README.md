@@ -157,6 +157,15 @@ jusqu'à 3 fois avant d'afficher "indisponible".
 Le bot tourne en *polling* (pas besoin de serveur public / webhook). Arrête-le
 avec Ctrl+C.
 
+## Déploiement
+
+Une fusion sur `master` lance les tests, puis — s'ils passent — le
+déploiement sur le VPS : GitHub se connecte en SSH et le serveur exécute
+`~/sona/deploy.sh`. La marche à suivre (clé dédiée, commande forcée dans
+`authorized_keys`, empreinte du serveur, secrets du dépôt) est dans
+[docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md). Tant que les secrets ne sont pas
+créés, l'étape de déploiement est ignorée avec un avertissement.
+
 ## Commandes
 
 | Commande | Qui | Effet |
@@ -232,6 +241,9 @@ jamais un simple « bot privé » qui laisserait croire à une panne.
 ```bash
 .venv\Scripts\python -m pytest
 ```
+
+Ils tournent aussi sur GitHub (`.github/workflows/tests.yml`) à chaque *pull
+request* et sur `master`, sous Python 3.12 comme le VPS.
 
 Les tests couvrent la détection de liens (Deezer/Spotify/Apple Music/YouTube),
 le cycle de vie des invitations et des demandes d'accès (y compris la

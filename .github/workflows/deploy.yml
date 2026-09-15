@@ -1,0 +1,77 @@
+name: Déploiement
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  # Un seul déploiement à la fois : deux `git reset --hard` + `pm2 restart`
+  # simultanés laisseraient le VPS dans un état indéterminé. Les déploiements
+  # en attente ne sont pas annulés, pour que le dernier commit parte toujours.
+  group: deploiement-vps
+  cancel-in-progress: false
+
+jobs:
+  # Le déploiement passe par les tests : master peut recevoir une fusion sans
+  # que la branche fusionnée ait été revalidée sur master lui-même.
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    name: Déployer sur le VPS
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Vérifier la présence des secrets
+        id: secrets
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          ORACLE_KNOWN_HOSTS: ${{ secrets.ORACLE_KNOWN_HOSTS }}
+        run: |
+          # Tant que les secrets ne sont pas créés (voir docs/DEPLOIEMENT.md),
+          # le déploiement s'arrête ici : un échec rouge à chaque fusion
+          # masquerait les vraies pannes.
+          if [ -z "$ORACLE_HOST" ] || [ -z "$ORACLE_SSH_KEY" ] || [ -z "$ORACLE_KNOWN_HOSTS" ]; then
+            echo "::warning::Déploiement ignoré : ORACLE_HOST, ORACLE_SSH_KEY ou ORACLE_KNOWN_HOSTS n'est pas configuré (voir docs/DEPLOIEMENT.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Déployer
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          ORACLE_KNOWN_HOSTS: ${{ secrets.ORACLE_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          # `umask 077` : la clé privée ne doit jamais être lisible par un
+          # autre process du runner. Aucun secret n'est affiché — ni `set -x`,
+          # ni `cat` sur les fichiers écrits ici.
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$ORACLE_SSH_KEY" > "$HOME/.ssh/sona_deploy"
+          chmod 600 "$HOME/.ssh/sona_deploy"
+          # L'empreinte du serveur vient du secret : jamais de
+          # StrictHostKeyChecking=no, qui accepterait n'importe quel serveur
+          # se présentant à cette adresse.
+          printf '%s\n' "$ORACLE_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          # La commande envoyée est ignorée : `authorized_keys` impose
+          # `cd ~/sona && ./deploy.sh` à cette clé, qui ne peut rien faire
+          # d'autre. La sortie du script arrive quand même dans les logs.
+          ssh -i "$HOME/.ssh/sona_deploy" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            "$ORACLE_HOST" "deploiement-sona"
+
+      - name: Effacer la clé du runner
+        if: always()
+        run: rm -f "$HOME/.ssh/sona_deploy"
