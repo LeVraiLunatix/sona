@@ -16,6 +16,7 @@ from app.bot.render import RenderTarget, show_photo, show_text, update_in_place
 from app.db.repository import UserSettings
 from app.providers.base import TrackInfo
 from app.services import antispam
+from app.services.artwork import audio_thumbnail_path
 from app.services.audio_match import Verdict, verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.resolver import ResolutionError, iter_audio_sources
@@ -192,6 +193,7 @@ async def _send_downloaded_audio(
 ) -> str | None:
     if status_cb:
         await status_cb("Envoi…")
+    thumbnail = audio_thumbnail_path(path)
     try:
         sent = await deps.bot.send_audio(
             chat_id,
@@ -199,6 +201,9 @@ async def _send_downloaded_audio(
             title=track.title,
             performer=track.artist,
             duration=track.duration_seconds or 0,
+            # Telegram n'utilise pas la pochette intégrée au fichier pour la
+            # conversation : sans vignette envoyée à part, le son n'a pas d'image.
+            thumbnail=FSInputFile(thumbnail) if thumbnail.is_file() else None,
         )
     except Exception as exc:
         errors.log_and_hide(logger, "envoi audio", exc)

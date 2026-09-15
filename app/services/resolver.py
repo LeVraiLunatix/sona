@@ -15,6 +15,7 @@ from ytmusicapi import YTMusic
 
 from app.logging_config import ytdlp_logger
 from app.providers.base import TrackInfo
+from app.services.artwork import DISPLAY_SIZE, resize_artwork_url
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +311,8 @@ def _candidate_from_ytmusic(item: dict) -> Candidate | None:
         artist=", ".join(a.get("name", "") for a in item.get("artists") or []),
         album=album.get("name") if isinstance(album, dict) else None,
         duration_seconds=item.get("duration_seconds"),
-        cover_url=thumbnails[-1]["url"] if thumbnails else None,
+        # YouTube Music ne renvoie que des vignettes de 60 et 120 px.
+        cover_url=resize_artwork_url(thumbnails[-1]["url"], DISPLAY_SIZE) if thumbnails else None,
         is_song=item.get("resultType") == "song",
     )
 

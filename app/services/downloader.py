@@ -16,7 +16,7 @@ from mutagen.mp4 import MP4, MP4Cover
 from app.config import Settings
 from app.logging_config import ytdlp_logger
 from app.providers.base import TrackInfo
-from app.services import youtube_session
+from app.services import artwork, youtube_session
 
 logger = logging.getLogger(__name__)
 
@@ -185,13 +185,14 @@ async def _fetch_cover_bytes(cover_url: str | None) -> bytes | None:
     if not cover_url:
         return None
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             resp = await client.get(cover_url)
             resp.raise_for_status()
     except httpx.HTTPError:
         return None
-    content_type = resp.headers.get("content-type", "")
-    if "jpeg" in content_type or "jpg" in content_type or "png" in content_type:
+    # Tout format d'image : ffmpeg en tire la vignette, et seuls le JPEG et le
+    # PNG sont intégrés au fichier (voir `artwork.is_embeddable`).
+    if resp.headers.get("content-type", "").startswith("image/"):
         return resp.content
     return None
 
@@ -299,5 +300,10 @@ async def download_and_tag(
         raise DownloadError("Téléchargement audio impossible.") from exc
 
     cover_bytes = await _fetch_cover_bytes(track.cover_url)
-    await asyncio.to_thread(_tag_sync, path, track, cover_bytes)
+    if cover_bytes:
+        await asyncio.to_thread(
+            artwork.make_audio_thumbnail, settings.ffmpeg_path, cover_bytes, artwork.audio_thumbnail_path(path)
+        )
+    embedded = cover_bytes if cover_bytes and artwork.is_embeddable(cover_bytes) else None
+    await asyncio.to_thread(_tag_sync, path, track, embedded)
     return path

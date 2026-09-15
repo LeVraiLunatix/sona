@@ -21,6 +21,12 @@ def _year_from_date(date_str: str | None) -> str | None:
     return date_str[:4]
 
 
+def _largest_image(d: dict, prefix: str) -> str | None:
+    """Plus grande version disponible (`_xl` = 1000 px). La 250 px (`_medium`)
+    était pixelisée une fois affichée en grand dans Telegram."""
+    return d.get(f"{prefix}_xl") or d.get(f"{prefix}_big") or d.get(f"{prefix}_medium")
+
+
 def _track_from_json(d: dict) -> TrackInfo:
     album = d.get("album") or {}
     artist = d.get("artist") or {}
@@ -32,7 +38,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         album=album.get("title"),
         year=_year_from_date(album.get("release_date") or d.get("release_date")),
         duration_seconds=d.get("duration"),
-        cover_url=album.get("cover_medium") or album.get("cover_big"),
+        cover_url=_largest_image(album, "cover"),
         artist_source_id=str(artist["id"]) if artist.get("id") else None,
         album_source_id=str(album["id"]) if album.get("id") else None,
         preview_url=d.get("preview") or None,
@@ -48,7 +54,7 @@ def _album_from_json(d: dict, tracks: list[TrackInfo] | None = None) -> AlbumInf
         artist=artist.get("name") or "Artiste inconnu",
         artist_source_id=str(artist["id"]) if artist.get("id") else None,
         year=_year_from_date(d.get("release_date")),
-        cover_url=d.get("cover_medium") or d.get("cover_big"),
+        cover_url=_largest_image(d, "cover"),
         track_count=d.get("nb_tracks"),
         duration_seconds=d.get("duration"),
         tracks=tracks or [],
@@ -60,7 +66,7 @@ def _artist_from_json(d: dict) -> ArtistInfo:
         source="deezer",
         source_id=str(d["id"]),
         name=d.get("name") or "Artiste inconnu",
-        picture_url=d.get("picture_medium") or d.get("picture_big"),
+        picture_url=_largest_image(d, "picture"),
     )
 
 
@@ -115,6 +121,7 @@ class DeezerClient:
                 "title": data.get("title"),
                 "cover_medium": data.get("cover_medium"),
                 "cover_big": data.get("cover_big"),
+                "cover_xl": data.get("cover_xl"),
                 "release_date": data.get("release_date"),
             }
             tracks.append(_track_from_json(merged))
