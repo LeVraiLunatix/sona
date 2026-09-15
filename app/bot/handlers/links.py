@@ -8,6 +8,7 @@ from aiogram.types import Message
 from app.bot import errors, keyboards, navigation
 from app.bot.deps import Deps
 from app.bot.handlers.search import start_search
+from app.bot.handlers.track import play_callback_data, play_track
 from app.bot.navigation import Screen
 from app.bot.render import RenderTarget, show_text
 from app.providers.link_detect import DetectedLink, resolve_link
@@ -52,6 +53,11 @@ async def _handle_detected_link(deps: Deps, message: Message, detected: Detected
     if screen_kind == "album":
         params["page"] = 1
     await navigation.replace_top(deps, user_id, Screen(screen_kind, params))
+    if screen_kind == "track":
+        # Lien de morceau collé : le son part aussitôt, comme depuis une liste.
+        await play_track(
+            deps, user_id, chat_id, detected.source, detected.ref, play_callback_data(detected.source, detected.ref)
+        )
 
 
 @router.message(F.text)
