@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 
 from app.db.database import Database
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
@@ -23,7 +24,20 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-INVITE_TTL_HOURS = 24
+# Une invitation trop courte est la première cause d'échec côté invité :
+# le lien est souvent ouvert le lendemain, voire plus tard.
+INVITE_TTL_HOURS = 24 * 7
+
+
+class InviteResult(str, Enum):
+    """Issue d'une tentative d'utilisation d'un lien d'invitation."""
+
+    OK = "ok"
+    UNKNOWN = "unknown"
+    EXPIRED = "expired"
+    EXHAUSTED = "exhausted"
+    REVOKED = "revoked"
+    ALREADY_ALLOWED = "already_allowed"
 
 
 @dataclass(slots=True)
@@ -39,6 +53,26 @@ class AllowedUser:
     display_name: str | None
     is_admin: bool
     added_at: str
+
+
+@dataclass(slots=True)
+class Invite:
+    token: str
+    created_by: int
+    created_at: str
+    expires_at: str
+    max_uses: int
+    uses: int
+    revoked: bool
+
+
+@dataclass(slots=True)
+class AccessRequest:
+    user_id: int
+    display_name: str | None
+    username: str | None
+    requested_at: str
+    status: str
 
 
 @dataclass(slots=True)
@@ -296,35 +330,156 @@ class Repository:
         )
         await self._db.conn.commit()
 
-    async def create_invite(self, created_by: int) -> str:
+    async def list_admins(self) -> list[int]:
+        cursor = await self._db.conn.execute(
+            "SELECT user_id FROM allowed_users WHERE is_admin=1 ORDER BY added_at ASC"
+        )
+        return [row["user_id"] for row in await cursor.fetchall()]
+
+    # -- Invitations ---------------------------------------------------
+
+    async def create_invite(self, created_by: int, max_uses: int = 1) -> str:
         token = secrets.token_urlsafe(12)
         expires_at = (datetime.now(timezone.utc) + timedelta(hours=INVITE_TTL_HOURS)).isoformat()
         await self._db.conn.execute(
-            "INSERT INTO invites (token, created_by, created_at, expires_at) VALUES (?, ?, ?, ?)",
-            (token, created_by, _now(), expires_at),
+            """INSERT INTO invites (token, created_by, created_at, expires_at, max_uses, uses, revoked)
+               VALUES (?, ?, ?, ?, ?, 0, 0)""",
+            (token, created_by, _now(), expires_at, max(1, max_uses)),
         )
         await self._db.conn.commit()
         return token
 
-    async def consume_invite(
-        self, token: str, user_id: int, display_name: str | None
-    ) -> bool:
+    async def get_invite(self, token: str) -> Invite | None:
         cursor = await self._db.conn.execute(
-            "SELECT created_by, expires_at, used_by FROM invites WHERE token=?", (token,)
+            """SELECT token, created_by, created_at, expires_at, max_uses, uses, revoked
+               FROM invites WHERE token=?""",
+            (token,),
         )
         row = await cursor.fetchone()
-        if row is None or row["used_by"] is not None:
-            return False
-        if row["expires_at"] < datetime.now(timezone.utc).isoformat():
-            return False
-
-        await self._db.conn.execute(
-            "UPDATE invites SET used_by=?, used_at=? WHERE token=?", (user_id, _now(), token)
+        if row is None:
+            return None
+        return Invite(
+            token=row["token"],
+            created_by=row["created_by"],
+            created_at=row["created_at"],
+            expires_at=row["expires_at"],
+            max_uses=row["max_uses"],
+            uses=row["uses"],
+            revoked=bool(row["revoked"]),
         )
+
+    async def revoke_invite(self, token: str) -> None:
+        await self._db.conn.execute("UPDATE invites SET revoked=1 WHERE token=?", (token,))
+        await self._db.conn.commit()
+
+    async def consume_invite(
+        self, token: str, user_id: int, display_name: str | None
+    ) -> tuple[InviteResult, int | None]:
+        """Tente d'utiliser une invitation.
+
+        Retourne `(résultat, id de l'auteur de l'invitation)`. L'id permet à
+        l'appelant de prévenir l'admin que son lien vient de servir. Le
+        résultat détaillé (expiré / épuisé / inconnu) est indispensable :
+        répondre « bot privé » à quelqu'un qui présente un lien périmé lui
+        laisse croire que le bot est cassé.
+        """
+        invite = await self.get_invite(token)
+        if invite is None:
+            return InviteResult.UNKNOWN, None
+        if invite.revoked:
+            return InviteResult.REVOKED, invite.created_by
+        if invite.expires_at < _now():
+            return InviteResult.EXPIRED, invite.created_by
+        if await self.is_allowed(user_id):
+            return InviteResult.ALREADY_ALLOWED, invite.created_by
+        if invite.uses >= invite.max_uses:
+            return InviteResult.EXHAUSTED, invite.created_by
+
+        # `uses < max_uses` dans le UPDATE : deux invités qui cliquent en même
+        # temps sur le même lien à usage unique ne peuvent pas passer tous les deux.
+        cursor = await self._db.conn.execute(
+            "UPDATE invites SET uses = uses + 1, used_by=?, used_at=? WHERE token=? AND uses < max_uses",
+            (user_id, _now(), token),
+        )
+        if cursor.rowcount == 0:
+            await self._db.conn.commit()
+            return InviteResult.EXHAUSTED, invite.created_by
+
         await self._db.conn.execute(
             """INSERT OR IGNORE INTO allowed_users (user_id, display_name, is_admin, added_by, added_at)
                VALUES (?, ?, 0, ?, ?)""",
-            (user_id, display_name, row["created_by"], _now()),
+            (user_id, display_name, invite.created_by, _now()),
         )
         await self._db.conn.commit()
-        return True
+        return InviteResult.OK, invite.created_by
+
+    # -- Demandes d'accès ----------------------------------------------
+
+    async def record_access_request(
+        self, user_id: int, display_name: str | None, username: str | None
+    ) -> bool:
+        """Enregistre (ou rafraîchit) une demande d'accès.
+
+        Retourne True si c'est une nouvelle demande à notifier, False si une
+        demande est déjà en attente (pour ne pas spammer les admins)."""
+        cursor = await self._db.conn.execute(
+            "SELECT status FROM access_requests WHERE user_id=?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        is_new = row is None or row["status"] != "pending"
+        await self._db.conn.execute(
+            """INSERT INTO access_requests (user_id, display_name, username, requested_at, status)
+               VALUES (?, ?, ?, ?, 'pending')
+               ON CONFLICT(user_id) DO UPDATE SET
+                   display_name=excluded.display_name,
+                   username=excluded.username,
+                   requested_at=excluded.requested_at,
+                   status='pending',
+                   resolved_by=NULL,
+                   resolved_at=NULL""",
+            (user_id, display_name, username, _now()),
+        )
+        await self._db.conn.commit()
+        return is_new
+
+    async def list_access_requests(self, status: str = "pending") -> list[AccessRequest]:
+        cursor = await self._db.conn.execute(
+            """SELECT user_id, display_name, username, requested_at, status
+               FROM access_requests WHERE status=? ORDER BY requested_at ASC""",
+            (status,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            AccessRequest(
+                user_id=r["user_id"],
+                display_name=r["display_name"],
+                username=r["username"],
+                requested_at=r["requested_at"],
+                status=r["status"],
+            )
+            for r in rows
+        ]
+
+    async def get_access_request(self, user_id: int) -> AccessRequest | None:
+        cursor = await self._db.conn.execute(
+            """SELECT user_id, display_name, username, requested_at, status
+               FROM access_requests WHERE user_id=?""",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return AccessRequest(
+            user_id=row["user_id"],
+            display_name=row["display_name"],
+            username=row["username"],
+            requested_at=row["requested_at"],
+            status=row["status"],
+        )
+
+    async def resolve_access_request(self, user_id: int, status: str, admin_id: int) -> None:
+        await self._db.conn.execute(
+            "UPDATE access_requests SET status=?, resolved_by=?, resolved_at=? WHERE user_id=?",
+            (status, admin_id, _now(), user_id),
+        )
+        await self._db.conn.commit()

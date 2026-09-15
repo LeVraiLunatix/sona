@@ -13,6 +13,16 @@ GENERIC_UNAVAILABLE = "Morceau indisponible pour le moment."
 GENERIC_FETCH_FAILED = "Impossible de récupérer ce contenu."
 LINK_UNRECOGNIZED = "Lien non reconnu ou contenu indisponible."
 
+# Écoute : un message par cause réelle plutôt qu'un « indisponible » unique —
+# l'utilisateur sait ainsi si ça vaut le coup de réessayer.
+NO_SOURCE_FOUND = (
+    "Aucune source audio trouvée pour ce morceau.\n"
+    "Essaie un autre enregistrement (album, live, autre version)."
+)
+SOURCE_SEARCH_FAILED = "Recherche de la source impossible pour le moment. Réessaie dans un instant."
+DOWNLOAD_FAILED = "Le téléchargement de ce morceau a échoué. Réessaie dans un instant."
+SEND_FAILED = "L'envoi du fichier a échoué. Réessaie dans un instant."
+
 
 async def show_error(
     deps: Deps, user_id: int, chat_id: int, text: str, retry_callback_data: str

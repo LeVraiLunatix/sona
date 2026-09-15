@@ -3,30 +3,45 @@ from __future__ import annotations
 from math import ceil
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
-from app.bot import keyboards, navigation
+from app.bot import formatting, keyboards, navigation
 from app.bot.callbacks import SearchCB
 from app.bot.deps import Deps
 from app.bot.errors import GENERIC_FETCH_FAILED
 from app.bot.navigation import Screen
 from app.bot.render import RenderTarget, show_text
-from app.bot import formatting
-from app.providers.deezer import DeezerError
 from app.services import query_cache
+from app.services.search import SearchError, search_tracks
 
 router = Router(name="search")
 
 PAGE_SIZE = keyboards.PAGE_SIZE
 MAX_PAGES = 20
+SUGGESTION_COUNT = 5
+
+SEARCH_HINT = (
+    "Que veux-tu écouter ?\n\n"
+    "Envoie un titre, un artiste, ou les deux — par exemple « daft punk "
+    "instant crush ». Tu peux aussi utiliser /search directement."
+)
 
 
 @navigation.register("search_prompt")
 async def render_search_prompt(deps: Deps, target: RenderTarget, user_id: int, params: dict) -> RenderTarget:
     scope_name = params.get("scope_name")
-    text = f"Rechercher chez {scope_name}" if scope_name else "Que veux-tu écouter ?"
-    return await show_text(deps.bot, target, text, keyboards.search_prompt_keyboard())
+    if scope_name:
+        text = f"Rechercher chez {scope_name}\n\nEnvoie un titre ou un mot-clé."
+        return await show_text(deps.bot, target, text, keyboards.search_prompt_keyboard([]))
+
+    # Menu d'entrée : les derniers morceaux consultés sont proposés en un clic,
+    # pour que l'écran de recherche ne soit pas une page vide.
+    suggestions, _ = await deps.repo.history_list(user_id, limit=SUGGESTION_COUNT)
+    text = SEARCH_HINT
+    if suggestions:
+        text += "\n\nReprendre une écoute récente :"
+    return await show_text(deps.bot, target, text, keyboards.search_prompt_keyboard(suggestions))
 
 
 @navigation.register("search_results")
@@ -40,13 +55,8 @@ async def render_search_results(deps: Deps, target: RenderTarget, user_id: int, 
 
     index = (page - 1) * PAGE_SIZE
     try:
-        if cached.artist_scope_name:
-            tracks, total = await deps.deezer.search_tracks_by_artist(
-                cached.artist_scope_name, cached.text, index=index, limit=PAGE_SIZE
-            )
-        else:
-            tracks, total = await deps.deezer.search_tracks(cached.text, index=index, limit=PAGE_SIZE)
-    except DeezerError:
+        tracks, total = await search_tracks(deps, cached, index=index, limit=PAGE_SIZE)
+    except SearchError:
         return await show_text(
             deps.bot,
             target,
@@ -76,14 +86,20 @@ async def start_search(
     qid = query_cache.put(cached)
     screen = Screen("search_results", {"qid": qid, "page": 1})
     current = navigation.current_screen(user_id)
-    if current.kind == "search_prompt":
+    if current.kind in ("search_prompt", "search_results"):
         await navigation.replace_top(deps, user_id, screen)
     else:
         await navigation.goto(deps, user_id, chat_id, screen)
 
 
 @router.message(Command("search"))
-async def cmd_search(message: Message, deps: Deps) -> None:
+async def cmd_search(message: Message, deps: Deps, command: CommandObject) -> None:
+    """`/search` ouvre l'écran de recherche ; `/search <requête>` affiche
+    directement le menu des morceaux trouvés."""
+    query = (command.args or "").strip()
+    if query:
+        await start_search(deps, message.from_user.id, message.chat.id, query)
+        return
     await navigation.goto(deps, message.from_user.id, message.chat.id, Screen("search_prompt"))
 
 

@@ -40,6 +40,8 @@ Chaque écran est un message unique, mis à jour par édition (`edit_message_tex
 | Historique | `history` | bouton "Historique" |
 | Paramètres | `settings` | bouton "Paramètres" |
 | Erreur | *(remplace l'écran courant)* | échec réseau/source indisponible |
+| Accès (hors whitelist) | *(hors pile)* | message d'un utilisateur non autorisé |
+| Demandes d'accès | `admin_requests` | Paramètres > Gestion des accès |
 
 ## 1. Accueil
 
@@ -65,12 +67,27 @@ Trouve et écoute facilement ta musique.
 
 ```
 Que veux-tu écouter ?
+
+Envoie un titre, un artiste, ou les deux — par exemple « daft punk
+instant crush ». Tu peux aussi utiliser /search directement.
+
+Reprendre une écoute récente :
+[ Daft Punk — Instant Crush ]
+[ Saif — Jefe ]
+...jusqu'à 5
+[ ← Retour ]
 ```
 
-- Pas de clavier (ou juste `[ ← Retour ]`), l'utilisateur tape directement.
-- Tout message texte reçu quand aucun autre contexte n'est actif (ou dans cet
-  état) est traité comme une requête de recherche — l'utilisateur n'a pas
-  besoin de passer par le bouton.
+- L'utilisateur tape directement ; tout message texte reçu quand aucun autre
+  contexte n'est actif (ou dans cet état) est traité comme une requête de
+  recherche — il n'a pas besoin de passer par le bouton.
+- L'écran n'est jamais vide : les 5 derniers morceaux consultés sont proposés
+  en boutons, un clic ouvre l'écran Morceau sans rien retaper.
+- `/search` ouvre cet écran ; `/search <requête>` saute directement aux
+  résultats. La commande est déclarée via `setMyCommands` pour apparaître dans
+  le menu de la conversation.
+- "Rechercher chez cet artiste" réutilise le même écran avec un `scope_name` :
+  la recherche est alors limitée à cet artiste (pas de suggestions).
 
 ## 3. Résultats de recherche
 
@@ -95,6 +112,11 @@ Résultats pour « Saif »
   (pas de texte de recherche dans le `callback_data`).
 - Résultat vide → écran "Aucun résultat pour « … »" avec `[ Nouvelle recherche ]`
   et `[ Accueil ]`.
+- Sources interrogées en cascade : Deezer (principale, vraie pagination), puis
+  iTunes, puis YouTube Music. La source qui a répondu est mémorisée avec la
+  requête pour que la pagination reste cohérente. Toutes injoignables → écran
+  d'erreur avec `[ Réessayer ]`, ce qui n'est pas la même chose que zéro
+  résultat.
 - Retour → Accueil (c'est un point d'entrée direct, rien avant dans la pile
   sauf si on vient d'un écran morceau/album/artiste via "Rechercher chez cet
   artiste", auquel cas Retour revient à cet écran).
@@ -286,9 +308,54 @@ Morceau indisponible pour le moment.
 indisponible.` selon le cas — jamais de détail technique). Le détail réel
 (exception, code HTTP, traceback) part uniquement dans les logs serveur.
 
+Pour l'écoute, le message dit *quelle* étape a échoué, parce que la suite
+n'est pas la même pour l'utilisateur :
+
+| Cause | Message |
+|---|---|
+| Aucune vidéo ne correspond au morceau | `Aucune source audio trouvée pour ce morceau.` + invitation à essayer une autre version |
+| Moteurs de recherche injoignables | `Recherche de la source impossible pour le moment.` |
+| Téléchargement / conversion en échec | `Le téléchargement de ce morceau a échoué.` |
+| Envoi Telegram en échec | `L'envoi du fichier a échoué.` |
+
+Un écran ne doit jamais rester bloqué sur « Préparation… » : toute exception
+imprévue pendant l'écoute retombe sur l'écran d'erreur générique.
+
 "Réessayer" ré-exécute exactement l'action qui a échoué (même callback).
 "Retour" restaure l'écran dans l'état où il était juste avant l'action
 déclenchante (pas de perte de contexte).
+
+## 12. Accès : invitations et demandes
+
+Sona est un bot privé : hors whitelist, aucun écran n'est accessible. Le
+filtre d'accès (`app/bot/middlewares.py`) ne se contente pas d'ignorer ces
+utilisateurs — un silence donne l'impression d'un bot en panne. Tout message
+reçu d'un non-autorisé est confié à `app/bot/access.py`, qui répond toujours.
+
+**Entrer par invitation.** Un admin génère un lien depuis Paramètres >
+Gestion des accès (ou avec `/invite`). Telegram ne transmet pas toujours le
+paramètre `?start=` — notamment quand l'invité a déjà une conversation
+ouverte avec le bot, qui se retrouve à taper `/start` tout court. Le jeton est
+donc accepté sous toutes ses formes :
+
+- `/start invite_<jeton>` (ouverture normale du lien) ;
+- le lien complet collé dans la conversation ;
+- le jeton brut.
+
+Chaque refus dit *pourquoi* (`inconnu`, `expiré`, `déjà utilisé`, `annulé`) —
+« bot privé » sur un lien périmé laisse croire que le bot est cassé. Une
+invitation vaut 7 jours, en usage unique ou pour 10 personnes au choix de
+l'admin.
+
+**Entrer par demande.** Sans invitation, `/start` (ou le bouton
+`[ Demander l'accès ]`) enregistre une demande et notifie les admins en
+message direct, avec `[ ✓ Autoriser ]` / `[ ✕ Refuser ]`. À la validation,
+l'invité reçoit un message et arrive directement sur l'Accueil. Les demandes
+en attente sont aussi listées dans Paramètres > Gestion des accès.
+
+**Filet de secours.** `/id` donne son identifiant Telegram à n'importe qui
+(même non autorisé) ; l'admin l'ajoute avec `/allow <id>`, sans lien ni
+demande.
 
 ## Navigation "Retour" — exemples de pile
 

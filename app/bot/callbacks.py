@@ -53,5 +53,13 @@ class SettingsCB(CallbackData, prefix="settings"):
 
 
 class AdminCB(CallbackData, prefix="admin"):
-    action: str  # menu | invite | remove_list | remove
+    action: str  # menu | invite | invite_multi | revoke | remove_list | remove | requests | approve | deny
     id: str | None = None
+
+
+class AccessCB(CallbackData, prefix="access"):
+    """Boutons accessibles aux utilisateurs pas encore autorisés (voir
+    `app/bot/access.py`) — le filtre de whitelist les laisse volontairement
+    passer."""
+
+    action: str  # request

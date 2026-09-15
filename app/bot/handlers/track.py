@@ -14,7 +14,7 @@ from app.bot.render import RenderTarget, show_photo, show_text, update_in_place
 from app.db.repository import UserSettings
 from app.providers.base import TrackInfo
 from app.services import antispam
-from app.services.downloader import DownloadError, download_and_tag
+from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.resolver import ResolutionError, find_youtube_match
 
 logger = logging.getLogger(__name__)
@@ -98,29 +98,35 @@ async def deliver_track_audio(
     track: TrackInfo,
     user_settings: UserSettings,
     status_cb: StatusCallback | None = None,
-) -> bool:
+) -> str | None:
     """Envoie l'audio d'un morceau dans `chat_id` : cache, sinon résolution +
-    téléchargement + envoi + mise en cache. Retourne False si indisponible
-    (le message d'erreur, s'il y en a un, est à la charge de l'appelant)."""
+    téléchargement + envoi + mise en cache.
+
+    Retourne None si l'envoi a réussi, sinon le message d'erreur à afficher.
+    Distinguer les causes compte : « aucune source trouvée » invite à choisir
+    une autre version, alors qu'un échec de téléchargement vaut la peine d'être
+    réessayé tel quel.
+    """
     cached_file_id = await deps.repo.cache_get(
         track.source, track.source_id, user_settings.format, user_settings.quality
     )
     if cached_file_id:
         try:
             await _send_cached_audio(deps, chat_id, cached_file_id, track)
-            return True
+            return None
         except Exception as exc:  # file_id périmé côté Telegram : on retélécharge
             errors.log_and_hide(logger, "envoi depuis cache", exc)
 
     if status_cb:
         await status_cb("Recherche de la source…" if track.source != "youtube" else "Préparation de l'audio…")
     try:
-        match = await find_youtube_match(track)
+        match = await find_youtube_match(track, deps.settings.youtube_cookies_file)
     except ResolutionError as exc:
         errors.log_and_hide(logger, "résolution YouTube", exc)
-        return False
+        return errors.SOURCE_SEARCH_FAILED
     if match is None:
-        return False
+        logger.info("Aucune source YouTube pour %s — %s", track.artist, track.title)
+        return errors.NO_SOURCE_FOUND
     video_id, _matched = match
 
     if status_cb:
@@ -131,7 +137,7 @@ async def deliver_track_audio(
         )
     except DownloadError as exc:
         errors.log_and_hide(logger, "téléchargement audio", exc)
-        return False
+        return errors.DOWNLOAD_FAILED
 
     if status_cb:
         await status_cb("Envoi…")
@@ -145,9 +151,9 @@ async def deliver_track_audio(
         )
     except Exception as exc:
         errors.log_and_hide(logger, "envoi audio", exc)
-        return False
+        return errors.SEND_FAILED
     finally:
-        path.unlink(missing_ok=True)
+        cleanup_download(path)
 
     if sent.audio:
         await deps.repo.cache_set(
@@ -158,7 +164,7 @@ async def deliver_track_audio(
             sent.audio.file_id,
             sent.audio.file_unique_id,
         )
-    return True
+    return None
 
 
 @router.callback_query(TrackCB.filter(F.action == "play"))
@@ -202,11 +208,19 @@ async def on_track_play(callback: CallbackQuery, callback_data: TrackCB, deps: D
             navigation.set_target(user_id, target)
 
         await status_cb("Préparation du morceau…")
-        ok = await deliver_track_audio(deps, chat_id, track, user_settings, status_cb)
-        if not ok:
-            await errors.show_error(deps, user_id, chat_id, errors.GENERIC_UNAVAILABLE, retry_data)
+        failure = await deliver_track_audio(deps, chat_id, track, user_settings, status_cb)
+        if failure:
+            await errors.show_error(deps, user_id, chat_id, failure, retry_data)
             return
 
         await navigation.rerender(deps, user_id)
+    except Exception as exc:
+        # Sans ce filet, une exception imprévue laisse l'écran bloqué sur
+        # « Préparation… » : côté utilisateur, le bouton n'a rien fait.
+        errors.log_and_hide(logger, "lecture", exc)
+        try:
+            await errors.show_error(deps, user_id, chat_id, errors.GENERIC_UNAVAILABLE, retry_data)
+        except Exception as report_exc:
+            errors.log_and_hide(logger, "affichage de l'erreur de lecture", report_exc)
     finally:
         antispam.release(user_id, track_uid)

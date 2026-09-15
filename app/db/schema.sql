@@ -58,5 +58,19 @@ CREATE TABLE IF NOT EXISTS invites (
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     used_by INTEGER,
-    used_at TEXT
+    used_at TEXT,
+    max_uses INTEGER NOT NULL DEFAULT 1,
+    uses INTEGER NOT NULL DEFAULT 0,
+    revoked INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS access_requests (
+    user_id INTEGER PRIMARY KEY,
+    display_name TEXT,
+    username TEXT,
+    requested_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    resolved_by INTEGER,
+    resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests (status, requested_at DESC);
