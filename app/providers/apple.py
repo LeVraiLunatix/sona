@@ -14,7 +14,7 @@ class AppleMusicError(Exception):
     pass
 
 
-def _upsize_artwork(url: str | None, size: int = 600) -> str | None:
+def _upsize_artwork(url: str | None, size: int = 1000) -> str | None:
     if not url:
         return None
     return re.sub(r"/\d+x\d+bb\.", f"/{size}x{size}bb.", url)

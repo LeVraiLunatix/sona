@@ -242,6 +242,32 @@ def test_soundcloud_is_downloaded_once_without_youtube_cookies(monkeypatch):
     assert not caught.value.bot_wall
 
 
+def test_download_prepares_the_thumbnail_and_embeds_only_jpeg_or_png(monkeypatch, tmp_path):
+    """La vignette de la bulle Telegram se fait à partir de n'importe quelle
+    image ; la pochette n'est intégrée au fichier que si c'est du JPEG ou du PNG."""
+    webp = b"RIFF\x00\x00\x00\x00WEBPVP8 "
+
+    def fake_download(source, out_template, *_args):
+        audio = Path(out_template.replace("%(ext)s", "m4a"))
+        audio.write_bytes(b"audio")
+        return audio
+
+    async def fetch_cover(url):
+        return webp
+
+    thumbnails, embedded = [], []
+    monkeypatch.setattr(downloader, "_download_sync", fake_download)
+    monkeypatch.setattr(downloader, "_fetch_cover_bytes", fetch_cover)
+    monkeypatch.setattr(
+        downloader.artwork, "make_audio_thumbnail", lambda ffmpeg, image, dest: thumbnails.append((image, dest))
+    )
+    monkeypatch.setattr(downloader, "_tag_sync", lambda path, track, cover: embedded.append(cover))
+
+    path = asyncio.run(download_and_tag(_settings(tmp_path, None), "abc", TRACK))
+    assert thumbnails == [(webp, path.parent / "vignette.jpg")]
+    assert embedded == [None]
+
+
 def test_youtube_url_keeps_the_whole_cascade(monkeypatch):
     seen = _recording_ytdlp(monkeypatch, BOT_WALL)
     with pytest.raises(DownloadError) as caught:

@@ -15,6 +15,7 @@ from app.bot.deps import Deps
 from app.providers.base import TrackInfo
 from app.providers.link_detect import track_url
 from app.services import query_cache
+from app.services.artwork import LIST_SIZE, resize_artwork_url
 from app.services.search import SearchError, search_tracks
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,8 @@ async def on_inline_query(query: InlineQuery, deps: Deps) -> None:
                 id=f"t:{track.source}:{track.source_id}"[:64],
                 title=track.title,
                 description=_description(track),
-                thumbnail_url=track.cover_url,
+                # La pochette HD est inutile en tout petit et ralentirait le panneau.
+                thumbnail_url=resize_artwork_url(track.cover_url, LIST_SIZE),
                 input_message_content=InputTextMessageContent(
                     message_text=url, link_preview_options={"is_disabled": True}
                 ),
