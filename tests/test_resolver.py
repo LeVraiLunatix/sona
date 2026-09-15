@@ -193,30 +193,35 @@ def test_official_song_tolerates_a_slightly_different_length():
     assert select_best(track(), [candidate("Daft Punk - Instant Crush", "Repost", 350, is_song=False)]) is None
 
 
-def _fake_searches(monkeypatch, ytmusic, ytdlp):
-    calls = []
+def _fake_searches(monkeypatch, ytmusic, ytdlp, soundcloud=()):
+    calls = {"soundcloud": [], "ytdlp": []}
+
+    def search_soundcloud(query):
+        calls["soundcloud"].append(query)
+        return list(soundcloud)
 
     def search_ytdlp(query, cookies_file):
-        calls.append(query)
+        calls["ytdlp"].append(query)
         return list(ytdlp)
 
     monkeypatch.setattr(resolver, "_search_ytmusic_sync", lambda queries: list(ytmusic))
+    monkeypatch.setattr(resolver, "_search_soundcloud_sync", search_soundcloud)
     monkeypatch.setattr(resolver, "_search_ytdlp_sync", search_ytdlp)
     return calls
 
 
 async def _first_video_ids(ref, limit):
     video_ids = []
-    async for video_id, _ in resolver.iter_youtube_candidates(ref):
-        video_ids.append(video_id)
+    async for source in resolver.iter_audio_sources(ref):
+        video_ids.append(source.video_id)
         if len(video_ids) == limit:
             break
     return video_ids
 
 
-def test_sources_are_offered_best_first_then_from_the_fallback(monkeypatch):
-    """Quand l'audio d'un candidat s'avère faux, l'appelant passe au suivant ;
-    la recherche yt-dlp n'est lancée qu'une fois YouTube Music épuisé."""
+def test_sources_are_offered_best_first_then_from_the_fallbacks(monkeypatch):
+    """Quand l'audio d'une source s'avère faux, l'appelant passe à la suivante ;
+    les autres recherches ne sont lancées qu'une fois les premières épuisées."""
     calls = _fake_searches(
         monkeypatch,
         ytmusic=[
@@ -227,11 +232,54 @@ def test_sources_are_offered_best_first_then_from_the_fallback(monkeypatch):
         ytdlp=[candidate("Daft Punk - Instant Crush", "Uploader", 337, is_song=False, video_id="repost")],
     )
     assert asyncio.run(_first_video_ids(track(), limit=1)) == ["officiel"]
-    assert calls == []
+    assert calls == {"soundcloud": [], "ytdlp": []}
     assert asyncio.run(_first_video_ids(track(), limit=10)) == ["officiel", "paroles", "repost"]
 
 
-def test_no_answer_from_either_engine_is_a_search_failure(monkeypatch):
+def test_artist_upload_on_soundcloud_comes_before_youtube_reposts(monkeypatch):
+    """Cas réel : « Zoulou tchaing » n'a pas de version officielle sur YouTube,
+    mais PNL l'a publié sur SoundCloud. Les reposts YouTube passent après."""
+    _fake_searches(
+        monkeypatch,
+        ytmusic=[candidate("PNL - Zoulou Tchaing", "Kenzi", 324, is_song=False, video_id="repost")],
+        soundcloud=[
+            candidate("PNL - Zoulou Tchaing remix", "name_ZIT", 328, is_song=False, video_id="soundcloud:2"),
+            candidate("Zoulou tchaing", "PNL", 326, is_song=False, video_id="soundcloud:1"),
+        ],
+        ytdlp=[],
+    )
+    assert asyncio.run(_first_video_ids(pnl("Zoulou tchaing", 325), limit=10)) == ["soundcloud:1", "repost"]
+
+
+def test_fan_channel_named_after_the_artist_is_not_the_artist():
+    """Cas réel : la vidéo « Traducción Menace - PNL » de « PNL SPAIN » passait
+    devant la publication de PNL sur SoundCloud, pour un téléchargement perdu."""
+    ref = pnl("Menace", 188)
+    assert not resolver._is_by_artist(ref, candidate("Traducción Menace - PNL", "PNL SPAIN", 190, is_song=False))
+    assert resolver._is_by_artist(ref, candidate("Menace", "PNL - Topic", 188))
+    assert resolver._is_by_artist(track(), candidate("Instant Crush", "DaftPunkVEVO"))
+    assert resolver._is_by_artist(track(title="Bohemian Rhapsody", artist="Queen"), candidate("Bohemian Rhapsody", "Queen Official"))
+
+
+def test_soundcloud_search_entry_becomes_a_candidate():
+    entry = {
+        "id": 726423343,
+        "title": "Hasta la vista",
+        "uploader": "PNL",
+        "duration": 216.334,
+        "url": "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A726423343",
+        "webpage_url": "https://soundcloud.com/exemple/hasta-la-vista",
+        "thumbnails": [{"url": "https://i1.sndcdn.com/petite.jpg"}, {"url": "https://i1.sndcdn.com/grande.jpg"}],
+    }
+    cand = resolver._candidate_from_soundcloud(entry)
+    assert cand.platform == "soundcloud"
+    assert cand.source_url == "https://soundcloud.com/exemple/hasta-la-vista"
+    assert (cand.video_id, cand.artist, cand.duration_seconds) == ("soundcloud:726423343", "PNL", 216)
+    assert cand.cover_url == "https://i1.sndcdn.com/grande.jpg"
+    assert select_best(pnl("Hasta la vista", 216), [cand]) is cand
+
+
+def test_no_answer_from_any_engine_is_a_search_failure(monkeypatch):
     _fake_searches(monkeypatch, ytmusic=[], ytdlp=[])
     with pytest.raises(resolver.ResolutionError):
         asyncio.run(_first_video_ids(track(), limit=1))
@@ -244,7 +292,7 @@ def test_youtube_track_is_its_own_source(monkeypatch):
         duration_seconds=None, cover_url=None,
     )
     assert asyncio.run(_first_video_ids(ref, limit=5)) == ["abc"]
-    assert calls == []
+    assert calls == {"soundcloud": [], "ytdlp": []}
 
 
 def test_closest_duration_wins_a_tie():

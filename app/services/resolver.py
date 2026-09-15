@@ -62,6 +62,8 @@ _FILLER_WORDS = frozenset(
     "letra visualizer hd hq 4k by ft featuring topic vevo".split()
 )
 _UNKNOWN_ARTISTS = frozenset({"artiste inconnu"})
+# Suffixes des chaînes officielles : « Queen Official », « DaftPunkVEVO », « PNL - Topic ».
+_CHANNEL_SUFFIX_RE = re.compile(r"(?:\s*(?:official|officiel|officielle|music|musique|topic|vevo))+$")
 
 # Un score en dessous duquel on considère que le résultat n'a rien à voir.
 ACCEPT_SCORE = 0.35
@@ -95,6 +97,13 @@ class Candidate:
     duration_seconds: int | None
     cover_url: str | None
     is_song: bool
+    platform: str = "youtube"  # "youtube" | "soundcloud"
+    url: str | None = None
+
+    @property
+    def source_url(self) -> str:
+        """Adresse à passer à yt-dlp pour télécharger ce candidat."""
+        return self.url or f"https://www.youtube.com/watch?v={self.video_id}"
 
 
 @lru_cache(maxsize=1)
@@ -144,12 +153,23 @@ def _artist_names(track: TrackInfo) -> list[str]:
     return [n for n in dict.fromkeys(names) if n and n not in _UNKNOWN_ARTISTS]
 
 
+def _channel_names(candidate: Candidate) -> list[str]:
+    parts = [candidate.artist, *_ARTIST_SEPARATOR_RE.split(candidate.artist)]
+    names = (_CHANNEL_SUFFIX_RE.sub("", _plain(part)).strip() for part in parts)
+    return [n for n in dict.fromkeys(names) if n]
+
+
 def _is_by_artist(track: TrackInfo, candidate: Candidate) -> bool:
-    """La chaîne / l'artiste du résultat est l'artiste du morceau."""
-    channel = _plain(candidate.artist)
+    """La chaîne / l'artiste du résultat est l'artiste du morceau.
+
+    Le nom doit être celui de l'artiste, pas seulement le contenir : « PNL
+    SPAIN » est une chaîne de fans, alors que « Queen Official » ou
+    « DaftPunkVEVO » sont bien les chaînes des artistes.
+    """
     return any(
-        _mentions(channel, name) or SequenceMatcher(None, name, channel).ratio() >= ARTIST_SIMILARITY
+        channel == name or SequenceMatcher(None, name, channel).ratio() >= ARTIST_SIMILARITY
         for name in _artist_names(track)
+        for channel in _channel_names(candidate)
     )
 
 
@@ -380,11 +400,55 @@ def select_best(track: TrackInfo, candidates: list[Candidate]) -> Candidate | No
     return ranked[0] if ranked else None
 
 
+def _candidate_from_soundcloud(entry: dict) -> Candidate | None:
+    track_id = entry.get("id")
+    url = entry.get("webpage_url") or entry.get("url")
+    if not track_id or not url:
+        return None
+    duration = entry.get("duration")
+    thumbnails = entry.get("thumbnails") or []
+    return Candidate(
+        video_id=f"soundcloud:{track_id}",
+        title=entry.get("title") or "",
+        artist=entry.get("uploader") or "",
+        album=None,
+        duration_seconds=round(duration) if duration else None,
+        cover_url=thumbnails[-1].get("url") if thumbnails else None,
+        is_song=False,
+        platform="soundcloud",
+        url=url,
+    )
+
+
+def _search_soundcloud_sync(query: str) -> list[Candidate]:
+    """Recherche SoundCloud via `yt-dlp`, sans cookies.
+
+    Certains artistes y publient eux-mêmes des titres absents de YouTube
+    (l'album « Deux frères » de PNL). Les titres protégés par DRM y figurent
+    aussi : yt-dlp refuse de les télécharger, et ils sont alors sautés.
+    """
+    opts = {
+        "quiet": True,
+        "logger": ytdlp_logger,
+        "skip_download": True,
+        "extract_flat": True,
+        "socket_timeout": 20,
+    }
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            data = ydl.extract_info(f"scsearch{SEARCH_LIMIT}:{query}", download=False)
+    except Exception as exc:
+        logger.warning("Recherche SoundCloud échouée pour %r: %s", query, exc)
+        return []
+    entries = (data or {}).get("entries") or []
+    return [c for c in (_candidate_from_soundcloud(e) for e in entries if e) if c]
+
+
 def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candidate]) -> None:
     if best is not None:
         logger.info(
-            "Source YouTube pour %s — %s (%ss) : %s « %s » par %s (%ss, score %.2f)",
-            track.artist, track.title, track.duration_seconds, best.video_id, best.title,
+            "Source %s pour %s — %s (%ss) : %s « %s » par %s (%ss, score %.2f)",
+            best.platform, track.artist, track.title, track.duration_seconds, best.video_id, best.title,
             best.artist, best.duration_seconds, score_candidate(track, best),
         )
         return
@@ -399,56 +463,64 @@ def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candi
     )
 
 
-def _matched_track(track: TrackInfo, candidate: Candidate) -> TrackInfo:
-    return TrackInfo(
-        source="youtube",
-        source_id=candidate.video_id,
-        title=candidate.title or track.title,
-        artist=candidate.artist or track.artist,
-        album=candidate.album,
-        year=None,
-        duration_seconds=candidate.duration_seconds or track.duration_seconds,
-        cover_url=candidate.cover_url or track.cover_url,
-    )
+async def iter_audio_sources(track: TrackInfo, cookies_file: Path | None = None) -> AsyncIterator[Candidate]:
+    """Sources audio acceptables d'un morceau, de la plus probable à la moins probable.
 
-
-async def iter_youtube_candidates(
-    track: TrackInfo, cookies_file: Path | None = None
-) -> AsyncIterator[tuple[str, TrackInfo]]:
-    """Équivalents YouTube acceptables d'un morceau, du plus probable au moins
-    probable, sous forme de `(video_id, TrackInfo)`.
-
-    Deux moteurs sont interrogés en cascade : YouTube Music (métadonnées
-    propres, mais catalogue incomplet et API non officielle qui tombe en
-    panne) puis la recherche YouTube de `yt-dlp`, lancée seulement quand
-    l'appelant a épuisé les premiers — typiquement après avoir constaté que
-    leur audio n'était pas le bon enregistrement. Lève ResolutionError si
-    aucun des deux moteurs ne répond.
+    L'appelant télécharge chaque source, la compare à l'extrait officiel et
+    s'arrête au bout de quelques essais : l'ordre compte. Viennent donc
+    1. le meilleur titre publié par l'artiste sur YouTube Music ;
+    2. les publications de l'artiste sur SoundCloud, où certains mettent des
+       titres absents de YouTube ;
+    3. les autres résultats YouTube Music (reposts), puis SoundCloud ;
+    4. la recherche YouTube de `yt-dlp`, en dernier recours.
+    Chaque recherche n'est lancée qu'une fois les sources précédentes
+    épuisées. Lève ResolutionError si aucun moteur ne répond.
     """
     if track.source == "youtube":
-        yield track.source_id, track
+        yield Candidate(
+            video_id=track.source_id,
+            title=track.title,
+            artist=track.artist,
+            album=track.album,
+            duration_seconds=track.duration_seconds,
+            cover_url=track.cover_url,
+            is_song=False,
+        )
         return
 
     queries = _query_variants(track)
     candidates = await asyncio.to_thread(_search_ytmusic_sync, queries)
+    youtube_music = rank_candidates(track, candidates)
     offered: set[str] = set()
-    for best in rank_candidates(track, candidates):
-        offered.add(best.video_id)
-        _log_choice(track, best, candidates)
-        yield best.video_id, _matched_track(track, best)
 
-    logger.info("Plus de candidat YouTube Music pour %r — repli sur la recherche yt-dlp", queries[0])
+    def offer(candidate: Candidate) -> bool:
+        if candidate.video_id in offered:
+            return False
+        offered.add(candidate.video_id)
+        _log_choice(track, candidate, candidates)
+        return True
+
+    for candidate in [c for c in youtube_music if _is_by_artist(track, c)][:1]:
+        if offer(candidate):
+            yield candidate
+
+    soundcloud_results = await asyncio.to_thread(_search_soundcloud_sync, queries[0])
+    candidates.extend(soundcloud_results)
+    soundcloud = rank_candidates(track, soundcloud_results)
+    for candidate in soundcloud:
+        if _is_by_artist(track, candidate) and offer(candidate):
+            yield candidate
+    for candidate in youtube_music + soundcloud:
+        if offer(candidate):
+            yield candidate
+
+    logger.info("Plus de source YouTube Music ni SoundCloud pour %r — repli sur la recherche yt-dlp", queries[0])
     for query in queries[:2]:
         fallback = await asyncio.to_thread(_search_ytdlp_sync, query, cookies_file)
-        if not fallback:
-            continue
         candidates.extend(fallback)
-        for best in rank_candidates(track, candidates):
-            if best.video_id in offered:
-                continue
-            offered.add(best.video_id)
-            _log_choice(track, best, candidates)
-            yield best.video_id, _matched_track(track, best)
+        for candidate in rank_candidates(track, fallback):
+            if offer(candidate):
+                yield candidate
 
     if not candidates:
         raise ResolutionError("Recherche de la source impossible.")

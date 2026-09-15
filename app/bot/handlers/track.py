@@ -18,7 +18,7 @@ from app.providers.base import TrackInfo
 from app.services import antispam
 from app.services.audio_match import Verdict, verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
-from app.services.resolver import ResolutionError, iter_youtube_candidates
+from app.services.resolver import ResolutionError, iter_audio_sources
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +26,11 @@ router = Router(name="track")
 
 StatusCallback = Callable[[str], Awaitable[None]]
 
-# Candidats téléchargés et comparés à l'extrait officiel avant d'abandonner :
-# au-delà de trois versions fausses d'affilée, YouTube n'a vraisemblablement
-# que des reposts retouchés, et chaque essai coûte un téléchargement complet.
-MAX_SOURCE_ATTEMPTS = 3
+# Sources téléchargées et comparées à l'extrait officiel avant d'abandonner.
+# L'ordre (titre officiel YouTube Music, publications de l'artiste sur
+# SoundCloud, puis reposts) met les meilleures chances en tête ; au-delà,
+# chaque essai coûte un téléchargement complet pour peu d'espoir.
+MAX_SOURCE_ATTEMPTS = 4
 
 
 def _build_text(track: TrackInfo) -> str:
@@ -130,27 +131,35 @@ async def deliver_track_audio(
 
     attempts = 0
     try:
-        async with aclosing(iter_youtube_candidates(track, deps.settings.youtube_cookies_file)) as sources:
-            async for video_id, _matched in sources:
+        async with aclosing(iter_audio_sources(track, deps.settings.youtube_cookies_file)) as sources:
+            async for source in sources:
                 attempts += 1
                 if status_cb:
                     await status_cb("Préparation de l'audio…" if attempts == 1 else "Recherche d'une version fidèle…")
                 try:
                     path = await download_and_tag(
-                        deps.settings, video_id, track, user_settings.quality, user_settings.format
+                        deps.settings, source.source_url, track, user_settings.quality, user_settings.format
                     )
                 except DownloadError as exc:
-                    errors.log_and_hide(logger, "téléchargement audio", exc)
-                    return errors.DOWNLOAD_FAILED
+                    if source.platform == "youtube":
+                        errors.log_and_hide(logger, "téléchargement audio", exc)
+                        return errors.DOWNLOAD_FAILED
+                    # Hors YouTube, l'échec vise ce titre-là (protégé par DRM,
+                    # retiré…) : la source suivante peut très bien passer.
+                    logger.info("Source %s inutilisable : %s", source.video_id, exc.__cause__ or exc)
+                    if attempts >= MAX_SOURCE_ATTEMPTS:
+                        break
+                    continue
 
                 verdict = await verify_recording(track, path, deps.settings.ffmpeg_path)
                 if not verdict.rejected:
-                    _log_verdict(video_id, verdict)
+                    _log_verdict(source.video_id, verdict)
                     return await _send_downloaded_audio(deps, chat_id, track, user_settings, path, status_cb)
 
                 logger.info(
-                    "Audio %s écarté pour %s — %s : écart d'empreinte %.3f avec l'extrait officiel",
-                    video_id, track.artist, track.title, verdict.error,
+                    "Audio %s écarté pour %s — %s : %s",
+                    source.video_id, track.artist, track.title,
+                    verdict.reason or f"écart d'empreinte {verdict.error:.3f} avec l'extrait officiel",
                 )
                 cleanup_download(path)
                 if attempts >= MAX_SOURCE_ATTEMPTS:

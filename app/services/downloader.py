@@ -73,6 +73,15 @@ _ATTEMPTS: tuple[dict, ...] = (
     {"label": "client web_safari", "player_client": ["web_safari", "mweb"]},
     {"label": "sans cookies", "drop_cookies": True, "broad_format": True},
 )
+# Hors YouTube (SoundCloud) : ni mur anti-bot ni clients à alterner, et les
+# cookies YouTube n'ont rien à y faire. Une seule tentative.
+_DIRECT_ATTEMPTS: tuple[dict, ...] = ({"label": "direct", "drop_cookies": True},)
+_YOUTUBE_URL_RE = re.compile(r"^https?://(?:[\w-]+\.)*(?:youtube\.com|youtu\.be)(?:[/?#]|$)", re.IGNORECASE)
+
+
+def _source_url(source: str) -> str:
+    """Adresse complète : un identifiant nu est une vidéo YouTube."""
+    return source if "://" in source else f"https://www.youtube.com/watch?v={source}"
 
 
 def _build_opts(
@@ -132,19 +141,20 @@ def _find_output(expected: Path) -> Path:
 
 
 def _download_sync(
-    video_id: str,
+    source: str,
     out_template: str,
     ffmpeg_path: str,
     quality: str,
     format_pref: str,
     cookies_file: Path | None,
 ) -> Path:
-    url = f"https://www.youtube.com/watch?v={video_id}"
+    url = _source_url(source)
+    attempts = _ATTEMPTS if _YOUTUBE_URL_RE.match(url) else _DIRECT_ATTEMPTS
     codec = _codec_for(format_pref)
     last_error: Exception | None = None
     bot_walls = 0
 
-    for index, attempt in enumerate(_ATTEMPTS):
+    for index, attempt in enumerate(attempts):
         opts = _build_opts(attempt, out_template, ffmpeg_path, quality, codec, cookies_file)
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -157,17 +167,17 @@ def _download_sync(
                 bot_walls += 1
             logger.warning(
                 "Téléchargement de %s : tentative %d/%d (%s) échouée: %s",
-                video_id,
+                source,
                 index + 1,
-                len(_ATTEMPTS),
+                len(attempts),
                 attempt["label"],
                 exc,
             )
-            if index < len(_ATTEMPTS) - 1:
+            if index < len(attempts) - 1:
                 time.sleep(2)
 
     raise DownloadError(
-        "Téléchargement audio impossible.", bot_wall=bot_walls == len(_ATTEMPTS)
+        "Téléchargement audio impossible.", bot_wall=bot_walls == len(attempts)
     ) from last_error
 
 
@@ -252,12 +262,13 @@ def _report_bot_wall(cookies_file: Path | None) -> None:
 
 async def download_and_tag(
     settings: Settings,
-    video_id: str,
+    source: str,
     track: TrackInfo,
     quality: str = "best",
     format_pref: str = "auto",
 ) -> Path:
-    """Télécharge l'audio YouTube correspondant et applique les métadonnées de `track`.
+    """Télécharge l'audio de `source` (identifiant YouTube ou adresse complète,
+    SoundCloud par exemple) et applique les métadonnées de `track`.
 
     Le fichier final est nommé et tagué d'après les métadonnées de la source
     d'origine (Deezer/Spotify/Apple/YouTube), pas d'après le titre brut YouTube.
@@ -271,7 +282,7 @@ async def download_and_tag(
     try:
         path = await asyncio.to_thread(
             _download_sync,
-            video_id,
+            source,
             out_template,
             settings.ffmpeg_path,
             quality,

@@ -205,3 +205,48 @@ def test_ordinary_failure_does_not_trigger_a_session_check(monkeypatch, tmp_path
     with pytest.raises(DownloadError):
         asyncio.run(download_and_tag(_settings(tmp_path, tmp_path / "cookies.txt"), "abc", TRACK))
     assert checks == []
+
+
+def _recording_ytdlp(monkeypatch, message):
+    """yt-dlp factice qui échoue toujours et garde les options de chaque tentative."""
+    seen = []
+
+    class FakeYoutubeDL:
+        def __init__(self, opts):
+            seen.append(opts)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def extract_info(self, url, download):
+            raise yt_dlp.utils.DownloadError(message)
+
+    monkeypatch.setattr(downloader, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+    monkeypatch.setattr(downloader, "time", SimpleNamespace(sleep=lambda _seconds: None))
+    return seen
+
+
+def test_soundcloud_is_downloaded_once_without_youtube_cookies(monkeypatch):
+    """Ni mur anti-bot ni clients à alterner hors YouTube : une seule
+    tentative, et les cookies YouTube ne partent pas chez SoundCloud."""
+    seen = _recording_ytdlp(monkeypatch, "ERROR: [soundcloud] 1: This video is DRM protected")
+    with pytest.raises(DownloadError) as caught:
+        _download_sync(
+            "https://soundcloud.com/exemple/titre", "out.%(ext)s", "ffmpeg", "best", "auto", Path("cookies.txt")
+        )
+    assert len(seen) == 1
+    assert "cookiefile" not in seen[0]
+    assert not caught.value.bot_wall
+
+
+def test_youtube_url_keeps_the_whole_cascade(monkeypatch):
+    seen = _recording_ytdlp(monkeypatch, BOT_WALL)
+    with pytest.raises(DownloadError) as caught:
+        _download_sync(
+            "https://www.youtube.com/watch?v=abc", "out.%(ext)s", "ffmpeg", "best", "auto", Path("cookies.txt")
+        )
+    assert len(seen) == len(downloader._ATTEMPTS)
+    assert caught.value.bot_wall
