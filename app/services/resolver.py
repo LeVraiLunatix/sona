@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 import unicodedata
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -353,16 +354,13 @@ def _search_ytdlp_sync(query: str, cookies_file: Path | None) -> list[Candidate]
     return candidates
 
 
-def select_best(track: TrackInfo, candidates: list[Candidate]) -> Candidate | None:
-    """Meilleur candidat acceptable, ou None si aucun ne ressemble au morceau.
+def rank_candidates(track: TrackInfo, candidates: list[Candidate]) -> list[Candidate]:
+    """Candidats acceptables, du plus probable au moins probable.
 
     Mieux vaut « aucune source » qu'un autre enregistrement : quand l'original
     n'est pas sur YouTube, les résultats restants sont des instrus, remixes ou
     homonymes, et l'utilisateur recevrait autre chose que ce qu'il a demandé.
     """
-    eligible = [c for c in candidates if rejection_reason(track, c) is None]
-    if not eligible:
-        return None
 
     def rank(c: Candidate) -> tuple[float, int]:
         # À score égal, la durée la plus proche : c'est le meilleur indice
@@ -370,8 +368,16 @@ def select_best(track: TrackInfo, candidates: list[Candidate]) -> Candidate | No
         gap = _duration_gap(track, c)
         return score_candidate(track, c), -(gap if gap is not None else 10_000)
 
-    best = max(eligible, key=rank)
-    return best if score_candidate(track, best) >= ACCEPT_SCORE else None
+    eligible = [
+        c for c in candidates if rejection_reason(track, c) is None and score_candidate(track, c) >= ACCEPT_SCORE
+    ]
+    return sorted(eligible, key=rank, reverse=True)
+
+
+def select_best(track: TrackInfo, candidates: list[Candidate]) -> Candidate | None:
+    """Meilleur candidat acceptable, ou None si aucun ne ressemble au morceau."""
+    ranked = rank_candidates(track, candidates)
+    return ranked[0] if ranked else None
 
 
 def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candidate]) -> None:
@@ -406,45 +412,48 @@ def _matched_track(track: TrackInfo, candidate: Candidate) -> TrackInfo:
     )
 
 
-async def find_youtube_match(
+async def iter_youtube_candidates(
     track: TrackInfo, cookies_file: Path | None = None
-) -> tuple[str, TrackInfo] | None:
-    """Cherche le meilleur équivalent YouTube pour un morceau.
+) -> AsyncIterator[tuple[str, TrackInfo]]:
+    """Équivalents YouTube acceptables d'un morceau, du plus probable au moins
+    probable, sous forme de `(video_id, TrackInfo)`.
 
     Deux moteurs sont interrogés en cascade : YouTube Music (métadonnées
     propres, mais catalogue incomplet et API non officielle qui tombe en
-    panne) puis la recherche YouTube de `yt-dlp`. Retourne
-    `(video_id, TrackInfo)` ou None si rien ne correspond vraiment.
+    panne) puis la recherche YouTube de `yt-dlp`, lancée seulement quand
+    l'appelant a épuisé les premiers — typiquement après avoir constaté que
+    leur audio n'était pas le bon enregistrement. Lève ResolutionError si
+    aucun des deux moteurs ne répond.
     """
     if track.source == "youtube":
-        return track.source_id, track
+        yield track.source_id, track
+        return
 
     queries = _query_variants(track)
-
     candidates = await asyncio.to_thread(_search_ytmusic_sync, queries)
-    best = select_best(track, candidates)
-    if best is not None:
+    offered: set[str] = set()
+    for best in rank_candidates(track, candidates):
+        offered.add(best.video_id)
         _log_choice(track, best, candidates)
-        return best.video_id, _matched_track(track, best)
+        yield best.video_id, _matched_track(track, best)
 
-    logger.info(
-        "Aucune correspondance YouTube Music pour %r — repli sur la recherche yt-dlp",
-        queries[0],
-    )
+    logger.info("Plus de candidat YouTube Music pour %r — repli sur la recherche yt-dlp", queries[0])
     for query in queries[:2]:
         fallback = await asyncio.to_thread(_search_ytdlp_sync, query, cookies_file)
         if not fallback:
             continue
         candidates.extend(fallback)
-        best = select_best(track, candidates)
-        if best is not None:
+        for best in rank_candidates(track, candidates):
+            if best.video_id in offered:
+                continue
+            offered.add(best.video_id)
             _log_choice(track, best, candidates)
-            return best.video_id, _matched_track(track, best)
+            yield best.video_id, _matched_track(track, best)
 
     if not candidates:
         raise ResolutionError("Recherche de la source impossible.")
-    _log_choice(track, None, candidates)
-    return None
+    if not offered:
+        _log_choice(track, None, candidates)
 
 
 def _search_tracks_youtube_sync(query: str, limit: int) -> list[TrackInfo]:

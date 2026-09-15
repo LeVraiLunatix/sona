@@ -38,6 +38,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         cover_url=_upsize_artwork(d.get("artworkUrl100")),
         artist_source_id=str(d["artistId"]) if d.get("artistId") else None,
         album_source_id=str(d["collectionId"]) if d.get("collectionId") else None,
+        preview_url=d.get("previewUrl") or None,
     )
 
 

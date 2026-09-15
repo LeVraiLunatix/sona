@@ -42,6 +42,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         cover_url=cover,
         artist_source_id=artists[0]["id"] if artists else None,
         album_source_id=album.get("id"),
+        preview_url=d.get("preview_url") or None,
     )
 
 

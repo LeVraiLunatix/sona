@@ -1,4 +1,9 @@
+import asyncio
+
+import pytest
+
 from app.providers.base import TrackInfo
+from app.services import resolver
 from app.services.resolver import (
     Candidate,
     _query_variants,
@@ -186,6 +191,60 @@ def test_one_of_several_credited_artists_is_enough():
 def test_official_song_tolerates_a_slightly_different_length():
     assert select_best(track(), [candidate("Instant Crush", "Daft Punk", 350)]) is not None
     assert select_best(track(), [candidate("Daft Punk - Instant Crush", "Repost", 350, is_song=False)]) is None
+
+
+def _fake_searches(monkeypatch, ytmusic, ytdlp):
+    calls = []
+
+    def search_ytdlp(query, cookies_file):
+        calls.append(query)
+        return list(ytdlp)
+
+    monkeypatch.setattr(resolver, "_search_ytmusic_sync", lambda queries: list(ytmusic))
+    monkeypatch.setattr(resolver, "_search_ytdlp_sync", search_ytdlp)
+    return calls
+
+
+async def _first_video_ids(ref, limit):
+    video_ids = []
+    async for video_id, _ in resolver.iter_youtube_candidates(ref):
+        video_ids.append(video_id)
+        if len(video_ids) == limit:
+            break
+    return video_ids
+
+
+def test_sources_are_offered_best_first_then_from_the_fallback(monkeypatch):
+    """Quand l'audio d'un candidat s'avère faux, l'appelant passe au suivant ;
+    la recherche yt-dlp n'est lancée qu'une fois YouTube Music épuisé."""
+    calls = _fake_searches(
+        monkeypatch,
+        ytmusic=[
+            candidate("Daft Punk - Instant Crush (Lyrics)", "Fan", 336, is_song=False, video_id="paroles"),
+            candidate("Instant Crush", "Daft Punk", 337, video_id="officiel"),
+            candidate("Instant Crush (Instrumental)", "Daft Punk", 337, video_id="instru"),
+        ],
+        ytdlp=[candidate("Daft Punk - Instant Crush", "Uploader", 337, is_song=False, video_id="repost")],
+    )
+    assert asyncio.run(_first_video_ids(track(), limit=1)) == ["officiel"]
+    assert calls == []
+    assert asyncio.run(_first_video_ids(track(), limit=10)) == ["officiel", "paroles", "repost"]
+
+
+def test_no_answer_from_either_engine_is_a_search_failure(monkeypatch):
+    _fake_searches(monkeypatch, ytmusic=[], ytdlp=[])
+    with pytest.raises(resolver.ResolutionError):
+        asyncio.run(_first_video_ids(track(), limit=1))
+
+
+def test_youtube_track_is_its_own_source(monkeypatch):
+    calls = _fake_searches(monkeypatch, ytmusic=[], ytdlp=[])
+    ref = TrackInfo(
+        source="youtube", source_id="abc", title="Titre", artist="Chaîne", album=None, year=None,
+        duration_seconds=None, cover_url=None,
+    )
+    assert asyncio.run(_first_video_ids(ref, limit=5)) == ["abc"]
+    assert calls == []
 
 
 def test_closest_duration_wins_a_tie():
