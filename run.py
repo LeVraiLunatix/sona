@@ -7,6 +7,7 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
 
+from app.bot import broadcast
 from app.bot.deps import Deps
 from app.bot.handlers import setup_routers
 from app.bot.middlewares import WhitelistMiddleware
@@ -17,7 +18,7 @@ from app.logging_config import setup_logging
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
 from app.providers.spotify import SpotifyClient
-from app.services.youtube_session import schedule_session_check
+from app.services.youtube_session import register_notifier, schedule_session_check
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,11 @@ async def main() -> None:
             spotify=spotify,
         )
         dp["deps"] = deps
+
+        # Les services ne connaissent pas la couche Telegram : on leur passe de
+        # quoi prévenir les admins, plutôt que de leur faire importer le bot —
+        # qui les importe déjà.
+        register_notifier(lambda text: broadcast.notify_admins(deps, text))
 
         whitelist = WhitelistMiddleware(deps)
         dp.message.outer_middleware(whitelist)

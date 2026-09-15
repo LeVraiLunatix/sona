@@ -21,6 +21,7 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
+from typing import Awaitable, Callable
 
 import yt_dlp
 
@@ -38,8 +39,88 @@ _SOCKET_TIMEOUT_SECONDS = 10
 # téléchargements échouent en rafale : inutile de marteler youtube.com.
 _COOLDOWN_SECONDS = 15 * 60
 
+# Rappel tant que l'état ne change pas : assez espacé pour ne pas harceler,
+# assez fréquent pour qu'une session morte ne passe pas un week-end entier.
+_REMINDER_SECONDS = 12 * 60 * 60
+
 _last_check_at: float | None = None
 _background_tasks: set[asyncio.Task] = set()
+
+Notifier = Callable[[str], Awaitable[None]]
+
+_notifier: Notifier | None = None
+# Dernier état connu (None : jamais vérifié) et date de la dernière alerte,
+# en mémoire : après un redémarrage, une session morte est signalée à nouveau.
+_last_known_logged_in: bool | None = None
+_last_alert_at: float | None = None
+
+# Ce que l'admin doit faire, sans jamais recopier la moindre valeur de cookie.
+_HOW_TO_REEXPORT = (
+    "À refaire depuis le PC :\n"
+    "1. Ouvre une fenêtre de navigation privée et connecte-toi sur youtube.com "
+    "avec le compte du bot.\n"
+    "2. Dans cette fenêtre, avec l'extension « Get cookies.txt LOCALLY », "
+    "exporte les cookies de ce site uniquement — pas « Export All Cookies ».\n"
+    "3. Ferme la fenêtre privée tout de suite, et ne la rouvre jamais : si un "
+    "navigateur continue à se servir de cette session, Google fait tourner ses "
+    "cookies et l'export est mort à son tour.\n"
+    "4. Depuis le PC, installe le fichier sur le serveur (data/cookies.txt), "
+    "puis redémarre Sona.\n\n"
+    "Marche à suivre détaillée : README, section « Cookies YouTube »."
+)
+SESSION_BACK_MESSAGE = "✅ Session YouTube de nouveau connectée : les téléchargements repartent."
+
+
+def session_lost_message(reminder: bool = False) -> str:
+    titre = "⚠️ Cookies YouTube toujours expirés" if reminder else "⚠️ Cookies YouTube expirés"
+    return (
+        f"{titre}\n\n"
+        "La session Google de Sona est déconnectée : les téléchargements vont "
+        "buter sur « Sign in to confirm you're not a bot » et les morceaux "
+        "paraîtront indisponibles.\n\n" + _HOW_TO_REEXPORT
+    )
+
+
+def register_notifier(notifier: Notifier | None) -> None:
+    """Branche l'envoi des alertes aux administrateurs.
+
+    Ce module ne connaît ni le bot ni la base : `run.py` lui passe une fonction
+    au démarrage. Sans ça, il faudrait importer la couche Telegram depuis un
+    service que la couche Telegram importe déjà — dépendance circulaire.
+    """
+    global _notifier
+    _notifier = notifier
+
+
+def session_alert(logged_in: bool | None, now: float) -> str | None:
+    """Message à envoyer aux admins après une vérification, ou None.
+
+    Met à jour l'état retenu au passage. On prévient au passage de connecté à
+    déconnecté (y compris à la toute première vérification, un bot qui démarre
+    avec des cookies morts est justement le cas à signaler) et au retour à la
+    normale. Tant que l'état ne bouge pas, un rappel toutes les 12 h au plus.
+    """
+    global _last_known_logged_in, _last_alert_at
+    if logged_in is None:
+        # Vérification impossible ou page inattendue : ça ne prouve pas que la
+        # session est morte, on ne réveille personne pour ça.
+        return None
+
+    previous, _last_known_logged_in = _last_known_logged_in, logged_in
+
+    if logged_in:
+        _last_alert_at = None
+        # Rien à annoncer si la session n'avait jamais été vue déconnectée :
+        # au démarrage, une session valide est la normale.
+        return SESSION_BACK_MESSAGE if previous is False else None
+
+    if previous is not False:
+        _last_alert_at = now
+        return session_lost_message()
+    if _last_alert_at is None or now - _last_alert_at >= _REMINDER_SECONDS:
+        _last_alert_at = now
+        return session_lost_message(reminder=True)
+    return None
 
 
 def parse_logged_in(html: str) -> bool | None:
@@ -111,6 +192,26 @@ def report_session(cookies_file: Path, reason: str) -> bool | None:
     return logged_in
 
 
+async def check_session(cookies_file: Path, reason: str) -> bool | None:
+    """Vérifie la session, journalise le verdict, et prévient les admins quand
+    l'état change (ou toutes les 12 h tant qu'il ne revient pas à la normale).
+
+    Un envoi qui échoue est journalisé mais ne remonte pas : une alerte perdue
+    ne doit pas faire tomber la tâche de fond qui l'émet.
+    """
+    logged_in = await asyncio.to_thread(report_session, cookies_file, reason)
+    message = session_alert(logged_in, time.monotonic())
+    if message is None or _notifier is None:
+        if message is not None:
+            logger.warning("Aucun destinataire pour l'alerte de session YouTube")
+        return logged_in
+    try:
+        await _notifier(message)
+    except Exception as exc:
+        logger.warning("Alerte de session YouTube non envoyée : %s", exc)
+    return logged_in
+
+
 def schedule_session_check(cookies_file: Path, reason: str) -> asyncio.Task | None:
     """Lance la vérification en tâche de fond, sans bloquer l'appelant.
 
@@ -121,7 +222,7 @@ def schedule_session_check(cookies_file: Path, reason: str) -> asyncio.Task | No
     if _last_check_at is not None and now - _last_check_at < _COOLDOWN_SECONDS:
         return None
     _last_check_at = now
-    task = asyncio.get_running_loop().create_task(asyncio.to_thread(report_session, cookies_file, reason))
+    task = asyncio.get_running_loop().create_task(check_session(cookies_file, reason))
     # La boucle ne garde qu'une référence faible vers ses tâches.
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)

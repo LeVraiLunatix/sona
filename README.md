@@ -109,6 +109,12 @@ l'indicateur `"LOGGED_IN"` de la page. Dans les logs (`pm2 logs sona`) :
 - `Cookies YouTube déconnectés` : YouTube renvoie `"LOGGED_IN": false`
   malgré le fichier. La session Google est morte, refais un export.
 
+Pas besoin de surveiller les logs : dès que la session tombe, **chaque
+administrateur reçoit un message privé de Sona** avec la marche à suivre, puis
+un rappel toutes les 12 h tant que rien ne change, et un message quand tout
+est rentré dans l'ordre. Le message ne contient jamais la moindre valeur de
+cookie.
+
 Les avertissements de `yt-dlp` liés aux cookies (par exemple *"The provided
 YouTube account cookies are no longer valid"*) apparaissent aussi dans les
 logs, sous le nom `yt_dlp`.
