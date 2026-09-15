@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery
 from app.bot import errors, keyboards, lookup, navigation
 from app.bot.callbacks import ArtistCB
 from app.bot.deps import Deps
+from app.bot.handlers.track import play_all_tracks
 from app.bot.navigation import Screen
 from app.bot.render import RenderTarget, show_photo, show_text
 
@@ -48,7 +49,7 @@ async def render_artist_top(deps: Deps, target: RenderTarget, user_id: int, para
     else:
         lines = [f"{i}. {t.title}" for i, t in enumerate(tracks, start=1)]
         text = f"Titres populaires — {artist.name}\n\n" + "\n".join(lines)
-    markup = keyboards.artist_top_tracks_keyboard(tracks)
+    markup = keyboards.artist_top_tracks_keyboard(artist, tracks)
     return await show_text(deps.bot, target, text, markup)
 
 
@@ -92,6 +93,35 @@ async def on_artist_top(callback: CallbackQuery, callback_data: ArtistCB, deps: 
         callback.message.chat.id,
         Screen("artist_top", {"source": callback_data.source, "id": callback_data.id}),
     )
+
+
+@router.callback_query(ArtistCB.filter(F.action == "playall"))
+async def on_artist_playall(callback: CallbackQuery, callback_data: ArtistCB, deps: Deps) -> None:
+    """Envoie tous les titres populaires de l'artiste, comme « Tout écouter »
+    sur un album."""
+    user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
+    source, source_id = callback_data.source, callback_data.id
+    # Après un redémarrage, la navigation (en mémoire) ne connaît plus ce
+    # message : sans ça, « Envoi 1/10… » n'aurait nulle part où s'afficher.
+    navigation.adopt_message(user_id, callback.message, Screen("artist_top", {"source": source, "id": source_id}))
+
+    try:
+        tracks = await lookup.get_artist_top_tracks(deps, source, source_id)
+    except lookup.ProviderErrors as exc:
+        await callback.answer()
+        errors.log_and_hide(logger, "playall (titres populaires)", exc)
+        await errors.show_error(deps, user_id, chat_id, errors.GENERIC_UNAVAILABLE, callback.data)
+        return
+
+    if not tracks:
+        # Avant tout `answer()` : une requête callback déjà répondue ne peut
+        # plus afficher d'alerte, et l'appui resterait sans explication.
+        await callback.answer("Aucun titre à écouter.", show_alert=True)
+        return
+
+    await callback.answer()
+    await play_all_tracks(deps, user_id, chat_id, tracks)
 
 
 @router.callback_query(ArtistCB.filter(F.action == "albums"))

@@ -177,7 +177,7 @@ def artist_keyboard(artist: ArtistInfo) -> InlineKeyboardMarkup:
     )
 
 
-def artist_top_tracks_keyboard(tracks: list[TrackInfo]) -> InlineKeyboardMarkup:
+def artist_top_tracks_keyboard(artist: ArtistInfo, tracks: list[TrackInfo]) -> InlineKeyboardMarkup:
     rows = []
     for i, track in enumerate(tracks, start=1):
         rows.append(
@@ -188,7 +188,18 @@ def artist_top_tracks_keyboard(tracks: list[TrackInfo]) -> InlineKeyboardMarkup:
                 )
             ]
         )
-    return _rows(*rows, _back_row(NavCB(action="back").pack()))
+    # Sans titre à envoyer, le bouton ne ferait qu'afficher une alerte.
+    playall_row = (
+        [
+            InlineKeyboardButton(
+                text="Tout écouter",
+                callback_data=ArtistCB(action="playall", source=artist.source, id=artist.source_id).pack(),
+            )
+        ]
+        if tracks
+        else []
+    )
+    return _rows(*rows, playall_row, _back_row(NavCB(action="back").pack()))
 
 
 def album_list_keyboard(albums: list[AlbumInfo]) -> InlineKeyboardMarkup:

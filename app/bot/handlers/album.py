@@ -9,10 +9,9 @@ from aiogram.types import CallbackQuery
 from app.bot import errors, formatting, keyboards, lookup, navigation
 from app.bot.callbacks import AlbumCB
 from app.bot.deps import Deps
-from app.bot.handlers.track import deliver_track_audio
+from app.bot.handlers.track import play_all_tracks
 from app.bot.navigation import Screen
 from app.bot.render import RenderTarget, show_photo, show_text
-from app.services import antispam
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +99,6 @@ async def on_album_library_toggle(callback: CallbackQuery, callback_data: AlbumC
 
 @router.callback_query(AlbumCB.filter(F.action == "playall"))
 async def on_album_playall(callback: CallbackQuery, callback_data: AlbumCB, deps: Deps) -> None:
-    await callback.answer()
     user_id = callback.from_user.id
     chat_id = callback.message.chat.id
     navigation.adopt_message(user_id, callback.message, _album_screen(callback_data))
@@ -108,38 +106,16 @@ async def on_album_playall(callback: CallbackQuery, callback_data: AlbumCB, deps
     try:
         album = await lookup.get_album(deps, callback_data.source, callback_data.id)
     except lookup.ProviderErrors as exc:
+        await callback.answer()
         errors.log_and_hide(logger, "playall (récupération album)", exc)
         await errors.show_error(deps, user_id, chat_id, errors.GENERIC_UNAVAILABLE, callback.data)
         return
 
-    tracks = album.tracks
-    if not tracks:
+    if not album.tracks:
+        # Avant tout `answer()` : une requête callback déjà répondue ne peut
+        # plus afficher d'alerte, et l'appui resterait sans explication.
         await callback.answer("Aucun morceau à écouter.", show_alert=True)
         return
 
-    user_settings = await deps.repo.get_settings(user_id)
-    total = len(tracks)
-    failed = 0
-    for i, track in enumerate(tracks, start=1):
-        track_uid = f"{track.source}:{track.source_id}"
-        if not antispam.try_acquire(user_id, track_uid):
-            continue
-        try:
-            await navigation.show_status(deps, user_id, f"Envoi {i}/{total}…")
-            if await deliver_track_audio(deps, chat_id, track, user_settings):
-                failed += 1
-        except Exception as exc:
-            failed += 1
-            errors.log_and_hide(logger, "playall (envoi morceau)", exc)
-        finally:
-            antispam.release(user_id, track_uid)
-
-    await navigation.rerender(deps, user_id)
-    if failed:
-        # Message à part plutôt qu'une réponse au callback : « Tout écouter »
-        # dure parfois plusieurs minutes, et la requête callback est alors
-        # expirée côté Telegram. Sans ce mot, l'utilisateur doit compter
-        # lui-même les morceaux reçus.
-        await deps.bot.send_message(
-            chat_id, f"{failed} morceau(x) sur {total} n'ont pas pu être envoyés."
-        )
+    await callback.answer()
+    await play_all_tracks(deps, user_id, chat_id, album.tracks)

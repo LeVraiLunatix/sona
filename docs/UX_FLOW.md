@@ -231,7 +231,10 @@ Saif
 ```
 
 - "Titres populaires" → liste directement sélectionnable (même gabarit que
-  Résultats de recherche, sans champ recherche).
+  Résultats de recherche, sans champ recherche), avec un bouton
+  `[ Tout écouter ]` en bas qui envoie tous les titres de la liste, comme sur
+  l'écran Album (même progression `Envoi 3/10…`, même bilan en cas d'échec).
+  Pas de bouton quand la liste est vide.
 - "Albums" / "Singles & EP" → grille/liste de couvertures → Album.
 - "Rechercher chez cet artiste" → écran Recherche (prompt) avec la recherche
   scopée à cet artiste (indiqué dans le message : `Rechercher chez Saif`).
