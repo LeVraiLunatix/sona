@@ -223,6 +223,42 @@ async def _send_downloaded_audio(
     return None
 
 
+async def play_all_tracks(deps: Deps, user_id: int, chat_id: int, tracks: list[TrackInfo]) -> int:
+    """Envoie une liste de morceaux à la suite. Retourne le nombre d'échecs.
+
+    Partagé par « Tout écouter » des écrans Album et Titres populaires :
+    l'avancement s'affiche sur l'écran courant, un morceau déjà en cours
+    d'envoi (double appui) est sauté, et un échec n'interrompt pas la suite.
+    """
+    user_settings = await deps.repo.get_settings(user_id)
+    total = len(tracks)
+    failed = 0
+    for i, track in enumerate(tracks, start=1):
+        track_uid = f"{track.source}:{track.source_id}"
+        if not antispam.try_acquire(user_id, track_uid):
+            continue
+        try:
+            await navigation.show_status(deps, user_id, f"Envoi {i}/{total}…")
+            if await deliver_track_audio(deps, chat_id, track, user_settings):
+                failed += 1
+        except Exception as exc:
+            failed += 1
+            errors.log_and_hide(logger, "tout écouter (envoi morceau)", exc)
+        finally:
+            antispam.release(user_id, track_uid)
+
+    await navigation.rerender(deps, user_id)
+    if failed:
+        # Message à part plutôt qu'une réponse au callback : « Tout écouter »
+        # dure parfois plusieurs minutes, et la requête callback est alors
+        # expirée côté Telegram. Sans ce mot, l'utilisateur doit compter
+        # lui-même les morceaux reçus.
+        await deps.bot.send_message(
+            chat_id, f"{failed} morceau(x) sur {total} n'ont pas pu être envoyés."
+        )
+    return failed
+
+
 def play_callback_data(source: str, source_id: str) -> str:
     return TrackCB(action="play", source=source, id=source_id).pack()
 

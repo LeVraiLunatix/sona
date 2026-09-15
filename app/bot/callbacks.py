@@ -27,7 +27,7 @@ class AlbumCB(CallbackData, prefix="album"):
 
 
 class ArtistCB(CallbackData, prefix="artist"):
-    action: str  # view | top | albums | singles | search
+    action: str  # view | top | playall | albums | singles | search
     source: str
     id: str
 
