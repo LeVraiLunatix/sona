@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Message
 from app.bot import keyboards, navigation
 from app.bot.callbacks import HistoryCB
 from app.bot.deps import Deps
+from app.bot.handlers.track import show_and_play_track
 from app.bot.navigation import Screen
 from app.bot.render import RenderTarget, show_text
 
@@ -61,11 +62,8 @@ async def on_history_menu(callback: CallbackQuery, callback_data: HistoryCB, dep
 @router.callback_query(HistoryCB.filter(F.action == "open"))
 async def on_history_open(callback: CallbackQuery, callback_data: HistoryCB, deps: Deps) -> None:
     await callback.answer()
-    await navigation.goto(
-        deps,
-        callback.from_user.id,
-        callback.message.chat.id,
-        Screen("track", {"source": callback_data.source, "id": callback_data.id}),
+    await show_and_play_track(
+        deps, callback.from_user.id, callback.message.chat.id, callback_data.source, callback_data.id
     )
 
 

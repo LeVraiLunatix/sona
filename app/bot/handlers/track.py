@@ -67,11 +67,8 @@ async def render_track(deps: Deps, target: RenderTarget, user_id: int, params: d
 @router.callback_query(TrackCB.filter(F.action == "view"))
 async def on_track_view(callback: CallbackQuery, callback_data: TrackCB, deps: Deps) -> None:
     await callback.answer()
-    await navigation.goto(
-        deps,
-        callback.from_user.id,
-        callback.message.chat.id,
-        Screen("track", {"source": callback_data.source, "id": callback_data.id}),
+    await show_and_play_track(
+        deps, callback.from_user.id, callback.message.chat.id, callback_data.source, callback_data.id
     )
 
 
@@ -226,20 +223,41 @@ async def _send_downloaded_audio(
     return None
 
 
+def play_callback_data(source: str, source_id: str) -> str:
+    return TrackCB(action="play", source=source, id=source_id).pack()
+
+
+async def show_and_play_track(deps: Deps, user_id: int, chat_id: int, source: str, source_id: str) -> None:
+    """Ouvre l'écran Morceau et envoie aussitôt le son.
+
+    Choisir un morceau (liste de résultats, album, historique…) suffit :
+    l'utilisateur n'a plus à appuyer sur « Écouter » à chaque fois. Le bouton
+    reste sur l'écran pour renvoyer le son.
+    """
+    await navigation.goto(deps, user_id, chat_id, Screen("track", {"source": source, "id": source_id}))
+    await play_track(deps, user_id, chat_id, source, source_id, play_callback_data(source, source_id))
+
+
 @router.callback_query(TrackCB.filter(F.action == "play"))
 async def on_track_play(callback: CallbackQuery, callback_data: TrackCB, deps: Deps) -> None:
     await callback.answer()
     user_id = callback.from_user.id
-    chat_id = callback.message.chat.id
     source, source_id = callback_data.source, callback_data.id
-    track_uid = f"{source}:{source_id}"
-    retry_data = callback.data
     # Après un redémarrage, la navigation (en mémoire) ne connaît plus ce
     # message : sans ça, « Préparation… » plantait au premier appui.
     navigation.adopt_message(user_id, callback.message, Screen("track", {"source": source, "id": source_id}))
+    await play_track(deps, user_id, callback.message.chat.id, source, source_id, callback.data)
 
+
+async def play_track(
+    deps: Deps, user_id: int, chat_id: int, source: str, source_id: str, retry_data: str
+) -> None:
+    """Envoie le son d'un morceau. L'écran courant (la carte du morceau) sert
+    de support aux messages d'attente et d'erreur ; `retry_data` est le
+    bouton « Réessayer » de l'écran d'erreur."""
+    track_uid = f"{source}:{source_id}"
     if not antispam.try_acquire(user_id, track_uid):
-        await callback.answer("Préparation déjà en cours…", show_alert=False)
+        # Déjà en préparation (double appui) : le son arrivera une seule fois.
         return
 
     try:
