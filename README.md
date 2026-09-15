@@ -69,19 +69,65 @@ Depuis un serveur (IP de datacenter), YouTube bloque presque systématiquement
 les téléchargements avec *"Sign in to confirm you're not a bot"* — ça ne se
 voit généralement pas en local (IP résidentielle) mais ça bloque tout en
 production. Le contournement documenté par `yt-dlp` est de fournir des
-cookies d'un compte YouTube connecté :
+cookies d'un compte YouTube connecté.
 
-1. Installe une extension navigateur du type
+**L'export doit suivre une procédure précise.** Si le navigateur continue à
+se servir de la session après l'export, Google fait tourner ses cookies et
+invalide ceux du fichier. Le fichier reste en place, mais YouTube traite Sona
+comme un visiteur anonyme et tout retombe sur le mur anti-bot : c'est ce qui
+s'est produit le 2026-09-15. Procédure du
+[wiki yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies) :
+
+1. Installe une extension d'export au format Netscape, par exemple
    [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
-   (Chrome/Edge) ou équivalent Firefox.
-2. Connecte-toi sur [youtube.com](https://youtube.com) avec un compte Google.
-3. Exporte les cookies du site en format Netscape (`cookies.txt`).
-4. Place le fichier dans `data/cookies.txt` (déjà exclu de git).
+   (Chrome/Edge) ou un équivalent Firefox, et **autorise-la en navigation
+   privée** (réglage de l'extension).
+2. Ouvre une **nouvelle fenêtre de navigation privée** et connecte-toi sur
+   [youtube.com](https://www.youtube.com) avec le compte Google du bot.
+3. **Dans le même onglet**, ouvre
+   [youtube.com/robots.txt](https://www.youtube.com/robots.txt).
+4. Exporte **uniquement les cookies de youtube.com** (l'export du site
+   courant). **Pas** « Export All Cookies », qui embarque ceux de tous les
+   sites.
+5. **Ferme la fenêtre privée** tout de suite, et **ne la rouvre jamais** : la
+   session exportée ne doit plus servir à aucun navigateur.
+6. Place le fichier dans `data/cookies.txt` (déjà exclu de git), sur le VPS
+   pour la production, puis redémarre Sona.
 
 Sona le détecte automatiquement à ce chemin (ou via `YOUTUBE_COOKIES_FILE`
-dans `.env` pour un autre emplacement). Ces cookies expirent au bout d'un
-moment ("Sign in to confirm..." qui revient après avoir fonctionné) — il
-suffit de refaire un export.
+dans `.env` pour un autre emplacement). Une session finit quand même par
+expirer : refais alors un export avec la même procédure.
+
+#### Vérifier que la session est connectée
+
+Au démarrage, puis quand un téléchargement bute sur le mur anti-bot à toutes
+les tentatives (au plus une fois par quart d'heure), Sona charge une copie
+temporaire de `cookies.txt` dans `yt-dlp`, ouvre youtube.com et lit
+l'indicateur `"LOGGED_IN"` de la page. Dans les logs (`pm2 logs sona`) :
+
+- `Session YouTube active` : les cookies sont bons ;
+- `Cookies YouTube déconnectés` : YouTube renvoie `"LOGGED_IN": false`
+  malgré le fichier. La session Google est morte, refais un export.
+
+Les avertissements de `yt-dlp` liés aux cookies (par exemple *"The provided
+YouTube account cookies are no longer valid"*) apparaissent aussi dans les
+logs, sous le nom `yt_dlp`.
+
+Pour vérifier à la main sans redémarrer le bot, par exemple juste après avoir
+déposé un nouvel export, lance depuis le dossier de Sona avec le Python du
+venv :
+
+```bash
+.venv/bin/python -m app.services.youtube_session
+```
+
+(`.venv\Scripts\python` sous Windows.) Code de sortie : `0` connecté, `1`
+déconnecté ou indéterminé, `2` aucun fichier de cookies.
+
+**Ne teste pas avec la vidéo `dQw4w9WgXcQ`** (Rick Astley) : elle se
+télécharge depuis le VPS même quand tout le reste est bloqué, cookies morts
+compris. La voir passer ne prouve rien : teste un autre morceau, ou la
+commande ci-dessus.
 
 **Avec des cookies, `yt-dlp` a aussi besoin d'un moteur JavaScript** (pour
 déchiffrer les flux YouTube — voir le
@@ -191,7 +237,10 @@ Les tests couvrent la détection de liens (Deezer/Spotify/Apple Music/YouTube),
 le cycle de vie des invitations et des demandes d'accès (y compris la
 migration d'une base créée par une version antérieure), la sélection du
 meilleur résultat YouTube pour un morceau, la cascade de recherche
-Deezer → iTunes → YouTube Music, et la gestion des fichiers téléchargés.
+Deezer → iTunes → YouTube Music, la gestion des fichiers téléchargés, la
+détection d'une cascade de téléchargement entièrement bloquée par le mur
+anti-bot, la vérification de session YouTube (copie temporaire du fichier de
+cookies, lecture de `"LOGGED_IN"`) et le tri des avertissements de `yt-dlp`.
 Les providers et le pipeline de téléchargement ont été vérifiés manuellement
 en conditions réelles pendant le développement (recherche Deezer, résolution
 YouTube Music, téléchargement + tag ffmpeg/mutagen, lecture/écriture SQLite) —

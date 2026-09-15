@@ -11,6 +11,7 @@ from pathlib import Path
 import yt_dlp
 from ytmusicapi import YTMusic
 
+from app.logging_config import ytdlp_logger
 from app.providers.base import TrackInfo
 
 logger = logging.getLogger(__name__)
@@ -174,7 +175,8 @@ def _search_ytdlp_sync(query: str, cookies_file: Path | None) -> list[Candidate]
     téléchargeable."""
     opts = {
         "quiet": True,
-        "no_warnings": True,
+        # Plutôt que `no_warnings` : les avertissements utiles remontent.
+        "logger": ytdlp_logger,
         "skip_download": True,
         "extract_flat": True,
         "socket_timeout": 20,
