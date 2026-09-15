@@ -65,6 +65,25 @@ async def _publish_commands(bot: Bot, repo: Repository) -> None:
         logger.warning("Publication des commandes impossible: %s", exc)
 
 
+async def _shutdown(db, bot, *clients) -> None:
+    """Ferme tout, quoi qu'il arrive : chaque fermeture est isolée pour qu'un
+    échec n'empêche pas les suivantes — notamment celle de la base, dont le
+    thread empêcherait le process de se terminer."""
+    for client in clients:
+        try:
+            await client.aclose()
+        except Exception as exc:
+            logger.warning("Fermeture de %s: %s", type(client).__name__, exc)
+    try:
+        await db.close()
+    except Exception as exc:
+        logger.warning("Fermeture de la base: %s", exc)
+    try:
+        await bot.session.close()
+    except Exception as exc:
+        logger.warning("Fermeture de la session Telegram: %s", exc)
+
+
 async def main() -> None:
     setup_logging()
     _clear_node_ipc_env()
@@ -76,49 +95,52 @@ async def main() -> None:
             "Renseigne ton user_id Telegram dans .env."
         )
 
+    # Tout ce qui suit l'ouverture de la base doit être protégé par le
+    # `finally` : la connexion aiosqlite tourne dans un thread non-daemon, et
+    # une exception qui la laisse ouverte (un `get_me` qui échoue au
+    # démarrage, par exemple) fige le process au lieu de le terminer. Sous un
+    # superviseur type PM2, ça donne un bot « online » qui ne répond jamais et
+    # que rien ne redémarre.
     db = Database(settings.database_path)
     await db.connect()
-    repo = Repository(db)
-    await repo.bootstrap_admins(list(settings.allowed_user_ids))
-
     bot = Bot(token=settings.bot_token)
-    me = await bot.get_me()
-    dp = Dispatcher()
-
     deezer = DeezerClient()
     apple = AppleMusicClient()
     spotify = SpotifyClient(settings.spotify_client_id, settings.spotify_client_secret)
 
-    deps = Deps(
-        bot=bot,
-        bot_username=me.username,
-        settings=settings,
-        repo=repo,
-        deezer=deezer,
-        apple=apple,
-        spotify=spotify,
-    )
-    dp["deps"] = deps
-
-    whitelist = WhitelistMiddleware(deps)
-    dp.message.outer_middleware(whitelist)
-    dp.callback_query.outer_middleware(whitelist)
-
-    setup_routers(dp)
-
-    allowed_count = len(await repo.list_allowed_users())
-    logger.info("Sona démarre (bot privé, %d utilisateur(s) autorisé(s))", allowed_count)
-
     try:
+        repo = Repository(db)
+        await repo.bootstrap_admins(list(settings.allowed_user_ids))
+
+        me = await bot.get_me()
+        dp = Dispatcher()
+
+        deps = Deps(
+            bot=bot,
+            bot_username=me.username,
+            settings=settings,
+            repo=repo,
+            deezer=deezer,
+            apple=apple,
+            spotify=spotify,
+        )
+        dp["deps"] = deps
+
+        whitelist = WhitelistMiddleware(deps)
+        dp.message.outer_middleware(whitelist)
+        dp.callback_query.outer_middleware(whitelist)
+        dp.inline_query.outer_middleware(whitelist)
+
+        setup_routers(dp)
+
+        allowed_count = len(await repo.list_allowed_users())
+        logger.info("Sona démarre (bot privé, %d utilisateur(s) autorisé(s))", allowed_count)
+
         await bot.delete_webhook(drop_pending_updates=True)
         await _publish_commands(bot, repo)
         await dp.start_polling(bot)
     finally:
-        await deezer.aclose()
-        await apple.aclose()
-        await spotify.aclose()
-        await db.close()
-        await bot.session.close()
+        await _shutdown(db, bot, deezer, apple, spotify)
 
 
 if __name__ == "__main__":

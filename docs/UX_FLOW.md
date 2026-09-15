@@ -30,6 +30,7 @@ Chaque écran est un message unique, mis à jour par édition (`edit_message_tex
 |---|---|---|
 | Accueil | `home` | `/start`, bouton "Accueil" |
 | Recherche (prompt) | `search_prompt` | bouton "Rechercher", `/search` |
+| Suggestions en direct | *(hors pile, mode inline)* | bouton "🔍 Suggestions en direct", `@<bot> …` |
 | Résultats de recherche | `search_results(query, page)` | texte libre envoyé, pagination |
 | Morceau | `track(id)` | clic sur un résultat / lien collé |
 | Écoute (préparation → audio) | *(transitoire, ne s'empile pas)* | bouton "Écouter" |
@@ -88,6 +89,31 @@ Reprendre une écoute récente :
   le menu de la conversation.
 - "Rechercher chez cet artiste" réutilise le même écran avec un `scope_name` :
   la recherche est alors limitée à cet artiste (pas de suggestions).
+
+### 2bis. Suggestions en direct (mode inline)
+
+Le bouton `[ 🔍 Suggestions en direct ]` porte un
+`switch_inline_query_current_chat` vide : Telegram pré-remplit le champ de
+saisie avec `@<bot> ` et ouvre son panneau de résultats **au-dessus du
+clavier**, rafraîchi à chaque frappe (`inline_query`, voir
+[`app/bot/handlers/inline.py`](../app/bot/handlers/inline.py)).
+
+- Moins de 2 caractères → panneau vide avec une invite ; jamais de panneau
+  muet, qui donnerait l'impression d'un bot en panne.
+- Morceau déjà dans le cache audio → proposé en `CachedAudio` : un tap envoie
+  le fichier, sans re-téléchargement. Le cache est interrogé en un seul appel
+  pour toute la page (`cache_get_many`), l'événement se répétant à chaque
+  lettre.
+- Sinon → `Article` (titre, artiste • album • durée, pochette) dont le message
+  est l'URL du morceau. Sona la redétecte via le pipeline de liens existant et
+  ouvre l'écran Morceau : c'est pourquoi `track_url` doit toujours produire une
+  URL relisible par `resolve_link`.
+- Le défilement charge la page suivante (`next_offset`).
+- Ce mode est soumis à la même whitelist : hors liste, panneau vide + bouton
+  « Demander l'accès à Sona ». Sans ce filtre, la recherche fuirait à
+  quiconque connaît le nom du bot.
+- Demande une activation unique côté @BotFather (`/setinline`) ; sans elle,
+  seul ce bouton est inopérant, tout le reste fonctionne.
 
 ## 3. Résultats de recherche
 

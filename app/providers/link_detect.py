@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.providers.base import TrackInfo
+
 URL_RE = re.compile(r"https?://\S+")
 
 _DEEZER_RE = re.compile(
@@ -101,4 +103,23 @@ async def resolve_link(text: str) -> DetectedLink | None:
             return None
         return _parse(final_url)
 
+    return None
+
+
+def track_url(track: TrackInfo) -> str | None:
+    """URL publique canonique d'un morceau, ou None si on ne sait pas la bâtir.
+
+    Inverse de `resolve_link` : ce que cette fonction produit doit être
+    re-détectable par `_parse`, puisque c'est ainsi qu'un morceau choisi dans
+    le panneau de suggestions (mode inline) revient à l'écran Morceau.
+    """
+    if track.source == "deezer":
+        return f"https://www.deezer.com/track/{track.source_id}"
+    if track.source == "spotify":
+        return f"https://open.spotify.com/track/{track.source_id}"
+    if track.source == "youtube":
+        return f"https://www.youtube.com/watch?v={track.source_id}"
+    if track.source == "apple" and track.album_source_id:
+        # Apple Music n'a pas d'URL de morceau isolée : c'est l'album + ?i=<id>.
+        return f"https://music.apple.com/us/album/song/{track.album_source_id}?i={track.source_id}"
     return None

@@ -238,6 +238,26 @@ class Repository:
         row = await cursor.fetchone()
         return row["telegram_file_id"] if row else None
 
+    async def cache_get_many(
+        self, keys: list[tuple[str, str]], fmt: str, quality: str
+    ) -> dict[tuple[str, str], str]:
+        """Cherche plusieurs morceaux d'un coup dans le cache audio.
+
+        Sert au panneau de suggestions (mode inline), qui est interrogé à
+        chaque frappe : une requête par résultat serait du gaspillage."""
+        if not keys:
+            return {}
+        placeholders = ",".join("?" for _ in keys)
+        cursor = await self._db.conn.execute(
+            f"""SELECT source, source_id, telegram_file_id FROM audio_cache
+                WHERE format=? AND quality=? AND source_id IN ({placeholders})""",
+            (fmt, quality, *(source_id for _, source_id in keys)),
+        )
+        rows = await cursor.fetchall()
+        found = {(r["source"], r["source_id"]): r["telegram_file_id"] for r in rows}
+        # Le filtre SQL ne porte que sur source_id : on recoupe la source ici.
+        return {key: found[key] for key in keys if key in found}
+
     async def cache_set(
         self,
         source: str,
