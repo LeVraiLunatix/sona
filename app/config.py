@@ -39,6 +39,16 @@ class Settings:
         return len(self.allowed_user_ids) > 0
 
 
+def resolve_youtube_cookies_file() -> Path | None:
+    """Fichier de cookies YouTube : `YOUTUBE_COOKIES_FILE`, sinon
+    `data/cookies.txt`. None s'il n'existe pas."""
+    cookies_raw = os.getenv("YOUTUBE_COOKIES_FILE", "").strip()
+    cookies_file = Path(cookies_raw) if cookies_raw else (BASE_DIR / "data" / "cookies.txt")
+    if not cookies_file.is_absolute():
+        cookies_file = BASE_DIR / cookies_file
+    return cookies_file if cookies_file.is_file() else None
+
+
 def load_settings() -> Settings:
     token = os.getenv("BOT_TOKEN", "").strip()
     if not token:
@@ -58,12 +68,7 @@ def load_settings() -> Settings:
     downloads_dir = BASE_DIR / "data" / "cache"
     downloads_dir.mkdir(parents=True, exist_ok=True)
 
-    cookies_raw = os.getenv("YOUTUBE_COOKIES_FILE", "").strip()
-    cookies_file = Path(cookies_raw) if cookies_raw else (BASE_DIR / "data" / "cookies.txt")
-    if not cookies_file.is_absolute():
-        cookies_file = BASE_DIR / cookies_file
-    if not cookies_file.is_file():
-        cookies_file = None
+    cookies_file = resolve_youtube_cookies_file()
 
     return Settings(
         bot_token=token,

@@ -5,6 +5,7 @@ import logging
 
 import yt_dlp
 
+from app.logging_config import ytdlp_logger
 from app.providers.base import AlbumInfo, TrackInfo
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,8 @@ class YoutubeError(Exception):
 def _base_opts() -> dict:
     return {
         "quiet": True,
-        "no_warnings": True,
+        # Plutôt que `no_warnings` : les avertissements utiles remontent.
+        "logger": ytdlp_logger,
         "skip_download": True,
         "noplaylist": True,
         "extract_flat": False,

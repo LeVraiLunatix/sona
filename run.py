@@ -17,6 +17,7 @@ from app.logging_config import setup_logging
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
 from app.providers.spotify import SpotifyClient
+from app.services.youtube_session import schedule_session_check
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,14 @@ async def main() -> None:
 
         allowed_count = len(await repo.list_allowed_users())
         logger.info("Sona démarre (bot privé, %d utilisateur(s) autorisé(s))", allowed_count)
+
+        # En tâche de fond, pour ne pas retarder le démarrage : sans ça, une
+        # session YouTube morte ne se voit qu'au premier téléchargement raté,
+        # et rien d'explicite dans les logs n'en donne la cause.
+        if settings.youtube_cookies_file is None:
+            logger.info("Aucun fichier de cookies YouTube : téléchargements sans compte connecté")
+        else:
+            schedule_session_check(settings.youtube_cookies_file, "démarrage")
 
         await bot.delete_webhook(drop_pending_updates=True)
         await _publish_commands(bot, repo)

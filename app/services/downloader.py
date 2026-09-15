@@ -14,7 +14,9 @@ from mutagen.id3 import APIC, ID3, ID3NoHeaderError, TALB, TDRC, TIT2, TPE1
 from mutagen.mp4 import MP4, MP4Cover
 
 from app.config import Settings
+from app.logging_config import ytdlp_logger
 from app.providers.base import TrackInfo
+from app.services import youtube_session
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,17 @@ _FORBIDDEN_CHARS_RE = re.compile(r'[\\/*?:"<>|]')
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _AUDIO_SUFFIXES = (".m4a", ".mp3", ".opus", ".ogg", ".webm", ".aac", ".flac", ".wav", ".mp4")
 _TEMP_PREFIX = "sona-dl-"
+# Fin du message de YouTube quand il prend le visiteur pour un robot : « Sign
+# in to confirm you're not a bot » (apostrophe droite ou typographique).
+_BOT_WALL_MARKER = "not a bot"
 
 
 class DownloadError(Exception):
-    pass
+    def __init__(self, message: str, *, bot_wall: bool = False) -> None:
+        super().__init__(message)
+        # Toutes les tentatives ont buté sur le mur anti-bot : le problème
+        # vient de la session YouTube (cookies), pas du morceau demandé.
+        self.bot_wall = bot_wall
 
 
 def _sanitize_filename(name: str) -> str:
@@ -82,7 +91,9 @@ def _build_opts(
             {"key": "FFmpegExtractAudio", "preferredcodec": codec, "preferredquality": "0"},
         ],
         "quiet": True,
-        "no_warnings": True,
+        # Pas de `no_warnings` : il masquait aussi les avertissements sur des
+        # cookies qui ne sont plus valides. Le logger les fait remonter.
+        "logger": ytdlp_logger,
         "noprogress": True,
         "noplaylist": True,
         "socket_timeout": 20,
@@ -131,6 +142,7 @@ def _download_sync(
     url = f"https://www.youtube.com/watch?v={video_id}"
     codec = _codec_for(format_pref)
     last_error: Exception | None = None
+    bot_walls = 0
 
     for index, attempt in enumerate(_ATTEMPTS):
         opts = _build_opts(attempt, out_template, ffmpeg_path, quality, codec, cookies_file)
@@ -141,6 +153,8 @@ def _download_sync(
             return _find_output(Path(filename).with_suffix(f".{codec}"))
         except Exception as exc:
             last_error = exc
+            if _BOT_WALL_MARKER in str(exc).lower():
+                bot_walls += 1
             logger.warning(
                 "Téléchargement de %s : tentative %d/%d (%s) échouée: %s",
                 video_id,
@@ -152,7 +166,9 @@ def _download_sync(
             if index < len(_ATTEMPTS) - 1:
                 time.sleep(2)
 
-    raise DownloadError("Téléchargement audio impossible.") from last_error
+    raise DownloadError(
+        "Téléchargement audio impossible.", bot_wall=bot_walls == len(_ATTEMPTS)
+    ) from last_error
 
 
 async def _fetch_cover_bytes(cover_url: str | None) -> bytes | None:
@@ -221,6 +237,19 @@ def cleanup_download(path: Path) -> None:
         shutil.rmtree(parent, ignore_errors=True)
 
 
+def _report_bot_wall(cookies_file: Path | None) -> None:
+    """Toutes les tentatives ont buté sur le mur anti-bot : on vérifie en
+    tâche de fond si la session YouTube est morte, sans retarder le message
+    d'erreur envoyé à l'utilisateur."""
+    if cookies_file is None:
+        logger.warning(
+            "Mur anti-bot YouTube sur toutes les tentatives, sans fichier de cookies "
+            "configuré : voir README, section « Cookies YouTube »."
+        )
+        return
+    youtube_session.schedule_session_check(cookies_file, "mur anti-bot sur toutes les tentatives")
+
+
 async def download_and_tag(
     settings: Settings,
     video_id: str,
@@ -249,8 +278,10 @@ async def download_and_tag(
             format_pref,
             settings.youtube_cookies_file,
         )
-    except DownloadError:
+    except DownloadError as exc:
         shutil.rmtree(work_dir, ignore_errors=True)
+        if exc.bot_wall:
+            _report_bot_wall(settings.youtube_cookies_file)
         raise
     except Exception as exc:
         shutil.rmtree(work_dir, ignore_errors=True)
