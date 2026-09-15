@@ -62,6 +62,8 @@ _FILLER_WORDS = frozenset(
     "letra visualizer hd hq 4k by ft featuring topic vevo".split()
 )
 _UNKNOWN_ARTISTS = frozenset({"artiste inconnu"})
+# Suffixes des chaînes officielles : « Queen Official », « DaftPunkVEVO », « PNL - Topic ».
+_CHANNEL_SUFFIX_RE = re.compile(r"(?:\s*(?:official|officiel|officielle|music|musique|topic|vevo))+$")
 
 # Un score en dessous duquel on considère que le résultat n'a rien à voir.
 ACCEPT_SCORE = 0.35
@@ -151,12 +153,23 @@ def _artist_names(track: TrackInfo) -> list[str]:
     return [n for n in dict.fromkeys(names) if n and n not in _UNKNOWN_ARTISTS]
 
 
+def _channel_names(candidate: Candidate) -> list[str]:
+    parts = [candidate.artist, *_ARTIST_SEPARATOR_RE.split(candidate.artist)]
+    names = (_CHANNEL_SUFFIX_RE.sub("", _plain(part)).strip() for part in parts)
+    return [n for n in dict.fromkeys(names) if n]
+
+
 def _is_by_artist(track: TrackInfo, candidate: Candidate) -> bool:
-    """La chaîne / l'artiste du résultat est l'artiste du morceau."""
-    channel = _plain(candidate.artist)
+    """La chaîne / l'artiste du résultat est l'artiste du morceau.
+
+    Le nom doit être celui de l'artiste, pas seulement le contenir : « PNL
+    SPAIN » est une chaîne de fans, alors que « Queen Official » ou
+    « DaftPunkVEVO » sont bien les chaînes des artistes.
+    """
     return any(
-        _mentions(channel, name) or SequenceMatcher(None, name, channel).ratio() >= ARTIST_SIMILARITY
+        channel == name or SequenceMatcher(None, name, channel).ratio() >= ARTIST_SIMILARITY
         for name in _artist_names(track)
+        for channel in _channel_names(candidate)
     )
 
 

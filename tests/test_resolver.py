@@ -251,6 +251,16 @@ def test_artist_upload_on_soundcloud_comes_before_youtube_reposts(monkeypatch):
     assert asyncio.run(_first_video_ids(pnl("Zoulou tchaing", 325), limit=10)) == ["soundcloud:1", "repost"]
 
 
+def test_fan_channel_named_after_the_artist_is_not_the_artist():
+    """Cas réel : la vidéo « Traducción Menace - PNL » de « PNL SPAIN » passait
+    devant la publication de PNL sur SoundCloud, pour un téléchargement perdu."""
+    ref = pnl("Menace", 188)
+    assert not resolver._is_by_artist(ref, candidate("Traducción Menace - PNL", "PNL SPAIN", 190, is_song=False))
+    assert resolver._is_by_artist(ref, candidate("Menace", "PNL - Topic", 188))
+    assert resolver._is_by_artist(track(), candidate("Instant Crush", "DaftPunkVEVO"))
+    assert resolver._is_by_artist(track(title="Bohemian Rhapsody", artist="Queen"), candidate("Bohemian Rhapsody", "Queen Official"))
+
+
 def test_soundcloud_search_entry_becomes_a_candidate():
     entry = {
         "id": 726423343,
