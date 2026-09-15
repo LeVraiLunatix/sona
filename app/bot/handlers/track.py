@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from contextlib import aclosing
+from pathlib import Path
 from typing import Awaitable, Callable
 
 from aiogram import F, Router
@@ -14,14 +16,20 @@ from app.bot.render import RenderTarget, show_photo, show_text, update_in_place
 from app.db.repository import UserSettings
 from app.providers.base import TrackInfo
 from app.services import antispam
+from app.services.audio_match import Verdict, verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
-from app.services.resolver import ResolutionError, find_youtube_match
+from app.services.resolver import ResolutionError, iter_youtube_candidates
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="track")
 
 StatusCallback = Callable[[str], Awaitable[None]]
+
+# Candidats téléchargés et comparés à l'extrait officiel avant d'abandonner :
+# au-delà de trois versions fausses d'affilée, YouTube n'a vraisemblablement
+# que des reposts retouchés, et chaque essai coûte un téléchargement complet.
+MAX_SOURCE_ATTEMPTS = 3
 
 
 def _build_text(track: TrackInfo) -> str:
@@ -100,7 +108,7 @@ async def deliver_track_audio(
     status_cb: StatusCallback | None = None,
 ) -> str | None:
     """Envoie l'audio d'un morceau dans `chat_id` : cache, sinon résolution +
-    téléchargement + envoi + mise en cache.
+    téléchargement + vérification + envoi + mise en cache.
 
     Retourne None si l'envoi a réussi, sinon le message d'erreur à afficher.
     Distinguer les causes compte : « aucune source trouvée » invite à choisir
@@ -119,26 +127,60 @@ async def deliver_track_audio(
 
     if status_cb:
         await status_cb("Recherche de la source…" if track.source != "youtube" else "Préparation de l'audio…")
+
+    attempts = 0
     try:
-        match = await find_youtube_match(track, deps.settings.youtube_cookies_file)
+        async with aclosing(iter_youtube_candidates(track, deps.settings.youtube_cookies_file)) as sources:
+            async for video_id, _matched in sources:
+                attempts += 1
+                if status_cb:
+                    await status_cb("Préparation de l'audio…" if attempts == 1 else "Recherche d'une version fidèle…")
+                try:
+                    path = await download_and_tag(
+                        deps.settings, video_id, track, user_settings.quality, user_settings.format
+                    )
+                except DownloadError as exc:
+                    errors.log_and_hide(logger, "téléchargement audio", exc)
+                    return errors.DOWNLOAD_FAILED
+
+                verdict = await verify_recording(track, path, deps.settings.ffmpeg_path)
+                if not verdict.rejected:
+                    _log_verdict(video_id, verdict)
+                    return await _send_downloaded_audio(deps, chat_id, track, user_settings, path, status_cb)
+
+                logger.info(
+                    "Audio %s écarté pour %s — %s : écart d'empreinte %.3f avec l'extrait officiel",
+                    video_id, track.artist, track.title, verdict.error,
+                )
+                cleanup_download(path)
+                if attempts >= MAX_SOURCE_ATTEMPTS:
+                    break
     except ResolutionError as exc:
         errors.log_and_hide(logger, "résolution YouTube", exc)
         return errors.SOURCE_SEARCH_FAILED
-    if match is None:
+
+    if attempts == 0:
         logger.info("Aucune source YouTube pour %s — %s", track.artist, track.title)
         return errors.NO_SOURCE_FOUND
-    video_id, _matched = match
+    logger.info("Aucune version fidèle sur YouTube pour %s — %s (%d essai(s))", track.artist, track.title, attempts)
+    return errors.NO_FAITHFUL_SOURCE
 
-    if status_cb:
-        await status_cb("Préparation de l'audio…")
-    try:
-        path = await download_and_tag(
-            deps.settings, video_id, track, user_settings.quality, user_settings.format
-        )
-    except DownloadError as exc:
-        errors.log_and_hide(logger, "téléchargement audio", exc)
-        return errors.DOWNLOAD_FAILED
 
+def _log_verdict(video_id: str, verdict: Verdict) -> None:
+    if verdict.error is None:
+        logger.info("Audio %s envoyé sans vérification : %s", video_id, verdict.reason)
+    else:
+        logger.info("Audio %s vérifié : écart d'empreinte %.3f", video_id, verdict.error)
+
+
+async def _send_downloaded_audio(
+    deps: Deps,
+    chat_id: int,
+    track: TrackInfo,
+    user_settings: UserSettings,
+    path: Path,
+    status_cb: StatusCallback | None,
+) -> str | None:
     if status_cb:
         await status_cb("Envoi…")
     try:

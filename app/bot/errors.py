@@ -19,7 +19,12 @@ NO_SOURCE_FOUND = (
     "Aucune source audio trouvée pour ce morceau.\n"
     "Essaie un autre enregistrement (album, live, autre version)."
 )
-SOURCE_SEARCH_FAILED = "Recherche de la source impossible pour le moment. Réessaie dans un instant."
+NO_FAITHFUL_SOURCE = (
+    "Aucune version fidèle de ce morceau sur YouTube.\n"
+    "Les vidéos trouvées sont des instrus, remixes ou reposts modifiés : "
+    "Sona préfère ne rien envoyer plutôt qu'un autre enregistrement."
+)
+SOURCE_SEARCH_FAILED ="Recherche de la source impossible pour le moment. Réessaie dans un instant."
 DOWNLOAD_FAILED = "Le téléchargement de ce morceau a échoué. Réessaie dans un instant."
 SEND_FAILED = "L'envoi du fichier a échoué. Réessaie dans un instant."
 

@@ -15,6 +15,9 @@ class TrackInfo:
     cover_url: str | None
     artist_source_id: str | None = None
     album_source_id: str | None = None
+    # Extrait officiel de 30 s (Deezer, Apple…) : sert à vérifier que l'audio
+    # trouvé sur YouTube est bien le même enregistrement.
+    preview_url: str | None = None
 
     @property
     def uid(self) -> str:
