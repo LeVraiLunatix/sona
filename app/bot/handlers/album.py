@@ -11,7 +11,7 @@ from app.bot.callbacks import AlbumCB
 from app.bot.deps import Deps
 from app.bot.handlers.track import deliver_track_audio
 from app.bot.navigation import Screen
-from app.bot.render import RenderTarget, show_photo, show_text, update_in_place
+from app.bot.render import RenderTarget, show_photo, show_text
 from app.services import antispam
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 router = Router(name="album")
 
 PAGE_SIZE = keyboards.PAGE_SIZE
+
+
+def _album_screen(callback_data: AlbumCB) -> Screen:
+    return Screen("album", {"source": callback_data.source, "id": callback_data.id})
 
 
 @navigation.register("album")
@@ -67,6 +71,8 @@ async def on_album_view(callback: CallbackQuery, callback_data: AlbumCB, deps: D
 @router.callback_query(AlbumCB.filter(F.action == "page"))
 async def on_album_page(callback: CallbackQuery, callback_data: AlbumCB, deps: Deps) -> None:
     await callback.answer()
+    # Après un redémarrage, sans ça la page suivante partait dans un nouveau message.
+    navigation.adopt_message(callback.from_user.id, callback.message, _album_screen(callback_data))
     await navigation.replace_top(
         deps,
         callback.from_user.id,
@@ -77,6 +83,7 @@ async def on_album_page(callback: CallbackQuery, callback_data: AlbumCB, deps: D
 @router.callback_query(AlbumCB.filter(F.action.in_({"lib_add", "lib_del"})))
 async def on_album_library_toggle(callback: CallbackQuery, callback_data: AlbumCB, deps: Deps) -> None:
     user_id = callback.from_user.id
+    navigation.adopt_message(user_id, callback.message, _album_screen(callback_data))
     if callback_data.action == "lib_add":
         try:
             album = await lookup.get_album(deps, callback_data.source, callback_data.id)
@@ -96,6 +103,7 @@ async def on_album_playall(callback: CallbackQuery, callback_data: AlbumCB, deps
     await callback.answer()
     user_id = callback.from_user.id
     chat_id = callback.message.chat.id
+    navigation.adopt_message(user_id, callback.message, _album_screen(callback_data))
 
     try:
         album = await lookup.get_album(deps, callback_data.source, callback_data.id)
@@ -117,9 +125,7 @@ async def on_album_playall(callback: CallbackQuery, callback_data: AlbumCB, deps
         if not antispam.try_acquire(user_id, track_uid):
             continue
         try:
-            target = navigation.current_target(user_id)
-            target = await update_in_place(deps.bot, target, f"Envoi {i}/{total}…")
-            navigation.set_target(user_id, target)
+            await navigation.show_status(deps, user_id, f"Envoi {i}/{total}…")
             if await deliver_track_audio(deps, chat_id, track, user_settings):
                 failed += 1
         except Exception as exc:
