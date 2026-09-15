@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -28,12 +29,54 @@ _NOISE_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+def _word_re(pattern: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<!\w)(?:{pattern})(?!\w)")
+
+
+# Versions qui ne sont pas l'enregistrement demandé. YouTube en regorge sous
+# des titres quasi identiques (« PNL - Au DD (INSTRUMENTAL) ») : on ne les
+# retient jamais, sauf si le morceau de référence en est lui-même une
+# (« Summer (… Remix) », « Bohemian Rhapsody (Live Aid) »).
+_DERIVATIVE_VERSIONS: dict[str, re.Pattern[str]] = {
+    "instrumental": _word_re(r"instrumental|instru|karaoke|type\s*beat"),
+    "remix": _word_re(r"remix|rmx|bootleg|mashup"),
+    "accéléré/ralenti": _word_re(r"slowed|reverb|sped\s+up|speed\s+up|nightcore|8d|bass\s+boosted"),
+    "reprise": _word_re(r"cover|reprise"),
+    "acoustique": _word_re(r"acoustic|acoustique|unplugged"),
+    "live": _word_re(r"live|concert"),
+    "version longue": _word_re(r"extended|club\s+mix"),
+    "a cappella": _word_re(r"a\s*cappella|acapella|vocals?\s+only|drumless"),
+    "lo-fi": _word_re(r"lo\s*fi"),
+    "hauteur modifiée": _word_re(r"\d{3}\s*hz"),
+    "hors musique": _word_re(r"making\s+of|reaction|react|tutorial|tuto|lesson|amv|backing\s+track|back\s+track"),
+}
+# Même audio, mais une mise en ligne secondaire : départage seulement.
+_SECONDARY_UPLOAD_RE = _word_re(r"lyrics?|paroles|letra|tradu\w*|translat\w*")
+_FEAT_WORD_RE = _word_re(r"feat|ft|featuring")
+_ARTIST_SEPARATOR_RE = re.compile(r"\s*(?:,|&|\+|/|\bx\b|\bfeat\.?|\bft\.?|\bwith\b)\s*", re.IGNORECASE)
+# Mots qui habillent un titre YouTube sans rien dire du morceau.
+_FILLER_WORDS = frozenset(
+    "official officiel officielle video clip music musique audio lyrics lyric paroles "
+    "letra visualizer hd hq 4k by ft featuring topic vevo".split()
+)
+_UNKNOWN_ARTISTS = frozenset({"artiste inconnu"})
+
 # Un score en dessous duquel on considère que le résultat n'a rien à voir.
 ACCEPT_SCORE = 0.35
-# Repli : même si le score global est faible (artiste mal renseigné côté
-# YouTube, chaîne au lieu du nom d'artiste…), un titre qui correspond
-# vraiment suffit à envoyer l'audio plutôt qu'un « indisponible ».
+# Titre minimum pour qu'un résultat soit seulement envisagé.
 ACCEPT_TITLE_SIMILARITY = 0.72
+# Nom de chaîne assez proche du nom d'artiste pour être la même personne.
+ARTIST_SIMILARITY = 0.75
+# Écart de durée toléré. Un repost de l'audio original tombe à 2-3 s près ;
+# au-delà, c'est une autre version : clip avec intro, instru recoupée,
+# audio accéléré pour échapper au Content ID…
+DURATION_TOLERANCE = 7
+DURATION_TOLERANCE_RATIO = 0.03
+# Un titre publié par l'artiste lui-même peut s'écarter un peu plus (silence
+# final, autre mastering) sans être un autre enregistrement.
+OFFICIAL_DURATION_TOLERANCE = 15
+OFFICIAL_DURATION_TOLERANCE_RATIO = 0.08
 # Nombre de résultats demandés à chaque recherche.
 SEARCH_LIMIT = 8
 
@@ -71,6 +114,83 @@ def _core_title(title: str) -> str:
     return _normalize(stripped) or _normalize(title)
 
 
+def _plain(text: str) -> str:
+    """Minuscules sans accents ni ponctuation, pour repérer des mots entiers."""
+    decomposed = unicodedata.normalize("NFKD", text.lower())
+    text = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return " ".join(_PUNCT_RE.sub(" ", text).split())
+
+
+def _mentions(text: str, phrase: str) -> bool:
+    """`phrase` apparaît dans `text` en mots entiers : « menace » ne doit pas
+    se retrouver dans « menacesantana »."""
+    return bool(phrase) and re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text) is not None
+
+
+def _version_labels(*texts: str | None) -> set[str]:
+    plain = _plain(" ".join(t for t in texts if t))
+    return {label for label, pattern in _DERIVATIVE_VERSIONS.items() if pattern.search(plain)}
+
+
+def derivative_labels(track: TrackInfo, candidate: Candidate) -> set[str]:
+    """Types de version dérivée du candidat que le morceau de référence n'a pas."""
+    return _version_labels(candidate.title, candidate.album) - _version_labels(track.title, track.album)
+
+
+def _artist_names(track: TrackInfo) -> list[str]:
+    names = [_plain(track.artist)]
+    names += [_plain(part) for part in _ARTIST_SEPARATOR_RE.split(track.artist)]
+    return [n for n in dict.fromkeys(names) if n and n not in _UNKNOWN_ARTISTS]
+
+
+def _is_by_artist(track: TrackInfo, candidate: Candidate) -> bool:
+    """La chaîne / l'artiste du résultat est l'artiste du morceau."""
+    channel = _plain(candidate.artist)
+    return any(
+        _mentions(channel, name) or SequenceMatcher(None, name, channel).ratio() >= ARTIST_SIMILARITY
+        for name in _artist_names(track)
+    )
+
+
+def artist_matches(track: TrackInfo, candidate: Candidate) -> bool:
+    """L'artiste est là, dans le champ artiste ou dans le titre de la vidéo
+    (« Artiste - Titre » publié par une chaîne tierce). Un même titre chanté
+    par quelqu'un d'autre (« Hasta la Vista » de MC Solaar) est un autre morceau."""
+    names = _artist_names(track)
+    if not names:
+        return True
+    title = _plain(candidate.title)
+    return _is_by_artist(track, candidate) or any(_mentions(title, name) for name in names)
+
+
+def _duration_gap(track: TrackInfo, candidate: Candidate) -> int | None:
+    if not track.duration_seconds or not candidate.duration_seconds:
+        return None
+    return abs(track.duration_seconds - candidate.duration_seconds)
+
+
+def _duration_ok(track: TrackInfo, candidate: Candidate) -> bool:
+    gap = _duration_gap(track, candidate)
+    if gap is None:
+        return True
+    if candidate.is_song and _is_by_artist(track, candidate):
+        allowed = max(OFFICIAL_DURATION_TOLERANCE, track.duration_seconds * OFFICIAL_DURATION_TOLERANCE_RATIO)
+    else:
+        allowed = max(DURATION_TOLERANCE, track.duration_seconds * DURATION_TOLERANCE_RATIO)
+    return gap <= allowed
+
+
+def _extra_words(track: TrackInfo, candidate: Candidate) -> int:
+    """Mots du titre YouTube qui ne viennent ni du titre, ni de l'artiste, ni
+    de l'habillage habituel : « AU DIKI - MC LAMA (PNL - AU DD version DZ) »
+    contient bien « au dd », mais c'est une parodie."""
+    def words(text: str) -> set[str]:
+        return set(_plain(_normalize(text)).split())
+
+    known = words(track.title) | words(track.artist) | _FILLER_WORDS
+    return len(words(candidate.title) - known)
+
+
 def title_similarity(track: TrackInfo, candidate: Candidate) -> float:
     ref, cand = _normalize(track.title), _normalize(candidate.title)
     best = SequenceMatcher(None, ref, cand).ratio()
@@ -78,8 +198,8 @@ def title_similarity(track: TrackInfo, candidate: Candidate) -> float:
     # comparer aussi le noyau des deux titres évite de rater la correspondance.
     core_ref, core_cand = _core_title(track.title), _core_title(candidate.title)
     best = max(best, SequenceMatcher(None, core_ref, core_cand).ratio())
-    if core_ref and core_ref in cand:
-        best = max(best, 0.9)
+    if _mentions(cand, core_ref):
+        best = max(best, 0.9 - 0.05 * max(0, _extra_words(track, candidate) - 1))
     return best
 
 
@@ -106,8 +226,32 @@ def score_candidate(track: TrackInfo, candidate: Candidate) -> float:
 
     if candidate.is_song:
         score += 0.05
+    if _is_by_artist(track, candidate):
+        # Publié par l'artiste : préférable à un repost du même audio.
+        score += 0.05
+
+    candidate_title, reference_title = _plain(candidate.title), _plain(track.title)
+    if _SECONDARY_UPLOAD_RE.search(candidate_title) and not _SECONDARY_UPLOAD_RE.search(reference_title):
+        score -= 0.05
+    if _FEAT_WORD_RE.search(candidate_title) and not _FEAT_WORD_RE.search(reference_title):
+        # « Alors On Danse (Featuring Erik Hassle) » : une autre version.
+        score -= 0.1
 
     return score
+
+
+def rejection_reason(track: TrackInfo, candidate: Candidate) -> str | None:
+    """Pourquoi un résultat ne peut pas être envoyé, ou None s'il le peut."""
+    derived = derivative_labels(track, candidate)
+    if derived:
+        return "version dérivée (" + ", ".join(sorted(derived)) + ")"
+    if not artist_matches(track, candidate):
+        return "autre artiste"
+    if title_similarity(track, candidate) < ACCEPT_TITLE_SIMILARITY:
+        return "titre différent"
+    if not _duration_ok(track, candidate):
+        return "durée trop éloignée"
+    return None
 
 
 def _query_variants(track: TrackInfo) -> list[str]:
@@ -210,16 +354,43 @@ def _search_ytdlp_sync(query: str, cookies_file: Path | None) -> list[Candidate]
 
 
 def select_best(track: TrackInfo, candidates: list[Candidate]) -> Candidate | None:
-    """Meilleur candidat acceptable, ou None si aucun ne ressemble au morceau."""
-    if not candidates:
+    """Meilleur candidat acceptable, ou None si aucun ne ressemble au morceau.
+
+    Mieux vaut « aucune source » qu'un autre enregistrement : quand l'original
+    n'est pas sur YouTube, les résultats restants sont des instrus, remixes ou
+    homonymes, et l'utilisateur recevrait autre chose que ce qu'il a demandé.
+    """
+    eligible = [c for c in candidates if rejection_reason(track, c) is None]
+    if not eligible:
         return None
-    best = max(candidates, key=lambda c: score_candidate(track, c))
-    if score_candidate(track, best) >= ACCEPT_SCORE:
-        return best
-    by_title = max(candidates, key=lambda c: title_similarity(track, c))
-    if title_similarity(track, by_title) >= ACCEPT_TITLE_SIMILARITY:
-        return by_title
-    return None
+
+    def rank(c: Candidate) -> tuple[float, int]:
+        # À score égal, la durée la plus proche : c'est le meilleur indice
+        # qu'il s'agit du même enregistrement.
+        gap = _duration_gap(track, c)
+        return score_candidate(track, c), -(gap if gap is not None else 10_000)
+
+    best = max(eligible, key=rank)
+    return best if score_candidate(track, best) >= ACCEPT_SCORE else None
+
+
+def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candidate]) -> None:
+    if best is not None:
+        logger.info(
+            "Source YouTube pour %s — %s (%ss) : %s « %s » par %s (%ss, score %.2f)",
+            track.artist, track.title, track.duration_seconds, best.video_id, best.title,
+            best.artist, best.duration_seconds, score_candidate(track, best),
+        )
+        return
+    closest = sorted(candidates, key=lambda c: score_candidate(track, c), reverse=True)[:3]
+    logger.info(
+        "Aucun des %d résultats ne convient pour %s — %s : %s",
+        len(candidates), track.artist, track.title,
+        "; ".join(
+            f"{c.video_id} « {c.title} » ({rejection_reason(track, c) or 'score trop bas'})" for c in closest
+        )
+        or "aucun résultat",
+    )
 
 
 def _matched_track(track: TrackInfo, candidate: Candidate) -> TrackInfo:
@@ -253,6 +424,7 @@ async def find_youtube_match(
     candidates = await asyncio.to_thread(_search_ytmusic_sync, queries)
     best = select_best(track, candidates)
     if best is not None:
+        _log_choice(track, best, candidates)
         return best.video_id, _matched_track(track, best)
 
     logger.info(
@@ -266,10 +438,12 @@ async def find_youtube_match(
         candidates.extend(fallback)
         best = select_best(track, candidates)
         if best is not None:
+            _log_choice(track, best, candidates)
             return best.video_id, _matched_track(track, best)
 
     if not candidates:
         raise ResolutionError("Recherche de la source impossible.")
+    _log_choice(track, None, candidates)
     return None
 
 
