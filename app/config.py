@@ -32,6 +32,7 @@ class Settings:
     ffmpeg_path: str
     database_path: Path
     youtube_cookies_file: Path | None
+    backup_dir: Path
     downloads_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "cache")
 
     @property
@@ -70,6 +71,11 @@ def load_settings() -> Settings:
 
     cookies_file = resolve_youtube_cookies_file()
 
+    backup_dir_raw = os.getenv("BACKUP_DIR", "data/backups").strip() or "data/backups"
+    backup_dir = Path(backup_dir_raw)
+    if not backup_dir.is_absolute():
+        backup_dir = BASE_DIR / backup_dir
+
     return Settings(
         bot_token=token,
         allowed_user_ids=_parse_ids(os.getenv("ALLOWED_USER_IDS")),
@@ -78,5 +84,6 @@ def load_settings() -> Settings:
         ffmpeg_path=ffmpeg,
         database_path=db_path,
         youtube_cookies_file=cookies_file,
+        backup_dir=backup_dir,
         downloads_dir=downloads_dir,
     )
