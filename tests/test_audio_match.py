@@ -1,6 +1,8 @@
 import asyncio
 import random
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 from app.providers.base import TrackInfo
 from app.services import audio_match
@@ -94,3 +96,39 @@ def test_official_recording_is_accepted(monkeypatch):
     verdict = asyncio.run(verify_recording(track(), Path("officiel.m4a"), "ffmpeg"))
     assert verdict.error == 0.0
     assert not verdict.rejected
+
+
+def test_thirty_second_snippet_is_rejected_although_it_matches_the_excerpt(monkeypatch):
+    """Titre SoundCloud réservé aux abonnés : le fichier n'est que l'extrait,
+    donc identique à l'extrait officiel, mais ce n'est pas le morceau."""
+    excerpt = fingerprint(240, seed=10)
+    _fake_fingerprints(monkeypatch, excerpt=excerpt, full=excerpt)
+    monkeypatch.setattr(audio_match, "_audio_length", lambda path: 30.0)
+    verdict = asyncio.run(verify_recording(track(), Path("extrait.m4a"), "ffmpeg"))
+    assert verdict.rejected
+    assert "30 s" in verdict.reason
+
+
+def test_slightly_different_length_is_still_compared(monkeypatch):
+    full = fingerprint(2000, seed=11)
+    _fake_fingerprints(monkeypatch, excerpt=full[100:340], full=full)
+    monkeypatch.setattr(audio_match, "_audio_length", lambda path: 251.0)
+    verdict = asyncio.run(verify_recording(track(), Path("officiel.m4a"), "ffmpeg"))
+    assert verdict.error == 0.0
+
+
+def test_ffmpeg_never_reads_the_standard_input(monkeypatch):
+    """Sans `-nostdin`, ffmpeg consomme l'entrée standard : lancé depuis un
+    script (`ssh … bash -s`), il en avale des morceaux."""
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        Path(args[-1]).write_bytes((7).to_bytes(4, "little") * 50)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(audio_match.subprocess, "run", fake_run)
+    assert audio_match.fingerprint("ffmpeg", Path("audio.m4a")) == [7] * 50
+    args, kwargs = calls[0]
+    assert "-nostdin" in args
+    assert kwargs.get("stdin") is subprocess.DEVNULL

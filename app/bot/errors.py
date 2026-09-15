@@ -20,8 +20,8 @@ NO_SOURCE_FOUND = (
     "Essaie un autre enregistrement (album, live, autre version)."
 )
 NO_FAITHFUL_SOURCE = (
-    "Aucune version fidèle de ce morceau sur YouTube.\n"
-    "Les vidéos trouvées sont des instrus, remixes ou reposts modifiés : "
+    "Aucune version fidèle de ce morceau sur YouTube ni sur SoundCloud.\n"
+    "Les versions trouvées sont des instrus, remixes ou reposts modifiés : "
     "Sona préfère ne rien envoyer plutôt qu'un autre enregistrement."
 )
 SOURCE_SEARCH_FAILED ="Recherche de la source impossible pour le moment. Réessaie dans un instant."
