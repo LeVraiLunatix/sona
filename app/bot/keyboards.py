@@ -301,6 +301,7 @@ def settings_menu_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Qualité audio", callback_data=SettingsCB(action="quality").pack())],
         [InlineKeyboardButton(text="Format", callback_data=SettingsCB(action="format").pack())],
         [InlineKeyboardButton(text="Notifications", callback_data=SettingsCB(action="notif_toggle").pack())],
+        [InlineKeyboardButton(text="Lecture automatique", callback_data=SettingsCB(action="autoplay_toggle").pack())],
         admin_row,
         _back_row(NavCB(action="home").pack(), "← Accueil"),
     )

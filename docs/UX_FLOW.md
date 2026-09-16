@@ -308,10 +308,12 @@ Paramètres
 Qualité audio : Meilleure disponible
 Format : Automatique
 Notifications : Activées
+Lecture automatique : Activée
 
 [ Qualité audio ]
 [ Format ]
 [ Notifications ]
+[ Lecture automatique ]
 [ ← Accueil ]
 ```
 
@@ -320,6 +322,10 @@ Notifications : Activées
 - "Format" → `Automatique` (recommandé, coché par défaut) vs formats
   explicites si l'utilisateur veut forcer une conversion.
 - "Notifications" → bascule Activé/Désactivé en un clic (édition immédiate).
+- "Lecture automatique" → même bascule. Activée (par défaut), choisir un
+  morceau (liste, album, historique, suggestion, lien collé) ouvre sa carte
+  *et* envoie le son. Désactivée, seule la carte s'ouvre : c'est le bouton
+  `[ Écouter ]` qui déclenche l'envoi.
 - Chaque sous-écran a son propre `[ ← Retour ]` vers Paramètres.
 
 ## 11. Erreurs

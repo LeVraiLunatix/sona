@@ -21,7 +21,8 @@ async def render_settings_menu(deps: Deps, target: RenderTarget, user_id: int, p
         "Paramètres\n\n"
         f"Qualité audio : {QUALITY_CHOICES[s.quality]}\n"
         f"Format : {FORMAT_CHOICES[s.format]}\n"
-        f"Notifications : {'Activées' if s.notifications else 'Désactivées'}"
+        f"Notifications : {'Activées' if s.notifications else 'Désactivées'}\n"
+        f"Lecture automatique : {'Activée' if s.autoplay else 'Désactivée'}"
     )
     is_admin = await deps.repo.is_admin(user_id)
     return await show_text(deps.bot, target, text, keyboards.settings_menu_keyboard(is_admin))
@@ -83,4 +84,20 @@ async def on_settings_notif_toggle(callback: CallbackQuery, deps: Deps) -> None:
     user_id = callback.from_user.id
     new_value = await deps.repo.toggle_notifications(user_id)
     await callback.answer("Notifications activées." if new_value else "Notifications désactivées.")
+    await navigation.rerender(deps, user_id)
+
+
+@router.callback_query(SettingsCB.filter(F.action == "autoplay_toggle"))
+async def on_settings_autoplay_toggle(callback: CallbackQuery, deps: Deps) -> None:
+    """Bascule l'envoi du son dès qu'un morceau est choisi.
+
+    Désactivée, choisir un morceau n'ouvre que sa carte : le bouton
+    « Écouter » reste le seul déclencheur d'un envoi."""
+    user_id = callback.from_user.id
+    new_value = await deps.repo.toggle_autoplay(user_id)
+    await callback.answer(
+        "Lecture automatique activée."
+        if new_value
+        else "Lecture automatique désactivée : utilise « Écouter »."
+    )
     await navigation.rerender(deps, user_id)

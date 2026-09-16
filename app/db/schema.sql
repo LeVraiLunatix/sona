@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     quality TEXT NOT NULL DEFAULT 'best',
     format TEXT NOT NULL DEFAULT 'auto',
     notifications INTEGER NOT NULL DEFAULT 1,
+    autoplay INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL
 );
 

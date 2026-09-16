@@ -18,6 +18,7 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("invites", "max_uses", "INTEGER NOT NULL DEFAULT 1"),
     ("invites", "uses", "INTEGER NOT NULL DEFAULT 0"),
     ("invites", "revoked", "INTEGER NOT NULL DEFAULT 0"),
+    ("users", "autoplay", "INTEGER NOT NULL DEFAULT 1"),
 )
 
 
