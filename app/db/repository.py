@@ -45,6 +45,9 @@ class UserSettings:
     quality: str
     format: str
     notifications: bool
+    # Lecture automatique : choisir un morceau envoie le son dans la foulée.
+    # Désactivée, seul le bouton « Écouter » déclenche un envoi.
+    autoplay: bool = True
 
 
 @dataclass(slots=True)
@@ -121,11 +124,13 @@ class Repository:
     async def get_settings(self, user_id: int) -> UserSettings:
         await self.ensure_user(user_id)
         cursor = await self._db.conn.execute(
-            "SELECT quality, format, notifications FROM users WHERE user_id = ?",
+            "SELECT quality, format, notifications, autoplay FROM users WHERE user_id = ?",
             (user_id,),
         )
         row = await cursor.fetchone()
-        return UserSettings(row["quality"], row["format"], bool(row["notifications"]))
+        return UserSettings(
+            row["quality"], row["format"], bool(row["notifications"]), bool(row["autoplay"])
+        )
 
     async def set_quality(self, user_id: int, quality: str) -> None:
         await self._db.conn.execute(
@@ -144,6 +149,16 @@ class Repository:
         new_value = not settings.notifications
         await self._db.conn.execute(
             "UPDATE users SET notifications = ? WHERE user_id = ?",
+            (int(new_value), user_id),
+        )
+        await self._db.conn.commit()
+        return new_value
+
+    async def toggle_autoplay(self, user_id: int) -> bool:
+        settings = await self.get_settings(user_id)
+        new_value = not settings.autoplay
+        await self._db.conn.execute(
+            "UPDATE users SET autoplay = ? WHERE user_id = ?",
             (int(new_value), user_id),
         )
         await self._db.conn.commit()

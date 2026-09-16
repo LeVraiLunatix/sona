@@ -172,6 +172,16 @@ déploiement sur le VPS : GitHub se connecte en SSH et le serveur exécute
 [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md). Tant que les secrets ne sont pas
 créés, l'étape de déploiement est ignorée avec un avertissement.
 
+## Réglages
+
+Dans **Paramètres**, chacun règle pour lui-même la qualité, le format, les
+notifications et la **lecture automatique**. Cette dernière est active par
+défaut : choisir un morceau (résultat de recherche, album, historique,
+suggestion, lien collé) ouvre sa carte et envoie le son dans la foulée.
+Désactivée, seule la carte s'ouvre et c'est le bouton « Écouter » qui
+déclenche l'envoi — pratique pour parcourir un album sans recevoir chaque
+titre.
+
 ## Sauvegardes de la base
 
 `data/sona.db` porte les accès, la bibliothèque, l'historique et le cache des

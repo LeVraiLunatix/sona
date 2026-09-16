@@ -48,7 +48,7 @@ class HistoryCB(CallbackData, prefix="history"):
 
 
 class SettingsCB(CallbackData, prefix="settings"):
-    action: str  # menu | quality | quality_set | format | format_set | notif_toggle
+    action: str  # menu | quality | quality_set | format | format_set | notif_toggle | autoplay_toggle
     value: str | None = None
 
 

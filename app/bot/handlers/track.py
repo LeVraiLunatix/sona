@@ -263,15 +263,26 @@ def play_callback_data(source: str, source_id: str) -> str:
     return TrackCB(action="play", source=source, id=source_id).pack()
 
 
+async def autoplay_enabled(deps: Deps, user_id: int) -> bool:
+    """Réglage « Lecture automatique » de l'utilisateur (Paramètres).
+
+    Désactivé, choisir un morceau n'ouvre que sa carte : c'est le réglage de
+    ceux qui parcourent un album sans vouloir recevoir chaque titre.
+    """
+    return (await deps.repo.get_settings(user_id)).autoplay
+
+
 async def show_and_play_track(deps: Deps, user_id: int, chat_id: int, source: str, source_id: str) -> None:
-    """Ouvre l'écran Morceau et envoie aussitôt le son.
+    """Ouvre l'écran Morceau et, si la lecture automatique est active, envoie
+    aussitôt le son.
 
     Choisir un morceau (liste de résultats, album, historique…) suffit :
     l'utilisateur n'a plus à appuyer sur « Écouter » à chaque fois. Le bouton
     reste sur l'écran pour renvoyer le son.
     """
     await navigation.goto(deps, user_id, chat_id, Screen("track", {"source": source, "id": source_id}))
-    await play_track(deps, user_id, chat_id, source, source_id, play_callback_data(source, source_id))
+    if await autoplay_enabled(deps, user_id):
+        await play_track(deps, user_id, chat_id, source, source_id, play_callback_data(source, source_id))
 
 
 @router.callback_query(TrackCB.filter(F.action == "play"))
