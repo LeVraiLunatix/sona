@@ -1,22 +1,53 @@
 from __future__ import annotations
 
 import base64
+import logging
 import time
+from html.parser import HTMLParser
 
 import httpx
 
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 
+logger = logging.getLogger(__name__)
+
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_BASE = "https://api.spotify.com/v1"
 OEMBED_URL = "https://open.spotify.com/oembed"
+TRACK_PAGE_URL = "https://open.spotify.com/track/{track_id}"
+
+# Réponses qui disent « pas pour toi » plutôt qu'une panne : identifiants
+# rejetés à l'obtention du jeton, accès interdit, quota dépassé. Depuis 2026,
+# Spotify délivre bien un jeton mais répond 403 à chaque requête (« Active
+# premium subscription required for the owner of the app ») quand le compte
+# qui a créé l'app n'est pas Premium.
+_TOKEN_REFUSALS = frozenset({400, 401, 403, 429})
+_API_REFUSALS = frozenset({401, 403, 429})
+# Après un refus, l'API n'est plus interrogée pendant ce délai : chaque lien
+# paierait sinon une requête perdue, et un 429 s'aggraverait.
+REFUSAL_COOLDOWN_SECONDS = 3600
+
+# Horloge des délais, remplaçable dans les tests sans toucher à celle d'asyncio.
+_clock = time.monotonic
 
 
 class SpotifyError(Exception):
     pass
 
 
-class SpotifyNotConfigured(SpotifyError):
+class SpotifyUnavailable(SpotifyError):
+    """L'API officielle ne peut pas servir : identifiants absents ou refusés.
+
+    Les morceaux passent alors par les données publiques (oEmbed et page du
+    morceau) ; les albums et artistes, eux, n'ont pas d'équivalent public.
+    """
+
+
+class SpotifyNotConfigured(SpotifyUnavailable):
+    pass
+
+
+class SpotifyRefused(SpotifyUnavailable):
     pass
 
 
@@ -67,6 +98,62 @@ def _album_from_json(d: dict, tracks: list[TrackInfo] | None = None) -> AlbumInf
     )
 
 
+class _PreviewTags(HTMLParser):
+    """Balises <meta> d'aperçu d'une page (Open Graph, `music:*`).
+
+    Ce sont celles que lisent Telegram, Discord ou Facebook pour afficher un
+    lien : bien plus stables que la structure de la page elle-même.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.tags: dict[str, list[str]] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "meta":
+            return
+        attributes = dict(attrs)
+        key = attributes.get("property") or attributes.get("name")
+        content = (attributes.get("content") or "").strip()
+        if key and content:
+            self.tags.setdefault(key, []).append(content)
+
+
+def _preview_tags(page: str) -> dict[str, list[str]]:
+    parser = _PreviewTags()
+    # Les balises d'aperçu sont dans <head> : inutile d'analyser le reste.
+    parser.feed(page.split("</head>", 1)[0])
+    return parser.tags
+
+
+def _track_from_public_data(track_id: str, oembed: dict, tags: dict[str, list[str]]) -> TrackInfo:
+    """Morceau reconstitué sans l'API : titre et pochette d'oEmbed, artistes,
+    album, année et durée tirés des balises d'aperçu de la page publique.
+
+    `og:description` vaut « Artistes · Album · Song · 2020 » : l'album n'en est
+    tiré que si la description a bien cette forme.
+    """
+
+    def first(key: str) -> str | None:
+        values = tags.get(key)
+        return values[0] if values else None
+
+    description = [part.strip() for part in (first("og:description") or "").split("·")]
+    well_formed = len(description) == 4
+    artist = first("music:musician_description") or (description[0] if well_formed else None)
+    duration = first("music:duration")
+    return TrackInfo(
+        source="spotify",
+        source_id=track_id,
+        title=first("og:title") or oembed.get("title") or "Titre inconnu",
+        artist=artist or "Artiste inconnu",
+        album=description[1] if well_formed else None,
+        year=_year_from_date(first("music:release_date")),
+        duration_seconds=int(duration) if duration and duration.isdigit() else None,
+        cover_url=first("og:image") or oembed.get("thumbnail_url"),
+    )
+
+
 class SpotifyClient:
     def __init__(
         self,
@@ -80,51 +167,93 @@ class SpotifyClient:
         self._owns_client = client is None
         self._token: str | None = None
         self._token_expiry = 0.0
+        self._refused_until = 0.0
 
     @property
     def is_configured(self) -> bool:
         return bool(self._client_id and self._client_secret)
 
+    @property
+    def api_available(self) -> bool:
+        """Identifiants présents, et pas de refus de l'API depuis moins d'une heure."""
+        return self.is_configured and _clock() >= self._refused_until
+
     async def aclose(self) -> None:
         if self._owns_client:
             await self._client.aclose()
 
+    def _refusal(self, status: int, body: str) -> SpotifyRefused:
+        """Note un refus de l'API et le signale une fois par période de refus."""
+        if _clock() >= self._refused_until:
+            detail = " ".join(body.split())[:160]
+            logger.warning(
+                "API Spotify refusée (Premium exigé pour le propriétaire de l'app ?) : repli oEmbed "
+                "— HTTP %s « %s », nouvel essai dans %d min",
+                status, detail, REFUSAL_COOLDOWN_SECONDS // 60,
+            )
+        self._refused_until = _clock() + REFUSAL_COOLDOWN_SECONDS
+        self._token = None
+        return SpotifyRefused(f"API Spotify refusée (HTTP {status})")
+
     async def _ensure_token(self) -> str:
-        if self._token and time.monotonic() < self._token_expiry:
+        if self._token and _clock() < self._token_expiry:
             return self._token
         creds = f"{self._client_id}:{self._client_secret}".encode()
         auth = base64.b64encode(creds).decode()
-        resp = await self._client.post(
-            TOKEN_URL,
-            data={"grant_type": "client_credentials"},
-            headers={"Authorization": f"Basic {auth}"},
-        )
-        resp.raise_for_status()
+        try:
+            resp = await self._client.post(
+                TOKEN_URL,
+                data={"grant_type": "client_credentials"},
+                headers={"Authorization": f"Basic {auth}"},
+            )
+        except httpx.HTTPError as exc:
+            raise SpotifyError(f"Jeton Spotify indisponible : {exc}") from exc
+        if resp.status_code in _TOKEN_REFUSALS:
+            raise self._refusal(resp.status_code, resp.text)
+        if resp.is_error:
+            raise SpotifyError(f"Jeton Spotify indisponible : HTTP {resp.status_code}")
         payload = resp.json()
         self._token = payload["access_token"]
-        self._token_expiry = time.monotonic() + payload.get("expires_in", 3600) - 30
+        self._token_expiry = _clock() + payload.get("expires_in", 3600) - 30
         return self._token
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
         if not self.is_configured:
-            raise SpotifyNotConfigured
-        token = await self._ensure_token()
-        try:
-            resp = await self._client.get(
-                f"{API_BASE}{path}",
-                params=params,
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise SpotifyError(str(exc)) from exc
+            raise SpotifyNotConfigured("Identifiants de l'API Spotify absents")
+        if not self.api_available:
+            raise SpotifyRefused("API Spotify refusée il y a moins d'une heure")
+        for attempt in (1, 2):
+            token = await self._ensure_token()
+            try:
+                resp = await self._client.get(
+                    f"{API_BASE}{path}",
+                    params=params,
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+            except httpx.HTTPError as exc:
+                raise SpotifyError(str(exc)) from exc
+            if resp.status_code == 401 and attempt == 1:
+                # Jeton expiré plus tôt que prévu : on en redemande un avant
+                # de conclure à un refus.
+                self._token = None
+                continue
+            break
+        if resp.status_code in _API_REFUSALS:
+            raise self._refusal(resp.status_code, resp.text)
+        if resp.is_error:
+            raise SpotifyError(f"API Spotify : HTTP {resp.status_code} pour {path}")
         return resp.json()
 
     async def get_track(self, track_id: str) -> TrackInfo:
-        if not self.is_configured:
-            return await self._get_track_via_oembed(track_id)
-        data = await self._get(f"/tracks/{track_id}")
-        return _track_from_json(data)
+        """Morceau Spotify : par l'API quand elle répond, sinon par les données
+        publiques. Un refus de l'API ne doit jamais rendre inutilisable un lien
+        de morceau, qui fonctionne très bien sans identifiants."""
+        if self.api_available:
+            try:
+                return _track_from_json(await self._get(f"/tracks/{track_id}"))
+            except SpotifyRefused:
+                pass  # déjà journalisé : les données publiques prennent le relais
+        return await self._get_track_via_oembed(track_id)
 
     async def get_album(self, album_id: str) -> AlbumInfo:
         data = await self._get(f"/albums/{album_id}")
@@ -165,21 +294,26 @@ class SpotifyClient:
         return albums, singles
 
     async def _get_track_via_oembed(self, track_id: str) -> TrackInfo:
-        url = f"https://open.spotify.com/track/{track_id}"
+        page_url = TRACK_PAGE_URL.format(track_id=track_id)
         try:
-            resp = await self._client.get(OEMBED_URL, params={"url": url})
+            resp = await self._client.get(OEMBED_URL, params={"url": page_url})
             resp.raise_for_status()
         except httpx.HTTPError as exc:
             raise SpotifyError(str(exc)) from exc
-        data = resp.json()
-        title = data.get("title") or "Titre inconnu"
-        return TrackInfo(
-            source="spotify",
-            source_id=track_id,
-            title=title,
-            artist="Artiste inconnu",
-            album=None,
-            year=None,
-            duration_seconds=None,
-            cover_url=data.get("thumbnail_url"),
-        )
+        return _track_from_public_data(track_id, resp.json(), await self._page_tags(page_url))
+
+    async def _page_tags(self, page_url: str) -> dict[str, list[str]]:
+        """Balises d'aperçu de la page publique du morceau.
+
+        oEmbed ne donne que le titre et la pochette. Sans artiste, le résolveur
+        ne peut pas écarter les homonymes et `preview.complete_preview` ne
+        cherche pas d'extrait : la page publique comble ce manque. Si elle ne
+        répond pas, on garde ce qu'oEmbed a donné.
+        """
+        try:
+            resp = await self._client.get(page_url, follow_redirects=True)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.info("Page publique Spotify indisponible (%s) : artiste et durée inconnus", exc)
+            return {}
+        return _preview_tags(resp.text)

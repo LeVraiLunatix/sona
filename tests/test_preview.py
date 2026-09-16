@@ -163,7 +163,7 @@ def test_without_isrc_the_search_uses_artist_and_title():
     deezer = FakeDeezer(results=[deezer_track()])
     track = complete(spotify_track(), deezer)
 
-    assert deezer.queries == [('artist:"PNL" track:"Au DD"', preview.SEARCH_LIMIT)]
+    assert deezer.queries == [("PNL Au DD", preview.SEARCH_LIMIT)]
     assert track.preview_url == PREVIEW
     assert track.duration_seconds == 222
 
@@ -217,12 +217,12 @@ def test_an_isrc_edition_without_preview_falls_back_to_the_search():
     deezer = FakeDeezer(by_isrc=deezer_track(preview_url=None), results=[deezer_track()])
     track = complete(spotify_track(isrc="FRX872000123"), deezer)
 
-    assert deezer.queries == [('artist:"PNL" track:"Au DD"', preview.SEARCH_LIMIT)]
+    assert deezer.queries == [("PNL Au DD", preview.SEARCH_LIMIT)]
     assert track.preview_url == PREVIEW
 
 
 def test_an_unknown_artist_stops_everything():
-    """Lien Spotify résolu par oEmbed : sans artiste, un titre seul ne prouve
+    """Lien Spotify dont la page publique n'a pas répondu : sans artiste, un titre seul ne prouve
     rien — « Hasta la Vista » existe chez plusieurs artistes."""
     deezer = FakeDeezer(results=[deezer_track()])
     track = complete(spotify_track(artist="Artiste inconnu"), deezer)
@@ -266,3 +266,18 @@ def test_the_delivery_completes_the_preview_before_resolving():
 
     source = inspect.getsource(track_handler.deliver_track_audio)
     assert source.index("complete_preview") < source.index("iter_audio_sources")
+
+
+def test_the_search_keeps_the_main_artist_and_drops_the_guests():
+    """Spotify écrit « Daft Punk, Pharrell Williams, Nile Rodgers » et
+    « Get Lucky (feat. …) » : Deezer ne trouve rien avec tout ça."""
+    track = spotify_track(
+        title="Get Lucky (feat. Pharrell Williams and Nile Rodgers)",
+        artist="Daft Punk, Pharrell Williams, Nile Rodgers",
+    )
+    assert preview._search_query(track) == "Daft Punk Get Lucky"
+
+
+def test_the_search_avoids_deezer_advanced_syntax():
+    """`artist:"…" track:"…"` ne renvoie plus rien chez Deezer (septembre 2026)."""
+    assert preview._search_query(spotify_track()) == "PNL Au DD"

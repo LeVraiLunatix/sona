@@ -25,7 +25,7 @@ async def render_artist(deps: Deps, target: RenderTarget, user_id: int, params: 
     except lookup.ProviderErrors as exc:
         errors.log_and_hide(logger, "récupération artiste", exc)
         markup = keyboards.error_keyboard(ArtistCB(action="view", source=source, id=source_id).pack())
-        return await show_text(deps.bot, target, errors.GENERIC_FETCH_FAILED, markup)
+        return await show_text(deps.bot, target, errors.fetch_failed_text(exc), markup)
 
     markup = keyboards.artist_keyboard(artist)
     if artist.picture_url:
@@ -42,7 +42,7 @@ async def render_artist_top(deps: Deps, target: RenderTarget, user_id: int, para
         tracks = await lookup.get_artist_top_tracks(deps, source, source_id)
     except lookup.ProviderErrors as exc:
         errors.log_and_hide(logger, "titres populaires", exc)
-        return await show_text(deps.bot, target, errors.GENERIC_FETCH_FAILED, keyboards.error_keyboard(retry_cb))
+        return await show_text(deps.bot, target, errors.fetch_failed_text(exc), keyboards.error_keyboard(retry_cb))
 
     if not tracks:
         text = f"Aucun titre populaire disponible pour {artist.name}."
@@ -63,7 +63,7 @@ async def render_artist_albums_list(deps: Deps, target: RenderTarget, user_id: i
         albums, singles = await lookup.get_artist_albums(deps, source, source_id)
     except lookup.ProviderErrors as exc:
         errors.log_and_hide(logger, f"artiste ({mode})", exc)
-        return await show_text(deps.bot, target, errors.GENERIC_FETCH_FAILED, keyboards.error_keyboard(retry_cb))
+        return await show_text(deps.bot, target, errors.fetch_failed_text(exc), keyboards.error_keyboard(retry_cb))
 
     items = albums if mode == "albums" else singles
     label = "Albums" if mode == "albums" else "Singles & EP"
