@@ -19,6 +19,7 @@ from app.services import antispam
 from app.services.artwork import audio_thumbnail_path
 from app.services.audio_match import Verdict, verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
+from app.services.preview import complete_preview
 from app.services.resolver import ResolutionError, iter_audio_sources
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,11 @@ async def deliver_track_audio(
 
     if status_cb:
         await status_cb("Recherche de la source…" if track.source != "youtube" else "Préparation de l'audio…")
+
+    # Sans extrait officiel, la vérification acoustique est sautée et Sona
+    # envoie ce que le résolveur a choisi, sans preuve. On tente donc de
+    # retrouver l'extrait sur Deezer avant de chercher la source.
+    track = await complete_preview(deps.deezer, track)
 
     attempts = 0
     try:

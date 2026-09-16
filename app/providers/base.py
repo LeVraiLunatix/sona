@@ -18,6 +18,10 @@ class TrackInfo:
     # Extrait officiel de 30 s (Deezer, Apple…) : sert à vérifier que l'audio
     # trouvé sur YouTube est bien le même enregistrement.
     preview_url: str | None = None
+    # Code ISRC : identifiant international de l'enregistrement, le même d'une
+    # plateforme à l'autre. Permet de retrouver le morceau exact sur Deezer
+    # quand la source ne fournit pas d'extrait (voir services/preview.py).
+    isrc: str | None = None
 
     @property
     def uid(self) -> str:

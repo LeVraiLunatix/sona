@@ -42,6 +42,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         artist_source_id=str(artist["id"]) if artist.get("id") else None,
         album_source_id=str(album["id"]) if album.get("id") else None,
         preview_url=d.get("preview") or None,
+        isrc=d.get("isrc") or None,
     )
 
 
@@ -151,6 +152,21 @@ class DeezerClient:
             else:
                 singles.append(info)
         return albums, singles
+
+    async def get_track_by_isrc(self, isrc: str) -> TrackInfo | None:
+        """Morceau portant ce code ISRC, ou None s'il n'est pas au catalogue.
+
+        L'ISRC identifie l'enregistrement, pas le titre : c'est le seul moyen
+        sûr de retrouver sur Deezer exactement le morceau ouvert ailleurs.
+        """
+        try:
+            data = await self._get(f"/track/isrc:{isrc}")
+        except DeezerError as exc:
+            # Deezer répond « no data » quand l'ISRC est absent du catalogue :
+            # ce n'est pas une panne, c'est une réponse.
+            logger.info("Aucun morceau Deezer pour l'ISRC %s : %s", isrc, exc)
+            return None
+        return _track_from_json(data) if data.get("id") else None
 
     async def get_track_by_isrc_hint(self, title: str, artist: str) -> TrackInfo | None:
         items, _ = await self.search_tracks(f'"{title}" "{artist}"', limit=1)
