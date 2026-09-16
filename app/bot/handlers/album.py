@@ -33,7 +33,7 @@ async def render_album(deps: Deps, target: RenderTarget, user_id: int, params: d
     except lookup.ProviderErrors as exc:
         errors.log_and_hide(logger, "récupération album", exc)
         markup = keyboards.error_keyboard(AlbumCB(action="view", source=source, id=source_id).pack())
-        return await show_text(deps.bot, target, errors.GENERIC_FETCH_FAILED, markup)
+        return await show_text(deps.bot, target, errors.fetch_failed_text(exc), markup)
 
     in_library = await deps.repo.library_contains(user_id, "album", source, source_id)
     total_pages = max(1, ceil(len(album.tracks) / PAGE_SIZE)) if album.tracks else 1

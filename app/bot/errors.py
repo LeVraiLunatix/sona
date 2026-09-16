@@ -6,11 +6,20 @@ from app.bot import keyboards, navigation
 from app.bot.callbacks import NavCB
 from app.bot.deps import Deps
 from app.bot.render import RenderTarget, show_text, update_in_place
+from app.providers.spotify import SpotifyUnavailable
 
 logger = logging.getLogger(__name__)
 
 GENERIC_UNAVAILABLE = "Morceau indisponible pour le moment."
 GENERIC_FETCH_FAILED = "Impossible de récupérer ce contenu."
+# Albums et artistes Spotify : seule l'API officielle les donne, et elle est
+# soit absente du serveur, soit refusée (Spotify exige un compte Premium pour
+# le propriétaire de l'app). « Réessayer » n'y changerait rien : autant le dire.
+SPOTIFY_UNAVAILABLE = (
+    "Les albums et artistes Spotify ne sont pas disponibles : l'API Spotify "
+    "n'est pas accessible depuis Sona.\n"
+    "Les liens de morceaux Spotify fonctionnent, et le même album se trouve sur Deezer."
+)
 LINK_UNRECOGNIZED = "Lien non reconnu ou contenu indisponible."
 # Spotify demande des identifiants d'API absents du serveur, et l'API gratuite
 # d'Apple ne donne pas le contenu des playlists : autant le dire clairement
@@ -34,6 +43,11 @@ NO_FAITHFUL_SOURCE = (
 SOURCE_SEARCH_FAILED ="Recherche de la source impossible pour le moment. Réessaie dans un instant."
 DOWNLOAD_FAILED = "Le téléchargement de ce morceau a échoué. Réessaie dans un instant."
 SEND_FAILED = "L'envoi du fichier a échoué. Réessaie dans un instant."
+
+
+def fetch_failed_text(exc: Exception) -> str:
+    """Message d'un contenu qui n'a pas pu être récupéré, selon la cause."""
+    return SPOTIFY_UNAVAILABLE if isinstance(exc, SpotifyUnavailable) else GENERIC_FETCH_FAILED
 
 
 async def show_error(

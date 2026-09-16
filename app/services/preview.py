@@ -3,10 +3,10 @@
 Sans extrait de 30 s, `audio_match` n'a rien à quoi comparer : Sona envoie
 alors ce que le résolveur a choisi, sans preuve que c'est le bon
 enregistrement — exactement ce que la vérification acoustique existe pour
-éviter. C'est le cas de tous les liens Spotify tant que les identifiants de
-l'API ne sont pas configurés (l'oEmbed public ne donne ni durée, ni ISRC, ni
-extrait), et d'une bonne partie du catalogue Spotify même avec les
-identifiants, `preview_url` y étant souvent nul.
+éviter. C'est le cas de tous les liens Spotify résolus sans l'API (les données
+publiques — oEmbed et page du morceau — donnent l'artiste et la durée, mais ni
+ISRC ni extrait), et d'une bonne partie du catalogue Spotify même avec l'API,
+`preview_url` y étant souvent nul.
 
 Deezer, lui, publie un extrait pour presque tout son catalogue. On va donc y
 chercher le même enregistrement — par ISRC quand on l'a (il identifie
@@ -19,6 +19,7 @@ vérifier : le bon fichier se ferait rejeter.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import replace
 
 from app.providers.base import TrackInfo
@@ -27,10 +28,13 @@ from app.services.resolver import Candidate, rejection_reason
 
 logger = logging.getLogger(__name__)
 
-# Résultats examinés dans la recherche de repli : au-delà, on s'éloigne trop
-# du morceau demandé pour que ce soit encore lui.
-SEARCH_LIMIT = 5
+# Résultats examinés dans la recherche de repli. La recherche simple ramène
+# aussi remix, live et reprises avant l'original : dix laissent de la marge,
+# au-delà on s'éloigne trop du morceau demandé pour que ce soit encore lui.
+SEARCH_LIMIT = 10
 _UNKNOWN_ARTISTS = frozenset({"artiste inconnu", "artist inconnu", "unknown artist"})
+# « (feat. Pharrell Williams and Nile Rodgers) », « [with X] »…
+_FEATURING_RE = re.compile(r"\s*[\(\[](?:feat\.?|ft\.?|featuring|with)\s[^\)\]]*[\)\]]", re.IGNORECASE)
 
 
 def _as_candidate(track: TrackInfo) -> Candidate:
@@ -51,17 +55,26 @@ def _as_candidate(track: TrackInfo) -> Candidate:
 
 
 def _search_query(track: TrackInfo) -> str | None:
-    """Requête Deezer `artist:"…" track:"…"`, ou None si l'artiste est inconnu.
+    """Recherche Deezer « artiste principal titre », ou None si l'artiste est inconnu.
 
-    Sans nom d'artiste — le cas d'un lien Spotify résolu par oEmbed — un titre
-    seul ne prouve rien : « Hasta la Vista » existe chez plusieurs artistes.
+    Pas la syntaxe avancée `artist:"…" track:"…"` : Deezer n'y répond plus
+    (zéro résultat en septembre 2026, même pour « The Weeknd / Blinding
+    Lights »). Une recherche simple ramène aussi remix et live : ce sont les
+    contrôles du résolveur qui trient ensuite. Les invités (« feat. … ») et
+    les artistes secondaires sont retirés de la requête, Deezer ne les
+    écrivant pas forcément comme Spotify.
+
+    Sans nom d'artiste — un lien Spotify dont la page publique n'a pas répondu —
+    un titre seul ne prouve rien : « Hasta la Vista » existe chez plusieurs artistes.
     On préfère ne pas vérifier plutôt que de reprendre l'extrait d'un autre.
     """
-    artist = track.artist.strip()
-    title = track.title.strip()
-    if not artist or not title or artist.lower() in _UNKNOWN_ARTISTS:
+    if track.artist.strip().lower() in _UNKNOWN_ARTISTS:
         return None
-    return f'artist:"{artist}" track:"{title}"'
+    artist = track.artist.split(",")[0].strip()
+    title = _FEATURING_RE.sub("", track.title).strip()
+    if not artist or not title:
+        return None
+    return f"{artist} {title}"
 
 
 async def _deezer_candidates(deezer: DeezerClient, track: TrackInfo) -> list[TrackInfo]:

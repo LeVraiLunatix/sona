@@ -56,17 +56,25 @@ BOT_TOKEN=<token @BotFather>
 ALLOWED_USER_IDS=<ton_user_id>,<autre_user_id_si_besoin>
 ```
 
-`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` sont optionnels : sans eux, les
-liens Spotify collés sont quand même reconnus mais avec des métadonnées plus
-limitées (titre + cover, pas d'artiste/album fiables). Avec des identifiants
-[Spotify for Developers](https://developer.spotify.com/dashboard) (Client
-Credentials Flow, gratuit), la recherche et les pages morceau/album/artiste
-Spotify deviennent aussi complètes que Deezer.
+`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` sont optionnels. Sans eux, un
+lien de morceau Spotify est résolu par les données publiques : l'oEmbed
+(titre, pochette) et les balises d'aperçu de la page du morceau (artistes,
+album, année, durée). Les pages album et artiste Spotify, elles, demandent
+l'API.
 
-Ils changent aussi la **vérification de l'audio** : avec eux, Sona connaît
-l'artiste et l'ISRC du morceau, donc il peut retrouver l'extrait officiel sur
-Deezer et comparer le fichier téléchargé (voir ci-dessous). Sans eux, un lien
-Spotify n'a ni artiste ni ISRC, et le morceau part sans être vérifié.
+Avec des identifiants [Spotify for Developers](https://developer.spotify.com/dashboard)
+(Client Credentials Flow), les pages album/artiste Spotify fonctionnent et
+Sona connaît l'ISRC du morceau. **Spotify exige un abonnement Premium pour le
+compte propriétaire de l'app** : sinon le jeton est bien délivré, mais chaque
+requête répond 403 (« Active premium subscription required for the owner of
+the app », avec un délai de quelques heures après un changement
+d'abonnement). Sona le détecte, l'écrit une fois dans les logs, n'interroge
+plus l'API pendant une heure et repasse par les données publiques pour les
+morceaux : des identifiants refusés ne cassent pas les liens de morceaux.
+
+Ils changent aussi la **vérification de l'audio** : avec l'ISRC, Sona retrouve
+à coup sûr l'extrait officiel sur Deezer et compare le fichier téléchargé (voir
+ci-dessous). Sans lui, la recherche se fait par artiste et titre.
 
 ### Cookies YouTube (quasi obligatoire en hébergement VPS)
 
@@ -186,14 +194,15 @@ pour une bonne partie de son catalogue, et pas du tout sans identifiants API.
 
 Quand un morceau n'en a pas, Sona va donc le chercher sur Deezer avant de
 télécharger quoi que ce soit : par **ISRC** (l'identifiant de
-l'enregistrement, pas du titre) quand il est connu, sinon par
-`artist:"…" track:"…"`. L'extrait et la durée ne sont repris que si le
+l'enregistrement, pas du titre) quand il est connu, sinon par une recherche
+« artiste titre » (Deezer ne répond plus à la syntaxe `artist:"…" track:"…"`),
+sans les invités « feat. ». L'extrait et la durée ne sont repris que si le
 résultat passe les mêmes contrôles que le résolveur (pas une version dérivée,
 même artiste, titre assez proche, durée compatible). Sinon, rien n'est
 inventé : le morceau part sans vérification, comme avant.
 
-Sans nom d'artiste (lien Spotify sans identifiants API), aucune recherche
-n'est tentée : un titre seul ne prouve rien.
+Sans nom d'artiste (lien Spotify dont la page publique n'a pas répondu),
+aucune recherche n'est tentée : un titre seul ne prouve rien.
 
 ## Annonces (admins)
 
