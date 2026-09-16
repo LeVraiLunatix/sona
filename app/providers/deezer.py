@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import unicodedata
 
 import httpx
 
@@ -9,6 +10,16 @@ from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.deezer.com"
+# Morceaux ramenés d'un coup pour une recherche chez un artiste : le lot est
+# filtré par artiste puis paginé. 100 est le maximum par requête chez Deezer.
+ARTIST_SEARCH_POOL = 100
+
+
+def _artist_key(name: str) -> str:
+    """Nom d'artiste comparable, sans casse, accents, espaces ni ponctuation :
+    « Céline Dion » = « celine dion », « AC/DC » = « ACDC »."""
+    decomposed = unicodedata.normalize("NFKD", name.casefold())
+    return "".join(ch for ch in decomposed if ch.isalnum() and not unicodedata.combining(ch))
 
 
 class DeezerError(Exception):
@@ -104,8 +115,21 @@ class DeezerClient:
     async def search_tracks_by_artist(
         self, artist_name: str, query: str, index: int = 0, limit: int = 25
     ) -> tuple[list[TrackInfo], int]:
-        full_query = f'artist:"{artist_name}" {query}'.strip()
-        return await self.search_tracks(full_query, index=index, limit=limit)
+        """Morceaux de `artist_name` correspondant à `query`.
+
+        Deezer ne répond plus à sa syntaxe avancée `artist:"…"` (zéro résultat,
+        ou des morceaux d'autres artistes, en septembre 2026). On fait donc une
+        recherche simple « artiste requête » et on ne garde que les morceaux
+        dont l'artiste principal est bien celui demandé. Le `total` de Deezer
+        ne vaut plus une fois le lot filtré : la pagination se fait dans le lot.
+        """
+        data = await self._get(
+            "/search/track", {"q": f"{artist_name} {query}".strip(), "limit": ARTIST_SEARCH_POOL}
+        )
+        wanted = _artist_key(artist_name)
+        tracks = [_track_from_json(d) for d in data.get("data", [])]
+        mine = [t for t in tracks if wanted and _artist_key(t.artist) == wanted]
+        return mine[index : index + limit], len(mine)
 
     async def get_track(self, track_id: str) -> TrackInfo:
         data = await self._get(f"/track/{track_id}")
