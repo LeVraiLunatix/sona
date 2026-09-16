@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 GENERIC_UNAVAILABLE = "Morceau indisponible pour le moment."
 GENERIC_FETCH_FAILED = "Impossible de récupérer ce contenu."
 LINK_UNRECOGNIZED = "Lien non reconnu ou contenu indisponible."
+# Spotify demande des identifiants d'API absents du serveur, et l'API gratuite
+# d'Apple ne donne pas le contenu des playlists : autant le dire clairement
+# plutôt que de laisser croire à un lien cassé.
+PLAYLIST_UNSUPPORTED = (
+    "Les playlists Spotify et Apple Music ne sont pas prises en charge.\n"
+    "Les playlists Deezer et YouTube, oui : colle plutôt un de ces liens."
+)
 
 # Écoute : un message par cause réelle plutôt qu'un « indisponible » unique —
 # l'utilisateur sait ainsi si ça vaut le coup de réessayer.

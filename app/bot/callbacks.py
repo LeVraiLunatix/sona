@@ -26,6 +26,17 @@ class AlbumCB(CallbackData, prefix="album"):
     page: int = 1
 
 
+class PlaylistCB(CallbackData, prefix="pl"):
+    """Préfixe à part : un numéro de playlist Deezer n'est pas un numéro
+    d'album, et un bouton d'album ne doit jamais ouvrir une playlist de même
+    numéro (ni l'inverse)."""
+
+    action: str  # view | page | playall
+    source: str
+    id: str
+    page: int = 1
+
+
 class ArtistCB(CallbackData, prefix="artist"):
     action: str  # view | top | playall | albums | singles | search
     source: str

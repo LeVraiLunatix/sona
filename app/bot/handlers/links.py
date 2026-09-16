@@ -18,17 +18,19 @@ logger = logging.getLogger(__name__)
 
 router = Router(name="links")
 
-# Playlists Deezer/Spotify/Apple non prises en charge (pas d'endpoint dédié
-# implémenté côté provider) : seul le morceau/album/artiste est résolu pour
-# ces sources. YouTube n'a pas d'"album" à proprement parler : une playlist
-# YouTube est donc affichée avec le même gabarit que l'écran Album.
+# Playlists Spotify et Apple non prises en charge : Spotify demande des
+# identifiants d'API absents du serveur, et l'API gratuite d'Apple ne donne
+# pas le contenu des playlists. YouTube n'a pas d'"album" à proprement parler :
+# ses playlists passent, elles, par l'écran Playlist.
 _SUPPORTED_KINDS = {
-    "deezer": {"track", "album", "artist"},
+    "deezer": {"track", "album", "artist", "playlist"},
     "spotify": {"track", "album", "artist"},
     "apple": {"track", "album", "artist"},
     "youtube": {"track", "playlist"},
 }
-_KIND_TO_SCREEN = {"track": "track", "album": "album", "artist": "artist", "playlist": "album"}
+_KIND_TO_SCREEN = {"track": "track", "album": "album", "artist": "artist", "playlist": "playlist"}
+# Écrans paginés : la page d'entrée est toujours la première.
+_PAGED_SCREENS = {"album", "playlist"}
 
 
 @navigation.register("link_loading")
@@ -44,14 +46,17 @@ async def _handle_detected_link(deps: Deps, message: Message, detected: Detected
 
     allowed_kinds = _SUPPORTED_KINDS.get(detected.source, set())
     if detected.kind not in allowed_kinds:
+        # Un « lien non reconnu » sur une playlist Spotify laisserait croire à
+        # un lien cassé : on dit ce qui n'est pas pris en charge.
+        text = errors.PLAYLIST_UNSUPPORTED if detected.kind == "playlist" else errors.LINK_UNRECOGNIZED
         target = navigation.current_target(user_id)
-        new_target = await show_text(deps.bot, target, errors.LINK_UNRECOGNIZED, keyboards.no_results_keyboard())
+        new_target = await show_text(deps.bot, target, text, keyboards.no_results_keyboard())
         navigation.set_target(user_id, new_target)
         return
 
     screen_kind = _KIND_TO_SCREEN[detected.kind]
     params: dict = {"source": detected.source, "id": detected.ref}
-    if screen_kind == "album":
+    if screen_kind in _PAGED_SCREENS:
         params["page"] = 1
     await navigation.replace_top(deps, user_id, Screen(screen_kind, params))
     if screen_kind == "track" and await autoplay_enabled(deps, user_id):

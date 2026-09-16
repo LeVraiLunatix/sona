@@ -325,10 +325,11 @@ d'appel réseau réel pour rester rapide et déterministe en CI.
 
 ## Limitations connues
 
-- **Playlists** : seules les playlists YouTube sont affichées (gabarit
-  Album). Les playlists Deezer/Spotify/Apple Music ne sont pas prises en
-  charge (endpoints non implémentés) — le lien est reconnu mais annoncé
-  comme indisponible.
+- **Playlists** : les playlists Deezer et YouTube s'ouvrent (gabarit Album,
+  avec pagination et « Tout écouter »). Spotify et Apple Music, non :
+  Spotify demande des identifiants d'API absents du serveur, et l'API
+  gratuite d'Apple ne donne pas le contenu des playlists. Le lien est alors
+  refusé avec un message qui le dit.
 - **Recherche de la source** : si aucun résultat YouTube ne ressemble
   suffisamment au morceau (titre *et* durée), Sona préfère annoncer « Aucune
   source audio trouvée » plutôt que d'envoyer un autre morceau. Sur un titre
