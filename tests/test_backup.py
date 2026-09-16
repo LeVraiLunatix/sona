@@ -59,6 +59,10 @@ def test_a_backup_is_a_readable_copy_of_the_base(tmp_path):
     assert titles(destination) == ["Au DD", "Deux frères"]
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Windows ignore les droits POSIX : os.chmod(0o600) n'y pose que l'attribut lecture seule.",
+)
 def test_a_backup_is_only_readable_by_sona(tmp_path):
     """Une sauvegarde contient tout ce que contient la base : accès compris."""
     db = make_database(tmp_path / "sona.db")
