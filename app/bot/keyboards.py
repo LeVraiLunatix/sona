@@ -10,6 +10,7 @@ from app.bot.callbacks import (
     HistoryCB,
     LibraryCB,
     NavCB,
+    PlaylistCB,
     SearchCB,
     SettingsCB,
     TrackCB,
@@ -165,6 +166,40 @@ def album_keyboard(
         [InlineKeyboardButton(text=lib_label, callback_data=AlbumCB(action=lib_action, source=album.source, id=album.source_id).pack())],
         _back_row(NavCB(action="back").pack()),
     )
+
+
+def playlist_keyboard(
+    playlist: AlbumInfo, page: int, total_pages: int, page_tracks: list[TrackInfo]
+) -> InlineKeyboardMarkup:
+    """Même gabarit que l'album, sans « Ajouter à la bibliothèque » : la
+    bibliothèque ne range que des morceaux, albums et artistes."""
+    rows = []
+    for i, track in enumerate(page_tracks):
+        idx = (page - 1) * PAGE_SIZE + i + 1
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{idx}. {track.title}",
+                    callback_data=TrackCB(action="view", source=track.source, id=track.source_id).pack(),
+                )
+            ]
+        )
+    pag = _pagination_row(
+        page,
+        total_pages,
+        lambda p: PlaylistCB(action="page", source=playlist.source, id=playlist.source_id, page=p).pack(),
+    )
+    playall_row = (
+        [
+            InlineKeyboardButton(
+                text="Tout écouter",
+                callback_data=PlaylistCB(action="playall", source=playlist.source, id=playlist.source_id).pack(),
+            )
+        ]
+        if playlist.tracks
+        else []
+    )
+    return _rows(*rows, pag, playall_row, _back_row(NavCB(action="back").pack()))
 
 
 def artist_keyboard(artist: ArtistInfo) -> InlineKeyboardMarkup:

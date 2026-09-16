@@ -11,6 +11,7 @@ from app.bot.handlers import (
     inline,
     library,
     links,
+    playlist,
     search,
     settings,
     start,
@@ -23,6 +24,7 @@ def setup_routers(dp: Dispatcher) -> None:
     dp.include_router(search.router)
     dp.include_router(track.router)
     dp.include_router(album.router)
+    dp.include_router(playlist.router)
     dp.include_router(artist.router)
     dp.include_router(library.router)
     dp.include_router(history.router)

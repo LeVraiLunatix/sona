@@ -247,9 +247,19 @@ contenant une URL Deezer/Spotify/Apple Music/YouTube :
 
 1. Édition/envoi immédiat : `Analyse du lien…`
 2. Résolution du type de contenu + métadonnées via le provider correspondant.
-3. Affichage direct de l'écran Morceau / Album / Artiste / (Playlist → traité
-   comme une liste de morceaux façon Album sans cover d'album unique).
-4. Lien non reconnu ou contenu indisponible → écran erreur dédié :
+3. Affichage direct de l'écran Morceau / Album / Artiste / Playlist.
+4. Playlist (Deezer, YouTube) → même gabarit que l'écran Album : pagination,
+   `[ Tout écouter ]`, pas de `[ Ajouter à la bibliothèque ]` (la
+   bibliothèque ne range que des morceaux, albums et artistes). Chaque ligne
+   porte le titre *et* son artiste, qui change d'un morceau à l'autre. Les
+   identifiants de playlist ne partagent rien avec ceux des albums : un
+   `PlaylistCB` à part, et `lookup.get_playlist` plutôt que `get_album` —
+   chez Deezer, `/album/908622995` n'est pas `/playlist/908622995`.
+5. Playlist Spotify ou Apple Music → message dédié : `Les playlists Spotify
+   et Apple Music ne sont pas prises en charge.` (Spotify demande des
+   identifiants d'API absents du serveur, l'API gratuite d'Apple ne donne pas
+   le contenu des playlists.)
+6. Lien non reconnu ou contenu indisponible → écran erreur dédié :
    `Lien non reconnu ou contenu indisponible.` + `[ Nouvelle recherche ]` +
    `[ Accueil ]`.
 

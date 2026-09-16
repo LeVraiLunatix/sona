@@ -128,6 +128,29 @@ class DeezerClient:
             tracks.append(_track_from_json(merged))
         return _album_from_json(data, tracks)
 
+    async def get_playlist(self, playlist_id: str) -> AlbumInfo:
+        """Playlist Deezer, présentée comme un album.
+
+        Une playlist n'a pas d'artiste : c'est son créateur qui tient ce rôle
+        à l'écran. Ses morceaux, eux, portent chacun leur propre album — ils
+        sont donc lus tels quels, sans recoller la pochette de la playlist.
+        """
+        data = await self._get(f"/playlist/{playlist_id}")
+        tracks = [_track_from_json(t) for t in (data.get("tracks") or {}).get("data", [])]
+        creator = (data.get("creator") or {}).get("name") or "Playlist"
+        return AlbumInfo(
+            source="deezer",
+            source_id=str(data["id"]),
+            title=data.get("title") or "Playlist",
+            artist=creator,
+            artist_source_id=None,
+            year=None,
+            cover_url=_largest_image(data, "picture"),
+            track_count=data.get("nb_tracks") or len(tracks),
+            duration_seconds=data.get("duration"),
+            tracks=tracks,
+        )
+
     async def get_artist(self, artist_id: str) -> ArtistInfo:
         data = await self._get(f"/artist/{artist_id}")
         return _artist_from_json(data)

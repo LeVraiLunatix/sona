@@ -39,6 +39,21 @@ async def get_album(deps: Deps, source: str, source_id: str) -> AlbumInfo:
     raise UnknownSourceError(source)
 
 
+async def get_playlist(deps: Deps, source: str, source_id: str) -> AlbumInfo:
+    """Playlist, au même format qu'un album.
+
+    Volontairement séparée de `get_album` : chez Deezer, les numéros de
+    playlist et d'album vivent dans deux espaces distincts, et
+    `/album/908622995` n'est pas `/playlist/908622995`. Confondre les deux
+    ouvrirait un contenu qui n'a rien à voir.
+    """
+    if source == "deezer":
+        return await deps.deezer.get_playlist(source_id)
+    if source == "youtube":
+        return await youtube.get_playlist_info(source_id)
+    raise UnknownSourceError(source)
+
+
 async def get_artist(deps: Deps, source: str, source_id: str) -> ArtistInfo:
     if source == "deezer":
         return await deps.deezer.get_artist(source_id)
