@@ -5,6 +5,7 @@ from aiogram import Dispatcher
 from app.bot.handlers import (
     admin,
     album,
+    announce,
     artist,
     history,
     inline,
@@ -27,6 +28,7 @@ def setup_routers(dp: Dispatcher) -> None:
     dp.include_router(history.router)
     dp.include_router(settings.router)
     dp.include_router(admin.router)
+    dp.include_router(announce.router)
     # Suggestions au-dessus du champ de saisie (mode inline) : un type
     # d'update à part, jamais en concurrence avec les messages.
     dp.include_router(inline.router)

@@ -7,6 +7,7 @@ from aiogram.types import Message
 
 from app.bot import errors, keyboards, navigation
 from app.bot.deps import Deps
+from app.bot.handlers import announce
 from app.bot.handlers.search import start_search
 from app.bot.handlers.track import autoplay_enabled, play_callback_data, play_track
 from app.bot.navigation import Screen
@@ -73,6 +74,11 @@ async def on_text(message: Message, deps: Deps) -> None:
             "Commande inconnue. Utilise /search pour chercher un morceau, "
             "/start pour revenir à l'accueil."
         )
+        return
+
+    # Un écran qui attend une saisie passe avant tout le reste : dans une
+    # annonce, un lien collé est du texte, pas un morceau à ouvrir.
+    if await announce.capture_draft(deps, message):
         return
 
     try:

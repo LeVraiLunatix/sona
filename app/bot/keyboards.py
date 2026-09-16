@@ -328,7 +328,21 @@ def admin_menu_keyboard(pending_count: int = 0) -> InlineKeyboardMarkup:
             )
         ],
         [InlineKeyboardButton(text="Retirer un accès", callback_data=AdminCB(action="remove_list").pack())],
+        [InlineKeyboardButton(text="Envoyer une annonce", callback_data=AdminCB(action="announce").pack())],
         _back_row(SettingsCB(action="menu").pack()),
+    )
+
+
+def admin_announce_prompt_keyboard() -> InlineKeyboardMarkup:
+    return _rows(_back_row(AdminCB(action="menu").pack(), "← Annuler"))
+
+
+def admin_announce_preview_keyboard() -> InlineKeyboardMarkup:
+    return _rows(
+        [
+            InlineKeyboardButton(text="Envoyer", callback_data=AdminCB(action="announce_send").pack()),
+            InlineKeyboardButton(text="Annuler", callback_data=AdminCB(action="announce_cancel").pack()),
+        ]
     )
 
 

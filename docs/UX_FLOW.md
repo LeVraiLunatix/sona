@@ -392,6 +392,23 @@ en attente sont aussi listées dans Paramètres > Gestion des accès.
 (même non autorisé) ; l'admin l'ajoute avec `/allow <id>`, sans lien ni
 demande.
 
+**Annoncer quelque chose à tout le monde.** Paramètres > Gestion des accès >
+`[ Envoyer une annonce ]` :
+
+1. écran de saisie — l'admin écrit le texte dans la conversation (c'est le
+   seul endroit où le texte libre n'est ni une recherche ni un lien, donc un
+   lien collé dans une annonce reste du texte) ;
+2. aperçu exact du message, avec `[ Envoyer ]` / `[ Annuler ]` ;
+3. envoi à tous les utilisateurs autorisés qui ont gardé leurs notifications,
+   avec une courte pause entre deux envois ;
+4. bilan en message à part (`3 envoyée(s)`, `1 sans notifications`,
+   `1 échec(s)`) — l'écran, lui, revient à Gestion des accès. Un destinataire
+   qui a bloqué le bot n'interrompt pas la diffusion.
+
+La pile de navigation vivant en mémoire, un redémarrage entre l'aperçu et
+l'envoi perd le brouillon : l'appui sur `[ Envoyer ]` le dit au lieu de
+diffuser un message vide.
+
 ## Navigation "Retour" — exemples de pile
 
 ```

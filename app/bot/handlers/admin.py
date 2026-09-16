@@ -86,7 +86,13 @@ async def render_admin_requests(deps: Deps, target: RenderTarget, user_id: int, 
     return await show_text(deps.bot, target, "\n".join(lines), keyboards.admin_requests_keyboard(requests))
 
 
-async def _require_admin(callback: CallbackQuery, deps: Deps) -> bool:
+async def require_admin(callback: CallbackQuery, deps: Deps) -> bool:
+    """Garde d'entrée des écrans d'administration.
+
+    Publique : l'écran des annonces (handlers/announce.py) s'en sert aussi —
+    ces boutons restent cliquables dans d'anciens messages, y compris par
+    quelqu'un dont l'accès a changé depuis.
+    """
     if await deps.repo.is_admin(callback.from_user.id):
         return True
     await callback.answer(NOT_ADMIN, show_alert=True)
@@ -105,7 +111,7 @@ async def _open_invite_screen(callback: CallbackQuery, deps: Deps, max_uses: int
 
 @router.callback_query(AdminCB.filter(F.action == "menu"))
 async def on_admin_menu(callback: CallbackQuery, deps: Deps) -> None:
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await callback.answer()
     await navigation.goto(deps, callback.from_user.id, callback.message.chat.id, Screen("admin_menu"))
@@ -113,7 +119,7 @@ async def on_admin_menu(callback: CallbackQuery, deps: Deps) -> None:
 
 @router.callback_query(AdminCB.filter(F.action == "invite"))
 async def on_admin_invite(callback: CallbackQuery, deps: Deps) -> None:
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await callback.answer()
     await _open_invite_screen(callback, deps, max_uses=1)
@@ -121,7 +127,7 @@ async def on_admin_invite(callback: CallbackQuery, deps: Deps) -> None:
 
 @router.callback_query(AdminCB.filter(F.action == "invite_multi"))
 async def on_admin_invite_multi(callback: CallbackQuery, deps: Deps) -> None:
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await callback.answer()
     await _open_invite_screen(callback, deps, max_uses=MULTI_INVITE_USES)
@@ -131,7 +137,7 @@ async def on_admin_invite_multi(callback: CallbackQuery, deps: Deps) -> None:
 async def on_admin_revoke_invite(callback: CallbackQuery, callback_data: AdminCB, deps: Deps) -> None:
     """Annule un lien d'invitation partagé par erreur : il est refusé ensuite
     avec un message explicite plutôt qu'un silence."""
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await deps.repo.revoke_invite(callback_data.id)
     await callback.answer("Lien annulé.")
@@ -140,7 +146,7 @@ async def on_admin_revoke_invite(callback: CallbackQuery, callback_data: AdminCB
 
 @router.callback_query(AdminCB.filter(F.action == "remove_list"))
 async def on_admin_remove_list(callback: CallbackQuery, deps: Deps) -> None:
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await callback.answer()
     await navigation.goto(deps, callback.from_user.id, callback.message.chat.id, Screen("admin_remove_list"))
@@ -148,7 +154,7 @@ async def on_admin_remove_list(callback: CallbackQuery, deps: Deps) -> None:
 
 @router.callback_query(AdminCB.filter(F.action == "remove"))
 async def on_admin_remove(callback: CallbackQuery, callback_data: AdminCB, deps: Deps) -> None:
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await deps.repo.remove_allowed_user(int(callback_data.id))
     await callback.answer("Accès retiré.")
@@ -157,7 +163,7 @@ async def on_admin_remove(callback: CallbackQuery, callback_data: AdminCB, deps:
 
 @router.callback_query(AdminCB.filter(F.action == "requests"))
 async def on_admin_requests(callback: CallbackQuery, deps: Deps) -> None:
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     await callback.answer()
     await navigation.goto(deps, callback.from_user.id, callback.message.chat.id, Screen("admin_requests"))
@@ -171,7 +177,7 @@ async def on_admin_resolve_request(callback: CallbackQuery, callback_data: Admin
     notification reçue en message direct — dans ce second cas il n'y a pas
     d'écran à rafraîchir, on se contente de neutraliser les boutons.
     """
-    if not await _require_admin(callback, deps):
+    if not await require_admin(callback, deps):
         return
     target_id = int(callback_data.id)
 

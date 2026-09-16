@@ -172,6 +172,14 @@ déploiement sur le VPS : GitHub se connecte en SSH et le serveur exécute
 [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md). Tant que les secrets ne sont pas
 créés, l'étape de déploiement est ignorée avec un avertissement.
 
+## Annonces (admins)
+
+Paramètres > Gestion des accès > **Envoyer une annonce** : écris le texte dans
+la conversation, relis l'aperçu, puis envoie. Le message part à tous les
+utilisateurs autorisés qui ont gardé leurs notifications, et Sona renvoie le
+bilan (envoyés, notifications désactivées, échecs). Quelqu'un qui a bloqué le
+bot n'interrompt pas la diffusion.
+
 ## Réglages
 
 Dans **Paramètres**, chacun règle pour lui-même la qualité, le format, les
