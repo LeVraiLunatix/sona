@@ -63,6 +63,11 @@ limitées (titre + cover, pas d'artiste/album fiables). Avec des identifiants
 Credentials Flow, gratuit), la recherche et les pages morceau/album/artiste
 Spotify deviennent aussi complètes que Deezer.
 
+Ils changent aussi la **vérification de l'audio** : avec eux, Sona connaît
+l'artiste et l'ISRC du morceau, donc il peut retrouver l'extrait officiel sur
+Deezer et comparer le fichier téléchargé (voir ci-dessous). Sans eux, un lien
+Spotify n'a ni artiste ni ISRC, et le morceau part sans être vérifié.
+
 ### Cookies YouTube (quasi obligatoire en hébergement VPS)
 
 Depuis un serveur (IP de datacenter), YouTube bloque presque systématiquement
@@ -171,6 +176,24 @@ déploiement sur le VPS : GitHub se connecte en SSH et le serveur exécute
 `authorized_keys`, empreinte du serveur, secrets du dépôt) est dans
 [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md). Tant que les secrets ne sont pas
 créés, l'étape de déploiement est ignorée avec un avertissement.
+
+## Vérification de l'audio sans extrait officiel
+
+Avant d'envoyer un fichier, Sona le compare à l'extrait officiel de 30 s du
+morceau (empreinte acoustique) : c'est ce qui écarte les instrus, remixes et
+reposts retouchés. Encore faut-il avoir un extrait — Spotify n'en sert plus
+pour une bonne partie de son catalogue, et pas du tout sans identifiants API.
+
+Quand un morceau n'en a pas, Sona va donc le chercher sur Deezer avant de
+télécharger quoi que ce soit : par **ISRC** (l'identifiant de
+l'enregistrement, pas du titre) quand il est connu, sinon par
+`artist:"…" track:"…"`. L'extrait et la durée ne sont repris que si le
+résultat passe les mêmes contrôles que le résolveur (pas une version dérivée,
+même artiste, titre assez proche, durée compatible). Sinon, rien n'est
+inventé : le morceau part sans vérification, comme avant.
+
+Sans nom d'artiste (lien Spotify sans identifiants API), aucune recherche
+n'est tentée : un titre seul ne prouve rien.
 
 ## Annonces (admins)
 

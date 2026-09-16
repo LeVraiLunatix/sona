@@ -43,6 +43,10 @@ def _track_from_json(d: dict) -> TrackInfo:
         artist_source_id=artists[0]["id"] if artists else None,
         album_source_id=album.get("id"),
         preview_url=d.get("preview_url") or None,
+        # Deezer sait retrouver un enregistrement par son ISRC : c'est ce qui
+        # rend un morceau Spotify vérifiable, Spotify ne servant plus
+        # d'extrait sur une bonne partie de son catalogue.
+        isrc=(d.get("external_ids") or {}).get("isrc") or None,
     )
 
 
