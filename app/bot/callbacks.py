@@ -53,7 +53,8 @@ class SettingsCB(CallbackData, prefix="settings"):
 
 
 class AdminCB(CallbackData, prefix="admin"):
-    action: str  # menu | invite | invite_multi | revoke | remove_list | remove | requests | approve | deny
+    action: str  # menu | invite | invite_multi | revoke | remove_list | remove | requests
+    #          | approve | deny | announce | announce_send | announce_cancel
     id: str | None = None
 
 
