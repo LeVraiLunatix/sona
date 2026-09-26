@@ -52,6 +52,7 @@ async def open_home(deps: Deps, user: User, chat_id: int) -> None:
     """Amène un utilisateur autorisé sur l'écran d'accueil."""
     await deps.repo.ensure_user(user.id)
     await deps.repo.touch_display_name(user.id, user.full_name)
+    navigation.detach(user.id, chat_id)
     await navigation.goto(deps, user.id, chat_id, Screen("home"), reset=True)
 
 
