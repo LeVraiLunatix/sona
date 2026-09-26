@@ -86,6 +86,9 @@ async def on_text(message: Message, deps: Deps) -> None:
     if await announce.capture_draft(deps, message):
         return
 
+    # Recherche ou lien : le résultat s'affiche sous le message de l'utilisateur.
+    navigation.detach(message.from_user.id, message.chat.id)
+
     try:
         detected = await resolve_link(text)
     except Exception as exc:  # résolution de lien court en panne, DNS…

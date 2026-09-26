@@ -97,6 +97,7 @@ async def cmd_search(message: Message, deps: Deps, command: CommandObject) -> No
     """`/search` ouvre l'écran de recherche ; `/search <requête>` affiche
     directement le menu des morceaux trouvés."""
     query = (command.args or "").strip()
+    navigation.detach(message.from_user.id, message.chat.id)
     if query:
         await start_search(deps, message.from_user.id, message.chat.id, query)
         return

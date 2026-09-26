@@ -23,11 +23,13 @@ class Screen:
 
 
 class NavigationState:
-    __slots__ = ("stack", "message")
+    __slots__ = ("stack", "message", "stale")
 
     def __init__(self) -> None:
         self.stack: list[Screen] = [Screen("home")]
         self.message: RenderTarget | None = None
+        # Anciens écrans à supprimer dès que le nouveau est affiché (voir `detach`).
+        self.stale: list[RenderTarget] = []
 
 
 _states: dict[int, NavigationState] = {}
@@ -52,6 +54,36 @@ def current_target(user_id: int) -> RenderTarget | None:
 
 def set_target(user_id: int, target: RenderTarget) -> None:
     state_for(user_id).message = target
+
+
+def detach(user_id: int, chat_id: int) -> None:
+    """Fait repartir le prochain écran dans un nouveau message, en bas de la conversation.
+
+    À appeler quand l'utilisateur écrit (/start, recherche, lien collé) : son
+    message fait remonter l'écran suivi, et s'il a vidé l'historique de son
+    côté, ce message n'existe plus que pour le bot. Telegram accepte alors
+    l'édition sans erreur mais l'utilisateur ne voit rien (symptôme « /start
+    ne répond pas »). L'ancien écran est supprimé une fois le nouveau affiché.
+    """
+    state = state_for(user_id)
+    if state.message is not None and state.message.message_id is not None:
+        state.stale.append(state.message)
+    state.message = RenderTarget(chat_id, None, False)
+
+
+async def _drop_stale(deps: Deps, state: NavigationState) -> None:
+    current = state.message.message_id if state.message else None
+    if current is None:
+        # Rien de neuf affiché : on garde l'ancien écran plutôt que de ne rien laisser.
+        return
+    stale, state.stale = state.stale, []
+    for target in stale:
+        if target.message_id == current:
+            continue
+        try:
+            await deps.bot.delete_message(target.chat_id, target.message_id)
+        except Exception as exc:  # déjà supprimé, trop ancien (> 48 h)…
+            logger.debug("Ancien écran %s non supprimé: %s", target.message_id, exc)
 
 
 def adopt_message(user_id: int, message: object, screen: Screen | None = None) -> RenderTarget | None:
@@ -134,6 +166,7 @@ async def _render_current(deps: Deps, user_id: int) -> None:
             # Dernier filet : sans ça l'utilisateur ne voit *rien* se passer
             # (symptôme « le bot ne répond pas ») et le log est le seul indice.
             logger.exception("Message d'erreur non délivré à user_id=%s", user_id)
+    await _drop_stale(deps, state)
 
 
 async def goto(

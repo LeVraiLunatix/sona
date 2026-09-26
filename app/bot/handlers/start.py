@@ -41,6 +41,7 @@ async def cmd_start(message: Message, deps: Deps) -> None:
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, deps: Deps) -> None:
+    navigation.detach(message.from_user.id, message.chat.id)
     await navigation.goto(deps, message.from_user.id, message.chat.id, Screen("home"), reset=True)
 
 

@@ -5,7 +5,7 @@ from aiogram.types import Chat, InaccessibleMessage, Message, PhotoSize
 
 from app.bot import navigation
 from app.bot.navigation import Screen
-from app.bot.render import RenderTarget
+from app.bot.render import RenderTarget, show_text
 
 CHAT = Chat(id=7, type="private")
 
@@ -89,3 +89,48 @@ def test_rerender_after_a_restart_gets_a_usable_target(monkeypatch):
     asyncio.run(navigation.rerender(SimpleNamespace(bot=FakeBot()), 7))
     assert received == [RenderTarget(7, None, is_photo=False)]
     assert navigation.current_target(7) == RenderTarget(7, 99, is_photo=False)
+
+
+class SendingBot(FakeBot):
+    async def send_message(self, chat_id, text, reply_markup=None):
+        self.calls.append(("send", chat_id, text))
+        return SimpleNamespace(message_id=100)
+
+    async def delete_message(self, chat_id, message_id):
+        self.calls.append(("delete", chat_id, message_id))
+
+
+def test_start_after_a_cleared_history_shows_a_new_screen(monkeypatch):
+    """Le bug d'origine : l'utilisateur a vidé la conversation, /start éditait
+    l'ancien écran (invisible pour lui) et il ne voyait rien."""
+    restarted_bot(monkeypatch)
+    navigation.set_target(7, RenderTarget(7, 10, is_photo=False))
+
+    async def renderer(deps, target, user_id, params):
+        return await show_text(deps.bot, target, "Bienvenue sur Sona", None)
+
+    monkeypatch.setitem(navigation._renderers, "home", renderer)
+    bot = SendingBot()
+    navigation.detach(7, 7)
+    asyncio.run(navigation.goto(SimpleNamespace(bot=bot), 7, 7, Screen("home"), reset=True))
+
+    assert bot.calls == [("send", 7, "Bienvenue sur Sona"), ("delete", 7, 10)]
+    assert navigation.current_target(7) == RenderTarget(7, 100, is_photo=False)
+    assert navigation.state_for(7).stale == []
+
+
+def test_old_screen_is_kept_when_nothing_new_is_shown(monkeypatch):
+    restarted_bot(monkeypatch)
+    navigation.set_target(7, RenderTarget(7, 10, is_photo=False))
+    navigation.detach(7, 7)
+    bot = SendingBot()
+    asyncio.run(navigation.show_status(SimpleNamespace(bot=bot), 7, "Préparation…"))
+    assert bot.calls == []
+    assert navigation.state_for(7).stale == [RenderTarget(7, 10, is_photo=False)]
+
+
+def test_detach_without_a_known_screen(monkeypatch):
+    restarted_bot(monkeypatch)
+    navigation.detach(7, 7)
+    assert navigation.current_target(7) == RenderTarget(7, None, is_photo=False)
+    assert navigation.state_for(7).stale == []
