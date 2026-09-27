@@ -50,3 +50,60 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO
+
+  ipa:
+    name: ipa (sideload)
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ios/Encre
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer XcodeGen
+        run: brew install xcodegen
+
+      - name: Générer le projet Xcode
+        run: xcodegen generate
+
+      - name: Compiler pour appareil, sans signature
+        # Pas de compte développeur Apple ici : on désactive entièrement la
+        # signature (`CODE_SIGNING_ALLOWED=NO`, `CODE_SIGN_IDENTITY=""`) et on
+        # laisse l'app non signée. C'est le format attendu par Sideloadly /
+        # AltStore, qui re-signent eux-mêmes avec un identifiant Apple lors de
+        # l'installation — inutile (et impossible sans compte payant) de
+        # signer quoi que ce soit côté CI.
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Encre.xcodeproj \
+            -scheme Encre \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            PROVISIONING_PROFILE_SPECIFIER=""
+
+      - name: Empaqueter en .ipa
+        # Un .ipa est juste une archive zip contenant Payload/<App>.app :
+        # aucun outil de signature nécessaire pour la construire, Sideloadly
+        # ouvre ce zip directement.
+        run: |
+          set -e
+          cd build/Build/Products/Debug-iphoneos
+          mkdir Payload
+          cp -r Encre.app Payload/
+          zip -qr Encre.ipa Payload
+          mv Encre.ipa "$GITHUB_WORKSPACE/Encre.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Encre-ipa
+          path: Encre.ipa
+          retention-days: 14
