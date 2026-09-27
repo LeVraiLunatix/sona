@@ -38,7 +38,7 @@ struct AlbumDetailView: View {
 
                     HStack(spacing: 12) {
                         Button {
-                            if let first = album.tracks.first { player.play(first) }
+                            if let first = album.tracks.first { player.play(first, context: album.tracks) }
                         } label: {
                             Label("Lecture", systemImage: "play.fill")
                                 .font(EncreFont.heading(17))
@@ -50,7 +50,7 @@ struct AlbumDetailView: View {
                         .foregroundStyle(EncreColor.bg)
 
                         Button {
-                            if let random = album.tracks.randomElement() { player.play(random) }
+                            if let random = album.tracks.randomElement() { player.play(random, context: album.tracks.shuffled()) }
                         } label: {
                             Label("Aléatoire", systemImage: "shuffle")
                                 .font(EncreFont.heading(16))
@@ -75,7 +75,7 @@ struct AlbumDetailView: View {
                                     .foregroundStyle(EncreColor.neutral600)
                                     .frame(width: 22, alignment: .leading)
                                     .monospacedDigit()
-                                Button { player.play(track) } label: {
+                                Button { player.play(track, context: album.tracks) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(track.title)
                                             .font(EncreFont.heading(17))

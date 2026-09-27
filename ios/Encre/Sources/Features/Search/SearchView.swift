@@ -28,7 +28,7 @@ struct SearchView: View {
                     VStack(spacing: 16) {
                         ForEach(viewModel.results) { track in
                             TrackRow(track: track, isCurrent: player.current?.id == track.id) {
-                                player.play(track)
+                                player.play(track, context: viewModel.results)
                             }
                         }
                     }

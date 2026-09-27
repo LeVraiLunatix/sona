@@ -21,7 +21,7 @@ struct HomeView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 14) {
                                 ForEach(viewModel.recentTracks) { track in
-                                    TrackTile(track: track) { player.play(track) }
+                                    TrackTile(track: track) { player.play(track, context: viewModel.recentTracks) }
                                 }
                             }
                         }
@@ -47,7 +47,7 @@ struct HomeView: View {
                         VStack(spacing: 18) {
                             ForEach(viewModel.libraryTracks) { track in
                                 TrackRow(track: track, isCurrent: player.current?.id == track.id) {
-                                    player.play(track)
+                                    player.play(track, context: viewModel.libraryTracks)
                                 }
                             }
                         }
@@ -99,7 +99,7 @@ struct HomeView: View {
                 }
                 .lineLimit(1)
                 Spacer(minLength: 8)
-                Button { player.play(track) } label: {
+                Button { player.play(track, context: viewModel.recentTracks) } label: {
                     Image(systemName: "play.fill")
                         .font(.system(size: 22))
                         .foregroundStyle(EncreColor.bg)

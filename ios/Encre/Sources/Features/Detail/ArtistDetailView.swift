@@ -36,7 +36,7 @@ struct ArtistDetailView: View {
 
                     if !topTracks.isEmpty {
                         Button {
-                            player.play(topTracks[0])
+                            player.play(topTracks[0], context: topTracks)
                         } label: {
                             Label("Écouter", systemImage: "play.fill")
                                 .font(EncreFont.heading(17))
@@ -55,7 +55,7 @@ struct ArtistDetailView: View {
                             VStack(spacing: 14) {
                                 ForEach(topTracks) { track in
                                     TrackRow(track: track, isCurrent: player.current?.id == track.id) {
-                                        player.play(track)
+                                        player.play(track, context: topTracks)
                                     }
                                 }
                             }
