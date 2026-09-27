@@ -46,9 +46,31 @@ reprend donc le dernier morceau écouté ("Reprendre l'écoute") et la
 bibliothèque plutôt que d'inventer des données qui n'existent pas côté
 serveur.
 
-## Construire le projet
+## Installer sans Mac (Sideloadly / AltStore)
 
-Nécessite un Mac avec Xcode 15+ et [XcodeGen](https://github.com/yonaskolb/XcodeGen) :
+`.github/workflows/ios.yml` compile l'app sur un runner macOS et publie un
+`.ipa` non signé en artefact à chaque exécution — inutile d'avoir Xcode ou
+un Mac pour l'obtenir :
+
+1. Onglet **Actions** du dépôt GitHub → workflow **iOS** → l'exécution la
+   plus récente sur `master` (ou lance-la à la main avec **Run workflow**).
+2. Télécharge l'artefact **Encre-ipa** (zip contenant `Encre.ipa`).
+3. Installe-le sur ton iPhone avec [Sideloadly](https://sideloadly.io/)
+   (Windows/Mac) : branche l'iPhone en USB, glisse `Encre.ipa` dans
+   Sideloadly, renseigne un identifiant Apple (gratuit ou payant) — c'est
+   Sideloadly qui signe l'app à l'installation, pas la CI.
+4. Avec un identifiant Apple **gratuit**, l'app expire au bout de 7 jours
+   (limite d'Apple, pas de Sideloadly) : il suffit de relancer Sideloadly
+   avec le même `.ipa` pour la réinstaller. Un compte développeur payant
+   (99 $/an) lève cette limite (1 an) — pas nécessaire pour un usage perso
+   occasionnel.
+5. Sur l'iPhone, la première ouverture demande de faire confiance au
+   développeur : **Réglages > Général > VPN et gestion de l'appareil**.
+
+## Construire le projet (avec un Mac)
+
+Avec Xcode 15+ et [XcodeGen](https://github.com/yonaskolb/XcodeGen), pour
+développer plutôt que juste installer :
 
 ```bash
 brew install xcodegen
