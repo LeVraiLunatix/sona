@@ -293,6 +293,33 @@ class Repository:
         )
         await self._db.conn.commit()
 
+    # -- Cache audio persistant (API / app iOS) ------------------------
+
+    async def stream_cache_get(
+        self, source: str, source_id: str, fmt: str, quality: str
+    ) -> tuple[str, str] | None:
+        """Renvoie `(file_path, content_type)` si le morceau est déjà sur
+        disque pour ce format/cette qualité, sinon None."""
+        cursor = await self._db.conn.execute(
+            """SELECT file_path, content_type FROM stream_cache
+               WHERE source=? AND source_id=? AND format=? AND quality=?""",
+            (source, source_id, fmt, quality),
+        )
+        row = await cursor.fetchone()
+        return (row["file_path"], row["content_type"]) if row else None
+
+    async def stream_cache_set(
+        self, source: str, source_id: str, fmt: str, quality: str, file_path: str, content_type: str
+    ) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO stream_cache (source, source_id, format, quality, file_path, content_type, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(source, source_id, format, quality)
+               DO UPDATE SET file_path=excluded.file_path, content_type=excluded.content_type""",
+            (source, source_id, fmt, quality, file_path, content_type, _now()),
+        )
+        await self._db.conn.commit()
+
     # -- Accès (whitelist + invitations) -------------------------------
 
     async def bootstrap_admins(self, user_ids: list[int]) -> None:

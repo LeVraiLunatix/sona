@@ -107,6 +107,11 @@ async def main() -> None:
     setup_logging()
     _clear_node_ipc_env()
     settings = load_settings()
+    if not settings.bot_token:
+        raise RuntimeError(
+            "BOT_TOKEN manquant. Copie .env.example vers .env et renseigne le "
+            "token fourni par @BotFather."
+        )
 
     if not settings.is_private_mode:
         logger.warning(
