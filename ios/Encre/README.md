@@ -105,6 +105,8 @@ Sources/
   recherche, lignes de bibliothèque...) : chacune redessinerait sa grille de
   points via `Canvas`, et je n'ai pas d'appareil ici pour vérifier que ça ne
   saccade pas au défilement d'une longue liste.
-- Écrit sans accès à un compilateur Swift dans cette session : à builder et
-  corriger sur un Mac avant tout usage. Si Xcode signale des erreurs,
-  transmets-les pour une correction rapide.
+- Écrit sans accès à un compilateur Swift dans cette session : relu à la main
+  mais jamais compilé avant que GitHub Actions (`.github/workflows/ios.yml`)
+  ne le fasse sur un runner macOS. Si ce workflow est rouge sur une PR qui
+  touche `ios/`, corrige avant de fusionner — c'est exactement le filet que
+  cette session n'avait pas.

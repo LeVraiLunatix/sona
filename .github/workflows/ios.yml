@@ -1,0 +1,52 @@
+name: iOS
+
+# Seulement quand l'app iOS bouge : c'est un projet à part (Swift/Xcode) qui
+# n'a rien à voir avec le bot/l'API Python, pas la peine de ralentir chaque
+# proposition de fusion avec un runner macOS pour ça. Sert surtout à
+# compiler ce qui a été écrit sans accès à un Mac.
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: [master]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: xcodebuild
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ios/Encre
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer XcodeGen
+        run: brew install xcodegen
+
+      - name: Générer le projet Xcode
+        run: xcodegen generate
+
+      - name: Compiler (SDK simulateur, sans signature)
+        # `generic/platform=iOS Simulator` compile sans lancer un simulateur
+        # précis : évite de dépendre d'une version de runtime disponible sur
+        # le runner. Pas de tests ici, juste vérifier que ça compile — il n'y
+        # a pas encore de cible de tests XCTest dans le projet.
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Encre.xcodeproj \
+            -scheme Encre \
+            -destination 'generic/platform=iOS Simulator' \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO
