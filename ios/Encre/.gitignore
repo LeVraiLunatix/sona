@@ -1,0 +1,7 @@
+# Régénéré par `xcodegen generate` à partir de project.yml — pas la peine
+# de versionner un projet Xcode qui se reconstruit en une commande.
+Encre.xcodeproj/
+Sources/Generated/
+xcuserdata/
+DerivedData/
+*.xcuserstate
