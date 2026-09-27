@@ -45,6 +45,20 @@ CREATE TABLE IF NOT EXISTS audio_cache (
     PRIMARY KEY (source, source_id, format, quality)
 );
 
+-- Fichiers audio conservés sur disque pour l'API (app iOS) : contrairement au
+-- cache Telegram (audio_cache), qui ne garde qu'un file_id distant, ici c'est
+-- le fichier lui-même qui doit rester disponible pour être re-streamé.
+CREATE TABLE IF NOT EXISTS stream_cache (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    format TEXT NOT NULL,
+    quality TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id, format, quality)
+);
+
 CREATE TABLE IF NOT EXISTS allowed_users (
     user_id INTEGER PRIMARY KEY,
     display_name TEXT,

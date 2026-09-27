@@ -25,7 +25,7 @@ def _parse_ids(raw: str | None) -> frozenset[int]:
 
 @dataclass(frozen=True)
 class Settings:
-    bot_token: str
+    bot_token: str | None
     allowed_user_ids: frozenset[int]
     spotify_client_id: str | None
     spotify_client_secret: str | None
@@ -34,6 +34,14 @@ class Settings:
     youtube_cookies_file: Path | None
     backup_dir: Path
     downloads_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "cache")
+    # API privée pour l'app iOS : jeton fixe à présenter dans l'en-tête
+    # `Authorization: Bearer <token>`. None désactive l'API (pas de compte,
+    # pas de whitelist Telegram côté API : usage strictement personnel).
+    api_token: str | None = None
+    # Identifiant utilisateur interne utilisé pour la bibliothèque, l'historique
+    # et les réglages côté API (indépendant des `user_id` Telegram).
+    api_user_id: int = 1
+    stream_cache_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "stream_cache")
 
     @property
     def is_private_mode(self) -> bool:
@@ -51,12 +59,9 @@ def resolve_youtube_cookies_file() -> Path | None:
 
 
 def load_settings() -> Settings:
-    token = os.getenv("BOT_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError(
-            "BOT_TOKEN manquant. Copie .env.example vers .env et renseigne le "
-            "token fourni par @BotFather."
-        )
+    # Optionnel ici : seul le bot Telegram (run.py) en a besoin, pas l'API
+    # (run_api.py), qui peut donc tourner sans jamais créer de bot Telegram.
+    token = os.getenv("BOT_TOKEN", "").strip() or None
 
     db_path_raw = os.getenv("DATABASE_PATH", "data/sona.db").strip()
     db_path = Path(db_path_raw)
@@ -76,6 +81,11 @@ def load_settings() -> Settings:
     if not backup_dir.is_absolute():
         backup_dir = BASE_DIR / backup_dir
 
+    stream_cache_dir = BASE_DIR / "data" / "stream_cache"
+    stream_cache_dir.mkdir(parents=True, exist_ok=True)
+
+    api_user_id_raw = os.getenv("API_USER_ID", "").strip()
+
     return Settings(
         bot_token=token,
         allowed_user_ids=_parse_ids(os.getenv("ALLOWED_USER_IDS")),
@@ -86,4 +96,7 @@ def load_settings() -> Settings:
         youtube_cookies_file=cookies_file,
         backup_dir=backup_dir,
         downloads_dir=downloads_dir,
+        api_token=os.getenv("API_TOKEN", "").strip() or None,
+        api_user_id=int(api_user_id_raw) if api_user_id_raw else 1,
+        stream_cache_dir=stream_cache_dir,
     )

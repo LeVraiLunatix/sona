@@ -8,6 +8,8 @@ data/*.db
 data/*.db-journal
 data/cache/*
 !data/cache/.gitkeep
+data/stream_cache/*
+!data/stream_cache/.gitkeep
 data/cookies.txt
 data/backups/
 *.log

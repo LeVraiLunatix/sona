@@ -309,6 +309,53 @@ Trois chemins, à utiliser dans cet ordre :
 Un refus explique toujours sa raison (lien inconnu, expiré, déjà utilisé) —
 jamais un simple « bot privé » qui laisserait croire à une panne.
 
+## API (backend pour une app iPhone)
+
+En plus du bot Telegram, Sona expose une API HTTP privée qui réutilise les
+mêmes providers (Deezer/Apple/Spotify/YouTube), le même résolveur, le même
+pipeline de téléchargement + vérification acoustique, et la même base
+SQLite — pensée pour servir de backend à une app iOS façon Spotify. Usage
+strictement **personnel** : pas de whitelist ni d'invitations comme le bot,
+un seul jeton fixe protège toutes les routes, et un seul « utilisateur »
+(`API_USER_ID`, `1` par défaut) porte la bibliothèque, l'historique et les
+réglages.
+
+**Ne l'expose pas publiquement sans y réfléchir** : comme le bot, elle
+télécharge l'audio depuis YouTube/SoundCloud, ce qu'Apple n'autorise pas sur
+l'App Store — un usage privé (build Xcode ou TestFlight perso) n'a pas ce
+souci.
+
+### Lancer l'API
+
+```bash
+copy .env.example .env   # si ce n'est pas déjà fait pour le bot
+```
+
+Renseigne `API_TOKEN` dans `.env` (génère-le par exemple avec
+`python3 -c "import secrets; print(secrets.token_urlsafe(32))"`) puis :
+
+```bash
+.venv\Scripts\python run_api.py
+```
+
+Par défaut elle n'écoute qu'en local (`API_HOST=127.0.0.1`, `API_PORT=8000`) ;
+expose-la via un reverse proxy HTTPS (nginx/Caddy) plutôt que directement sur
+`0.0.0.0`. `BOT_TOKEN` n'est pas nécessaire pour la faire tourner seule — elle
+partage juste `data/sona.db` avec le bot si les deux tournent en parallèle.
+Toutes les routes (sauf `/health`) exigent l'en-tête
+`Authorization: Bearer <API_TOKEN>`. La doc interactive (Swagger) est sur
+`/docs` une fois l'API lancée.
+
+| Route | Effet |
+|---|---|
+| `GET /search?q=…` | Recherche (Deezer → iTunes → YouTube Music, comme le bot). Renvoie un `query_id` à repasser avec `offset` pour paginer. |
+| `POST /resolve` | Résout un lien Deezer/Spotify/Apple Music/YouTube collé dans l'app (`{"text": "…"}`). |
+| `GET /tracks\|albums\|playlists\|artists/{source}/{id}` | Fiche détaillée (et sous-routes `/top-tracks`, `/albums` pour un artiste). |
+| `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
+| `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
+| `GET/DELETE /history` | Historique. |
+| `GET/PUT /settings` | Qualité, format, lecture automatique. |
+
 ## Tests
 
 ```bash
