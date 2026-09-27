@@ -98,7 +98,7 @@ struct NowPlayingSheet: View {
                 .frame(width: 300, height: 300)
                 .offset(x: 6, y: -4)
                 .blendMode(.multiply)
-            CoverArt(url: track.coverURL, title: track.title)
+            CoverArt(url: track.coverURL, title: track.title, showsHalftone: true)
                 .frame(width: 300, height: 300)
                 .encreShadow(EncreShadow.lg)
         }

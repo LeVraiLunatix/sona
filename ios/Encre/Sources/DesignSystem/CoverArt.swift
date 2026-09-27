@@ -8,6 +8,12 @@ struct CoverArt: View {
     let url: String?
     let title: String
     var cornerRadius: CGFloat = 6
+    // Réservé aux grandes pochettes mises en avant (lecteur plein écran,
+    // héros d'accueil, fiches Album/Artiste) : `Canvas` redessine sa grille
+    // de points à chaque rendu, et l'appliquer aux dizaines de vignettes
+    // d'une liste qui défile serait un risque de saccades non profilable ici
+    // (pas d'appareil pour mesurer dans cette session).
+    var showsHalftone: Bool = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -27,6 +33,10 @@ struct CoverArt: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        // Le calque de points s'ajoute avant le clip final, sinon les points
+        // des coins déborderaient du rectangle arrondi (un `.overlay` n'hérite
+        // pas du `clipShape` de la vue à laquelle il s'ajoute).
+        .overlay { if showsHalftone { HalftoneOverlay() } }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 

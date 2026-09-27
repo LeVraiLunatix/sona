@@ -84,7 +84,7 @@ struct HomeView: View {
 
     private func heroCard(_ track: Track) -> some View {
         ZStack(alignment: .bottom) {
-            CoverArt(url: track.coverURL, title: track.title, cornerRadius: 6)
+            CoverArt(url: track.coverURL, title: track.title, cornerRadius: 6, showsHalftone: true)
                 .frame(height: 260)
                 .encreShadow(EncreShadow.md)
 

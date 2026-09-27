@@ -1,48 +1,60 @@
 import SwiftUI
 
-/// Coquille à onglets. Version simplifiée de la barre "verre liquide" qui se
-/// replie en bulle du prototype (Encre.dc.html) — la fusion animée avec le
-/// mini-lecteur et le lecteur plein écran est prévue pour une étape
-/// suivante ; pour l'instant, un `TabView` natif et une barre de lecture
-/// posée juste au-dessus.
+/// Coquille de l'app : bascule entre les 3 onglets avec une barre "verre
+/// liquide" maison (voir `EncreTabBar`) plutôt que le chrome natif d'un
+/// `TabView`, et une pastille de mini-lecteur posée juste au-dessus quand un
+/// morceau joue. La fusion animée des deux (repli en bulle au défilement)
+/// reste une prochaine étape — voir le README.
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
+    @State private var selectedTab: AppTab = .home
     @State private var homePath = NavigationPath()
     @State private var libraryPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
+    @State private var showingOnboarding = false
     @State private var showingPlayerSheet = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView {
+            // Les 3 onglets restent montés en permanence, seule l'opacité
+            // change — comme `vis(k)` dans le prototype (Encre.dc.html).
+            // Un `switch` qui démonterait l'onglet inactif perdrait le
+            // défilement et redéclencherait tous ses appels réseau à chaque
+            // retour dessus.
+            ZStack {
                 tab(path: $homePath) { HomeView(path: $homePath) }
-                    .tabItem { Label("Écouter", systemImage: "house") }
-
+                    .opacity(selectedTab == .home ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .home)
                 tab(path: $libraryPath) { LibraryView(path: $libraryPath) }
-                    .tabItem { Label("Bibliothèque", systemImage: "books.vertical") }
-
+                    .opacity(selectedTab == .library ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .library)
                 tab(path: $searchPath) { SearchView(path: $searchPath) }
-                    .tabItem { Label("Rechercher", systemImage: "magnifyingglass") }
+                    .opacity(selectedTab == .search ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .search)
             }
-            .tint(EncreColor.spot)
 
-            if player.current != nil {
-                MiniPlayerView(player: player) { showingPlayerSheet = true }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 58)
+            VStack(spacing: 10) {
+                if player.current != nil {
+                    MiniPlayerView(player: player) { showingPlayerSheet = true }
+                }
+                EncreTabBar(selected: $selectedTab)
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 6)
         }
         .environmentObject(player)
         .sheet(isPresented: $showingPlayerSheet) {
             NowPlayingSheet(player: player)
         }
-        .toolbarBackground(.hidden, for: .tabBar)
-        .task {
-            if !APIConfig.shared.isConfigured { showingSettings = true }
-        }
         .sheet(isPresented: $showingSettings) {
             NavigationStack { ServerSettingsView() }
+        }
+        .fullScreenCover(isPresented: $showingOnboarding) {
+            OnboardingView { showingOnboarding = false }
+        }
+        .task {
+            if !APIConfig.shared.isConfigured { showingOnboarding = true }
         }
     }
 

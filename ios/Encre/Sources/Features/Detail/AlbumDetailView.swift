@@ -13,7 +13,7 @@ struct AlbumDetailView: View {
         ScrollView {
             if let album {
                 VStack(alignment: .leading, spacing: 22) {
-                    CoverArt(url: album.coverURL, title: album.title)
+                    CoverArt(url: album.coverURL, title: album.title, showsHalftone: true)
                         .frame(width: 220, height: 220)
                         .encreShadow(EncreShadow.lg)
                         .frame(maxWidth: .infinity, alignment: .center)

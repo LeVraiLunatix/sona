@@ -17,7 +17,7 @@ struct ArtistDetailView: View {
             VStack(alignment: .leading, spacing: 30) {
                 if let artist {
                     ZStack(alignment: .bottomLeading) {
-                        CoverArt(url: artist.pictureURL, title: artist.name, cornerRadius: 0)
+                        CoverArt(url: artist.pictureURL, title: artist.name, cornerRadius: 0, showsHalftone: true)
                             .frame(height: 320)
                             .clipped()
                         LinearGradient(colors: [.clear, EncreColor.bg], startPoint: .center, endPoint: .bottom)
