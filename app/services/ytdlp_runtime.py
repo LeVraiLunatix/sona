@@ -47,4 +47,10 @@ def js_runtimes() -> dict[str, dict]:
 
 def with_js_runtimes(opts: dict) -> dict:
     opts["js_runtimes"] = {name: dict(config) for name, config in js_runtimes().items()}
+    # Le script qui résout les défis YouTube (« EJS ») vient du paquet
+    # `yt-dlp-ejs` ; s'il manque ou ne correspond pas à la version de yt-dlp
+    # installée (« Signature solving failed » dans les logs), yt-dlp va
+    # chercher la version officielle sur le GitHub du projet plutôt que
+    # d'abandonner tous les formats audio.
+    opts["remote_components"] = ["ejs:github"]
     return opts
