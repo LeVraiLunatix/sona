@@ -248,6 +248,22 @@ final class APIClient {
         try await sendNoContent(try request("/plays", method: "POST", bodyData: data))
     }
 
+    /// « En train d'écouter » sur Last.fm, dès qu'un titre démarre.
+    func nowPlaying(_ track: Track) async throws {
+        struct Body: Encodable {
+            let title: String
+            let artist: String
+            let album: String?
+            let durationSeconds: Int?
+            enum CodingKeys: String, CodingKey {
+                case title, artist, album
+                case durationSeconds = "duration_seconds"
+            }
+        }
+        let data = try encode(Body(title: track.title, artist: track.artist, album: track.album, durationSeconds: track.durationSeconds))
+        try await sendNoContent(try request("/plays/now", method: "POST", bodyData: data))
+    }
+
     func recentPlays(limit: Int = 50) async throws -> [RecentPlay] {
         try await send(try request("/plays/recent", query: [URLQueryItem(name: "limit", value: "\(limit)")]))
     }

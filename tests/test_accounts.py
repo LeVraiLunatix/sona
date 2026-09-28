@@ -19,6 +19,7 @@ LEGACY = {"Authorization": "Bearer test-token"}
 class FakeLastfm:
     def __init__(self):
         self.scrobbled = []
+        self.now_playing = []
 
     async def get_session(self, token):
         return LastfmSession(username=token, key=f"sk-{token}")
@@ -28,6 +29,9 @@ class FakeLastfm:
 
     async def scrobble(self, session_key, plays):
         self.scrobbled.append((session_key, [p.title for p in plays]))
+
+    async def update_now_playing(self, session_key, title, artist, album, duration):
+        self.now_playing.append((session_key, title, artist, duration))
 
 
 @pytest.fixture
@@ -174,3 +178,21 @@ def test_library_accepts_the_app_page_size(client):
     # L'app charge jusqu'à 200 éléments (bibliothèque, état « J'aime ») :
     # la limite de 100 renvoyait 422 et laissait ces écrans vides.
     assert client.get("/library/track", headers=LEGACY, params={"limit": 200}).status_code == 200
+
+
+def test_now_playing_is_sent_to_lastfm_live(client):
+    owner, _ = login(client, "Proprio")
+    got = client.post("/plays/now", headers=owner, json={"title": "Grabba", "artist": "Ziak", "duration_seconds": 142})
+    assert got.status_code == 204
+    deadline = time.monotonic() + 2
+    while not client.fake_lastfm.now_playing and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert client.fake_lastfm.now_playing == [("sk-Proprio", "Grabba", "Ziak", 142)]
+
+    # Scrobbling coupé : rien n'est envoyé.
+    client.put("/auth/me", headers=owner, json={"scrobble_to_lastfm": False})
+    client.post("/plays/now", headers=owner, json={"title": "Room", "artist": "Ziak"})
+    time.sleep(0.2)
+    assert len(client.fake_lastfm.now_playing) == 1
+    # Ancien jeton (pas de compte Last.fm) : accepté, sans effet.
+    assert client.post("/plays/now", headers=LEGACY, json={"title": "X", "artist": "Y"}).status_code == 204
