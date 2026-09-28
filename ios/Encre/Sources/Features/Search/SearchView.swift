@@ -85,7 +85,7 @@ struct SearchView: View {
                             onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
                             onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
                         ) {
-                            player.play(track, context: viewModel.results)
+                            player.play(track, context: viewModel.results, name: "Recherche")
                         }
                         .onAppear {
                             if track.id == viewModel.results.last?.id {
@@ -170,7 +170,7 @@ struct SearchView: View {
         let radioId = radio.id
         Task {
             do {
-                try await player.playStation { try await APIClient.shared.radioTracks(id: radioId) }
+                try await player.playStation(name: radio.title) { try await APIClient.shared.radioTracks(id: radioId) }
             } catch {
                 radioError = "« \(radio.title) » : \(error.localizedDescription)"
             }

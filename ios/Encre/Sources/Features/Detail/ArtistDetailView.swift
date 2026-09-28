@@ -113,7 +113,7 @@ struct ArtistDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 PillButton(title: "Lecture", systemImage: "play.fill") {
-                    if let first = topTracks.first { player.play(first, context: topTracks) }
+                    if let first = topTracks.first { player.play(first, context: topTracks, name: artist?.name) }
                 }
                 .disabled(topTracks.isEmpty)
                 // Station sans fin autour de l'artiste (le « mix » Deezer, ou
@@ -145,7 +145,7 @@ struct ArtistDetailView: View {
                         isPlaying: player.isPlaying,
                         onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
                     ) {
-                        player.play(track, context: topTracks)
+                        player.play(track, context: topTracks, name: artist?.name)
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -210,7 +210,7 @@ struct ArtistDetailView: View {
         let source = source, id = id
         Task {
             do {
-                try await player.playStation {
+                try await player.playStation(name: artist.map { "Radio \($0.name)" }) {
                     try await APIClient.shared.artistRadio(source: source, id: id)
                 }
             } catch {

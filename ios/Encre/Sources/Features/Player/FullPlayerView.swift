@@ -197,34 +197,82 @@ struct FullPlayerView: View {
         }
     }
 
+    /// File d'attente façon Musique : les quatre bascules (aléatoire,
+    /// répétition, lecture automatique, fondu enchaîné), « Poursuivre la
+    /// lecture » réordonnable, puis les titres similaires qui suivront.
     private var queueList: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("À suivre").font(Typo.headline).foregroundStyle(Tone.primary)
-                    Spacer()
-                    if player.isStation {
-                        Label("Radio", systemImage: "dot.radiowaves.left.and.right")
-                            .font(Typo.caption)
-                            .foregroundStyle(Tone.secondary)
-                    }
-                }
-                .padding(.bottom, 6)
+        VStack(alignment: .leading, spacing: 14) {
+            QueueToggles(player: player)
+                .padding(.top, 6)
 
-                if player.upNext.isEmpty {
-                    Text("Rien après ce morceau.")
-                        .font(Typo.rowSubtitle)
-                        .foregroundStyle(Tone.secondary)
-                        .padding(.vertical, 20)
-                } else {
-                    ForEach(player.upNext) { track in
-                        TrackRow(track: track) { player.playFromUpNext(track) }
+            List {
+                Section {
+                    if player.queuedNext.isEmpty {
+                        Text("Rien après ce morceau.")
+                            .font(Typo.rowSubtitle)
+                            .foregroundStyle(Tone.secondary)
+                            .padding(.vertical, 10)
+                            .queueRowStyle()
+                    } else {
+                        ForEach(player.queuedNext) { track in
+                            QueueRow(track: track) { player.playFromUpNext(track) }
+                                .queueRowStyle()
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        withAnimation(Motion.smooth) { player.removeFromQueue(track) }
+                                    } label: {
+                                        Label("Retirer", systemImage: "minus.circle")
+                                    }
+                                }
+                        }
+                        .onMove { source, destination in
+                            player.moveQueued(from: source, to: destination)
+                        }
+                    }
+                } header: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Poursuivre la lecture")
+                            .font(Typo.headline)
+                            .foregroundStyle(Tone.primary)
+                        if let name = player.contextName {
+                            Text("De \(name)")
+                                .font(Typo.rowSubtitle)
+                                .foregroundStyle(Tone.secondary)
+                        }
+                    }
+                    .textCase(nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .queueRowStyle()
+                }
+
+                if player.autoplayEnabled && !player.isStation {
+                    Section {
+                        ForEach(player.autoplayNext) { track in
+                            QueueRow(track: track, showsHandle: false) { player.playFromUpNext(track) }
+                                .queueRowStyle()
+                        }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Lecture automatique", systemImage: "infinity")
+                                .font(Typo.headline)
+                                .foregroundStyle(Tone.primary)
+                            Text("Des morceaux similaires seront lus automatiquement.")
+                                .font(Typo.rowSubtitle)
+                                .foregroundStyle(Tone.secondary)
+                        }
+                        .textCase(nil)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 12)
+                        .queueRowStyle()
                     }
                 }
             }
-            .padding(.vertical, 8)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .scrollIndicators(.hidden)
+            .environment(\.defaultMinListRowHeight, 10)
+            .mask { EdgeFade() }
         }
-        .mask { EdgeFade() }
     }
 
     // MARK: - Commandes
@@ -292,7 +340,7 @@ struct FullPlayerView: View {
         isStartingRadio = true
         Task {
             do {
-                try await player.playStation {
+                try await player.playStation(name: player.current.map { "Radio \($0.artist)" }) {
                     try await APIClient.shared.artistRadio(source: source, id: artistId)
                 }
             } catch {
@@ -449,5 +497,99 @@ struct EdgeFade: View {
             ],
             startPoint: .top, endPoint: .bottom
         )
+    }
+}
+
+// MARK: - File d'attente
+
+/// Les quatre bascules en tête de file, comme dans Musique : actives, elles
+/// passent en pastille blanche à pictogramme sombre.
+private struct QueueToggles: View {
+    @ObservedObject var player: PlayerManager
+
+    var body: some View {
+        HStack(spacing: 10) {
+            toggle("shuffle", isOn: player.shuffleEnabled, label: "Aléatoire") {
+                player.toggleShuffle()
+            }
+            toggle(player.repeatMode == .one ? "repeat.1" : "repeat", isOn: player.repeatMode != .off, label: "Répéter") {
+                player.cycleRepeat()
+            }
+            toggle("infinity", isOn: player.autoplayEnabled && !player.isStation, label: "Lecture automatique") {
+                player.toggleAutoplay()
+            }
+            .disabled(player.isStation)
+            toggle("wave.3.right", isOn: player.crossfadeEnabled, label: "Fondu enchaîné") {
+                player.toggleCrossfade()
+            }
+        }
+    }
+
+    private func toggle(_ icon: String, isOn: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(Motion.smooth) { action() }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+                .foregroundStyle(isOn ? Color.black : Tone.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isOn ? Color.white : Color.white.opacity(0.12))
+                )
+        }
+        .buttonStyle(.pressable(scale: 0.9))
+        .sensoryFeedback(.selection, trigger: isOn)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// Ligne de file : pochette, titre, artiste, et poignée de déplacement (un
+/// appui long suffit à glisser la ligne).
+private struct QueueRow: View {
+    let track: Track
+    var showsHandle = true
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    Artwork(url: track.coverURL, cornerRadius: 6)
+                        .frame(width: 44, height: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(track.title)
+                            .font(Typo.rowTitle)
+                            .foregroundStyle(Tone.primary)
+                            .lineLimit(1)
+                        Text(track.artist)
+                            .font(Typo.rowSubtitle)
+                            .foregroundStyle(Tone.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showsHandle {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Tone.tertiary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private extension View {
+    func queueRowStyle() -> some View {
+        self
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
     }
 }

@@ -17,7 +17,7 @@ struct HomeView: View {
                 if !viewModel.recentTracks.isEmpty {
                     section("Écouté récemment", index: 1) {
                         Carousel(items: viewModel.recentTracks) { track in
-                            TrackTile(track: track) { player.play(track, context: viewModel.recentTracks) }
+                            TrackTile(track: track) { player.play(track, context: viewModel.recentTracks, name: "Écoutés récemment") }
                         }
                     }
                 }
@@ -56,7 +56,7 @@ struct HomeView: View {
                                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
                                     onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
                                 ) {
-                                    player.play(track, context: viewModel.libraryTracks)
+                                    player.play(track, context: viewModel.libraryTracks, name: "Bibliothèque")
                                 }
                             }
                         }
@@ -104,7 +104,7 @@ struct HomeView: View {
     /// sombre, titre et bouton lecture posés dessus.
     private func heroCard(_ track: Track) -> some View {
         Button {
-            player.play(track, context: viewModel.recentTracks)
+            player.play(track, context: viewModel.recentTracks, name: "Écoutés récemment")
         } label: {
             ZStack(alignment: .bottomLeading) {
                 Artwork(url: track.coverURL, cornerRadius: 20)
@@ -147,7 +147,7 @@ struct HomeView: View {
         let radioId = radio.id
         Task {
             do {
-                try await player.playStation { try await APIClient.shared.radioTracks(id: radioId) }
+                try await player.playStation(name: radio.title) { try await APIClient.shared.radioTracks(id: radioId) }
             } catch {
                 radioError = "« \(radio.title) » : \(error.localizedDescription)"
             }

@@ -11,9 +11,12 @@ targets:
   Encre:
     type: application
     platform: iOS
+    # Le catalogue d'assets (icône, logo de lancement, couleurs) se déclare
+    # dans `sources` : XcodeGen range lui-même les .xcassets en ressources.
+    # Une clé `resources:` n'existe pas pour une cible et était ignorée en
+    # silence — l'app partait sans icône.
     sources:
       - path: Sources
-    resources:
       - path: Assets.xcassets
     info:
       path: Generated/Info.plist

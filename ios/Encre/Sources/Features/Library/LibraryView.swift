@@ -75,7 +75,7 @@ struct LibraryView: View {
                         onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
                         onRemove: { Task { await viewModel.remove(item) } }
                     ) {
-                        player.play(track, context: viewModel.playableTracks)
+                        player.play(track, context: viewModel.playableTracks, name: "Bibliothèque")
                     }
                 } else {
                     placeholderRow(item)

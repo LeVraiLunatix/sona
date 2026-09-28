@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import Foundation
 import MediaPlayer
+import SwiftUI
 import UIKit
 
 enum StationError: LocalizedError {
@@ -48,6 +49,127 @@ final class PlayerManager: ObservableObject {
     var upNext: [Track] {
         guard let current, let index = context.firstIndex(where: { $0.id == current.id }) else { return [] }
         return Array(context[(index + 1)...])
+    }
+
+    // MARK: File d'attente (façon Musique)
+
+    enum RepeatMode { case off, all, one }
+
+    @Published private(set) var shuffleEnabled = false
+    @Published private(set) var repeatMode: RepeatMode = .off
+    /// ∞ : quand la liste se termine, des titres similaires (le « mix » de
+    /// l'artiste) s'enchaînent tout seuls.
+    @Published private(set) var autoplayEnabled = UserDefaults.standard.object(forKey: "encre.autoplay") as? Bool ?? true
+    /// Fondu enchaîné : fin de titre en fondu sortant, début en fondu entrant.
+    @Published private(set) var crossfadeEnabled = UserDefaults.standard.bool(forKey: "encre.crossfade")
+    /// D'où vient la lecture (« De Nuance ») — l'album, l'artiste, la radio...
+    @Published private(set) var contextName: String?
+    /// Indice, dans `context`, du premier titre ajouté par la lecture
+    /// automatique (après la liste d'origine).
+    @Published private var autoplayStart: Int?
+    private var unshuffledContext: [Track]?
+    private var autoplayTask: Task<Void, Never>?
+
+    private var currentIndex: Int? {
+        guard let current else { return nil }
+        return context.firstIndex(where: { $0.id == current.id })
+    }
+
+    /// « Poursuivre la lecture » : la suite de la liste d'origine.
+    var queuedNext: [Track] {
+        guard let index = currentIndex else { return [] }
+        let end = max(index + 1, min(autoplayStart ?? context.count, context.count))
+        return Array(context[(index + 1)..<end])
+    }
+
+    /// « Lecture automatique » : les titres similaires ajoutés ensuite.
+    var autoplayNext: [Track] {
+        guard let index = currentIndex, let start = autoplayStart else { return [] }
+        let from = max(index + 1, start)
+        return from < context.count ? Array(context[from...]) : []
+    }
+
+    func toggleShuffle() {
+        guard let index = currentIndex else { return }
+        let end = autoplayStart ?? context.count
+        if shuffleEnabled {
+            if let original = unshuffledContext {
+                let known = Set(original.map(\.id))
+                context = original + context.filter { !known.contains($0.id) }
+            }
+            unshuffledContext = nil
+            shuffleEnabled = false
+        } else {
+            unshuffledContext = context
+            if index + 1 < end {
+                context.replaceSubrange((index + 1)..<end, with: context[(index + 1)..<end].shuffled())
+            }
+            shuffleEnabled = true
+        }
+    }
+
+    func cycleRepeat() {
+        switch repeatMode {
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
+        }
+    }
+
+    func toggleAutoplay() {
+        autoplayEnabled.toggle()
+        UserDefaults.standard.set(autoplayEnabled, forKey: "encre.autoplay")
+        if autoplayEnabled {
+            if upNext.count < 2 { requestAutoplay() }
+        } else {
+            autoplayTask?.cancel()
+            autoplayTask = nil
+            if let start = autoplayStart {
+                let keepEnd = max(start, (currentIndex ?? -1) + 1)
+                if keepEnd < context.count { context.removeSubrange(keepEnd..<context.count) }
+                autoplayStart = nil
+            }
+        }
+    }
+
+    func toggleCrossfade() {
+        crossfadeEnabled.toggle()
+        UserDefaults.standard.set(crossfadeEnabled, forKey: "encre.crossfade")
+        if !crossfadeEnabled { player?.volume = 1 }
+    }
+
+    /// Réordonne « Poursuivre la lecture » (glisser-déposer dans la file).
+    func moveQueued(from source: IndexSet, to destination: Int) {
+        guard let index = currentIndex else { return }
+        let end = min(autoplayStart ?? context.count, context.count)
+        guard index + 1 < end else { return }
+        var queued = Array(context[(index + 1)..<end])
+        queued.move(fromOffsets: source, toOffset: destination)
+        context.replaceSubrange((index + 1)..<end, with: queued)
+    }
+
+    func removeFromQueue(_ track: Track) {
+        guard let current = currentIndex,
+              let index = context.indices.first(where: { $0 > current && context[$0].id == track.id }) else { return }
+        context.remove(at: index)
+        if let start = autoplayStart, index < start { autoplayStart = start - 1 }
+    }
+
+    /// Ajoute le « mix » de l'artiste en cours à la fin de la file.
+    private func requestAutoplay() {
+        guard autoplayTask == nil, refill == nil, repeatMode != .all, autoplayEnabled,
+              let seed = current, let artistId = seed.artistSourceId else { return }
+        let generation = contextGeneration
+        autoplayTask = Task { [weak self] in
+            let tracks = (try? await APIClient.shared.artistRadio(source: seed.source, id: artistId)) ?? []
+            guard let self else { return }
+            defer { if self.contextGeneration == generation { self.autoplayTask = nil } }
+            guard !Task.isCancelled, self.contextGeneration == generation, self.autoplayEnabled else { return }
+            let fresh = PlayerManager.withoutDuplicates(tracks, excluding: Set(self.context.map(\.id)))
+            guard !fresh.isEmpty else { return }
+            if self.autoplayStart == nil { self.autoplayStart = self.context.count }
+            self.context.append(contentsOf: fresh)
+        }
     }
 
     /// `@Published` : une station qui se recharge allonge la liste en cours
@@ -184,13 +306,21 @@ final class PlayerManager: ObservableObject {
     /// d'un album, d'un artiste, l'historique...) et doit inclure `track`
     /// lui-même — vide pour un morceau isolé (résultat de recherche, lien
     /// collé) : "suivant"/"précédent" n'ont alors rien à proposer.
-    func play(_ track: Track, context playbackContext: [Track] = []) {
+    func play(_ track: Track, context playbackContext: [Track] = [], name: String? = nil) {
         guard track.id != current?.id || player == nil else {
             togglePlayPause()
             return
         }
         endStation()
+        resetQueueState(name: name)
         start(track, context: playbackContext)
+    }
+
+    private func resetQueueState(name: String?) {
+        contextName = name
+        shuffleEnabled = false
+        unshuffledContext = nil
+        autoplayStart = nil
     }
 
     /// Lance une station : `fetch` donne les premiers morceaux, puis est
@@ -198,11 +328,12 @@ final class PlayerManager: ObservableObject {
     /// serveur). Lève une erreur si le tout premier tirage échoue ou est
     /// vide, pour que l'écran appelant puisse l'afficher — rien ne joue
     /// encore à ce stade, le mini-lecteur ne le montrerait pas.
-    func playStation(fetch: @escaping () async throws -> [Track]) async throws {
+    func playStation(name: String? = nil, fetch: @escaping () async throws -> [Track]) async throws {
         let fetched = try await fetch()
         let tracks = PlayerManager.withoutDuplicates(fetched, excluding: [])
         guard let first = tracks.first else { throw StationError.empty }
         endStation()
+        resetQueueState(name: name)
         refill = fetch
         start(first, context: tracks)
     }
@@ -211,6 +342,8 @@ final class PlayerManager: ObservableObject {
         refill = nil
         refillTask?.cancel()
         refillTask = nil
+        autoplayTask?.cancel()
+        autoplayTask = nil
         contextGeneration += 1
     }
 
@@ -223,6 +356,8 @@ final class PlayerManager: ObservableObject {
         context = playbackContext.isEmpty ? [track] : playbackContext
         if refill != nil && upNext.count < 3 {
             Task { await self.topUpStation() }
+        } else if refill == nil && autoplayEnabled && upNext.count < 2 {
+            requestAutoplay()
         }
         isLoading = true
         errorMessage = nil
@@ -283,8 +418,17 @@ final class PlayerManager: ObservableObject {
             // boutons physiques et le curseur du Centre de contrôle (voir
             // `SystemVolumeView` dans `NowPlayingSheet`), pas un curseur
             // interne à l'app désynchronisé du reste de l'iPhone.
-            player.volume = 1
+            player.volume = crossfadeEnabled ? 0 : 1
             self.player = player
+            if crossfadeEnabled {
+                // Fondu entrant sur 1,5 s.
+                Task { [weak player] in
+                    for step in 1...10 {
+                        try? await Task.sleep(for: .milliseconds(150))
+                        player?.volume = Float(step) / 10
+                    }
+                }
+            }
 
             // `AVPlayerItem.status` : seul moyen fiable de détecter un flux qui
             // échoue (404, timeout, format non supporté...). Sans ça, un échec
@@ -330,7 +474,7 @@ final class PlayerManager: ObservableObject {
             endObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in self?.advance(by: 1) }
+                Task { @MainActor in self?.advance(by: 1, automatic: true) }
             }
 
             timeObserver = player.addPeriodicTimeObserver(
@@ -342,6 +486,15 @@ final class PlayerManager: ObservableObject {
                 // `@Published` de ce `@MainActor final class`.
                 Task { @MainActor in
                     guard let self, let duration = self.referenceDuration() else { return }
+                    if self.crossfadeEnabled {
+                        let remaining = duration - time.seconds
+                        if remaining > 0 && remaining < 4 {
+                            self.player?.volume = Float(max(0.05, remaining / 4))
+                        } else if remaining >= 4 && time.seconds > 2 {
+                            // Retour en arrière après le début du fondu.
+                            self.player?.volume = 1
+                        }
+                    }
                     if let last = self.lastTick, self.isPlaying {
                         let delta = time.seconds - last
                         if delta > 0 && delta <= 1.5 { self.listenedSeconds += delta }
@@ -443,12 +596,21 @@ final class PlayerManager: ObservableObject {
         start(track, context: context)
     }
 
-    private func advance(by offset: Int) {
+    /// `automatic` : fin naturelle du titre (répéter le titre s'applique),
+    /// par opposition au bouton « suivant ».
+    private func advance(by offset: Int, automatic: Bool = false) {
         guard let current, let index = context.firstIndex(where: { $0.id == current.id }) else {
             isPlaying = false
             return
         }
-        let target = index + offset
+        if automatic && repeatMode == .one {
+            start(current, context: context)
+            return
+        }
+        var target = index + offset
+        if repeatMode == .all && target >= (autoplayStart ?? context.count) {
+            target = 0
+        }
         if context.indices.contains(target) {
             start(context[target], context: context)
         } else if refill != nil {

@@ -89,11 +89,11 @@ struct AlbumDetailView: View {
 
             HStack(spacing: 12) {
                 PillButton(title: "Lecture", systemImage: "play.fill") {
-                    if let first = album.tracks.first { player.play(first, context: album.tracks) }
+                    if let first = album.tracks.first { player.play(first, context: album.tracks, name: album.title) }
                 }
                 PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
                     let shuffled = album.tracks.shuffled()
-                    if let first = shuffled.first { player.play(first, context: shuffled) }
+                    if let first = shuffled.first { player.play(first, context: shuffled, name: album.title) }
                 }
             }
             .padding(.horizontal, 20)
@@ -114,7 +114,7 @@ struct AlbumDetailView: View {
                     isPlaying: player.isPlaying,
                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } }
                 ) {
-                    player.play(track, context: album.tracks)
+                    player.play(track, context: album.tracks, name: album.title)
                 }
                 .padding(.vertical, 4)
                 if index < album.tracks.count - 1 {
