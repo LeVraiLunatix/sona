@@ -7,6 +7,7 @@ from app.providers.apple import AppleMusicError
 from app.providers.base import TrackInfo
 from app.providers.deezer import DeezerError
 from app.services import query_cache
+from app.services.artist_search import name_similarity, rank_artists
 from app.services.resolver import search_tracks_youtube, search_tracks_youtube_raw
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,10 @@ logger = logging.getLogger(__name__)
 # iTunes et YouTube Music n'ont pas de décalage de pagination : on ramène un
 # lot une fois, et on pagine dedans.
 FALLBACK_POOL = 40
+# Ressemblance minimale entre la saisie et un nom d'artiste pour que la
+# recherche de titres renvoie ses morceaux : « eiak » → Ziak (0,75) passe,
+# un titre de chanson inconnu qui ramènerait un artiste quelconque, non.
+ARTIST_MATCH_RATIO = 0.7
 
 
 class SearchError(Exception):
@@ -32,6 +37,24 @@ async def _search_deezer(
             cached.artist_scope_name, cached.text, index=index, limit=limit
         )
     return await deps.deezer.search_tracks(cached.text, index=index, limit=limit)
+
+
+async def _search_deezer_artist(
+    deps: Deps, cached: query_cache.CachedQuery, index: int, limit: int
+) -> tuple[list[TrackInfo], int]:
+    """La recherche de morceaux Deezer ne tolère pas les fautes (« eiak » :
+    zéro résultat), sa recherche d'artistes si (« eiak » → Ziak). Quand la
+    saisie ressemble vraiment à un nom d'artiste, on renvoie ses titres
+    populaires plutôt que de partir sur des sources plus lentes et plus
+    pauvres (YouTube)."""
+    if cached.artist_scope_name:
+        return [], 0
+    artists = rank_artists(cached.text, await deps.deezer.search_artists(cached.text, limit=5))
+    best = next((a for a in artists if name_similarity(cached.text, a.name) >= ARTIST_MATCH_RATIO), None)
+    if best is None:
+        return [], 0
+    pool = await deps.deezer.get_artist_top_tracks(best.source_id, limit=FALLBACK_POOL)
+    return pool[index : index + limit], len(pool)
 
 
 async def _search_apple(
@@ -63,6 +86,7 @@ async def _search_youtube_raw(
 
 _PROVIDERS = {
     "deezer": (_search_deezer, DeezerError),
+    "deezer_artist": (_search_deezer_artist, DeezerError),
     "apple": (_search_apple, AppleMusicError),
     "youtube": (_search_youtube, Exception),
     # Dernier recours : le moteur YouTube général (pas YouTube Music) tolère
@@ -70,7 +94,7 @@ _PROVIDERS = {
     # "Ziak") — mais avec des métadonnées plus pauvres, d'où l'ordre.
     "youtube_raw": (_search_youtube_raw, Exception),
 }
-_ORDER = ("deezer", "apple", "youtube", "youtube_raw")
+_ORDER = ("deezer", "deezer_artist", "apple", "youtube", "youtube_raw")
 
 
 async def search_tracks(

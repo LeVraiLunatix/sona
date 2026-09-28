@@ -26,6 +26,17 @@ class DeezerError(Exception):
     pass
 
 
+def _error_message(error) -> str:
+    """`{"type": "…", "message": "Missing parameters: q", "code": 501}` →
+    « Deezer : Missing parameters: q (code 501) ». Le dict brut remontait
+    tel quel jusqu'à l'écran de l'app."""
+    if isinstance(error, dict):
+        message = error.get("message") or error.get("type") or "erreur inconnue"
+        code = error.get("code")
+        return f"Deezer : {message}" + (f" (code {code})" if code is not None else "")
+    return f"Deezer : {error}"
+
+
 def _year_from_date(date_str: str | None) -> str | None:
     if not date_str or len(date_str) < 4:
         return None
@@ -100,7 +111,7 @@ class DeezerClient:
             raise DeezerError(str(exc)) from exc
         data = resp.json()
         if isinstance(data, dict) and data.get("error"):
-            raise DeezerError(str(data["error"]))
+            raise DeezerError(_error_message(data["error"]))
         return data
 
     async def search_tracks(

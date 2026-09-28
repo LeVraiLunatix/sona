@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.providers.apple import AppleMusicError
-from app.providers.base import TrackInfo
+from app.providers.base import ArtistInfo, TrackInfo
 from app.providers.deezer import DeezerError
 from app.services import query_cache, search
 
@@ -40,6 +40,16 @@ class FakeDeezer:
 
     async def search_tracks_by_artist(self, artist_name, query, index=0, limit=25):
         return await self.search_tracks(f"{artist_name} {query}", index=index, limit=limit)
+
+    async def search_artists(self, query, limit=10):
+        if self.error:
+            raise self.error
+        return list(self.artists)
+
+    async def get_artist_top_tracks(self, artist_id, limit=25):
+        return [make_track("deezer", f"top-{artist_id}-{i}") for i in range(3)]
+
+    artists: list = []
 
 
 class FakeApple:
@@ -125,3 +135,24 @@ def test_all_providers_down_raises_search_error(monkeypatch):
     cached = query_cache.CachedQuery(text="daft punk")
     with pytest.raises(search.SearchError):
         run(search.search_tracks(make_deps(deezer, apple), cached))
+
+
+def test_misspelled_artist_name_returns_that_artist_top_tracks():
+    """« eiak » : la recherche de morceaux Deezer ne trouve rien, sa
+    recherche d'artistes (tolérante) trouve Ziak — ses titres populaires
+    passent avant iTunes/YouTube."""
+    deezer, apple = FakeDeezer(results=[]), FakeApple()
+    deezer.artists = [ArtistInfo(source="deezer", source_id="7668530", name="Ziak", picture_url=None, fans=626134)]
+    cached = query_cache.CachedQuery(text="eiak")
+    tracks, total = run(search.search_tracks(make_deps(deezer, apple), cached, index=0, limit=5))
+    assert [t.source_id for t in tracks] == ["top-7668530-0", "top-7668530-1", "top-7668530-2"]
+    assert cached.provider == "deezer_artist"
+    assert apple.calls == 0
+
+
+def test_unrelated_artist_is_not_used_for_an_unknown_title():
+    deezer, apple = FakeDeezer(results=[]), FakeApple()
+    deezer.artists = [ArtistInfo(source="deezer", source_id="1", name="Sia", picture_url=None)]
+    cached = query_cache.CachedQuery(text="titre obscur")
+    tracks, _ = run(search.search_tracks(make_deps(deezer, apple), cached, index=0, limit=5))
+    assert [t.source for t in tracks] == ["apple"] * 5
