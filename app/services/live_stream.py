@@ -32,6 +32,10 @@ URL_TTL = 20 * 60
 # Pas de flux direct trouvé : on ne réessaie pas à chaque requête `Range`.
 MISS_TTL = 120
 _CLIENT_ATTEMPTS: tuple[list[str] | None, ...] = (None, ["tv"], ["web_safari", "mweb"])
+# Une seule extraction à la fois : chacune lance un moteur JavaScript
+# (Deno/Node, plusieurs dizaines de Mo), à ne pas multiplier sur une petite
+# machine.
+_extract_slots = asyncio.Semaphore(1)
 
 
 @dataclass(slots=True)
@@ -79,7 +83,8 @@ async def resolve(track: TrackInfo, cookies_file: Path | None) -> LiveSource | N
         async for candidate in sources:
             if candidate.platform != "youtube":
                 return None
-            return await asyncio.to_thread(_extract_sync, candidate.source_url, cookies_file)
+            async with _extract_slots:
+                return await asyncio.to_thread(_extract_sync, candidate.source_url, cookies_file)
     return None
 
 
