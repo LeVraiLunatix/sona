@@ -79,8 +79,33 @@ struct NowPlayingSheet: View {
             Spacer(minLength: 12)
         }
         .frame(maxWidth: .infinity)
-        .background(EncreColor.bg.ignoresSafeArea())
+        .background { backdrop }
         .task(id: player.current?.id) { await refreshLikeState() }
+    }
+
+    /// Fond flouté à partir de la pochette du morceau en cours — la signature
+    /// visuelle du lecteur plein écran d'Apple Music. Un voile sombre garde
+    /// le texte lisible quelle que soit la luminosité de la pochette ; sans
+    /// pochette, on retombe sur le fond plat du thème.
+    @ViewBuilder
+    private var backdrop: some View {
+        ZStack {
+            EncreColor.bg
+            if let urlString = player.current?.coverURL, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().scaledToFill()
+                    }
+                }
+                .blur(radius: 60)
+                .saturation(1.3)
+                .overlay(EncreColor.bg.opacity(0.55))
+            }
+        }
+        .ignoresSafeArea()
+        // Le fond change avec le morceau : sans animation explicite, le
+        // flou remplacerait l'ancien d'un coup plutôt que de fondre dedans.
+        .animation(.easeInOut(duration: 0.5), value: player.current?.coverURL)
     }
 
     // MARK: - Panneaux
@@ -183,8 +208,9 @@ struct NowPlayingSheet: View {
                 Image(systemName: isLiked ? "heart.fill" : "heart")
                     .font(.system(size: 20))
                     .frame(width: 44, height: 44)
+                    .contentTransition(.symbolEffect(.replace))
             }
-            .glassCircle()
+            .glassCircle(interactive: true)
             .foregroundStyle(isLiked ? EncreColor.accent2 : EncreColor.text)
         }
     }
@@ -204,7 +230,7 @@ struct NowPlayingSheet: View {
                     .frame(width: 78, height: 78)
                     .contentTransition(.symbolEffect(.replace))
             }
-            .glassCircle()
+            .glassCircle(interactive: true)
             .foregroundStyle(EncreColor.text)
 
             Button { player.next() } label: {

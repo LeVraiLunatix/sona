@@ -8,6 +8,16 @@ struct TrackRow: View {
     var showDuration: Bool = true
     var rank: Int?
     var isCurrent: Bool = false
+    /// Ouvre la fiche artiste/album du morceau — absent (`nil`) si l'appelant
+    /// ne peut pas naviguer (pas de `NavigationPath` sous la main) ou si le
+    /// serveur n'a pas fourni l'identifiant correspondant. Sans ça, un
+    /// morceau isolé (résultat de recherche...) n'a aucun moyen de mener à
+    /// une vraie fiche artiste — juste "un son en vrac".
+    /// Déclarés avant `action` : la syntaxe "trailing closure" des appels
+    /// existants (`TrackRow(...) { player.play(...) }`) doit continuer de
+    /// cibler `action`, le dernier paramètre de type fonction.
+    var onOpenArtist: (() -> Void)? = nil
+    var onOpenAlbum: (() -> Void)? = nil
     var action: () -> Void
 
     var body: some View {
@@ -42,6 +52,14 @@ struct TrackRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let onOpenArtist {
+                Button { onOpenArtist() } label: { Label("Voir l'artiste", systemImage: "person.fill") }
+            }
+            if let onOpenAlbum {
+                Button { onOpenAlbum() } label: { Label("Voir l'album", systemImage: "square.stack.fill") }
+            }
+        }
     }
 }
 

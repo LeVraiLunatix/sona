@@ -2,10 +2,16 @@ import Foundation
 
 /// Pas de KeyPath sur un tuple labellisé pour `ForEach(id:)` : un petit type
 /// nominal `Identifiable` évite le problème et se relit mieux.
+///
+/// Porte `source`/`artistSourceId` (tirés de `Track.artistSourceId`, déjà
+/// renvoyé par l'API) plutôt qu'un simple nom : sans ces identifiants, ces
+/// bulles n'avaient nulle part où naviguer et leur tap ne faisait rien.
 struct ArtistSummary: Identifiable, Hashable {
     var name: String
     var coverURL: String?
-    var id: String { name }
+    var source: String
+    var artistSourceId: String
+    var id: String { "\(source):\(artistSourceId)" }
 }
 
 @MainActor
@@ -32,10 +38,16 @@ final class HomeViewModel: ObservableObject {
             recentTracks = try await resolve(history.items.map { ($0.source, $0.sourceId) })
             libraryTracks = try await resolve(library.items.map { ($0.source, $0.sourceId) })
 
+            // Sans `artistSourceId`, impossible d'ouvrir une vraie fiche
+            // artiste (voir `ArtistDetailView`) : ces morceaux-là (source sans
+            // identifiant d'artiste exploité) n'alimentent pas "Vos artistes"
+            // plutôt que d'y figurer comme une bulle qui ne mène nulle part.
             var seen = Set<String>()
             artists = (recentTracks + libraryTracks).compactMap { t -> ArtistSummary? in
-                guard seen.insert(t.artist).inserted else { return nil }
-                return ArtistSummary(name: t.artist, coverURL: t.coverURL)
+                guard let artistSourceId = t.artistSourceId else { return nil }
+                let key = "\(t.source):\(artistSourceId)"
+                guard seen.insert(key).inserted else { return nil }
+                return ArtistSummary(name: t.artist, coverURL: t.coverURL, source: t.source, artistSourceId: artistSourceId)
             }
         } catch {
             errorMessage = error.localizedDescription

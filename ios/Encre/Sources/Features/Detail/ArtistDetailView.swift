@@ -54,7 +54,10 @@ struct ArtistDetailView: View {
                             SectionHeader(title: "Titres populaires")
                             VStack(spacing: 14) {
                                 ForEach(topTracks) { track in
-                                    TrackRow(track: track, isCurrent: player.current?.id == track.id) {
+                                    TrackRow(
+                                        track: track, isCurrent: player.current?.id == track.id,
+                                        onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                                    ) {
                                         player.play(track, context: topTracks)
                                     }
                                 }

@@ -34,7 +34,9 @@ struct HomeView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 18) {
                                 ForEach(viewModel.artists) { artist in
-                                    ArtistBubble(name: artist.name, coverURL: artist.coverURL) {}
+                                    ArtistBubble(name: artist.name, coverURL: artist.coverURL) {
+                                        path.append(Route.artist(source: artist.source, id: artist.artistSourceId))
+                                    }
                                 }
                             }
                         }
@@ -46,9 +48,12 @@ struct HomeView: View {
                         SectionHeader(title: "Votre bibliothèque")
                         VStack(spacing: 18) {
                             ForEach(viewModel.libraryTracks) { track in
-                                TrackRow(track: track, isCurrent: player.current?.id == track.id) {
-                                    player.play(track, context: viewModel.libraryTracks)
-                                }
+                                TrackRow(
+                                    track: track, isCurrent: player.current?.id == track.id,
+                                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
+                                    action: { player.play(track, context: viewModel.libraryTracks) }
+                                )
                             }
                         }
                     }
