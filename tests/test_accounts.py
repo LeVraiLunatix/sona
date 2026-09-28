@@ -64,6 +64,13 @@ def test_auth_config_gives_the_lastfm_login_url(client):
     assert config["auth_url"].startswith("https://www.last.fm/api/auth/?api_key=cle&cb=encre")
 
 
+def test_callback_bounces_back_to_the_app(client):
+    assert client.get("/auth/config").json()["api_key"] == "cle"
+    got = client.get("/auth/lastfm/callback", params={"token": "abc"}, follow_redirects=False)
+    assert got.status_code == 302
+    assert got.headers["location"] == "encre://lastfm?token=abc"
+
+
 def test_owner_is_admin_and_keeps_legacy_data(client):
     client.post("/library/track", headers=LEGACY, json={"source": "deezer", "source_id": "1"})  # ignoré si réseau absent
     client.put("/settings", headers=LEGACY, json={"quality": "standard"})
