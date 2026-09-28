@@ -7,7 +7,7 @@ from app.providers.apple import AppleMusicError
 from app.providers.base import TrackInfo
 from app.providers.deezer import DeezerError
 from app.services import query_cache
-from app.services.resolver import search_tracks_youtube
+from app.services.resolver import search_tracks_youtube, search_tracks_youtube_raw
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +52,25 @@ async def _search_youtube(
     return pool[index : index + limit], len(pool)
 
 
+async def _search_youtube_raw(
+    deps: Deps, cached: query_cache.CachedQuery, index: int, limit: int
+) -> tuple[list[TrackInfo], int]:
+    pool = await search_tracks_youtube_raw(
+        _scoped_query(cached.text, cached.artist_scope_name), limit=FALLBACK_POOL
+    )
+    return pool[index : index + limit], len(pool)
+
+
 _PROVIDERS = {
     "deezer": (_search_deezer, DeezerError),
     "apple": (_search_apple, AppleMusicError),
     "youtube": (_search_youtube, Exception),
+    # Dernier recours : le moteur YouTube général (pas YouTube Music) tolère
+    # mieux les requêtes tronquées/mal orthographiées ("eiak", "iak" →
+    # "Ziak") — mais avec des métadonnées plus pauvres, d'où l'ordre.
+    "youtube_raw": (_search_youtube_raw, Exception),
 }
-_ORDER = ("deezer", "apple", "youtube")
+_ORDER = ("deezer", "apple", "youtube", "youtube_raw")
 
 
 async def search_tracks(

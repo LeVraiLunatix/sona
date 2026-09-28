@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Contenu du mini-lecteur — affiché tel quel dans le `tabViewBottomAccessory`
-/// de `RootTabView` : pas de fond dessiné ici, `TabView` fournit déjà le
-/// verre liquide système derrière (celui que partagent Musique et Podcasts),
-/// donc y superposer un `.glassCapsule()` maison ferait double emploi.
+/// Barre de lecture minimale, posée au-dessus de la barre d'onglets via
+/// `.safeAreaInset` (voir `RootTabView`) — dessine son propre verre liquide
+/// (vrai `glassEffect()` système), n'étant plus dans le conteneur
+/// `tabViewBottomAccessory` natif dont la pastille fantôme (visible même
+/// sans morceau en cours) posait problème.
 struct MiniPlayerView: View {
     @ObservedObject var player: PlayerManager
     var onExpand: () -> Void
@@ -13,14 +14,14 @@ struct MiniPlayerView: View {
             Button(action: onExpand) {
                 HStack(spacing: 12) {
                     CoverArt(url: track.coverURL, title: track.title)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 46, height: 46)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(track.title)
-                            .font(EncreFont.heading(15))
+                            .font(EncreFont.heading(16))
                             .foregroundStyle(EncreColor.text)
                             .lineLimit(1)
                         Text(track.artist)
-                            .font(EncreFont.bodyItalic(13))
+                            .font(EncreFont.bodyItalic(14))
                             .foregroundStyle(EncreColor.neutral600)
                             .lineLimit(1)
                     }
@@ -29,17 +30,20 @@ struct MiniPlayerView: View {
                         withAnimation(.easeOut(duration: 0.15)) { player.togglePlayPause() }
                     } label: {
                         Image(systemName: player.isLoading ? "hourglass" : (player.isPlaying ? "pause.fill" : "play.fill"))
-                            .font(.system(size: 18))
+                            .font(.system(size: 20))
                             .foregroundStyle(EncreColor.text)
-                            .frame(width: 34, height: 34)
+                            .frame(width: 42, height: 42)
                             .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 6)
-                .contentShape(Rectangle())
+                .padding(.leading, 8)
+                .padding(.trailing, 10)
+                .frame(height: 64)
             }
             .buttonStyle(.plain)
+            .glassCapsule(interactive: true)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 }
