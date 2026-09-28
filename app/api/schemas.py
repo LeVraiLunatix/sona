@@ -87,6 +87,17 @@ class RadioGroup(BaseModel):
     radios: list[RadioStation]
 
 
+class LyricsLineOut(BaseModel):
+    time: float | None
+    text: str
+
+
+class LyricsOut(BaseModel):
+    synced: bool
+    instrumental: bool
+    lines: list[LyricsLineOut]
+
+
 class SearchResponse(BaseModel):
     query_id: str
     provider: str | None

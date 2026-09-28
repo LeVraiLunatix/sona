@@ -385,6 +385,15 @@ final class PlayerManager: ObservableObject {
         return tracks.filter { seen.insert($0.id).inserted }
     }
 
+    /// Saut à une position absolue — une ligne de paroles synchronisées
+    /// tapée, par exemple.
+    func seek(toSeconds seconds: Double) {
+        guard let player else { return }
+        player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600))
+        positionSeconds = max(0, seconds)
+        updateNowPlayingElapsedTime()
+    }
+
     func seek(toFraction fraction: Double) {
         guard let player, let duration = player.currentItem?.duration.seconds, duration.isFinite else { return }
         let target = CMTime(seconds: fraction * duration, preferredTimescale: 600)
