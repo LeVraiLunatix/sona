@@ -64,6 +64,7 @@ final class PlayerManager: ObservableObject {
     private var coverTask: Task<Void, Never>?
     private var loadTimeoutTask: Task<Void, Never>?
     private var prepareTask: Task<Void, Never>?
+    private var recoveryAttempted = false
     private var prefetchTask: Task<Void, Never>?
     /// Temps réellement écouté du morceau en cours (les sauts ne comptent
     /// pas) : décide s'il devient une écoute des stats (voir `Scrobbler`).
@@ -219,11 +220,28 @@ final class PlayerManager: ObservableObject {
         updateNowPlayingInfo(for: track)
         fetchArtwork(for: track)
 
-        // Préparation côté serveur d'abord (téléchargement + vérification,
-        // parfois plusieurs dizaines de secondes) : donner directement l'URL
-        // à `AVPlayer` le faisait abandonner sur une réponse trop lente avec
-        // un simple « resource unavailable », sans la vraie cause. Ici, un
-        // échec remonte avec le message du serveur.
+        // Lecture directe : le serveur relaie le flux (déjà en cache, ou
+        // YouTube en direct le temps de préparer le fichier) — démarrage en
+        // quelques secondes. En cas d'échec, `recover` prend le relais.
+        recoveryAttempted = false
+        beginPlayback(track)
+    }
+
+    /// La lecture directe a échoué ou traîne : on demande au serveur de
+    /// préparer le fichier complet (sa réponse dit pourquoi si c'est
+    /// impossible), puis on relance une seule fois depuis son cache.
+    private func recover(_ track: Track, reason: String?) {
+        guard current?.id == track.id else { return }
+        guard !recoveryAttempted else {
+            isLoading = false
+            isPlaying = false
+            errorMessage = reason ?? "La lecture a échoué."
+            return
+        }
+        recoveryAttempted = true
+        teardown()
+        isLoading = true
+        errorMessage = nil
         prepareTask = Task { [weak self] in
             do {
                 try await APIClient.shared.prepareStream(source: track.source, id: track.sourceId)
@@ -264,9 +282,7 @@ final class PlayerManager: ObservableObject {
                     guard let self, self.player?.currentItem === item else { return }
                     switch item.status {
                     case .failed:
-                        self.isLoading = false
-                        self.isPlaying = false
-                        self.errorMessage = item.error?.localizedDescription ?? "La lecture a échoué."
+                        self.recover(track, reason: item.error?.localizedDescription)
                     case .readyToPlay:
                         self.isLoading = false
                         self.loadTimeoutTask?.cancel()
@@ -335,11 +351,9 @@ final class PlayerManager: ObservableObject {
             // moindre message — impossible à distinguer d'un blocage réel.
             loadTimeoutTask?.cancel()
             loadTimeoutTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(25))
                 guard let self, !Task.isCancelled, self.current?.id == track.id, self.isLoading else { return }
-                self.errorMessage = "Le morceau met trop de temps à démarrer. Réessaie dans un instant."
-                self.isLoading = false
-                self.player?.pause()
+                self.recover(track, reason: "Le morceau met trop de temps à démarrer. Réessaie dans un instant.")
             }
         } catch {
             isLoading = false

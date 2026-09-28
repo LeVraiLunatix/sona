@@ -8,8 +8,10 @@ from collections import defaultdict
 from contextlib import aclosing
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse, StreamingResponse
+from starlette.background import BackgroundTask
 
 from app.api.auth import require_token
 from app.api.state import ApiDeps
@@ -18,6 +20,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
+from app.services import live_stream
 from app.services.resolver import ResolutionError, iter_audio_sources
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,18 @@ def _persistent_path(deps: ApiDeps, source: str, source_id: str, fmt: str, quali
     return deps.settings.stream_cache_dir / f"{source}_{safe_id}_{quality}_{fmt}{suffix}"
 
 
+def _download_failure(exc: DownloadError) -> str:
+    """Message affiché dans l'app : la vraie cause, pas juste « impossible »
+    — sans elle, impossible de savoir quoi réparer côté serveur."""
+    if exc.bot_wall:
+        return (
+            "YouTube bloque le serveur (vérification anti-robot) : "
+            "renouvelle le fichier de cookies YouTube du serveur."
+        )
+    cause = str(exc.__cause__ or exc).replace("ERROR: ", "").strip().splitlines()[0][:200]
+    return f"Téléchargement audio impossible : {cause}"
+
+
 async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> Path:
     """Reproduit `deliver_track_audio` du bot, sans Telegram : télécharge,
     vérifie l'audio contre l'extrait officiel, et rend un fichier persistant."""
@@ -64,9 +79,7 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                     )
                 except DownloadError as exc:
                     if source_candidate.platform == "youtube":
-                        raise HTTPException(
-                            status.HTTP_502_BAD_GATEWAY, "Téléchargement audio impossible."
-                        ) from exc
+                        raise HTTPException(status.HTTP_502_BAD_GATEWAY, _download_failure(exc)) from exc
                     logger.info("Source %s inutilisable : %s", source_candidate.video_id, exc.__cause__ or exc)
                     if attempts >= MAX_SOURCE_ATTEMPTS:
                         break
@@ -172,14 +185,113 @@ async def prepare(
     return {"ready": True}
 
 
+_live = live_stream.LiveCache()
+_warming: set[tuple[str, str, str, str]] = set()
+_proxy_client: httpx.AsyncClient | None = None
+
+
+def _client() -> httpx.AsyncClient:
+    global _proxy_client
+    if _proxy_client is None:
+        _proxy_client = httpx.AsyncClient(timeout=httpx.Timeout(20.0, read=60.0), follow_redirects=True)
+    return _proxy_client
+
+
+class _LiveFailed(Exception):
+    pass
+
+
+async def _live_source(deps: ApiDeps, source: str, source_id: str, key: tuple) -> live_stream.LiveSource | None:
+    known, cached = _live.get(key)
+    if known:
+        return cached
+    async with _live.lock(key):
+        known, cached = _live.get(key)
+        if known:
+            return cached
+        try:
+            track = await lookup.get_track(deps, source, source_id)
+            found = await live_stream.resolve(track, deps.settings.youtube_cookies_file)
+        except Exception as exc:  # le chemin complet prend le relais, avec son propre message
+            logger.info("Flux direct indisponible pour %s:%s : %s", source, source_id, exc)
+            found = None
+        _live.put(key, found)
+        return found
+
+
+def _warm(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> None:
+    """Télécharge et vérifie le fichier en arrière-plan pendant la lecture
+    directe : les écoutes suivantes partent du cache."""
+    key = _cache_key(source, source_id, fmt, quality)
+    if key in _warming:
+        return
+    _warming.add(key)
+
+    async def run() -> None:
+        try:
+            await ensure_file(deps, source, source_id, quality, fmt)
+        except Exception as exc:
+            logger.info("Mise en cache de %s:%s après lecture directe impossible : %s", source, source_id, exc)
+        finally:
+            _warming.discard(key)
+
+    asyncio.create_task(run())
+
+
+async def _proxy(request: Request, live: live_stream.LiveSource) -> StreamingResponse:
+    # `identity` : les octets relayés doivent correspondre exactement aux
+    # en-têtes Content-Length/Content-Range transmis à l'app.
+    headers = {**live.headers, "Accept-Encoding": "identity"}
+    if range_header := request.headers.get("range"):
+        headers["Range"] = range_header
+    client = _client()
+    try:
+        upstream = await client.send(client.build_request("GET", live.url, headers=headers), stream=True)
+    except httpx.HTTPError as exc:
+        raise _LiveFailed(str(exc)) from exc
+    if upstream.status_code not in (200, 206):
+        await upstream.aclose()
+        raise _LiveFailed(f"HTTP {upstream.status_code}")
+    out = {"Accept-Ranges": "bytes"}
+    for name in ("content-length", "content-range"):
+        if name in upstream.headers:
+            out[name] = upstream.headers[name]
+    return StreamingResponse(
+        upstream.aiter_bytes(),
+        status_code=upstream.status_code,
+        headers=out,
+        media_type=live.content_type,
+        background=BackgroundTask(upstream.aclose),
+    )
+
+
 @router.get("/stream/{source}/{source_id}")
 async def stream(
+    request: Request,
     source: str,
     source_id: str,
     quality: str = Query("best"),
     format: str = Query("auto"),
+    live: bool = Query(True, description="Relayer le flux YouTube tant que le fichier n'est pas prêt"),
     deps: ApiDeps = Depends(require_token),
-) -> FileResponse:
+):
     _check_params(quality, format)
+    cached = await _cached_file(deps, source, source_id, format, quality)
+    if cached is not None:
+        return FileResponse(cached[0], media_type=cached[1], filename=Path(cached[0]).name)
+
+    # Pas encore en cache : lecture directe si possible (démarrage en
+    # quelques secondes), fichier vérifié préparé en parallèle.
+    key = _cache_key(source, source_id, format, quality)
+    if live and format != "mp3":
+        direct = await _live_source(deps, source, source_id, key)
+        if direct is not None:
+            _warm(deps, source, source_id, quality, format)
+            try:
+                return await _proxy(request, direct)
+            except _LiveFailed as exc:
+                logger.info("Relais direct de %s:%s interrompu (%s), repli sur le téléchargement", source, source_id, exc)
+                _live.drop(key)
+
     file_path, content_type = await ensure_file(deps, source, source_id, quality, format)
     return FileResponse(file_path, media_type=content_type, filename=Path(file_path).name)

@@ -7,6 +7,7 @@ import yt_dlp
 
 from app.logging_config import ytdlp_logger
 from app.providers.base import AlbumInfo, TrackInfo
+from app.services.ytdlp_runtime import with_js_runtimes
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def _track_from_entry(entry: dict) -> TrackInfo:
 
 
 def _extract_sync(url: str, opts: dict) -> dict:
-    with yt_dlp.YoutubeDL(opts) as ydl:
+    with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
         return ydl.extract_info(url, download=False)
 
 
