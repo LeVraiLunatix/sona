@@ -259,6 +259,8 @@ struct FullPlayerView: View {
             HStack {
                 panelButton(.lyrics, icon: "quote.bubble")
                 Spacer()
+                AirPlayButton()
+                Spacer()
                 panelButton(.queue, icon: "list.bullet")
             }
             .padding(.horizontal, 30)

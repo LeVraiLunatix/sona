@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import time
 from collections import defaultdict
 from contextlib import aclosing
 from pathlib import Path
@@ -97,6 +98,80 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
     raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucune version fidèle de ce morceau n'a été trouvée.")
 
 
+# Échecs récents par morceau : l'app demande souvent le même titre deux fois
+# de suite (préparation puis lecture, ou nouvel essai immédiat). Sans ce
+# souvenir, chaque demande relançait des dizaines de secondes de
+# téléchargements voués à échouer. Court, pour qu'un souci passager (YouTube
+# qui bride) ne bloque pas le morceau longtemps.
+FAILURE_TTL = 120.0
+_failures: dict[tuple[str, str, str, str], tuple[float, int, str]] = {}
+
+
+def _check_params(quality: str, fmt: str) -> None:
+    if quality not in QUALITY_CHOICES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Qualité inconnue : {quality}")
+    if fmt not in FORMAT_CHOICES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Format inconnu : {fmt}")
+
+
+async def _cached_file(deps: ApiDeps, source: str, source_id: str, fmt: str, quality: str) -> tuple[str, str] | None:
+    cached = await deps.repo.stream_cache_get(source, source_id, fmt, quality)
+    if cached is not None and Path(cached[0]).is_file():
+        return cached
+    if cached is not None:
+        logger.warning("Fichier en cache manquant sur disque, retéléchargement : %s", cached[0])
+    return None
+
+
+async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> tuple[str, str]:
+    """Chemin et type du fichier audio prêt à servir : depuis le cache, ou
+    après téléchargement + vérification (un seul à la fois par morceau)."""
+    cached = await _cached_file(deps, source, source_id, fmt, quality)
+    if cached is not None:
+        return cached
+
+    key = _cache_key(source, source_id, fmt, quality)
+    failure = _failures.get(key)
+    if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
+        raise HTTPException(failure[1], failure[2])
+
+    async with _locks[key]:
+        # Une requête concurrente a peut-être fini (ou échoué) pendant
+        # qu'on attendait le verrou.
+        cached = await _cached_file(deps, source, source_id, fmt, quality)
+        if cached is not None:
+            return cached
+        failure = _failures.get(key)
+        if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
+            raise HTTPException(failure[1], failure[2])
+        try:
+            dest = await _resolve_and_download(deps, source, source_id, quality, fmt)
+        except HTTPException as exc:
+            _failures[key] = (time.monotonic(), exc.status_code, str(exc.detail))
+            raise
+        _failures.pop(key, None)
+
+    return str(dest), _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream")
+
+
+@router.post("/stream/{source}/{source_id}/prepare")
+async def prepare(
+    source: str,
+    source_id: str,
+    quality: str = Query("best"),
+    format: str = Query("auto"),
+    deps: ApiDeps = Depends(require_token),
+) -> dict:
+    """Télécharge et vérifie le morceau sans l'envoyer. L'app l'appelle avant
+    de lancer la lecture (le lecteur audio d'iOS abandonne sur une réponse
+    trop lente et ne montre alors qu'un « resource unavailable » sans la
+    vraie cause), et pour le morceau suivant pendant l'écoute du courant —
+    l'enchaînement est alors instantané."""
+    _check_params(quality, format)
+    await ensure_file(deps, source, source_id, quality, format)
+    return {"ready": True}
+
+
 @router.get("/stream/{source}/{source_id}")
 async def stream(
     source: str,
@@ -105,28 +180,6 @@ async def stream(
     format: str = Query("auto"),
     deps: ApiDeps = Depends(require_token),
 ) -> FileResponse:
-    if quality not in QUALITY_CHOICES:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Qualité inconnue : {quality}")
-    if format not in FORMAT_CHOICES:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Format inconnu : {format}")
-
-    cached = await deps.repo.stream_cache_get(source, source_id, format, quality)
-    if cached is not None:
-        file_path, content_type = cached
-        if Path(file_path).is_file():
-            return FileResponse(file_path, media_type=content_type, filename=Path(file_path).name)
-        logger.warning("Fichier en cache manquant sur disque, retéléchargement : %s", file_path)
-
-    lock = _locks[_cache_key(source, source_id, format, quality)]
-    async with lock:
-        # Une requête concurrente a peut-être fini le téléchargement pendant
-        # qu'on attendait le verrou.
-        cached = await deps.repo.stream_cache_get(source, source_id, format, quality)
-        if cached is not None and Path(cached[0]).is_file():
-            file_path, content_type = cached
-            return FileResponse(file_path, media_type=content_type, filename=Path(file_path).name)
-
-        dest = await _resolve_and_download(deps, source, source_id, quality, format)
-
-    content_type = _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream")
-    return FileResponse(dest, media_type=content_type, filename=dest.name)
+    _check_params(quality, format)
+    file_path, content_type = await ensure_file(deps, source, source_id, quality, format)
+    return FileResponse(file_path, media_type=content_type, filename=Path(file_path).name)

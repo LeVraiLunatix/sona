@@ -77,7 +77,7 @@ struct HomeView: View {
                 }
             }
             .padding(.top, 8)
-            .padding(.bottom, 110)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .background(Tone.background)

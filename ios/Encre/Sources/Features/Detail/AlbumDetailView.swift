@@ -21,7 +21,7 @@ struct AlbumDetailView: View {
                     tracks(album).reveal(2)
                     footer(album).reveal(3)
                 }
-                .padding(.bottom, 110)
+                .padding(.bottom, 24)
             } else if let errorMessage {
                 EmptyState(systemImage: "exclamationmark.triangle", title: "Album indisponible", message: errorMessage)
                     .padding(.top, 80)

@@ -43,7 +43,7 @@ struct LibraryView: View {
                 }
             }
             .padding(.top, 8)
-            .padding(.bottom, 110)
+            .padding(.bottom, 24)
             .animation(Motion.smooth, value: viewModel.kind)
             .animation(Motion.smooth, value: viewModel.items)
         }

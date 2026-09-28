@@ -63,6 +63,8 @@ final class PlayerManager: ObservableObject {
     private var routeChangeObserver: NSObjectProtocol?
     private var coverTask: Task<Void, Never>?
     private var loadTimeoutTask: Task<Void, Never>?
+    private var prepareTask: Task<Void, Never>?
+    private var prefetchTask: Task<Void, Never>?
     private var nowPlayingArtwork: MPMediaItemArtwork?
 
     private init() {
@@ -209,7 +211,32 @@ final class PlayerManager: ObservableObject {
         // session peut avoir été désactivée par une interruption (appel,
         // Siri...) entre deux morceaux.
         try? AVAudioSession.sharedInstance().setActive(true)
+        updateNowPlayingInfo(for: track)
+        fetchArtwork(for: track)
 
+        // Préparation côté serveur d'abord (téléchargement + vérification,
+        // parfois plusieurs dizaines de secondes) : donner directement l'URL
+        // à `AVPlayer` le faisait abandonner sur une réponse trop lente avec
+        // un simple « resource unavailable », sans la vraie cause. Ici, un
+        // échec remonte avec le message du serveur.
+        prepareTask = Task { [weak self] in
+            do {
+                try await APIClient.shared.prepareStream(source: track.source, id: track.sourceId)
+            } catch {
+                guard let self, !Task.isCancelled, self.current?.id == track.id else { return }
+                self.isLoading = false
+                self.isPlaying = false
+                self.errorMessage = error.localizedDescription
+                return
+            }
+            guard let self, !Task.isCancelled, self.current?.id == track.id else { return }
+            self.beginPlayback(track)
+        }
+    }
+
+    /// Lecture proprement dite, une fois le fichier prêt côté serveur :
+    /// servi depuis son cache disque, il démarre quasi instantanément.
+    private func beginPlayback(_ track: Track) {
         do {
             let (url, headers) = try APIClient.shared.streamRequest(source: track.source, id: track.sourceId)
             let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
@@ -289,7 +316,7 @@ final class PlayerManager: ObservableObject {
 
             player.play()
             updateNowPlayingInfo(for: track)
-            fetchArtwork(for: track)
+            prepareNext()
 
             // Sans ça, un flux qui ne se décide jamais (serveur qui télécharge
             // et vérifie l'audio en tâche de fond, requête qui ne timeout pas
@@ -299,13 +326,25 @@ final class PlayerManager: ObservableObject {
             loadTimeoutTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(30))
                 guard let self, !Task.isCancelled, self.current?.id == track.id, self.isLoading else { return }
-                self.errorMessage = "Le morceau met trop de temps à démarrer — le serveur est peut-être encore en train de le préparer. Réessaie dans un instant."
+                self.errorMessage = "Le morceau met trop de temps à démarrer. Réessaie dans un instant."
                 self.isLoading = false
                 self.player?.pause()
             }
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Fait préparer le morceau suivant par le serveur pendant l'écoute du
+    /// courant : « suivant » (ou la fin du morceau) enchaîne sans attente.
+    private func prepareNext() {
+        prefetchTask?.cancel()
+        guard let next = upNext.first else { return }
+        prefetchTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            try? await APIClient.shared.prepareStream(source: next.source, id: next.sourceId)
         }
     }
 
@@ -422,6 +461,8 @@ final class PlayerManager: ObservableObject {
         timeControlObserver?.invalidate()
         coverTask?.cancel()
         loadTimeoutTask?.cancel()
+        prepareTask?.cancel()
+        prepareTask = nil
         timeObserver = nil
         endObserver = nil
         statusObserver = nil
