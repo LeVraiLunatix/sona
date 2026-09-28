@@ -1,50 +1,41 @@
 # Encre (app iOS)
 
-Port natif SwiftUI de la maquette **« Encre »** (Claude Design), branché sur
-l'[API privée de Sona](../../README.md#api-backend-pour-une-app-iphone).
+App SwiftUI native branchée sur l'[API privée de Sona](../../README.md#api-backend-pour-une-app-iphone).
 Usage strictement personnel, comme le reste du projet.
 
-## État actuel — étape 3/3
+## Direction artistique
 
-- [x] Squelette SwiftUI (XcodeGen) + design system (couleurs, typographie
-      Source Serif 4, effet "verre liquide") repris du handoff.
-- [x] 3 onglets branchés sur l'API réelle : **Écouter** (historique +
-      bibliothèque), **Bibliothèque** (titres/albums/artistes), **Rechercher**
-      (recherche texte + liens collés) — tous les 3 restent montés en
-      permanence (comme `vis(k)` dans le prototype) : changer d'onglet ne
-      perd ni le défilement ni les données déjà chargées.
-- [x] Fiches Album / Artiste, lecture audio (`AVPlayer` sur `/stream/...`),
-      avec un vrai contexte de lecture (l'album/l'artiste/la liste jouée
-      enchaîne "suivant"/"précédent").
-- [x] Lecteur plein écran : pochette avec clin d'œil CMJN, cœur (bibliothèque),
-      défilement façon forme d'onde, transport, volume, mode **Paroles**
-      (synchronisées façon Apple Music via LRCLIB : la ligne chantée
-      s'allume et se recentre, taper une ligne y ramène la lecture ; paroles
-      brutes à défaut) et mode File d'attente (les morceaux à suivre dans le
-      contexte en cours).
-- [x] Vraie `TabView` système (iOS 26, Liquid Glass natif, onglet
-      Recherche intégré à la barre) + mini-lecteur en verre `glassEffect()`.
-- [x] Découverte : la recherche montre aussi les **artistes** (tolérante aux
-      fautes) et les **albums** ; champ vide → **radios thématiques** Deezer
-      à parcourir ; fiche artiste → bouton **Radio** et **artistes
-      similaires**. Une radio est une station sans fin : le lecteur redemande
-      un tirage au serveur quand « À suivre » s'épuise.
-- [x] Onboarding au premier lancement : écran de bienvenue puis configuration
-      du serveur — adapté honnêtement (pas de "quels artistes écoutez-vous ?"
-      inventé : Sona n'a ni compte ni préférences à collecter, seule la
-      connexion au serveur est vraiment nécessaire avant d'ouvrir l'app).
-- [x] Trame de points ("halftone") sur les grandes pochettes mises en avant
-      (lecteur plein écran, héros d'accueil, fiches Album/Artiste) — pas sur
-      les petites vignettes de liste, par prudence de performance (voir
-      Limites connues).
+Sobre et sombre, dans l'esprit de Musique : noir profond, blanc, gris par
+transparence, police système (SF Pro). Aucune couleur d'interface — la
+couleur vient des pochettes (fond vivant du lecteur, halo des fiches
+album). Les jetons sont dans `DesignSystem/Theme.swift` (`Tone`, `Typo`,
+`Motion`), les composants dans `DesignSystem/Components.swift`.
 
-Les 3 étapes prévues sont posées. Reste des finitions plus avancées, pas
-indispensables à un usage quotidien :
+Animations : transitions zoom système (la pochette tapée devient la fiche,
+le lecteur grandit depuis le mini-lecteur), apparition en cascade des
+sections, vignettes qui respirent au défilement, boutons qui s'enfoncent,
+symboles qui rebondissent, retours haptiques.
 
-Le prototype propose aussi 3 lecteurs alternatifs (vinyle "Microsillon",
-une de journal "Édition spéciale", plein cadre "Lentille") : pas repris pour
-l'instant, le lecteur "intégré" (celui branché à toute la navigation) étant
-la référence choisie.
+## Fonctionnalités
+
+- **Écouter** : reprendre l'écoute, écouté récemment, radios, vos artistes,
+  vos titres.
+- **Bibliothèque** : titres (joués comme une liste, suivant/précédent
+  compris), albums, artistes ; appui long pour retirer.
+- **Rechercher** (champ natif de la barre d'onglets) : meilleur résultat,
+  artistes (tolérant aux fautes : « eiak » → Ziak), albums, titres avec
+  chargement de la suite au défilement, liens Deezer/Spotify/Apple
+  Music/YouTube collés ; champ vide → radios thématiques par genre.
+- **Fiches** album/playlist (halo de couleur, Lecture/Aléatoire, ajout à la
+  bibliothèque) et artiste (photo étirable en parallaxe, populaires, radio,
+  albums, singles, artistes similaires, suivre).
+- **Lecteur plein écran** : fond maillé animé aux couleurs de la pochette,
+  pochette qui se rétracte en pause, barre de progression qui s'épaissit
+  sous le doigt, paroles synchronisées (LRCLIB) floutées autour de la ligne
+  chantée, file d'attente, menu (artiste, album, radio de l'artiste).
+- **Radios** sans fin : le lecteur redemande un tirage au serveur quand
+  « À suivre » s'épuise.
+- Lecture en fond, écran verrouillé, Centre de contrôle, AirPlay.
 
 **Certaines adaptations honnêtes par rapport au design** : l'API Sona n'a pas
 de "Mix de la semaine" éditorial ni de classement par popularité — l'accueil
@@ -101,7 +92,7 @@ Les deux restent modifiables ensuite depuis l'icône ⚙️ de chaque onglet.
 ```
 Sources/
   App/            Point d'entrée, coquille à onglets (TabView système), routes
-  DesignSystem/   Couleurs/typographie/"verre liquide"/halftone, composants
+  DesignSystem/   Jetons (Tone/Typo/Motion), pochettes + couleurs extraites, composants
   Networking/     Client de l'API Sona (APIClient, modèles, réglages serveur)
   Features/
     Onboarding/   Bienvenue + configuration du serveur (premier lancement)
@@ -111,7 +102,6 @@ Sources/
     Detail/       Fiches Album / Artiste
     Player/       Lecture audio (+ contexte de lecture, stations radio), mini-lecteur, plein écran
     Settings/     Adresse serveur + jeton API (accessible après l'onboarding)
-  Resources/Fonts/  Source Serif 4 (SIL OFL — licence incluse)
 ```
 
 ## Limites connues
@@ -121,13 +111,6 @@ Sources/
   underground, qui tombent alors sur « Paroles indisponibles ».
 - Cible **iOS 26** minimum (Liquid Glass système) : un iPhone resté sous
   une version antérieure ne peut pas installer l'app.
-- La fermeture du lecteur plein écran utilise le geste natif de la feuille
-  SwiftUI (glisser vers le bas) plutôt que l'animation `clip-path` du
-  prototype.
-- Pas de trame de points sur les petites vignettes de liste (résultats de
-  recherche, lignes de bibliothèque...) : chacune redessinerait sa grille de
-  points via `Canvas`, et je n'ai pas d'appareil ici pour vérifier que ça ne
-  saccade pas au défilement d'une longue liste.
 - Écrit sans accès à un compilateur Swift dans cette session : relu à la main
   mais jamais compilé avant que GitHub Actions (`.github/workflows/ios.yml`)
   ne le fasse sur un runner macOS. Si ce workflow est rouge sur une PR qui

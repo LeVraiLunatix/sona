@@ -1,7 +1,13 @@
 import SwiftUI
 
-/// Coquille de l'app : vraie `TabView` système (Liquid Glass natif depuis
-/// iOS 26) plutôt qu'une barre "verre liquide" maison.
+enum AppTab: Hashable {
+    case home, library, search
+}
+
+/// Coquille de l'app : vraie `TabView` système (Liquid Glass natif,
+/// onglet Recherche intégré à la barre), mini-lecteur flottant au-dessus,
+/// et lecteur plein écran qui *grandit* depuis le mini-lecteur (transition
+/// zoom système, fermeture interactive en glissant vers le bas).
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
     @State private var selectedTab: AppTab = .home
@@ -10,51 +16,48 @@ struct RootTabView: View {
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
     @State private var showingOnboarding = false
-    @State private var showingPlayerSheet = false
+    @State private var showingPlayer = false
+    @Namespace private var zoomNamespace
+    @Namespace private var playerNamespace
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab("Écouter", systemImage: "house.fill", value: AppTab.home) {
+            Tab("Écouter", systemImage: "play.circle.fill", value: AppTab.home) {
                 tab(path: $homePath) { HomeView(path: $homePath) }
             }
-            Tab("Bibliothèque", systemImage: "books.vertical.fill", value: AppTab.library) {
+            Tab("Bibliothèque", systemImage: "square.stack.fill", value: AppTab.library) {
                 tab(path: $libraryPath) { LibraryView(path: $libraryPath) }
             }
-            // `role: .search` : traitement spécial natif du dernier onglet
-            // (champ de recherche intégré à la barre elle-même) — le même
-            // que Musique, Podcasts ou l'App Store depuis iOS 26.
             Tab(value: AppTab.search, role: .search) {
                 tab(path: $searchPath) { SearchView(path: $searchPath) }
             } label: {
                 Label("Rechercher", systemImage: "magnifyingglass")
             }
         }
-        .tint(EncreColor.spot)
-        // Rétrécit en un bouton rond au défilement vers le bas, comme la
-        // barre de Musique/Podcasts.
+        .tint(.white)
         .tabBarMinimizeBehavior(.onScrollDown)
-        // `.tabViewBottomAccessory` (le mécanisme natif du mini-lecteur
-        // fusionné à la barre) laissait une pastille de verre vide visible
-        // même sans morceau en cours — le système semble réserver le
-        // conteneur dès qu'une closure est fournie, contenu vide ou non.
-        // `.safeAreaInset` avec notre propre verre (`glassCapsule`, vrai
-        // `glassEffect()` système) donne le même résultat visuel sans cette
-        // pastille fantôme : rien de dessiné tant que `player.current` est
-        // `nil`.
+        // Mini-lecteur en `safeAreaInset` plutôt qu'en
+        // `tabViewBottomAccessory` : ce dernier laisse une pastille de verre
+        // vide visible même sans morceau en cours.
         .safeAreaInset(edge: .bottom) {
             if player.current != nil {
-                MiniPlayerView(player: player) { showingPlayerSheet = true }
-                    .padding(.horizontal, 16)
+                MiniPlayerView(player: player) { showingPlayer = true }
+                    .matchedTransitionSource(id: "player", in: playerNamespace)
+                    .padding(.horizontal, 14)
                     .padding(.bottom, 6)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(duration: 0.35), value: player.current?.id)
+        .animation(Motion.bouncy, value: player.current != nil)
         .environmentObject(player)
-        .sheet(isPresented: $showingPlayerSheet) {
-            NowPlayingSheet(player: player, onOpenRoute: openRoute(_:))
+        .environment(\.zoomNamespace, zoomNamespace)
+        .fullScreenCover(isPresented: $showingPlayer) {
+            FullPlayerView(player: player, onOpenRoute: openRoute(_:))
+                .navigationTransition(.zoom(sourceID: "player", in: playerNamespace))
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack { ServerSettingsView() }
+                .presentationDetents([.medium, .large])
         }
         .fullScreenCover(isPresented: $showingOnboarding) {
             OnboardingView { showingOnboarding = false }
@@ -64,12 +67,10 @@ struct RootTabView: View {
         }
     }
 
-    /// Ferme le lecteur plein écran et pousse la destination sur la pile de
-    /// l'onglet actif — plutôt que de donner au lecteur sa propre pile de
-    /// navigation imbriquée dans la feuille, source de complexité pour un
-    /// gain nul (fermer la feuille pour voir la fiche est un geste naturel).
+    /// Ferme le lecteur plein écran et pousse la fiche sur la pile de
+    /// l'onglet actif.
     private func openRoute(_ route: Route) {
-        showingPlayerSheet = false
+        showingPlayer = false
         switch selectedTab {
         case .home: homePath.append(route)
         case .library: libraryPath.append(route)
@@ -89,13 +90,19 @@ struct RootTabView: View {
                     }
                 }
                 .navigationDestination(for: Route.self) { route in
-                    switch route {
-                    case .album(let source, let id):
-                        AlbumDetailView(source: source, id: id, path: path)
-                    case .artist(let source, let id):
-                        ArtistDetailView(source: source, id: id, path: path)
+                    Group {
+                        switch route {
+                        case .album(let source, let id):
+                            AlbumDetailView(source: source, id: id, path: path)
+                        case .playlist(let source, let id):
+                            AlbumDetailView(source: source, id: id, isPlaylist: true, path: path)
+                        case .artist(let source, let id):
+                            ArtistDetailView(source: source, id: id, path: path)
+                        }
                     }
+                    .zoomDestination(route)
                 }
         }
+        .environment(\.zoomNamespace, zoomNamespace)
     }
 }

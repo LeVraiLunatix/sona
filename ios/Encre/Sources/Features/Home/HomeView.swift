@@ -1,132 +1,157 @@
-import Foundation
 import SwiftUI
 
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject private var player: PlayerManager
     @Binding var path: NavigationPath
+    @State private var startingRadioId: String?
+    @State private var radioError: String?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 36) {
-                header
-
+            LazyVStack(alignment: .leading, spacing: 34) {
                 if let hero = viewModel.heroTrack {
-                    heroCard(hero)
+                    heroCard(hero).padding(.horizontal, 20).reveal(0)
                 }
 
                 if !viewModel.recentTracks.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        SectionHeader(title: "Écouté récemment")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 14) {
-                                ForEach(viewModel.recentTracks) { track in
-                                    TrackTile(track: track) { player.play(track, context: viewModel.recentTracks) }
-                                }
-                            }
+                    section("Écouté récemment", index: 1) {
+                        Carousel(items: viewModel.recentTracks) { track in
+                            TrackTile(track: track) { player.play(track, context: viewModel.recentTracks) }
                         }
                     }
                 }
 
+                if !viewModel.radios.isEmpty {
+                    section("Radios", index: 2) {
+                        Carousel(items: viewModel.radios) { radio in
+                            RadioTile(radio: radio, isLoading: startingRadioId == radio.id) { startRadio(radio) }
+                        }
+                    }
+                }
+
+                if let radioError {
+                    Text(radioError).font(Typo.rowSubtitle).foregroundStyle(Tone.danger).padding(.horizontal, 20)
+                }
+
                 if !viewModel.artists.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        SectionHeader(title: "Vos artistes")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 18) {
-                                ForEach(viewModel.artists) { artist in
-                                    ArtistBubble(name: artist.name, coverURL: artist.coverURL) {
-                                        path.append(Route.artist(source: artist.source, id: artist.artistSourceId))
-                                    }
-                                }
+                    section("Vos artistes", index: 3) {
+                        Carousel(items: viewModel.artists, spacing: 18) { artist in
+                            let route = Route.artist(source: artist.source, id: artist.artistSourceId)
+                            ArtistBubble(name: artist.name, pictureURL: artist.coverURL, route: route) {
+                                path.append(route)
                             }
                         }
                     }
                 }
 
                 if !viewModel.libraryTracks.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        SectionHeader(title: "Votre bibliothèque")
-                        VStack(spacing: 18) {
+                    section("Vos titres", index: 4) {
+                        LazyVStack(spacing: 2) {
                             ForEach(viewModel.libraryTracks) { track in
                                 TrackRow(
-                                    track: track, isCurrent: player.current?.id == track.id,
+                                    track: track,
+                                    isCurrent: player.current?.id == track.id,
+                                    isPlaying: player.isPlaying,
                                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
-                                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
-                                    action: { player.play(track, context: viewModel.libraryTracks) }
-                                )
+                                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                                ) {
+                                    player.play(track, context: viewModel.libraryTracks)
+                                }
                             }
                         }
+                        .padding(.horizontal, 20)
                     }
                 }
 
                 if viewModel.recentTracks.isEmpty && viewModel.libraryTracks.isEmpty && !viewModel.isLoading {
-                    emptyState
+                    EmptyState(
+                        systemImage: "music.note",
+                        title: "Rien à afficher pour l'instant",
+                        message: "Lance une radio ou cherche un titre : ton historique et ta bibliothèque apparaîtront ici."
+                    )
                 }
 
                 if let message = viewModel.errorMessage {
-                    Text(message).font(EncreFont.body(14)).foregroundStyle(EncreColor.accent2_700)
+                    Text(message).font(Typo.rowSubtitle).foregroundStyle(Tone.danger).padding(.horizontal, 20)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 12)
-            .padding(.bottom, 120)
+            .padding(.top, 8)
+            .padding(.bottom, 110)
         }
-        .background(EncreColor.bg)
+        .scrollIndicators(.hidden)
+        .background(Tone.background)
+        .navigationTitle("Écouter")
+        .navigationBarTitleDisplayMode(.large)
+        .overlay {
+            if viewModel.isLoading && viewModel.recentTracks.isEmpty && viewModel.libraryTracks.isEmpty {
+                ProgressView().tint(.white)
+            }
+        }
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
     }
 
-    // Le sous-titre "édition du matin/soir" (clin d'œil imprimerie du thème
-    // Encre) jurait avec l'esthétique Apple Music visée ici — un simple grand
-    // titre, comme l'en-tête de l'onglet "Écouter" d'Apple Music.
-    private var header: some View {
-        Text("Écouter")
-            .font(EncreFont.heading(46))
-            .foregroundStyle(EncreColor.text)
+    private func section<Content: View>(_ title: String, index: Int, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: title).padding(.horizontal, 20)
+            content()
+        }
+        .reveal(index)
     }
 
+    /// « Reprendre l'écoute » : la pochette en grand, fondue dans un voile
+    /// sombre, titre et bouton lecture posés dessus.
     private func heroCard(_ track: Track) -> some View {
-        ZStack(alignment: .bottom) {
-            CoverArt(url: track.coverURL, title: track.title, cornerRadius: 6, showsHalftone: true)
-                .frame(height: 260)
-                .encreShadow(EncreShadow.md)
-
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Reprendre l'écoute")
-                        .font(EncreFont.heading(18))
-                        .foregroundStyle(EncreColor.text)
-                    Text(track.artist)
-                        .font(EncreFont.bodyItalic(14))
-                        .foregroundStyle(EncreColor.neutral700)
+        Button {
+            player.play(track, context: viewModel.recentTracks)
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                Artwork(url: track.coverURL, cornerRadius: 20)
+                    .frame(height: 300)
+                LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("REPRENDRE")
+                            .font(Typo.caption)
+                            .tracking(1.5)
+                            .foregroundStyle(Tone.secondary)
+                        Text(track.title)
+                            .font(Typo.largeTitle)
+                            .foregroundStyle(Tone.primary)
+                            .lineLimit(2)
+                        Text(track.artist)
+                            .font(Typo.body)
+                            .foregroundStyle(Tone.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 12)
+                    Image(systemName: player.current?.id == track.id && player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.black)
+                        .frame(width: 54, height: 54)
+                        .background(Circle().fill(.white))
+                        .contentTransition(.symbolEffect(.replace))
                 }
-                .lineLimit(1)
-                Spacer(minLength: 8)
-                Button { player.play(track, context: viewModel.recentTracks) } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(EncreColor.bg)
-                        .frame(width: 52, height: 52)
-                        .background(Circle().fill(EncreColor.spot))
-                }
+                .padding(20)
             }
-            .padding(.leading, 22)
-            .padding(.trailing, 8)
-            .frame(height: 68)
-            .glassCapsule()
-            .padding(12)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .buttonStyle(.pressable(scale: 0.97))
     }
 
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Rien à afficher pour l'instant")
-                .font(EncreFont.heading(20))
-            Text("Cherchez un titre pour commencer à écouter — l'historique et votre bibliothèque apparaîtront ici.")
-                .font(EncreFont.body(15))
-                .foregroundStyle(EncreColor.neutral600)
+    private func startRadio(_ radio: RadioStation) {
+        guard startingRadioId == nil else { return }
+        startingRadioId = radio.id
+        radioError = nil
+        let radioId = radio.id
+        Task {
+            do {
+                try await player.playStation { try await APIClient.shared.radioTracks(id: radioId) }
+            } catch {
+                radioError = "« \(radio.title) » : \(error.localizedDescription)"
+            }
+            startingRadioId = nil
         }
-        .padding(.top, 40)
     }
 }

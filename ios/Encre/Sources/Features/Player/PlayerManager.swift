@@ -27,6 +27,9 @@ final class PlayerManager: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var progress: Double = 0 // 0...1
     @Published private(set) var positionSeconds: Double = 0
+    /// Durée réelle du fichier en cours (0 tant qu'elle n'est pas connue) :
+    /// plus juste que celle du catalogue, parfois arrondie ou absente.
+    @Published private(set) var durationSeconds: Double = 0
     @Published var errorMessage: String?
 
     /// Morceaux à venir après `current`, dans l'ordre — pour l'écran "À
@@ -44,6 +47,8 @@ final class PlayerManager: ObservableObject {
     /// allonger `context` quand il ne reste presque plus rien à suivre — la
     /// radio ne s'arrête jamais. `nil` pour un album, une liste... finis.
     private var refill: (() async throws -> [Track])?
+    /// Une radio est en cours : la file se renouvelle toute seule.
+    var isStation: Bool { refill != nil }
     private var refillTask: Task<Void, Never>?
     /// Incrémenté à chaque nouveau contexte : un rechargement de station
     /// terminé après que l'utilisateur a lancé autre chose ne doit pas
@@ -276,6 +281,7 @@ final class PlayerManager: ObservableObject {
                 Task { @MainActor in
                     guard let self, let duration = self.player?.currentItem?.duration.seconds, duration.isFinite, duration > 0 else { return }
                     self.positionSeconds = time.seconds
+                    self.durationSeconds = duration
                     self.progress = time.seconds / duration
                     self.updateNowPlayingElapsedTime()
                 }
@@ -309,6 +315,9 @@ final class PlayerManager: ObservableObject {
             player.pause()
         } else {
             try? AVAudioSession.sharedInstance().setActive(true)
+            // Morceau terminé sans suivant : relancer depuis le début plutôt
+            // que de rester bloqué sur la dernière image.
+            if progress >= 0.995 { seek(toFraction: 0) }
             player.play()
         }
     }
@@ -391,13 +400,18 @@ final class PlayerManager: ObservableObject {
         guard let player else { return }
         player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600))
         positionSeconds = max(0, seconds)
+        if durationSeconds > 0 { progress = min(1, positionSeconds / durationSeconds) }
         updateNowPlayingElapsedTime()
     }
 
     func seek(toFraction fraction: Double) {
-        guard let player, let duration = player.currentItem?.duration.seconds, duration.isFinite else { return }
-        let target = CMTime(seconds: fraction * duration, preferredTimescale: 600)
-        player.seek(to: target)
+        guard let player, let duration = player.currentItem?.duration.seconds, duration.isFinite, duration > 0 else { return }
+        let clamped = min(1, max(0, fraction))
+        player.seek(to: CMTime(seconds: clamped * duration, preferredTimescale: 600))
+        // Mis à jour tout de suite : sans ça, la barre revient une demi-seconde
+        // à l'ancienne position (prochain tick) avant de sauter à la nouvelle.
+        progress = clamped
+        positionSeconds = clamped * duration
         updateNowPlayingElapsedTime()
     }
 
@@ -416,6 +430,7 @@ final class PlayerManager: ObservableObject {
         player = nil
         progress = 0
         positionSeconds = 0
+        durationSeconds = 0
     }
 
     // MARK: - Écran verrouillé / Centre de contrôle

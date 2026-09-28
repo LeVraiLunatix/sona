@@ -19,6 +19,9 @@ final class HomeViewModel: ObservableObject {
     @Published var recentTracks: [Track] = []
     @Published var libraryTracks: [Track] = []
     @Published var artists: [ArtistSummary] = []
+    /// Une station par univers (rap, pop, électro...) : de quoi lancer
+    /// quelque chose d'un tap même avec un historique vide.
+    @Published var radios: [RadioStation] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -30,6 +33,9 @@ final class HomeViewModel: ObservableObject {
     func load() async {
         isLoading = true
         errorMessage = nil
+        if radios.isEmpty, let groups = try? await APIClient.shared.radioGroups() {
+            radios = groups.compactMap(\.radios.first)
+        }
         do {
             async let historyPage = APIClient.shared.history(limit: 15)
             async let libraryPage = APIClient.shared.library(kind: "track", limit: 15)

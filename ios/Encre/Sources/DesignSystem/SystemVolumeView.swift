@@ -9,14 +9,11 @@ struct SystemVolumeView: UIViewRepresentable {
     func makeUIView(context: Context) -> MPVolumeView {
         let view = MPVolumeView(frame: .zero)
         view.showsRouteButton = true
-        // Le curseur système est blanc par défaut, invisible sur le papier
-        // clair d'Encre ; teinté avec l'encre du thème pour rester lisible
-        // dans les deux variantes de couleur.
-        view.tintColor = UIColor(EncreColor.text)
+        view.tintColor = .white
         return view
     }
 
     func updateUIView(_ uiView: MPVolumeView, context: Context) {
-        uiView.tintColor = UIColor(EncreColor.text)
+        uiView.tintColor = .white
     }
 }
