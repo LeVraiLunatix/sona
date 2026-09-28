@@ -1,4 +1,6 @@
+import Combine
 import SwiftUI
+import UIKit
 
 enum AppTab: Hashable {
     case home, library, search
@@ -17,43 +19,30 @@ struct RootTabView: View {
     @State private var showingSettings = false
     @State private var showingOnboarding = false
     @State private var showingPlayer = false
+    @State private var keyboardVisible = false
     @Namespace private var zoomNamespace
     @Namespace private var playerNamespace
 
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("Écouter", systemImage: "play.circle.fill", value: AppTab.home) {
-                tab(path: $homePath) { HomeView(path: $homePath) }
+                tab(.home, path: $homePath) { HomeView(path: $homePath) }
             }
             Tab("Bibliothèque", systemImage: "square.stack.fill", value: AppTab.library) {
-                tab(path: $libraryPath) { LibraryView(path: $libraryPath) }
+                tab(.library, path: $libraryPath) { LibraryView(path: $libraryPath) }
             }
             Tab(value: AppTab.search, role: .search) {
-                tab(path: $searchPath) { SearchView(path: $searchPath) }
+                tab(.search, path: $searchPath) { SearchView(path: $searchPath) }
             } label: {
                 Label("Rechercher", systemImage: "magnifyingglass")
             }
         }
         .tint(.white)
-        .tabBarMinimizeBehavior(.onScrollDown)
-        // Mini-lecteur en `safeAreaInset` plutôt qu'en
-        // `tabViewBottomAccessory` : ce dernier laisse une pastille de verre
-        // vide visible même sans morceau en cours.
-        .safeAreaInset(edge: .bottom) {
-            if player.current != nil {
-                MiniPlayerView(player: player) { showingPlayer = true }
-                    .matchedTransitionSource(id: "player", in: playerNamespace)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 6)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(Motion.bouncy, value: player.current != nil)
         .environmentObject(player)
         .environment(\.zoomNamespace, zoomNamespace)
         .fullScreenCover(isPresented: $showingPlayer) {
             FullPlayerView(player: player, onOpenRoute: openRoute(_:))
-                .navigationTransition(.zoom(sourceID: "player", in: playerNamespace))
+                .navigationTransition(.zoom(sourceID: playerSourceID(selectedTab), in: playerNamespace))
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack { ServerSettingsView() }
@@ -64,6 +53,23 @@ struct RootTabView: View {
         }
         .task {
             if !APIConfig.shared.isConfigured { showingOnboarding = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
+    }
+
+    /// Un mini-lecteur par onglet (chacun sous sa propre pile) : chacun sa
+    /// source de zoom, pour que le lecteur grandisse depuis celui qui est
+    /// réellement à l'écran.
+    private func playerSourceID(_ tab: AppTab) -> String {
+        switch tab {
+        case .home: "player-home"
+        case .library: "player-library"
+        case .search: "player-search"
         }
     }
 
@@ -79,7 +85,7 @@ struct RootTabView: View {
     }
 
     @ViewBuilder
-    private func tab<Content: View>(path: Binding<NavigationPath>, @ViewBuilder content: () -> Content) -> some View {
+    private func tab<Content: View>(_ tab: AppTab, path: Binding<NavigationPath>, @ViewBuilder content: () -> Content) -> some View {
         NavigationStack(path: path) {
             content()
                 .toolbar {
@@ -103,6 +109,21 @@ struct RootTabView: View {
                     .zoomDestination(route)
                 }
         }
+        // Posé sur la pile de l'onglet (et non sur la `TabView`) : la zone
+        // sûre du contenu d'un onglet s'arrête déjà au-dessus de la barre
+        // d'onglets, le mini-lecteur s'y pose donc au lieu de la recouvrir.
+        // Caché pendant la saisie : il masquait le champ de recherche et le
+        // clavier.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if player.current != nil && !keyboardVisible {
+                MiniPlayerView(player: player) { showingPlayer = true }
+                    .matchedTransitionSource(id: playerSourceID(tab), in: playerNamespace)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(Motion.bouncy, value: player.current != nil && !keyboardVisible)
         .environment(\.zoomNamespace, zoomNamespace)
     }
 }

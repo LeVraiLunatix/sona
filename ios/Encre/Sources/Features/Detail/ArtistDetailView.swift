@@ -38,7 +38,7 @@ struct ArtistDetailView: View {
                     }
                     .padding(.top, 20)
                 }
-                .padding(.bottom, 110)
+                .padding(.bottom, 24)
             } else if let errorMessage {
                 EmptyState(systemImage: "exclamationmark.triangle", title: "Artiste indisponible", message: errorMessage)
                     .padding(.top, 140)

@@ -45,12 +45,14 @@ struct LyricsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                        let distance = abs(index - (active ?? -1))
                         let isActive = index == active
+                        // Avant la première ligne (intro, ou lecture pas
+                        // encore lancée) : tout net et estompé, rien de flou.
+                        let blur = active.map { isActive ? 0 : min(3.5, Double(abs(index - $0)) * 0.9) } ?? 0
                         Text(line.text.isEmpty ? "♪" : line.text)
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(isActive ? 1 : (index < (active ?? 0) ? 0.3 : 0.4)))
-                            .blur(radius: isActive ? 0 : min(3.5, Double(distance) * 0.9))
+                            .foregroundStyle(Color.white.opacity(isActive ? 1 : (index < (active ?? 0) ? 0.3 : 0.45)))
+                            .blur(radius: blur)
                             .scaleEffect(isActive ? 1 : 0.97, anchor: .leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())

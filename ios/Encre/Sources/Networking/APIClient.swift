@@ -239,6 +239,18 @@ final class APIClient {
 
     // MARK: - Streaming
 
+    /// Demande au serveur de télécharger et vérifier le morceau, sans
+    /// l'envoyer. Long délai : un premier téléchargement peut prendre du
+    /// temps ; un morceau déjà prêt répond immédiatement.
+    func prepareStream(source: String, id: String, quality: String = "best", format: String = "auto") async throws {
+        var req = try request("/stream/\(source)/\(id)/prepare", method: "POST", query: [
+            URLQueryItem(name: "quality", value: quality),
+            URLQueryItem(name: "format", value: format),
+        ])
+        req.timeoutInterval = 180
+        try await sendNoContent(req)
+    }
+
     /// URL + en-têtes à passer à `AVURLAsset` pour lire un morceau : le
     /// serveur télécharge (si besoin), vérifie l'audio puis le sert avec
     /// support des requêtes `Range`, indispensable pour qu'`AVPlayer` puisse
