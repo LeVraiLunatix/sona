@@ -15,7 +15,12 @@ enum APIError: LocalizedError {
             switch status {
             case 401, 403: return "Jeton refusé par le serveur — vérifie-le dans Réglages."
             case 404: return message.isEmpty ? "Introuvable." : message
-            case 502, 503, 504: return message.isEmpty ? "Le serveur n'arrive pas à joindre ses sources pour l'instant." : message
+            case 502, 503, 504:
+                // Sans texte : c'est le proxy HTTPS qui répond à la place de
+                // l'API (arrêtée, en train de redémarrer, machine saturée).
+                return message.isEmpty || message.hasPrefix("<")
+                    ? "Le serveur ne répond pas pour l'instant (il redémarre peut-être). Réessaie dans un moment."
+                    : message
             default: return message.isEmpty ? "Erreur \(status) du serveur." : message
             }
         }

@@ -11,6 +11,9 @@ final class AuthManager: ObservableObject {
     enum State: Equatable {
         case checking
         case signedOut
+        /// Session enregistrée mais serveur injoignable : on ne déconnecte
+        /// pas pour autant, on réessaie.
+        case unreachable(String)
         case pending(AppAccount)
         case rejected(AppAccount)
         case approved(AppAccount)
@@ -52,11 +55,14 @@ final class AuthManager: ObservableObject {
             }
             state = .signedOut
         } catch {
-            // Serveur injoignable : on garde l'état connu plutôt que de
-            // déconnecter ; au premier lancement, on laisse réessayer.
-            if state == .checking {
-                errorMessage = error.localizedDescription
-                state = .signedOut
+            // Serveur injoignable ou en panne : jamais une raison de renvoyer
+            // à l'écran de connexion (la session reste valable). On garde
+            // l'état connu, sinon on affiche l'écran « serveur injoignable ».
+            switch state {
+            case .checking, .unreachable, .signedOut:
+                state = .unreachable(error.localizedDescription)
+            default:
+                break
             }
         }
     }
