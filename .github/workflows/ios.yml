@@ -122,11 +122,11 @@ jobs:
           cd build/Build/Products/Debug-iphoneos
           mkdir Payload
           cp -r Encre.app Payload/
-          zip -qr Encre.ipa Payload
-          mv Encre.ipa "$GITHUB_WORKSPACE/Encre.ipa"
+          zip -qr Sona.ipa Payload
+          mv Sona.ipa "$GITHUB_WORKSPACE/Sona.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Encre-ipa
-          path: Encre.ipa
+          name: Sona-ipa
+          path: Sona.ipa
           retention-days: 14

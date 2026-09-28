@@ -165,7 +165,7 @@ async def _notify_admins(deps: ApiDeps, account: Account) -> None:
         return
     name = account.display_name or account.lastfm_username
     text = (
-        f"🔔 Nouvelle demande d'accès à l'app Encre : {name} (Last.fm : {account.lastfm_username}).\n"
+        f"🔔 Nouvelle demande d'accès à l'app Sona : {name} (Last.fm : {account.lastfm_username}).\n"
         "Accepte-la depuis l'app : Réglages → Administration."
     )
     try:
