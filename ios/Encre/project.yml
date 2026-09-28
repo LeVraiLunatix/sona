@@ -18,7 +18,7 @@ targets:
     info:
       path: Generated/Info.plist
       properties:
-        CFBundleDisplayName: Encre
+        CFBundleDisplayName: Sona
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo

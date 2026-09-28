@@ -1,7 +1,11 @@
-# Encre (app iOS)
+# Sona (app iOS)
 
 App SwiftUI native branchée sur l'[API privée de Sona](../../README.md#api-backend-pour-une-app-iphone).
 Usage strictement personnel, comme le reste du projet.
+
+L'app s'appelle **Sona** sur l'iPhone (nom affiché et icône) ; le projet
+Xcode garde son nom interne `Encre` (dossier `ios/Encre`, cible `Encre`), sans
+effet visible. Icône et logo de lancement : `python Scripts/make_icon.py`.
 
 ## Direction artistique
 
@@ -57,9 +61,9 @@ un Mac pour l'obtenir :
 
 1. Onglet **Actions** du dépôt GitHub → workflow **iOS** → l'exécution la
    plus récente sur `master` (ou lance-la à la main avec **Run workflow**).
-2. Télécharge l'artefact **Encre-ipa** (zip contenant `Encre.ipa`).
+2. Télécharge l'artefact **Sona-ipa** (zip contenant `Sona.ipa`).
 3. Installe-le sur ton iPhone avec [Sideloadly](https://sideloadly.io/)
-   (Windows/Mac) : branche l'iPhone en USB, glisse `Encre.ipa` dans
+   (Windows/Mac) : branche l'iPhone en USB, glisse `Sona.ipa` dans
    Sideloadly, renseigne un identifiant Apple (gratuit ou payant) — c'est
    Sideloadly qui signe l'app à l'installation, pas la CI.
 4. Avec un identifiant Apple **gratuit**, l'app expire au bout de 7 jours
