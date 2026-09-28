@@ -79,6 +79,7 @@ def _artist_from_json(d: dict) -> ArtistInfo:
         source_id=str(d["id"]),
         name=d.get("name") or "Artiste inconnu",
         picture_url=_largest_image(d, "picture"),
+        fans=d.get("nb_fan"),
     )
 
 
@@ -199,6 +200,31 @@ class DeezerClient:
             else:
                 singles.append(info)
         return albums, singles
+
+    async def search_artists(self, query: str, limit: int = 10) -> list[ArtistInfo]:
+        """Recherche d'artistes — tolérante aux fautes côté Deezer
+        (« eiak » → Ziak), contrairement à la recherche de morceaux."""
+        data = await self._get("/search/artist", {"q": query, "limit": limit})
+        return [_artist_from_json(d) for d in data.get("data", [])]
+
+    async def search_albums(self, query: str, limit: int = 10) -> list[AlbumInfo]:
+        data = await self._get("/search/album", {"q": query, "limit": limit})
+        return [_album_from_json(d) for d in data.get("data", [])]
+
+    async def get_related_artists(self, artist_id: str, limit: int = 20) -> list[ArtistInfo]:
+        data = await self._get(f"/artist/{artist_id}/related", {"limit": limit})
+        return [_artist_from_json(d) for d in data.get("data", [])]
+
+    async def get_artist_radio(self, artist_id: str, limit: int = 25) -> list[TrackInfo]:
+        """« Mix » de l'artiste : ses titres et ceux d'artistes proches. Deezer
+        en renvoie un nouveau tirage à chaque appel — de quoi alimenter une
+        station sans fin."""
+        data = await self._get(f"/artist/{artist_id}/radio", {"limit": limit})
+        return [_track_from_json(d) for d in data.get("data", [])]
+
+    async def get_radio_tracks(self, radio_id: str, limit: int = 25) -> list[TrackInfo]:
+        data = await self._get(f"/radio/{radio_id}/tracks", {"limit": limit})
+        return [_track_from_json(d) for d in data.get("data", [])]
 
     async def get_track_by_isrc(self, isrc: str) -> TrackInfo | None:
         """Morceau portant ce code ISRC, ou None s'il n'est pas au catalogue.

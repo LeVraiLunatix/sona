@@ -67,10 +67,24 @@ class Artist(BaseModel):
     source_id: str
     name: str
     picture_url: str | None
+    fans: int | None = None
 
     @classmethod
     def from_info(cls, a: ArtistInfo) -> "Artist":
-        return cls(source=a.source, source_id=a.source_id, name=a.name, picture_url=a.picture_url)
+        return cls(
+            source=a.source, source_id=a.source_id, name=a.name, picture_url=a.picture_url, fans=a.fans,
+        )
+
+
+class RadioStation(BaseModel):
+    id: str
+    title: str
+    picture_url: str | None
+
+
+class RadioGroup(BaseModel):
+    title: str
+    radios: list[RadioStation]
 
 
 class SearchResponse(BaseModel):

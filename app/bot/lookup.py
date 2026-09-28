@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+
 from app.bot.deps import Deps
 from app.providers import youtube
 from app.providers.apple import AppleMusicClient, AppleMusicError
@@ -77,6 +79,27 @@ async def get_artist_top_tracks(deps: Deps, source: str, source_id: str) -> list
     if source == "youtube":
         return await resolver.get_artist_top_tracks_youtube(source_id)
     raise UnknownSourceError(source)
+
+
+async def get_related_artists(deps: Deps, source: str, source_id: str) -> list[ArtistInfo]:
+    """Artistes similaires — seul Deezer expose cette donnée ; les autres
+    sources renvoient une liste vide plutôt qu'une erreur (section masquée
+    côté app)."""
+    if source == "deezer":
+        return await deps.deezer.get_related_artists(source_id)
+    if source in ("apple", "spotify", "youtube"):
+        return []
+    raise UnknownSourceError(source)
+
+
+async def get_artist_radio(deps: Deps, source: str, source_id: str) -> list[TrackInfo]:
+    """Station d'un artiste : le vrai « mix » Deezer quand il existe, sinon
+    ses titres populaires mélangés."""
+    if source == "deezer":
+        return await deps.deezer.get_artist_radio(source_id)
+    tracks = list(await get_artist_top_tracks(deps, source, source_id))
+    random.shuffle(tracks)
+    return tracks
 
 
 async def get_artist_albums(

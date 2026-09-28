@@ -627,6 +627,36 @@ async def get_artist_top_tracks_youtube(channel_id: str, limit: int = 25) -> lis
     return tracks
 
 
+def _search_artists_youtube_sync(query: str, limit: int) -> list[ArtistInfo]:
+    try:
+        results = _ytmusic().search(query, filter="artists", limit=limit)
+    except Exception as exc:
+        logger.warning("Recherche d'artistes YouTube Music échouée pour %r: %s", query, exc)
+        return []
+    artists: list[ArtistInfo] = []
+    for item in results or []:
+        browse_id = item.get("browseId")
+        name = item.get("artist") or item.get("title")
+        if not browse_id or not name:
+            continue
+        thumbnails = item.get("thumbnails") or []
+        artists.append(
+            ArtistInfo(
+                source="youtube",
+                source_id=browse_id,
+                name=name,
+                picture_url=thumbnails[-1]["url"] if thumbnails else None,
+            )
+        )
+    return artists[:limit]
+
+
+async def search_artists_youtube(query: str, limit: int = 10) -> list[ArtistInfo]:
+    """Repli de la recherche d'artistes quand Deezer ne connaît personne :
+    les artistes underground n'existent parfois que sur YouTube Music."""
+    return await asyncio.to_thread(_search_artists_youtube_sync, query, limit)
+
+
 def _search_tracks_ytdlp_sync(query: str, limit: int) -> list[TrackInfo]:
     """Dernier repli de la recherche texte, quand YouTube Music lui-même ne
     trouve rien : la recherche YouTube "brute" (le moteur Google général,

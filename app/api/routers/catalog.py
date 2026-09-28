@@ -53,6 +53,22 @@ async def get_artist_top_tracks(
     return [Track.from_info(t) for t in tracks]
 
 
+@router.get("/artists/{source}/{source_id}/related", response_model=list[Artist])
+async def get_related_artists(
+    source: str, source_id: str, deps: ApiDeps = Depends(require_token)
+) -> list[Artist]:
+    artists = await _handle(lookup.get_related_artists(deps, source, source_id))
+    return [Artist.from_info(a) for a in artists]
+
+
+@router.get("/artists/{source}/{source_id}/radio", response_model=list[Track])
+async def get_artist_radio(
+    source: str, source_id: str, deps: ApiDeps = Depends(require_token)
+) -> list[Track]:
+    tracks = await _handle(lookup.get_artist_radio(deps, source, source_id))
+    return [Track.from_info(t) for t in tracks]
+
+
 @router.get("/artists/{source}/{source_id}/albums")
 async def get_artist_albums(
     source: str, source_id: str, deps: ApiDeps = Depends(require_token)
