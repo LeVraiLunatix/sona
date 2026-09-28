@@ -8,7 +8,10 @@ struct ArtistDetailView: View {
     @State private var topTracks: [Track] = []
     @State private var albums: [Album] = []
     @State private var singles: [Album] = []
+    @State private var related: [Artist] = []
     @State private var errorMessage: String?
+    @State private var isStartingRadio = false
+    @State private var radioError: String?
     @EnvironmentObject private var player: PlayerManager
     @Binding var path: NavigationPath
 
@@ -34,20 +37,48 @@ struct ArtistDetailView: View {
                         .padding(24)
                     }
 
-                    if !topTracks.isEmpty {
-                        Button {
-                            player.play(topTracks[0], context: topTracks)
-                        } label: {
-                            Label("Écouter", systemImage: "play.fill")
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            if !topTracks.isEmpty {
+                                Button {
+                                    player.play(topTracks[0], context: topTracks)
+                                } label: {
+                                    Label("Écouter", systemImage: "play.fill")
+                                        .font(EncreFont.heading(17))
+                                        .padding(.horizontal, 26)
+                                        .frame(height: 48)
+                                }
+                                .buttonStyle(.plain)
+                                .background(Capsule().fill(EncreColor.spot))
+                                .foregroundStyle(EncreColor.bg)
+                            }
+
+                            // Station sans fin autour de l'artiste (le « mix »
+                            // Deezer, ou ses titres populaires mélangés pour
+                            // les autres sources) — voir `PlayerManager.playStation`.
+                            Button { startRadio() } label: {
+                                HStack(spacing: 8) {
+                                    if isStartingRadio {
+                                        ProgressView().tint(EncreColor.text)
+                                    } else {
+                                        Image(systemName: "dot.radiowaves.left.and.right")
+                                    }
+                                    Text("Radio")
+                                }
                                 .font(EncreFont.heading(17))
-                                .padding(.horizontal, 26)
+                                .padding(.horizontal, 22)
                                 .frame(height: 48)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(EncreColor.text)
+                            .glassCapsule()
+                            .disabled(isStartingRadio)
                         }
-                        .buttonStyle(.plain)
-                        .background(Capsule().fill(EncreColor.spot))
-                        .foregroundStyle(EncreColor.bg)
-                        .padding(.horizontal, 24)
+                        if let radioError {
+                            Text(radioError).font(EncreFont.body(14)).foregroundStyle(EncreColor.accent2_700)
+                        }
                     }
+                    .padding(.horizontal, 24)
 
                     if !topTracks.isEmpty {
                         VStack(alignment: .leading, spacing: 14) {
@@ -80,6 +111,22 @@ struct ArtistDetailView: View {
                             albumGrid(singles)
                         }
                         .padding(.horizontal, 24)
+                    }
+                    if !related.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeader(title: "Artistes similaires")
+                                .padding(.horizontal, 24)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 18) {
+                                    ForEach(related) { other in
+                                        ArtistBubble(name: other.name, coverURL: other.pictureURL) {
+                                            path.append(Route.artist(source: other.source, id: other.sourceId))
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 24)
+                            }
+                        }
                     }
                 } else if let errorMessage {
                     Text(errorMessage).font(EncreFont.body(15)).padding(24)
@@ -122,6 +169,26 @@ struct ArtistDetailView: View {
             singles = albumSet.singles
         } catch {
             errorMessage = error.localizedDescription
+            return
+        }
+        // À part et sans erreur affichée : une section en plus, pas de quoi
+        // faire échouer toute la fiche si elle ne répond pas.
+        related = (try? await APIClient.shared.relatedArtists(source: source, id: id)) ?? []
+    }
+
+    private func startRadio() {
+        isStartingRadio = true
+        radioError = nil
+        let source = source, id = id
+        Task {
+            do {
+                try await player.playStation {
+                    try await APIClient.shared.artistRadio(source: source, id: id)
+                }
+            } catch {
+                radioError = error.localizedDescription
+            }
+            isStartingRadio = false
         }
     }
 }

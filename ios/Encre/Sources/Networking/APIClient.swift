@@ -89,6 +89,20 @@ final class APIClient {
         return try await send(try request("/search", query: items))
     }
 
+    func searchArtists(query: String, limit: Int = 8) async throws -> [Artist] {
+        try await send(try request("/search/artists", query: [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+        ]))
+    }
+
+    func searchAlbums(query: String, limit: Int = 8) async throws -> [Album] {
+        try await send(try request("/search/albums", query: [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+        ]))
+    }
+
     func resolve(text: String) async throws -> ResolvedLink {
         struct Body: Encodable { let text: String }
         let data = try encode(Body(text: text))
@@ -119,6 +133,28 @@ final class APIClient {
 
     func artistAlbums(source: String, id: String) async throws -> ArtistAlbums {
         try await send(try request("/artists/\(source)/\(id)/albums"))
+    }
+
+    /// Vide (pas une erreur) pour les sources sans donnée d'artistes
+    /// similaires — tout sauf Deezer.
+    func relatedArtists(source: String, id: String) async throws -> [Artist] {
+        try await send(try request("/artists/\(source)/\(id)/related"))
+    }
+
+    /// Nouveau tirage à chaque appel (le « mix » Deezer de l'artiste, ou ses
+    /// titres populaires mélangés pour les autres sources).
+    func artistRadio(source: String, id: String) async throws -> [Track] {
+        try await send(try request("/artists/\(source)/\(id)/radio"))
+    }
+
+    // MARK: - Radios
+
+    func radioGroups() async throws -> [RadioGroup] {
+        try await send(try request("/browse/radios"))
+    }
+
+    func radioTracks(id: String) async throws -> [Track] {
+        try await send(try request("/radios/\(id)/tracks"))
     }
 
     // MARK: - Bibliothèque

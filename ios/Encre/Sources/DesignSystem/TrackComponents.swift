@@ -97,6 +97,62 @@ struct TrackTile: View {
     }
 }
 
+/// Vignette d'album (résultats de recherche) : pochette carrée, titre et
+/// artiste — même gabarit que `TrackTile` pour s'aligner dans une rangée.
+struct AlbumTile: View {
+    let album: Album
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                CoverArt(url: album.coverURL, title: album.title)
+                    .frame(width: 150, height: 150)
+                    .encreShadow(EncreShadow.sm)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(album.title).font(EncreFont.heading(16)).foregroundStyle(EncreColor.text).lineLimit(1)
+                    Text([album.artist, album.year].compactMap { $0 }.joined(separator: " · "))
+                        .font(EncreFont.bodyItalic(14)).foregroundStyle(EncreColor.neutral600).lineLimit(1)
+                }
+            }
+            .frame(width: 150, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Vignette de radio thématique (onglet Recherche, champ vide) : l'image
+/// Deezer de la station avec son nom posé dessus, façon carte de genre
+/// d'Apple Music. `isLoading` pendant le premier tirage de la station.
+struct RadioTile: View {
+    let radio: RadioStation
+    var isLoading: Bool = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .bottomLeading) {
+                CoverArt(url: radio.pictureURL, title: radio.title)
+                LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
+                Text(radio.title)
+                    .font(EncreFont.heading(16))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .padding(10)
+                if isLoading {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(width: 140, height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .encreShadow(EncreShadow.sm)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Portrait circulaire d'artiste (accueil : "Vos artistes").
 struct ArtistBubble: View {
     let name: String

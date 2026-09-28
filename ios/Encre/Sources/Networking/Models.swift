@@ -63,14 +63,36 @@ struct Artist: Codable, Identifiable, Hashable {
     var sourceId: String
     var name: String
     var pictureURL: String?
+    /// Nombre de fans Deezer — `nil` pour les autres sources.
+    var fans: Int?
 
     enum CodingKeys: String, CodingKey {
-        case source, name
+        case source, name, fans
         case sourceId = "source_id"
         case pictureURL = "picture_url"
     }
 
     var id: String { "\(source):\(sourceId)" }
+}
+
+/// Radio thématique Deezer (`/browse/radios`) : une station sans fin, dont
+/// `/radios/{id}/tracks` renvoie un nouveau tirage à chaque appel.
+struct RadioStation: Codable, Identifiable, Hashable {
+    var id: String
+    var title: String
+    var pictureURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title
+        case pictureURL = "picture_url"
+    }
+}
+
+struct RadioGroup: Codable, Identifiable, Hashable {
+    var title: String
+    var radios: [RadioStation]
+
+    var id: String { title }
 }
 
 struct SearchResponse: Codable {
