@@ -17,6 +17,7 @@ from app.logging_config import ytdlp_logger
 from app.providers.base import ArtistInfo, TrackInfo
 from app.providers.youtube import YoutubeError
 from app.services.artwork import DISPLAY_SIZE, resize_artwork_url
+from app.services.ytdlp_runtime import with_js_runtimes
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +361,7 @@ def _search_ytdlp_sync(query: str, cookies_file: Path | None) -> list[Candidate]
     if cookies_file is not None:
         opts["cookiefile"] = str(cookies_file)
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
             data = ydl.extract_info(f"ytsearch{SEARCH_LIMIT}:{query}", download=False)
     except Exception as exc:
         logger.warning("Recherche yt-dlp échouée pour %r: %s", query, exc)
@@ -446,7 +447,7 @@ def _search_soundcloud_sync(query: str) -> list[Candidate]:
         "socket_timeout": 20,
     }
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
             data = ydl.extract_info(f"scsearch{SEARCH_LIMIT}:{query}", download=False)
     except Exception as exc:
         logger.warning("Recherche SoundCloud échouée pour %r: %s", query, exc)
@@ -672,7 +673,7 @@ def _search_tracks_ytdlp_sync(query: str, limit: int) -> list[TrackInfo]:
         "socket_timeout": 20,
     }
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
             data = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
     except Exception as exc:
         logger.warning("Recherche YouTube (yt-dlp) échouée pour %r: %s", query, exc)

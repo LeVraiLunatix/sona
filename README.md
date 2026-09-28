@@ -30,6 +30,14 @@ utilisateur (écrans, navigation, callbacks).
 - **Cache** : une fois un morceau envoyé, son `file_id` Telegram est mis en
   cache (par source/format/qualité) — les demandes suivantes du même morceau
   sont donc instantanées, sans re-télécharger.
+  Depuis fin 2025, `yt-dlp` doit exécuter le JavaScript du lecteur YouTube :
+  `requirements.txt` installe donc **Deno** avec lui (`yt-dlp[default,deno]`,
+  binaire placé dans le venv) ; Node/Bun, s'ils sont présents, servent de
+  secours. Sans moteur JavaScript, *tous* les téléchargements échouent.
+- **Lecture instantanée (app iOS)** : un morceau pas encore en cache est
+  relayé directement depuis YouTube (démarrage en quelques secondes) pendant
+  que le fichier vérifié se prépare en arrière-plan ; le morceau suivant de
+  la file est préparé à l'avance.
 
 ## Prérequis
 

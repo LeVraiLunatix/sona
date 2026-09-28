@@ -27,6 +27,7 @@ import yt_dlp
 
 from app.config import resolve_youtube_cookies_file
 from app.logging_config import setup_logging, ytdlp_logger
+from app.services.ytdlp_runtime import with_js_runtimes
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def probe_logged_in(cookies_file: Path) -> bool | None:
             "socket_timeout": _SOCKET_TIMEOUT_SECONDS,
             "logger": ytdlp_logger,
         }
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
             with ydl.urlopen(_HOME_URL) as response:
                 html = response.read(_MAX_PAGE_BYTES).decode("utf-8", errors="replace")
     finally:

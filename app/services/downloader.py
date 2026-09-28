@@ -17,6 +17,7 @@ from app.config import Settings
 from app.logging_config import ytdlp_logger
 from app.providers.base import TrackInfo
 from app.services import artwork, youtube_session
+from app.services.ytdlp_runtime import with_js_runtimes
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ def _download_sync(
     for index, attempt in enumerate(attempts):
         opts = _build_opts(attempt, out_template, ffmpeg_path, quality, codec, cookies_file)
         try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
+            with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
             return _find_output(Path(filename).with_suffix(f".{codec}"))
