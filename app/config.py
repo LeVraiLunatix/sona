@@ -46,6 +46,12 @@ class Settings:
     # clé API gratuite (https://www.last.fm/api/account/create) + pseudo.
     lastfm_api_key: str | None = None
     lastfm_user: str | None = None
+    # Secret partagé de l'application Last.fm : nécessaire à la connexion
+    # « Se connecter avec Last.fm » de l'app et au scrobbling.
+    lastfm_api_secret: str | None = None
+    # Pseudos Last.fm administrateurs de l'app (acceptés d'office, accès au
+    # panel d'admin). Par défaut : LASTFM_USER.
+    admin_lastfm_users: frozenset[str] = frozenset()
 
     @property
     def is_private_mode(self) -> bool:
@@ -105,4 +111,10 @@ def load_settings() -> Settings:
         stream_cache_dir=stream_cache_dir,
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip() or None,
         lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
+        lastfm_api_secret=os.getenv("LASTFM_API_SECRET", "").strip() or None,
+        admin_lastfm_users=frozenset(
+            name.strip().casefold()
+            for name in (os.getenv("ADMIN_LASTFM_USERS") or os.getenv("LASTFM_USER") or "").split(",")
+            if name.strip()
+        ),
     )

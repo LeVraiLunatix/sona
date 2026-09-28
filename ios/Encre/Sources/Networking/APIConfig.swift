@@ -12,16 +12,26 @@ final class APIConfig: ObservableObject {
     @Published var baseURLString: String {
         didSet { UserDefaults.standard.set(baseURLString, forKey: Keys.baseURL) }
     }
+    /// Ancien jeton unique (API_TOKEN du serveur), réservé à l'administrateur
+    /// — facultatif depuis la connexion Last.fm.
     @Published var token: String {
         didSet { Keychain.set(token, forKey: Keys.token) }
     }
+    /// Session ouverte avec « Se connecter avec Last.fm ».
+    @Published var sessionToken: String {
+        didSet { Keychain.set(sessionToken, forKey: Keys.session) }
+    }
 
     var baseURL: URL? { URL(string: baseURLString) }
-    var isConfigured: Bool { baseURL != nil && !token.isEmpty }
+    var hasCredentials: Bool { !sessionToken.isEmpty || !token.isEmpty }
+    var isConfigured: Bool { baseURL != nil && hasCredentials }
+    /// Session Last.fm en priorité, sinon l'ancien jeton.
+    var bearer: String { sessionToken.isEmpty ? token : sessionToken }
 
     private enum Keys {
         static let baseURL = "encre.api.baseURL"
         static let token = "encre.api.token"
+        static let session = "encre.api.session"
     }
 
     private init() {
@@ -36,6 +46,7 @@ final class APIConfig: ObservableObject {
         baseURLString = UserDefaults.standard.string(forKey: Keys.baseURL)
             ?? (BuildSecrets.apiBaseURL.isEmpty ? "http://127.0.0.1:8000" : BuildSecrets.apiBaseURL)
         token = Keychain.get(Keys.token) ?? BuildSecrets.apiToken
+        sessionToken = Keychain.get(Keys.session) ?? ""
     }
 }
 

@@ -11,8 +11,41 @@ struct EncreApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
+            AppGate()
                 .preferredColorScheme(.dark)
+        }
+    }
+}
+
+/// Aiguillage selon le compte : connexion, attente de validation par un
+/// admin, accès refusé, ou l'app elle-même.
+struct AppGate: View {
+    @StateObject private var auth = AuthManager.shared
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        ZStack {
+            switch auth.state {
+            case .checking:
+                Tone.background.ignoresSafeArea()
+                ProgressView().tint(.white)
+            case .signedOut:
+                LoginView().transition(.opacity)
+            case .pending(let account):
+                AccessPendingView(account: account, rejected: false).transition(.opacity)
+            case .rejected(let account):
+                AccessPendingView(account: account, rejected: true).transition(.opacity)
+            case .approved:
+                RootTabView().transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .animation(Motion.smooth, value: auth.state)
+        .environmentObject(auth)
+        .task { await auth.refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            // Au retour dans l'app : un accès accordé (ou révoqué) entre-temps
+            // est pris en compte sans relancer l'app.
+            if phase == .active { Task { await auth.refresh() } }
         }
     }
 }

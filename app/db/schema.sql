@@ -112,3 +112,32 @@ CREATE TABLE IF NOT EXISTS plays (
     UNIQUE (user_id, played_at, title, artist)
 );
 CREATE INDEX IF NOT EXISTS idx_plays_user_time ON plays (user_id, played_at);
+
+-- Comptes de l'app iOS, connectés avec Last.fm. Un compte n'accède à l'app
+-- qu'une fois accepté par un admin (status = 'approved'). `user_id` est
+-- l'espace de données du compte (bibliothèque, historique, réglages,
+-- écoutes) : le premier admin reprend celui de l'ancien jeton unique
+-- (API_USER_ID) pour garder ses données.
+CREATE TABLE IF NOT EXISTS app_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lastfm_username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    display_name TEXT,
+    avatar_url TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    user_id INTEGER NOT NULL UNIQUE,
+    lastfm_session_key TEXT,
+    scrobble_to_lastfm INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by INTEGER
+);
+
+-- Sessions de l'app : seule l'empreinte SHA-256 du jeton est stockée.
+CREATE TABLE IF NOT EXISTS app_sessions (
+    token_hash TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_app_sessions_account ON app_sessions (account_id);

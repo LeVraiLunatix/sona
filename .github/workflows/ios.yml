@@ -72,16 +72,19 @@ jobs:
         # installée depuis l'.ipa produit ici est donc déjà connectée au
         # serveur sans rien saisir, sans que le jeton n'apparaisse jamais dans
         # l'historique Git.
+        # Seule l'adresse du serveur est injectée : depuis la connexion
+        # Last.fm, chacun se connecte avec son compte (validé par un admin).
+        # Le jeton administrateur (API_TOKEN) n'est plus embarqué — sinon
+        # toute personne à qui l'on passe l'.ipa aurait l'accès admin.
         env:
           IOS_API_BASE_URL: ${{ secrets.IOS_API_BASE_URL }}
-          IOS_API_TOKEN: ${{ secrets.IOS_API_TOKEN }}
         run: |
           cat > Sources/Networking/BuildSecrets.swift <<EOF
           import Foundation
 
           enum BuildSecrets {
               static let apiBaseURL = "${IOS_API_BASE_URL}"
-              static let apiToken = "${IOS_API_TOKEN}"
+              static let apiToken = ""
           }
           EOF
 

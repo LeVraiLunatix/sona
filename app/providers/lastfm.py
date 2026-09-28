@@ -112,12 +112,16 @@ async def import_history(client: LastfmClient, repo, user_id: int, username: str
     status.running, status.error, status.imported, status.page = True, None, 0, 0
     try:
         latest = await repo.plays_latest(user_id, "lastfm")
+        # Écoutes faites dans l'app puis envoyées à Last.fm (scrobbling) :
+        # elles reviennent avec le même horodatage — déjà comptées.
+        own = await repo.plays_timestamps(user_id, "sona")
         since = int(datetime.fromisoformat(latest).timestamp()) + 1 if latest else None
         page = 1
         while True:
             result = await client.recent_tracks(username, page=page, since=since)
             status.page, status.total_pages = page, result.total_pages
-            status.imported += await repo.plays_add(user_id, result.plays)
+            fresh = [p for p in result.plays if p.played_at not in own]
+            status.imported += len(await repo.plays_add(user_id, fresh))
             if page >= result.total_pages or not result.plays:
                 break
             page += 1

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -11,14 +12,16 @@ from app.api.auth import require_token
 from app.api.state import ApiDeps
 from app.db.repository import Play
 from app.providers.lastfm import ImportStatus, LastfmClient, import_history
+from app.providers.lastfm_auth import LastfmAuthError
 from app.services import stats as stats_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["stats"])
 
-# Un seul import Last.fm à la fois (usage personnel) : son état vit ici,
-# consulté par l'app pendant qu'il avance.
-_import_status = ImportStatus()
-_import_task: asyncio.Task | None = None
+# Import Last.fm en cours ou terminé, par espace de données (un par compte) :
+# l'app suit sa progression pendant qu'il avance.
+_import_statuses: dict[int, ImportStatus] = {}
+_import_tasks: set[asyncio.Task] = set()
 
 
 class PlayIn(BaseModel):
@@ -121,7 +124,24 @@ async def add_plays(payload: PlaysIn, deps: ApiDeps = Depends(require_token)) ->
     pas pu envoyer (hors connexion) et les renvoie plus tard — les doublons
     sont ignorés."""
     added = await deps.repo.plays_add(deps.user_id, [_to_play(p) for p in payload.plays])
-    return {"added": added}
+    account = deps.account
+    if (
+        added and account is not None and account.scrobble_to_lastfm
+        and account.lastfm_session_key and deps.lastfm_auth is not None
+    ):
+        # Aussi sur le profil Last.fm (et donc Sonar) : en arrière-plan, un
+        # Last.fm lent ou en panne ne doit pas retarder l'app.
+        task = asyncio.create_task(_scrobble(deps, account.lastfm_session_key, added))
+        _import_tasks.add(task)
+        task.add_done_callback(_import_tasks.discard)
+    return {"added": len(added)}
+
+
+async def _scrobble(deps: ApiDeps, session_key: str, plays: list[Play]) -> None:
+    try:
+        await deps.lastfm_auth.scrobble(session_key, plays)
+    except LastfmAuthError as exc:
+        logger.info("Scrobbling Last.fm impossible : %s", exc)
 
 
 @router.get("/plays/recent", response_model=list[PlayOut])
@@ -145,10 +165,17 @@ async def get_stats(
     return StatsOut(**asdict(report))
 
 
+def _lastfm_username(deps: ApiDeps) -> str | None:
+    """Historique importé : celui du compte Last.fm connecté, sinon (ancien
+    jeton unique) celui de LASTFM_USER."""
+    return deps.account.lastfm_username if deps.account else deps.settings.lastfm_user
+
+
 def _status_out(deps: ApiDeps) -> ImportStatusOut:
+    current = _import_statuses.get(deps.user_id) or ImportStatus()
     return ImportStatusOut(
-        configured=bool(deps.settings.lastfm_api_key and deps.settings.lastfm_user),
-        **asdict(_import_status),
+        configured=bool(deps.settings.lastfm_api_key and _lastfm_username(deps)),
+        **asdict(current),
     )
 
 
@@ -159,23 +186,27 @@ async def lastfm_import_status(deps: ApiDeps = Depends(require_token)) -> Import
 
 @router.post("/stats/import/lastfm", response_model=ImportStatusOut, status_code=status.HTTP_202_ACCEPTED)
 async def start_lastfm_import(deps: ApiDeps = Depends(require_token)) -> ImportStatusOut:
-    """Lance (en tâche de fond) l'import de l'historique Last.fm de
-    `LASTFM_USER` : tout la première fois, puis seulement les nouveautés."""
-    global _import_task
-    if not (deps.settings.lastfm_api_key and deps.settings.lastfm_user):
+    """Lance (en tâche de fond) l'import de l'historique Last.fm du compte :
+    tout la première fois, puis seulement les nouveautés."""
+    username = _lastfm_username(deps)
+    if not (deps.settings.lastfm_api_key and username):
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Import Last.fm non configuré : renseigne LASTFM_API_KEY et LASTFM_USER dans le .env du serveur.",
+            "Import Last.fm non configuré : renseigne LASTFM_API_KEY (et LASTFM_USER) dans le .env du serveur.",
         )
-    if not _import_status.running:
+    current = _import_statuses.setdefault(deps.user_id, ImportStatus())
+    if not current.running:
         client = LastfmClient(deps.settings.lastfm_api_key)
-        _import_status.running = True
+        current.running = True
+        user_id = deps.user_id
 
         async def run() -> None:
             try:
-                await import_history(client, deps.repo, deps.user_id, deps.settings.lastfm_user, _import_status)
+                await import_history(client, deps.repo, user_id, username, current)
             finally:
                 await client.aclose()
 
-        _import_task = asyncio.create_task(run())
+        task = asyncio.create_task(run())
+        _import_tasks.add(task)
+        task.add_done_callback(_import_tasks.discard)
     return _status_out(deps)
