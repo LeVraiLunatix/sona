@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Coquille de l'app : bascule entre les 3 onglets avec une barre "verre
-/// liquide" maison (voir `EncreTabBar`) plutôt que le chrome natif d'un
-/// `TabView`, et une pastille de mini-lecteur posée juste au-dessus quand un
-/// morceau joue. La fusion animée des deux (repli en bulle au défilement)
-/// reste une prochaine étape — voir le README.
+/// Coquille de l'app : vraie `TabView` système plutôt qu'une barre "verre
+/// liquide" maison — depuis iOS 26, `TabView` rend déjà nativement en Liquid
+/// Glass, et `tabViewBottomAccessory` est le mécanisme officiel pour un
+/// mini-lecteur qui flotte au-dessus de la barre et partage son verre (celui
+/// qu'utilisent Musique/Podcasts). Notre ancienne pastille maison ne pouvait
+/// que l'imiter d'assez loin ; là, c'est le même rendu système.
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
     @State private var selectedTab: AppTab = .home
@@ -14,47 +15,33 @@ struct RootTabView: View {
     @State private var showingSettings = false
     @State private var showingOnboarding = false
     @State private var showingPlayerSheet = false
-    @Namespace private var glassNamespace
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Les 3 onglets restent montés en permanence, seule l'opacité
-            // change — comme `vis(k)` dans le prototype (Encre.dc.html).
-            // Un `switch` qui démonterait l'onglet inactif perdrait le
-            // défilement et redéclencherait tous ses appels réseau à chaque
-            // retour dessus.
-            ZStack {
+        TabView(selection: $selectedTab) {
+            Tab("Écouter", systemImage: "house.fill", value: AppTab.home) {
                 tab(path: $homePath) { HomeView(path: $homePath) }
-                    .opacity(selectedTab == .home ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .home)
+            }
+            Tab("Bibliothèque", systemImage: "books.vertical.fill", value: AppTab.library) {
                 tab(path: $libraryPath) { LibraryView(path: $libraryPath) }
-                    .opacity(selectedTab == .library ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .library)
+            }
+            // `role: .search` : traitement spécial natif du dernier onglet
+            // (champ de recherche intégré à la barre elle-même) — le même
+            // que Musique, Podcasts ou l'App Store depuis iOS 26.
+            Tab(value: AppTab.search, role: .search) {
                 tab(path: $searchPath) { SearchView(path: $searchPath) }
-                    .opacity(selectedTab == .search ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .search)
+            } label: {
+                Label("Rechercher", systemImage: "magnifyingglass")
             }
-
-            // `GlassEffectContainer` : les deux pastilles (mini-lecteur, barre
-            // d'onglets) partagent le même espace de rendu Liquid Glass — avec
-            // `.glassEffectUnion`, elles se fondent en un seul bloc de verre
-            // plutôt que d'être deux capsules qui se contentent de se toucher.
-            GlassEffectContainer(spacing: 10) {
-                VStack(spacing: 10) {
-                    if player.current != nil {
-                        MiniPlayerView(player: player) { showingPlayerSheet = true }
-                            .glassEffectUnion(id: "shell", namespace: glassNamespace)
-                    }
-                    EncreTabBar(selected: $selectedTab)
-                        .glassEffectUnion(id: "shell", namespace: glassNamespace)
-                }
+        }
+        .tint(EncreColor.spot)
+        // Rétrécit en un bouton rond au défilement vers le bas, comme la
+        // barre de Musique/Podcasts — encore un comportement système plutôt
+        // qu'une reproduction manuelle.
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory {
+            if player.current != nil {
+                MiniPlayerView(player: player) { showingPlayerSheet = true }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 6)
-            // Anime l'apparition/disparition du mini-lecteur (voir sa
-            // `.transition` dans `MiniPlayerView`) quand un morceau démarre
-            // ou que la lecture s'arrête complètement.
-            .animation(.spring(duration: 0.35), value: player.current?.id)
         }
         .environmentObject(player)
         .sheet(isPresented: $showingPlayerSheet) {
@@ -78,7 +65,7 @@ struct RootTabView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showingSettings = true } label: {
-                            Image(systemName: "gearshape").foregroundStyle(EncreColor.text)
+                            Image(systemName: "gearshape")
                         }
                     }
                 }
