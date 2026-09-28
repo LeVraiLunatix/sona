@@ -10,6 +10,10 @@ import UIKit
 /// prototype.
 struct NowPlayingSheet: View {
     @ObservedObject var player: PlayerManager
+    /// Ferme cette feuille et pousse la destination sur la pile de l'onglet
+    /// actif (voir `RootTabView.openRoute`) — plus simple et plus sûr qu'une
+    /// pile de navigation imbriquée dans la feuille elle-même.
+    var onOpenRoute: (Route) -> Void
     @Environment(\.dismiss) private var dismiss
 
     // `Equatable` explicite : Swift ne synthétise `==` que si la conformance
@@ -18,30 +22,8 @@ struct NowPlayingSheet: View {
     @State private var mode: Mode = .cover
     @State private var isLiked = false
     @State private var backdropColor: Color = EncreColor.bg
-    @State private var path = NavigationPath()
 
     var body: some View {
-        // Pile de navigation propre à la feuille : Apple Music permet
-        // d'atteindre la fiche artiste depuis l'écran "En cours de lecture"
-        // lui-même, pas seulement depuis les résultats de recherche. Une pile
-        // à elle, plutôt que celle de l'onglet d'où la feuille a été ouverte,
-        // qui n'a aucun sens une fois la feuille refermée.
-        NavigationStack(path: $path) {
-            content
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar(.hidden, for: .navigationBar)
-                .navigationDestination(for: Route.self) { route in
-                    switch route {
-                    case .album(let source, let id):
-                        AlbumDetailView(source: source, id: id, path: $path)
-                    case .artist(let source, let id):
-                        ArtistDetailView(source: source, id: id, path: $path)
-                    }
-                }
-        }
-    }
-
-    private var content: some View {
         VStack(spacing: 0) {
             Capsule()
                 .fill(EncreColor.neutral400)
@@ -239,7 +221,7 @@ struct NowPlayingSheet: View {
                     .lineLimit(1)
                 if let artistId = track.artistSourceId {
                     Button {
-                        path.append(Route.artist(source: track.source, id: artistId))
+                        onOpenRoute(.artist(source: track.source, id: artistId))
                     } label: {
                         Text(track.artist)
                             .font(EncreFont.bodyItalic(18))

@@ -1,11 +1,7 @@
 import SwiftUI
 
-/// Coquille de l'app : vraie `TabView` système plutôt qu'une barre "verre
-/// liquide" maison — depuis iOS 26, `TabView` rend déjà nativement en Liquid
-/// Glass, et `tabViewBottomAccessory` est le mécanisme officiel pour un
-/// mini-lecteur qui flotte au-dessus de la barre et partage son verre (celui
-/// qu'utilisent Musique/Podcasts). Notre ancienne pastille maison ne pouvait
-/// que l'imiter d'assez loin ; là, c'est le même rendu système.
+/// Coquille de l'app : vraie `TabView` système (Liquid Glass natif depuis
+/// iOS 26) plutôt qu'une barre "verre liquide" maison.
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
     @State private var selectedTab: AppTab = .home
@@ -35,17 +31,27 @@ struct RootTabView: View {
         }
         .tint(EncreColor.spot)
         // Rétrécit en un bouton rond au défilement vers le bas, comme la
-        // barre de Musique/Podcasts — encore un comportement système plutôt
-        // qu'une reproduction manuelle.
+        // barre de Musique/Podcasts.
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
+        // `.tabViewBottomAccessory` (le mécanisme natif du mini-lecteur
+        // fusionné à la barre) laissait une pastille de verre vide visible
+        // même sans morceau en cours — le système semble réserver le
+        // conteneur dès qu'une closure est fournie, contenu vide ou non.
+        // `.safeAreaInset` avec notre propre verre (`glassCapsule`, vrai
+        // `glassEffect()` système) donne le même résultat visuel sans cette
+        // pastille fantôme : rien de dessiné tant que `player.current` est
+        // `nil`.
+        .safeAreaInset(edge: .bottom) {
             if player.current != nil {
                 MiniPlayerView(player: player) { showingPlayerSheet = true }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
             }
         }
+        .animation(.spring(duration: 0.35), value: player.current?.id)
         .environmentObject(player)
         .sheet(isPresented: $showingPlayerSheet) {
-            NowPlayingSheet(player: player)
+            NowPlayingSheet(player: player, onOpenRoute: openRoute(_:))
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack { ServerSettingsView() }
@@ -55,6 +61,19 @@ struct RootTabView: View {
         }
         .task {
             if !APIConfig.shared.isConfigured { showingOnboarding = true }
+        }
+    }
+
+    /// Ferme le lecteur plein écran et pousse la destination sur la pile de
+    /// l'onglet actif — plutôt que de donner au lecteur sa propre pile de
+    /// navigation imbriquée dans la feuille, source de complexité pour un
+    /// gain nul (fermer la feuille pour voir la fiche est un geste naturel).
+    private func openRoute(_ route: Route) {
+        showingPlayerSheet = false
+        switch selectedTab {
+        case .home: homePath.append(route)
+        case .library: libraryPath.append(route)
+        case .search: searchPath.append(route)
         }
     }
 

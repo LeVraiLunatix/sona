@@ -627,6 +627,51 @@ async def get_artist_top_tracks_youtube(channel_id: str, limit: int = 25) -> lis
     return tracks
 
 
+def _search_tracks_ytdlp_sync(query: str, limit: int) -> list[TrackInfo]:
+    """Dernier repli de la recherche texte, quand YouTube Music lui-même ne
+    trouve rien : la recherche YouTube "brute" (le moteur Google général,
+    pas l'index structuré de YouTube Music) tolère mieux les requêtes
+    tronquées ou mal orthographiées (ex: un nom d'artiste sans sa première
+    lettre) — au prix de métadonnées plus pauvres (pas toujours d'identifiant
+    de chaîne, pas d'album)."""
+    opts = {
+        "quiet": True,
+        "logger": ytdlp_logger,
+        "skip_download": True,
+        "extract_flat": True,
+        "socket_timeout": 20,
+    }
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            data = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
+    except Exception as exc:
+        logger.warning("Recherche YouTube (yt-dlp) échouée pour %r: %s", query, exc)
+        return []
+    tracks: list[TrackInfo] = []
+    for entry in (data or {}).get("entries") or []:
+        if not entry or not entry.get("id"):
+            continue
+        thumbnails = entry.get("thumbnails") or []
+        tracks.append(
+            TrackInfo(
+                source="youtube",
+                source_id=entry["id"],
+                title=entry.get("title") or "Titre inconnu",
+                artist=entry.get("channel") or entry.get("uploader") or "Chaîne inconnue",
+                album=None,
+                year=None,
+                duration_seconds=int(entry["duration"]) if entry.get("duration") else None,
+                cover_url=thumbnails[-1]["url"] if thumbnails else None,
+                artist_source_id=entry.get("channel_id") or entry.get("uploader_id"),
+            )
+        )
+    return tracks
+
+
+async def search_tracks_youtube_raw(query: str, limit: int = 20) -> list[TrackInfo]:
+    return await asyncio.to_thread(_search_tracks_ytdlp_sync, query, limit)
+
+
 async def search_tracks_youtube(query: str, limit: int = 20) -> list[TrackInfo]:
     """Recherche de morceaux sur YouTube Music (dernier recours de la
     recherche textuelle, quand Deezer et iTunes sont muets)."""

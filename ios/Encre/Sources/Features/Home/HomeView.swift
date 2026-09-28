@@ -76,15 +76,13 @@ struct HomeView: View {
         .refreshable { await viewModel.load() }
     }
 
+    // Le sous-titre "édition du matin/soir" (clin d'œil imprimerie du thème
+    // Encre) jurait avec l'esthétique Apple Music visée ici — un simple grand
+    // titre, comme l'en-tête de l'onglet "Écouter" d'Apple Music.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(Self.dateLabel())
-                .font(EncreFont.bodyItalic(15))
-                .foregroundStyle(EncreColor.neutral600)
-            Text("Écouter")
-                .font(EncreFont.heading(46))
-                .foregroundStyle(EncreColor.text)
-        }
+        Text("Écouter")
+            .font(EncreFont.heading(46))
+            .foregroundStyle(EncreColor.text)
     }
 
     private func heroCard(_ track: Track) -> some View {
@@ -130,14 +128,5 @@ struct HomeView: View {
                 .foregroundStyle(EncreColor.neutral600)
         }
         .padding(.top, 40)
-    }
-
-    private static func dateLabel() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = "EEEE d MMMM"
-        let hour = Calendar.current.component(.hour, from: Date())
-        let moment = hour < 12 ? "édition du matin" : (hour < 18 ? "édition de l'après-midi" : "édition du soir")
-        return "\(formatter.string(from: Date()).capitalized) · \(moment)"
     }
 }
