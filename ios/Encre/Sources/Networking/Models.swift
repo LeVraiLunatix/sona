@@ -88,6 +88,19 @@ struct RadioStation: Codable, Identifiable, Hashable {
     }
 }
 
+/// Paroles (`/lyrics`, source LRCLIB côté serveur). `time` en secondes
+/// depuis le début quand `synced`, `nil` sinon.
+struct Lyrics: Codable, Hashable {
+    struct Line: Codable, Hashable {
+        var time: Double?
+        var text: String
+    }
+
+    var synced: Bool
+    var instrumental: Bool
+    var lines: [Line]
+}
+
 struct RadioGroup: Codable, Identifiable, Hashable {
     var title: String
     var radios: [RadioStation]

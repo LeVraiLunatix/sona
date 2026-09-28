@@ -6,6 +6,7 @@ from app.config import Settings
 from app.db.repository import Repository
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
+from app.providers.lrclib import LrclibClient
 from app.providers.spotify import SpotifyClient
 
 
@@ -20,6 +21,7 @@ class ApiDeps:
     deezer: DeezerClient
     apple: AppleMusicClient
     spotify: SpotifyClient
+    lrclib: LrclibClient
 
     @property
     def user_id(self) -> int:

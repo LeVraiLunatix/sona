@@ -147,6 +147,26 @@ final class APIClient {
         try await send(try request("/artists/\(source)/\(id)/radio"))
     }
 
+    // MARK: - Paroles
+
+    /// `nil` quand le serveur ne connaît pas de paroles pour ce morceau
+    /// (404) : un cas normal, pas une erreur à afficher comme telle.
+    func lyrics(for track: Track) async throws -> Lyrics? {
+        var items = [
+            URLQueryItem(name: "title", value: track.title),
+            URLQueryItem(name: "artist", value: track.artist),
+        ]
+        if let album = track.album { items.append(URLQueryItem(name: "album", value: album)) }
+        if let duration = track.durationSeconds, duration > 0 {
+            items.append(URLQueryItem(name: "duration", value: "\(duration)"))
+        }
+        do {
+            return try await send(try request("/lyrics", query: items))
+        } catch APIError.server(let status, _) where status == 404 {
+            return nil
+        }
+    }
+
     // MARK: - Radios
 
     func radioGroups() async throws -> [RadioGroup] {

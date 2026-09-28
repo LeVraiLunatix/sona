@@ -350,7 +350,10 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 |---|---|
 | `GET /search?q=…` | Recherche (Deezer → iTunes → YouTube Music, comme le bot). Renvoie un `query_id` à repasser avec `offset` pour paginer. |
 | `POST /resolve` | Résout un lien Deezer/Spotify/Apple Music/YouTube collé dans l'app (`{"text": "…"}`). |
-| `GET /tracks\|albums\|playlists\|artists/{source}/{id}` | Fiche détaillée (et sous-routes `/top-tracks`, `/albums` pour un artiste). |
+| `GET /search/artists\|albums?q=…` | Recherche d'artistes (tolérante aux fautes, repli YouTube Music) ou d'albums. |
+| `GET /tracks\|albums\|playlists\|artists/{source}/{id}` | Fiche détaillée (et sous-routes `/top-tracks`, `/albums`, `/related`, `/radio` pour un artiste). |
+| `GET /browse/radios`, `GET /radios/{id}/tracks` | Radios thématiques Deezer triées à la main ; chaque appel à `/tracks` est un nouveau tirage. |
+| `GET /lyrics?title=&artist=&album=&duration=` | Paroles via [LRCLIB](https://lrclib.net) (base publique, sans clé) : synchronisées quand elles existent (`time` en secondes par ligne), sinon brutes ; 404 si inconnues. |
 | `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
 | `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
 | `GET/DELETE /history` | Historique. |

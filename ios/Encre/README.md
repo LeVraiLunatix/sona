@@ -17,10 +17,11 @@ Usage strictement personnel, comme le reste du projet.
       avec un vrai contexte de lecture (l'album/l'artiste/la liste jouée
       enchaîne "suivant"/"précédent").
 - [x] Lecteur plein écran : pochette avec clin d'œil CMJN, cœur (bibliothèque),
-      défilement façon forme d'onde, transport, volume, mode Paroles (honnête :
-      Sona n'a pas de source de paroles, donc un état vide plutôt qu'un texte
-      inventé) et mode File d'attente (les morceaux à suivre dans le contexte
-      en cours).
+      défilement façon forme d'onde, transport, volume, mode **Paroles**
+      (synchronisées façon Apple Music via LRCLIB : la ligne chantée
+      s'allume et se recentre, taper une ligne y ramène la lecture ; paroles
+      brutes à défaut) et mode File d'attente (les morceaux à suivre dans le
+      contexte en cours).
 - [x] Vraie `TabView` système (iOS 26, Liquid Glass natif, onglet
       Recherche intégré à la barre) + mini-lecteur en verre `glassEffect()`.
 - [x] Découverte : la recherche montre aussi les **artistes** (tolérante aux
@@ -115,9 +116,9 @@ Sources/
 
 ## Limites connues
 
-- Pas de paroles (Sona n'en a jamais eu côté serveur — le prototype en
-  affichait un texte d'exemple statique, ce que l'app ne reproduit pas
-  volontairement).
+- Paroles : seulement ce que LRCLIB connaît (base collaborative) — bonne
+  couverture des sorties connues, plus inégale pour les artistes
+  underground, qui tombent alors sur « Paroles indisponibles ».
 - Cible **iOS 26** minimum (Liquid Glass système) : un iPhone resté sous
   une version antérieure ne peut pas installer l'app.
 - La fermeture du lecteur plein écran utilise le geste natif de la feuille

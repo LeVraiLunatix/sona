@@ -23,6 +23,14 @@ struct NowPlayingSheet: View {
     @State private var isLiked = false
     @State private var backdropColor: Color = EncreColor.bg
 
+    private enum LyricsState: Equatable {
+        case idle, loading, loaded(Lyrics), unavailable(String)
+    }
+    @State private var lyricsState: LyricsState = .idle
+    /// Id du morceau dont `lyricsState` porte les paroles : évite de les
+    /// recharger à chaque aller-retour pochette ↔ paroles.
+    @State private var lyricsTrackId: String?
+
     var body: some View {
         VStack(spacing: 0) {
             Capsule()
@@ -91,6 +99,11 @@ struct NowPlayingSheet: View {
             await refreshLikeState()
             await updateBackdropColor()
         }
+        // Chargées seulement quand le panneau est ouvert (pas pour chaque
+        // morceau joué), puis gardées tant que le morceau ne change pas.
+        .task(id: "\(player.current?.id ?? "")|\(mode == .lyrics)") {
+            await loadLyricsIfNeeded()
+        }
     }
 
     /// Fond dégradé teinté de la couleur moyenne de la pochette + texture
@@ -154,21 +167,124 @@ struct NowPlayingSheet: View {
             .encreShadow(EncreShadow.lg)
     }
 
+    @ViewBuilder
     private var lyricsPanel: some View {
+        switch lyricsState {
+        case .idle, .loading:
+            ProgressView().tint(EncreColor.text).frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .unavailable(let message):
+            lyricsMessage(title: "Paroles indisponibles", detail: message)
+        case .loaded(let lyrics):
+            if lyrics.instrumental {
+                lyricsMessage(title: "Morceau instrumental", detail: "Pas de paroles à suivre : juste la musique.")
+            } else if lyrics.synced {
+                syncedLyrics(lyrics.lines)
+            } else {
+                plainLyrics(lyrics.lines)
+            }
+        }
+    }
+
+    private func lyricsMessage(title: String, detail: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: "quote.opening")
                 .font(.system(size: 30))
                 .foregroundStyle(EncreColor.neutral500)
-            Text("Paroles indisponibles")
+            Text(title)
                 .font(EncreFont.heading(20))
                 .foregroundStyle(EncreColor.text)
-            Text("Sona ne connaît pas les paroles de ce morceau — aucune source de paroles n'est branchée côté serveur pour l'instant.")
+            Text(detail)
                 .font(EncreFont.body(15))
                 .foregroundStyle(EncreColor.neutral600)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Paroles synchronisées façon Apple Music : la ligne en cours en
+    /// grand et en clair, recentrée à chaque changement ; taper une ligne y
+    /// ramène la lecture.
+    private func syncedLyrics(_ lines: [Lyrics.Line]) -> some View {
+        // Légère avance : la ligne s'allume au moment où elle est chantée
+        // plutôt qu'un poil après (tick du lecteur toutes les 0,5 s).
+        let position = player.positionSeconds + 0.3
+        let active = lines.lastIndex(where: { ($0.time ?? 0) <= position })
+        return ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        Text(line.text.isEmpty ? "♪" : line.text)
+                            .font(EncreFont.heading(26))
+                            .foregroundStyle(index == active ? EncreColor.text : EncreColor.neutral500)
+                            .scaleEffect(index == active ? 1 : 0.96, anchor: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if let time = line.time { player.seek(toSeconds: time) }
+                            }
+                            .id(index)
+                    }
+                }
+                .padding(.horizontal, 30)
+                .padding(.vertical, 150)
+                .animation(.easeOut(duration: 0.25), value: active)
+            }
+            .mask { lyricsFade }
+            .onAppear {
+                if let active { proxy.scrollTo(active, anchor: .center) }
+            }
+            .onChange(of: active) { _, newValue in
+                guard let newValue else { return }
+                withAnimation(.easeInOut(duration: 0.4)) { proxy.scrollTo(newValue, anchor: .center) }
+            }
+        }
+    }
+
+    private func plainLyrics(_ lines: [Lyrics.Line]) -> some View {
+        ScrollView(showsIndicators: false) {
+            Text(lines.map(\.text).joined(separator: "\n"))
+                .font(EncreFont.body(20))
+                .lineSpacing(6)
+                .foregroundStyle(EncreColor.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 40)
+        }
+        .mask { lyricsFade }
+    }
+
+    /// Fondu en haut et en bas du panneau : les lignes apparaissent et
+    /// disparaissent au lieu d'être coupées net au bord.
+    private var lyricsFade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.12),
+                .init(color: .black, location: 0.88),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
+    private func loadLyricsIfNeeded() async {
+        guard mode == .lyrics, let track = player.current else { return }
+        if lyricsTrackId == track.id, case .loaded = lyricsState { return }
+        lyricsTrackId = track.id
+        lyricsState = .loading
+        do {
+            let lyrics = try await APIClient.shared.lyrics(for: track)
+            guard player.current?.id == track.id else { return }
+            if let lyrics {
+                lyricsState = .loaded(lyrics)
+            } else {
+                lyricsState = .unavailable("Pas de paroles connues pour ce morceau.")
+            }
+        } catch {
+            guard !Task.isCancelled, player.current?.id == track.id else { return }
+            lyricsState = .unavailable("Les paroles n'ont pas pu être chargées — réessaie dans un instant.")
+        }
     }
 
     private var queuePanel: some View {

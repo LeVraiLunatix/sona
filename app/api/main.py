@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routers import browse, catalog, history, library, search, stream, user_settings
+from app.api.routers import browse, catalog, history, library, lyrics, search, stream, user_settings
 from app.api.state import ApiDeps
 from app.config import load_settings
 from app.db.database import Database
@@ -13,6 +13,7 @@ from app.db.repository import Repository
 from app.logging_config import setup_logging
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
+from app.providers.lrclib import LrclibClient
 from app.providers.spotify import SpotifyClient
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     deezer = DeezerClient()
     apple = AppleMusicClient()
     spotify = SpotifyClient(settings.spotify_client_id, settings.spotify_client_secret)
+    lrclib = LrclibClient()
 
     app.state.deps = ApiDeps(
         settings=settings,
@@ -39,6 +41,7 @@ async def lifespan(app: FastAPI):
         deezer=deezer,
         apple=apple,
         spotify=spotify,
+        lrclib=lrclib,
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     try:
@@ -47,6 +50,7 @@ async def lifespan(app: FastAPI):
         await deezer.aclose()
         await apple.aclose()
         await spotify.aclose()
+        await lrclib.aclose()
         await db.close()
 
 
@@ -63,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(history.router)
     app.include_router(user_settings.router)
     app.include_router(browse.router)
+    app.include_router(lyrics.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:
