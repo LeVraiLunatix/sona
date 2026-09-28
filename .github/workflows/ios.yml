@@ -21,39 +21,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: xcodebuild
-    runs-on: macos-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: ios/Encre
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Installer XcodeGen
-        run: brew install xcodegen
-
-      - name: Générer le projet Xcode
-        run: xcodegen generate
-
-      - name: Compiler (SDK simulateur, sans signature)
-        # `generic/platform=iOS Simulator` compile sans lancer un simulateur
-        # précis : évite de dépendre d'une version de runtime disponible sur
-        # le runner. Pas de tests ici, juste vérifier que ça compile — il n'y
-        # a pas encore de cible de tests XCTest dans le projet.
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project Encre.xcodeproj \
-            -scheme Encre \
-            -destination 'generic/platform=iOS Simulator' \
-            -sdk iphonesimulator \
-            CODE_SIGNING_ALLOWED=NO
-
+  # Un seul job macOS : la compilation pour appareil vérifie déjà que tout
+  # compile. Sur un dépôt privé, chaque minute macOS compte pour 10 dans le
+  # quota gratuit d'Actions — l'ancien job « simulateur » en doublon le
+  # vidait deux fois plus vite.
   ipa:
     name: ipa (sideload)
-    needs: build
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
