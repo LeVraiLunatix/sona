@@ -1,52 +1,43 @@
 import SwiftUI
 
-/// Jetons du design "Encre" — variante sombre et sobre : fond quasi noir,
-/// texte presque blanc, cyan et magenta gardés comme seuls accents (un peu
-/// éclaircis pour rester lisibles sur fond sombre), jaune process réservé aux
-/// seuls effets d'impression (jamais à l'UI). Les noms `neutral100...900`
-/// restent croissants de clair à sombre comme avant l'inversion, pour ne pas
-/// avoir à retoucher tous les appels existants (`neutral700` reste "texte
-/// secondaire", `neutral300` reste "à peine visible", etc.).
-enum EncreColor {
-    static let bg = Color(hex: 0x121112)
-    static let surface = Color(hex: 0x1C1B1C)
-    static let text = Color(hex: 0xF4F1EF)
-    static let accent = Color(hex: 0x28B8E0) // cyan, éclairci pour le fond sombre
-    static let accent2 = Color(hex: 0xFF4FA0) // magenta, éclairci pour le fond sombre
-    static let processYellow = Color(hex: 0xEDBB00)
+/// Direction artistique : noir profond, blanc, et des gris obtenus par
+/// transparence du blanc — rien d'autre. La seule couleur de l'app vient des
+/// pochettes elles-mêmes (fond du lecteur, halo des fiches album), comme
+/// dans Musique.
+enum Tone {
+    static let background = Color.black
+    /// Cartes, champs, boutons secondaires : à peine détachés du fond.
+    static let surface = Color.white.opacity(0.07)
+    static let surfaceStrong = Color.white.opacity(0.12)
+    static let separator = Color.white.opacity(0.08)
 
-    static let neutral100 = Color(hex: 0x232224)
-    static let neutral200 = Color(hex: 0x2C2B2D)
-    static let neutral300 = Color(hex: 0x3A383B)
-    static let neutral400 = Color(hex: 0x504E51)
-    static let neutral500 = Color(hex: 0x6E6B6E)
-    static let neutral600 = Color(hex: 0x8F8C8F)
-    static let neutral700 = Color(hex: 0xAFACAE)
-    static let neutral800 = Color(hex: 0xD2CFD0)
-    static let neutral900 = Color(hex: 0xF4F1EF)
+    static let primary = Color.white
+    static let secondary = Color.white.opacity(0.6)
+    static let tertiary = Color.white.opacity(0.35)
 
-    static let accent700 = Color(hex: 0x6CD3F0)
-    static let accent800 = Color(hex: 0x9FE2F6)
-    static let accent2_700 = Color(hex: 0xFF8AC0)
-    static let accent2_800 = Color(hex: 0xFFB6D8)
-
-    /// Couleur d'accent "spot" active : cyan par défaut (le prototype permet
-    /// de basculer sur magenta — pas encore exposé côté app).
-    static let spot = accent
-    static let spotDeep = accent700
+    /// Réservé aux erreurs : un rouge doux, jamais une couleur d'interface.
+    static let danger = Color(red: 1, green: 0.42, blue: 0.42)
 }
 
-enum EncreFont {
-    // Source Serif 4, embarquée (voir Resources/Fonts) : les noms PostScript
-    // exacts, à défaut desquels SwiftUI retombe silencieusement sur le
-    // système — vérifiés avec fonttools sur les .ttf embarquées.
-    private static let regular = "SourceSerif4-Regular"
-    private static let semibold = "SourceSerif4-SemiBold"
-    private static let italic = "SourceSerif4-Italic"
+/// Police système (SF Pro), graisses franches et interlettrage resserré
+/// sur les grands titres — la typographie de Musique/Podcasts.
+enum Typo {
+    static let hero = Font.system(size: 40, weight: .bold)
+    static let largeTitle = Font.system(size: 32, weight: .bold)
+    static let title = Font.system(size: 22, weight: .bold)
+    static let headline = Font.system(size: 17, weight: .semibold)
+    static let body = Font.system(size: 16, weight: .regular)
+    static let rowTitle = Font.system(size: 16, weight: .medium)
+    static let rowSubtitle = Font.system(size: 14, weight: .regular)
+    static let caption = Font.system(size: 12, weight: .semibold)
+    static let mono = Font.system(size: 12, weight: .medium).monospacedDigit()
+}
 
-    static func heading(_ size: CGFloat) -> Font { .custom(semibold, size: size) }
-    static func body(_ size: CGFloat) -> Font { .custom(regular, size: size) }
-    static func bodyItalic(_ size: CGFloat) -> Font { .custom(italic, size: size) }
+enum Motion {
+    /// Ressort par défaut de l'app : vif, sans rebond appuyé.
+    static let snappy = Animation.spring(response: 0.35, dampingFraction: 0.85)
+    static let smooth = Animation.spring(response: 0.55, dampingFraction: 0.9)
+    static let bouncy = Animation.spring(response: 0.45, dampingFraction: 0.68)
 }
 
 extension Color {
@@ -58,20 +49,145 @@ extension Color {
     }
 }
 
-enum EncreShadow {
-    static let sm = Shadow(radius: 2, y: 1, opacity: 0.14)
-    static let md = Shadow(radius: 10, y: 3, opacity: 0.16)
-    static let lg = Shadow(radius: 32, y: 12, opacity: 0.22)
+// MARK: - Boutons
 
-    struct Shadow {
-        let radius: CGFloat
-        let y: CGFloat
-        let opacity: Double
+/// Enfoncement au toucher (léger rétrécissement + atténuation) pour tout ce
+/// qui se tape : la réponse tactile qui donne à l'app sa sensation « native ».
+struct PressableStyle: ButtonStyle {
+    var scale: CGFloat = 0.96
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .animation(Motion.snappy, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PressableStyle {
+    static var pressable: PressableStyle { PressableStyle() }
+    static func pressable(scale: CGFloat) -> PressableStyle { PressableStyle(scale: scale) }
+}
+
+/// Bouton plein (blanc sur noir) ou discret (verre fumé), pleine largeur —
+/// les « Lecture » / « Aléatoire » des fiches.
+struct PillButton: View {
+    enum Kind { case primary, secondary }
+
+    let title: String
+    let systemImage: String
+    var kind: Kind = .primary
+    var isLoading = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView().tint(kind == .primary ? .black : .white)
+                } else {
+                    Image(systemName: systemImage)
+                }
+                Text(title)
+            }
+            .font(Typo.headline)
+            .foregroundStyle(kind == .primary ? Color.black : Tone.primary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(kind == .primary ? Color.white : Tone.surfaceStrong)
+            )
+        }
+        .buttonStyle(.pressable)
+        .disabled(isLoading)
+    }
+}
+
+// MARK: - Apparition en cascade
+
+/// Fondu + léger glissement vers le haut à la première apparition, décalé
+/// par `index` : les sections d'un écran se posent l'une après l'autre au
+/// lieu d'apparaître d'un bloc.
+private struct RevealModifier: ViewModifier {
+    let index: Int
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 18)
+            .blur(radius: shown ? 0 : 6)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(Motion.smooth.delay(Double(min(index, 8)) * 0.06)) { shown = true }
+            }
     }
 }
 
 extension View {
-    func encreShadow(_ shadow: EncreShadow.Shadow) -> some View {
-        self.shadow(color: EncreColor.neutral900.opacity(shadow.opacity), radius: shadow.radius, x: 0, y: shadow.y)
+    func reveal(_ index: Int = 0) -> some View {
+        modifier(RevealModifier(index: index))
     }
+
+    /// Les vignettes d'une rangée horizontale rétrécissent et s'estompent en
+    /// sortant de l'écran : la rangée respire au défilement.
+    func carouselItem() -> some View {
+        scrollTransition(.interactive, axis: .horizontal) { content, phase in
+            content
+                .scaleEffect(phase.isIdentity ? 1 : 0.9)
+                .opacity(phase.isIdentity ? 1 : 0.55)
+        }
+    }
+}
+
+// MARK: - Transition « zoom » vers les fiches
+
+/// Espace de noms partagé par la vignette tapée et la fiche ouverte :
+/// `.navigationTransition(.zoom)` fait alors grandir la pochette jusqu'à
+/// devenir la page (et la rétrécit au retour, geste interactif compris),
+/// exactement comme Photos ou Musique.
+private struct ZoomNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    var zoomNamespace: Namespace.ID? {
+        get { self[ZoomNamespaceKey.self] }
+        set { self[ZoomNamespaceKey.self] = newValue }
+    }
+}
+
+private struct ZoomSourceModifier: ViewModifier {
+    let route: Route
+    @Environment(\.zoomNamespace) private var namespace
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedTransitionSource(id: route, in: namespace)
+        } else {
+            content
+        }
+    }
+}
+
+private struct ZoomDestinationModifier: ViewModifier {
+    let route: Route
+    @Environment(\.zoomNamespace) private var namespace
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.navigationTransition(.zoom(sourceID: route, in: namespace))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func zoomSource(_ route: Route) -> some View { modifier(ZoomSourceModifier(route: route)) }
+    func zoomDestination(_ route: Route) -> some View { modifier(ZoomDestinationModifier(route: route)) }
 }

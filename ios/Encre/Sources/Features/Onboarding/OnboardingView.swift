@@ -14,104 +14,88 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            EncreColor.bg.ignoresSafeArea()
+            LivingBackground(colors: [
+                Color(hex: 0x2A2340), Color(hex: 0x14121C), Color(hex: 0x0B0B10), Color(hex: 0x1D1A2B),
+            ])
             Group {
                 switch step {
                 case 0: welcomeStep
                 default: setupStep
                 }
             }
-            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)).combined(with: .opacity))
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
         }
-        .animation(.easeInOut(duration: 0.35), value: step)
+        .animation(Motion.smooth, value: step)
     }
 
     private var welcomeStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer()
-            Text("BIENVENUE")
-                .font(EncreFont.heading(12))
-                .tracking(2)
-                .foregroundStyle(EncreColor.accent2_700)
+            Image(systemName: "waveform")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(Tone.primary)
+                .symbolEffect(.variableColor.iterative, options: .repeating)
+                .reveal(0)
             Text("Encre")
-                .font(EncreFont.heading(88))
-                .foregroundStyle(EncreColor.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            Text("Vos titres préférés, imprimés en couleur et posés sous verre.")
-                .font(EncreFont.bodyItalic(21))
-                .foregroundStyle(EncreColor.neutral800)
-
-            Button {
-                step = 1
-            } label: {
-                Text("Commencer")
-                    .font(EncreFont.heading(19))
-                    .foregroundStyle(EncreColor.text)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 60)
-            }
-            .buttonStyle(.plain)
-            .glassCapsule()
-            .padding(.top, 14)
-
-            Spacer().frame(height: 20)
+                .font(.system(size: 64, weight: .bold))
+                .foregroundStyle(Tone.primary)
+                .reveal(1)
+            Text("Ta musique, ton serveur. Rien d'autre.")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Tone.secondary)
+                .reveal(2)
+            Spacer().frame(height: 30)
+            PillButton(title: "Commencer", systemImage: "arrow.right") { step = 1 }
+                .reveal(3)
         }
         .padding(.horizontal, 28)
-        .padding(.bottom, 60)
+        .padding(.bottom, 50)
     }
 
     private var setupStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("DERNIÈRE ÉTAPE")
-                .font(EncreFont.heading(12))
-                .tracking(2)
-                .foregroundStyle(EncreColor.accent2_700)
-                .padding(.top, 100)
-            Text("Trouvons votre serveur")
-                .font(EncreFont.heading(36))
-                .foregroundStyle(EncreColor.text)
-            Text("L'adresse et le jeton de ton serveur Sona (`run_api.py`) — usage personnel, pas de compte à créer. Détails dans le README du dépôt, section « API ».")
-                .font(EncreFont.body(16))
-                .foregroundStyle(EncreColor.neutral700)
+            Text("Connexion au serveur")
+                .font(Typo.largeTitle)
+                .foregroundStyle(Tone.primary)
+                .padding(.top, 90)
+            Text("L'adresse et le jeton de ton serveur Sona (`run_api.py`). Pas de compte à créer.")
+                .font(Typo.body)
+                .foregroundStyle(Tone.secondary)
 
             VStack(spacing: 12) {
-                TextField("http://192.168.1.x:8000", text: $config.baseURLString)
+                TextField("https://…", text: $config.baseURLString)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .padding(.horizontal, 16)
-                    .frame(height: 48)
-                    .glassRounded(14)
+                    .frame(height: 50)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tone.surfaceStrong))
                 SecureField("Jeton API", text: $config.token)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .padding(.horizontal, 16)
-                    .frame(height: 48)
-                    .glassRounded(14)
+                    .frame(height: 50)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tone.surfaceStrong))
             }
             .padding(.top, 8)
 
             if let testResult {
                 Text(testResult)
-                    .font(EncreFont.body(14))
-                    .foregroundStyle(EncreColor.accent2_700)
+                    .font(Typo.rowSubtitle)
+                    .foregroundStyle(Tone.danger)
+                    .transition(.opacity)
             }
 
             Spacer()
 
-            Button {
+            PillButton(title: testing ? "Vérification…" : "Ouvrir Encre", systemImage: "checkmark", isLoading: testing) {
                 Task { await finish() }
-            } label: {
-                Text(testing ? "Vérification…" : "Ouvrir Encre")
-                    .font(EncreFont.heading(19))
-                    .foregroundStyle(EncreColor.bg)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 60)
             }
-            .buttonStyle(.plain)
-            .background(Capsule().fill(config.isConfigured ? EncreColor.spot : EncreColor.neutral300))
-            .disabled(testing || !config.isConfigured)
+            .disabled(!config.isConfigured)
+            .opacity(config.isConfigured ? 1 : 0.4)
         }
         .padding(.horizontal, 28)
         .padding(.bottom, 40)

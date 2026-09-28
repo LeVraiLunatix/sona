@@ -12,8 +12,24 @@ enum APIError: LocalizedError {
         case .invalidResponse:
             return "Réponse du serveur incompréhensible."
         case .server(let status, let message):
-            return "Erreur \(status) : \(message)"
+            switch status {
+            case 401, 403: return "Jeton refusé par le serveur — vérifie-le dans Réglages."
+            case 404: return message.isEmpty ? "Introuvable." : message
+            case 502, 503, 504: return message.isEmpty ? "Le serveur n'arrive pas à joindre ses sources pour l'instant." : message
+            default: return message.isEmpty ? "Erreur \(status) du serveur." : message
+            }
         }
+    }
+
+    /// FastAPI répond `{"detail": "…"}` : on n'affiche que ce texte-là, pas
+    /// le JSON brut (qui finissait tel quel à l'écran).
+    static func serverMessage(from data: Data) -> String {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let detail = object["detail"] as? String { return detail }
+            if let details = object["detail"] as? [[String: Any]],
+               let first = details.first?["msg"] as? String { return first }
+        }
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 }
 
@@ -65,8 +81,7 @@ final class APIClient {
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "?"
-            throw APIError.server(status: http.statusCode, message: message)
+            throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
         }
         return try decoder.decode(T.self, from: data)
     }
@@ -75,8 +90,7 @@ final class APIClient {
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "?"
-            throw APIError.server(status: http.statusCode, message: message)
+            throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
         }
     }
 

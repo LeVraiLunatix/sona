@@ -17,8 +17,13 @@ final class SearchViewModel: ObservableObject {
 
     var hasResults: Bool { !results.isEmpty || !artists.isEmpty || !albums.isEmpty }
 
+    @Published private(set) var isLoadingMore = false
+
     private var searchTask: Task<Void, Never>?
     private var queryId: String?
+    private var total = 0
+
+    var canLoadMore: Bool { queryId != nil && results.count < total }
 
     private var looksLikeLink: Bool {
         query.contains("http://") || query.contains("https://")
@@ -33,6 +38,9 @@ final class SearchViewModel: ObservableObject {
             artists = []
             albums = []
             errorMessage = nil
+            // Sans ça, effacer le champ pendant une recherche laissait le
+            // sablier tourner indéfiniment (la tâche annulée ne le coupe pas).
+            isSearching = false
             return
         }
         searchTask = Task {
@@ -58,6 +66,7 @@ final class SearchViewModel: ObservableObject {
         do {
             let response = try await APIClient.shared.search(query: text)
             queryId = response.queryId
+            total = response.total
             tracks = response.tracks
         } catch {
             if !Task.isCancelled { errorMessage = error.localizedDescription }
@@ -69,6 +78,20 @@ final class SearchViewModel: ObservableObject {
         albums = foundAlbums
         if hasResults { errorMessage = nil }
         isSearching = false
+    }
+
+    /// Page suivante des titres, quand on arrive en bas de la liste.
+    func loadMore() async {
+        guard canLoadMore, !isLoadingMore, let queryId else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        guard let response = try? await APIClient.shared.search(queryId: queryId, offset: results.count),
+              queryId == self.queryId else { return }
+        let known = Set(results.map(\.id))
+        let fresh = response.tracks.filter { !known.contains($0.id) }
+        results.append(contentsOf: fresh)
+        // Page vide ou déjà vue : on s'arrête là plutôt que de boucler.
+        total = fresh.isEmpty ? results.count : response.total
     }
 
     private static func findArtists(_ text: String) async -> [Artist] {
@@ -90,6 +113,7 @@ final class SearchViewModel: ObservableObject {
         results = []
         artists = []
         albums = []
+        queryId = nil
         do {
             resolvedLink = try await APIClient.shared.resolve(text: text)
         } catch {

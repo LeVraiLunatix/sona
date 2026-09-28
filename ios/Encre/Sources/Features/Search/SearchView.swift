@@ -4,156 +4,165 @@ struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @EnvironmentObject private var player: PlayerManager
     @Binding var path: NavigationPath
-    @FocusState private var focused: Bool
     @State private var loadingRadioId: String?
     @State private var radioError: String?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Titres, artistes, liens")
-                        .font(EncreFont.bodyItalic(15))
-                        .foregroundStyle(EncreColor.neutral600)
-                    Text("Rechercher")
-                        .font(EncreFont.heading(46))
-                        .foregroundStyle(EncreColor.text)
-                }
-
-                searchField
-
-                if viewModel.isSearching {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 20)
-                } else if let link = viewModel.resolvedLink {
-                    resolvedView(link)
-                } else if viewModel.hasResults {
-                    results
-                } else if !viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty {
-                    if let message = viewModel.errorMessage {
-                        Text(message).font(EncreFont.body(15)).foregroundStyle(EncreColor.accent2_700)
-                    } else {
-                        Text("Rien dans nos colonnes pour « \(viewModel.query) ».")
-                            .font(EncreFont.bodyItalic(17))
-                            .foregroundStyle(EncreColor.neutral600)
-                    }
-                } else {
-                    hint
-                }
+            LazyVStack(alignment: .leading, spacing: 30) {
+                content
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 12)
-            .padding(.bottom, 120)
+            .padding(.top, 8)
+            .padding(.bottom, 110)
+            .animation(Motion.smooth, value: viewModel.isSearching)
         }
-        .background(EncreColor.bg)
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.immediately)
+        .background(Tone.background)
+        .navigationTitle("Rechercher")
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $viewModel.query, prompt: "Artistes, titres, albums ou lien")
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
         .task { await viewModel.loadRadios() }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundStyle(EncreColor.spotDeep)
-            TextField("Saif, Aya Nakamura, ou un lien…", text: $viewModel.query)
-                .font(EncreFont.body(18))
-                .focused($focused)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-            if !viewModel.query.isEmpty {
-                Button { viewModel.query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(EncreColor.neutral500)
-                }
+    @ViewBuilder
+    private var content: some View {
+        let hasQuery = !viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty
+        if viewModel.isSearching {
+            ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 60)
+        } else if let link = viewModel.resolvedLink {
+            resolvedView(link).padding(.horizontal, 20).reveal(0)
+        } else if viewModel.hasResults {
+            results
+        } else if hasQuery {
+            if let message = viewModel.errorMessage {
+                EmptyState(systemImage: "exclamationmark.triangle", title: "Recherche impossible", message: message)
+            } else {
+                EmptyState(systemImage: "magnifyingglass", title: "Aucun résultat", message: "Rien pour « \(viewModel.query) ».")
             }
+        } else {
+            browse
         }
-        .padding(.horizontal, 18)
-        .frame(height: 52)
-        .glassCapsule()
     }
 
-    /// Artistes et albums d'abord (une rangée chacun, comme le haut des
-    /// résultats d'Apple Music), puis les titres : chercher « Ziak » doit
-    /// mener à sa fiche, pas seulement à une liste de morceaux en vrac.
+    // MARK: - Résultats
+
+    @ViewBuilder
     private var results: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            if !viewModel.artists.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "Artistes")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 18) {
-                            ForEach(viewModel.artists) { artist in
-                                ArtistBubble(name: artist.name, coverURL: artist.pictureURL) {
-                                    path.append(Route.artist(source: artist.source, id: artist.sourceId))
-                                }
-                            }
-                        }
-                    }
-                    .scrollClipDisabled()
-                }
-            }
+        if let top = viewModel.artists.first {
+            topResult(top).padding(.horizontal, 20).reveal(0)
+        }
 
-            if !viewModel.albums.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "Albums")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 14) {
-                            ForEach(viewModel.albums) { album in
-                                AlbumTile(album: album) {
-                                    path.append(Route.album(source: album.source, id: album.sourceId))
-                                }
-                            }
-                        }
-                    }
-                    .scrollClipDisabled()
-                }
-            }
-
-            if !viewModel.results.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "Titres")
-                    VStack(spacing: 16) {
-                        ForEach(viewModel.results) { track in
-                            TrackRow(
-                                track: track, isCurrent: player.current?.id == track.id,
-                                onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
-                                onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
-                            ) {
-                                player.play(track, context: viewModel.results)
-                            }
-                        }
+        if viewModel.artists.count > 1 {
+            section("Artistes", index: 1) {
+                Carousel(items: Array(viewModel.artists.dropFirst()), spacing: 18) { artist in
+                    let route = Route.artist(source: artist.source, id: artist.sourceId)
+                    ArtistBubble(name: artist.name, pictureURL: artist.pictureURL, route: route, size: 96) {
+                        path.append(route)
                     }
                 }
             }
         }
-    }
 
-    private var hint: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            Text("Collez un lien Deezer, Spotify, Apple Music ou YouTube pour ouvrir directement un titre, un album ou un artiste.")
-                .font(EncreFont.body(15))
-                .foregroundStyle(EncreColor.neutral600)
-
-            if let radioError {
-                Text(radioError).font(EncreFont.body(14)).foregroundStyle(EncreColor.accent2_700)
-            }
-
-            ForEach(viewModel.radioGroups) { group in
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: group.title)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 14) {
-                            ForEach(group.radios) { radio in
-                                RadioTile(radio: radio, isLoading: loadingRadioId == radio.id) {
-                                    startRadio(radio)
-                                }
-                            }
-                        }
-                    }
-                    .scrollClipDisabled()
+        if !viewModel.albums.isEmpty {
+            section("Albums", index: 2) {
+                Carousel(items: viewModel.albums) { album in
+                    AlbumTile(album: album) { path.append(Route.album(source: album.source, id: album.sourceId)) }
                 }
             }
         }
-        .padding(.top, 8)
+
+        if !viewModel.results.isEmpty {
+            section("Titres", index: 3) {
+                LazyVStack(spacing: 2) {
+                    ForEach(viewModel.results) { track in
+                        TrackRow(
+                            track: track,
+                            isCurrent: player.current?.id == track.id,
+                            isPlaying: player.isPlaying,
+                            onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                            onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                        ) {
+                            player.play(track, context: viewModel.results)
+                        }
+                        .onAppear {
+                            if track.id == viewModel.results.last?.id {
+                                Task { await viewModel.loadMore() }
+                            }
+                        }
+                    }
+                    if viewModel.isLoadingMore {
+                        ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.vertical, 16)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
     }
 
-    /// Station sans fin : `/radios/{id}/tracks` renvoie un nouveau tirage à
-    /// chaque appel, rappelé par le lecteur quand la file s'épuise.
+    /// « Meilleur résultat » : le premier artiste en grande carte, comme
+    /// Musique — chercher un nom doit mener à sa fiche d'un tap.
+    private func topResult(_ artist: Artist) -> some View {
+        let route = Route.artist(source: artist.source, id: artist.sourceId)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Meilleur résultat").font(Typo.title).foregroundStyle(Tone.primary)
+            Button { path.append(route) } label: {
+                HStack(spacing: 16) {
+                    Artwork(url: artist.pictureURL, cornerRadius: 44, symbol: "person.fill")
+                        .frame(width: 88, height: 88)
+                        .zoomSource(route)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(artist.name).font(Typo.title).foregroundStyle(Tone.primary).lineLimit(2)
+                        Text(fansLabel(artist)).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(Tone.tertiary)
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Tone.surface))
+            }
+            .buttonStyle(.pressable(scale: 0.98))
+        }
+    }
+
+    private func fansLabel(_ artist: Artist) -> String {
+        guard let fans = artist.fans, fans > 0 else { return "Artiste" }
+        return "Artiste · \(fans.formatted(.number.notation(.compactName))) fans"
+    }
+
+    // MARK: - Parcourir (champ vide)
+
+    @ViewBuilder
+    private var browse: some View {
+        if let radioError {
+            Text(radioError).font(Typo.rowSubtitle).foregroundStyle(Tone.danger).padding(.horizontal, 20)
+        }
+        ForEach(Array(viewModel.radioGroups.enumerated()), id: \.offset) { index, group in
+            section(group.title, index: index) {
+                Carousel(items: group.radios) { radio in
+                    RadioTile(radio: radio, isLoading: loadingRadioId == radio.id) { startRadio(radio) }
+                }
+            }
+        }
+        if viewModel.radioGroups.isEmpty {
+            EmptyState(
+                systemImage: "magnifyingglass",
+                title: "Cherche un artiste, un titre, un album",
+                message: "Ou colle un lien Deezer, Spotify, Apple Music ou YouTube."
+            )
+        }
+    }
+
+    private func section<Content: View>(_ title: String, index: Int, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: title).padding(.horizontal, 20)
+            content()
+        }
+        .reveal(index)
+    }
+
     private func startRadio(_ radio: RadioStation) {
         guard loadingRadioId == nil else { return }
         loadingRadioId = radio.id
@@ -161,15 +170,15 @@ struct SearchView: View {
         let radioId = radio.id
         Task {
             do {
-                try await player.playStation {
-                    try await APIClient.shared.radioTracks(id: radioId)
-                }
+                try await player.playStation { try await APIClient.shared.radioTracks(id: radioId) }
             } catch {
                 radioError = "« \(radio.title) » : \(error.localizedDescription)"
             }
             loadingRadioId = nil
         }
     }
+
+    // MARK: - Lien collé
 
     @ViewBuilder
     private func resolvedView(_ link: ResolvedLink) -> some View {
@@ -178,38 +187,43 @@ struct SearchView: View {
             if let track = link.track {
                 TrackRow(
                     track: track,
+                    isCurrent: player.current?.id == track.id,
+                    isPlaying: player.isPlaying,
                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
                     onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
                 ) { player.play(track) }
             }
         case .album, .playlist:
             if let album = link.album {
-                Button { path.append(Route.album(source: album.source, id: album.sourceId)) } label: {
-                    HStack(spacing: 14) {
-                        CoverArt(url: album.coverURL, title: album.title).frame(width: 58, height: 58)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(album.title).font(EncreFont.heading(17)).foregroundStyle(EncreColor.text)
-                            Text(album.artist).font(EncreFont.bodyItalic(14)).foregroundStyle(EncreColor.neutral600)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(EncreColor.neutral600)
-                    }
-                }
-                .buttonStyle(.plain)
+                let route = link.kind == .playlist
+                    ? Route.playlist(source: album.source, id: album.sourceId)
+                    : Route.album(source: album.source, id: album.sourceId)
+                linkCard(title: album.title, subtitle: album.artist, imageURL: album.coverURL, round: false, route: route)
             }
         case .artist:
             if let artist = link.artist {
-                Button { path.append(Route.artist(source: artist.source, id: artist.sourceId)) } label: {
-                    HStack(spacing: 16) {
-                        CoverArt(url: artist.pictureURL, title: artist.name, cornerRadius: 1000)
-                            .frame(width: 64, height: 64).clipShape(Circle())
-                        Text(artist.name).font(EncreFont.heading(19)).foregroundStyle(EncreColor.text)
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(EncreColor.neutral600)
-                    }
-                }
-                .buttonStyle(.plain)
+                let route = Route.artist(source: artist.source, id: artist.sourceId)
+                linkCard(title: artist.name, subtitle: "Artiste", imageURL: artist.pictureURL, round: true, route: route)
             }
         }
+    }
+
+    private func linkCard(title: String, subtitle: String, imageURL: String?, round: Bool, route: Route) -> some View {
+        Button { path.append(route) } label: {
+            HStack(spacing: 16) {
+                Artwork(url: imageURL, cornerRadius: round ? 36 : 10, symbol: round ? "person.fill" : "square.stack")
+                    .frame(width: 72, height: 72)
+                    .zoomSource(route)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(2)
+                    Text(subtitle).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(Tone.tertiary)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Tone.surface))
+        }
+        .buttonStyle(.pressable(scale: 0.98))
     }
 }

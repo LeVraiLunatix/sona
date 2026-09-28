@@ -1,49 +1,83 @@
 import SwiftUI
 
-/// Barre de lecture minimale, posée au-dessus de la barre d'onglets via
-/// `.safeAreaInset` (voir `RootTabView`) — dessine son propre verre liquide
-/// (vrai `glassEffect()` système), n'étant plus dans le conteneur
-/// `tabViewBottomAccessory` natif dont la pastille fantôme (visible même
-/// sans morceau en cours) posait problème.
+/// Mini-lecteur flottant en verre (vrai `glassEffect()` système) : pochette,
+/// titre, lecture/pause, suivant, et une fine barre de progression en bas.
+/// Tout le bloc ouvre le lecteur plein écran, qui en *grandit* (voir
+/// `RootTabView`).
 struct MiniPlayerView: View {
     @ObservedObject var player: PlayerManager
     var onExpand: () -> Void
 
     var body: some View {
         if let track = player.current {
-            Button(action: onExpand) {
-                HStack(spacing: 12) {
-                    CoverArt(url: track.coverURL, title: track.title)
-                        .frame(width: 46, height: 46)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(track.title)
-                            .font(EncreFont.heading(16))
-                            .foregroundStyle(EncreColor.text)
-                            .lineLimit(1)
-                        Text(track.artist)
-                            .font(EncreFont.bodyItalic(14))
-                            .foregroundStyle(EncreColor.neutral600)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    Button {
-                        withAnimation(.easeOut(duration: 0.15)) { player.togglePlayPause() }
-                    } label: {
-                        Image(systemName: player.isLoading ? "hourglass" : (player.isPlaying ? "pause.fill" : "play.fill"))
-                            .font(.system(size: 20))
-                            .foregroundStyle(EncreColor.text)
-                            .frame(width: 42, height: 42)
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                    .buttonStyle(.plain)
+            HStack(spacing: 12) {
+                Artwork(url: track.coverURL, cornerRadius: 8)
+                    .frame(width: 42, height: 42)
+                    .scaleEffect(player.isPlaying ? 1 : 0.9)
+                    .animation(Motion.bouncy, value: player.isPlaying)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(track.title)
+                        .font(Typo.rowTitle)
+                        .foregroundStyle(Tone.primary)
+                        .lineLimit(1)
+                    Text(track.artist)
+                        .font(Typo.rowSubtitle)
+                        .foregroundStyle(Tone.secondary)
+                        .lineLimit(1)
                 }
-                .padding(.leading, 8)
-                .padding(.trailing, 10)
-                .frame(height: 64)
+                .id(track.id)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                ))
+                Spacer(minLength: 4)
+                Button {
+                    player.togglePlayPause()
+                } label: {
+                    Group {
+                        if player.isLoading {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                                .contentTransition(.symbolEffect(.replace.downUp))
+                        }
+                    }
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Tone.primary)
+                    .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.pressable(scale: 0.85))
+                .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
+
+                Button {
+                    player.next()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(player.upNext.isEmpty ? Tone.tertiary : Tone.primary)
+                        .frame(width: 36, height: 40)
+                }
+                .buttonStyle(.pressable(scale: 0.85))
+                .disabled(player.upNext.isEmpty)
             }
-            .buttonStyle(.plain)
+            .padding(.leading, 8)
+            .padding(.trailing, 8)
+            .frame(height: 60)
+            .overlay(alignment: .bottom) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(Color.white.opacity(0.85))
+                        .frame(width: proxy.size.width * player.progress, height: 2)
+                        .animation(.linear(duration: 0.5), value: player.progress)
+                }
+                .frame(height: 2)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 3)
+            }
+            .contentShape(Capsule())
+            .onTapGesture(perform: onExpand)
             .glassCapsule(interactive: true)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(Motion.snappy, value: track.id)
         }
     }
 }

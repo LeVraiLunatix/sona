@@ -24,10 +24,6 @@ targets:
           UIImageName: LaunchLogo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIAppFonts:
-          - SourceSerif4-Regular.ttf
-          - SourceSerif4-SemiBold.ttf
-          - SourceSerif4-Italic.ttf
         # L'API Sona tourne en local (voir README du dépôt principal, section
         # « API ») : sur le même Wi-Fi que le serveur, l'app y accède en HTTP
         # simple tant qu'aucun reverse proxy HTTPS n'est en place.
