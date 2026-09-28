@@ -26,7 +26,7 @@ def _check_kind(kind: str) -> None:
 async def list_library(
     kind: str,
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     deps: ApiDeps = Depends(require_token),
 ) -> dict:
     _check_kind(kind)
