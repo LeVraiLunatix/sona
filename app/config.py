@@ -44,6 +44,9 @@ class Settings:
     stream_cache_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "stream_cache")
     # Import de l'historique Last.fm dans les stats d'écoute (optionnel) :
     # clé API gratuite (https://www.last.fm/api/account/create) + pseudo.
+    # Taille maximale des fichiers audio gardés pour l'app (data/stream_cache) :
+    # au-delà, les titres écoutés il y a le plus longtemps sont supprimés.
+    stream_cache_max_mb: int = 2048
     lastfm_api_key: str | None = None
     lastfm_user: str | None = None
     # Secret partagé de l'application Last.fm : nécessaire à la connexion
@@ -109,6 +112,7 @@ def load_settings() -> Settings:
         api_token=os.getenv("API_TOKEN", "").strip() or None,
         api_user_id=int(api_user_id_raw) if api_user_id_raw else 1,
         stream_cache_dir=stream_cache_dir,
+        stream_cache_max_mb=int(os.getenv("STREAM_CACHE_MAX_MB", "").strip() or 2048),
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip() or None,
         lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
         lastfm_api_secret=os.getenv("LASTFM_API_SECRET", "").strip() or None,
