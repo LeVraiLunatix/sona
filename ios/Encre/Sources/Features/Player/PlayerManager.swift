@@ -30,6 +30,17 @@ final class PlayerManager: ObservableObject {
     /// Durée réelle du fichier en cours (0 tant qu'elle n'est pas connue) :
     /// plus juste que celle du catalogue, parfois arrondie ou absente.
     @Published private(set) var durationSeconds: Double = 0
+
+    /// Durée de référence du morceau en cours. Celle du catalogue d'abord :
+    /// pendant la lecture directe, le serveur relaie le flux YouTube tel
+    /// quel (MP4 fragmenté), dont iOS estime mal la durée — souvent le
+    /// double, d'où une barre à mi-course quand le titre se termine. Celle
+    /// d'iOS ne sert que si le catalogue n'en donne pas.
+    private func referenceDuration() -> Double? {
+        if let catalog = current?.durationSeconds, catalog > 0 { return Double(catalog) }
+        if let item = player?.currentItem?.duration.seconds, item.isFinite, item > 0 { return item }
+        return nil
+    }
     @Published var errorMessage: String?
 
     /// Morceaux à venir après `current`, dans l'ordre — pour l'écran "À
@@ -158,7 +169,7 @@ final class PlayerManager: ObservableObject {
         }
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let self, let event = event as? MPChangePlaybackPositionCommandEvent,
-                  let duration = self.player?.currentItem?.duration.seconds, duration.isFinite, duration > 0
+                  let duration = self.referenceDuration()
             else { return .commandFailed }
             self.seek(toFraction: event.positionTime / duration)
             return .success
@@ -328,7 +339,7 @@ final class PlayerManager: ObservableObject {
                 // fait le saut explicite requis pour toucher les propriétés
                 // `@Published` de ce `@MainActor final class`.
                 Task { @MainActor in
-                    guard let self, let duration = self.player?.currentItem?.duration.seconds, duration.isFinite, duration > 0 else { return }
+                    guard let self, let duration = self.referenceDuration() else { return }
                     if let last = self.lastTick, self.isPlaying {
                         let delta = time.seconds - last
                         if delta > 0 && delta <= 1.5 { self.listenedSeconds += delta }
@@ -336,7 +347,7 @@ final class PlayerManager: ObservableObject {
                     self.lastTick = time.seconds
                     self.positionSeconds = time.seconds
                     self.durationSeconds = duration
-                    self.progress = time.seconds / duration
+                    self.progress = min(1, time.seconds / duration)
                     if !self.nextPrepared && self.progress >= 0.6 {
                         self.nextPrepared = true
                         self.prepareNext()
@@ -481,7 +492,7 @@ final class PlayerManager: ObservableObject {
     }
 
     func seek(toFraction fraction: Double) {
-        guard let player, let duration = player.currentItem?.duration.seconds, duration.isFinite, duration > 0 else { return }
+        guard let player, let duration = referenceDuration() else { return }
         let clamped = min(1, max(0, fraction))
         player.seek(to: CMTime(seconds: clamped * duration, preferredTimescale: 600))
         // Mis à jour tout de suite : sans ça, la barre revient une demi-seconde
