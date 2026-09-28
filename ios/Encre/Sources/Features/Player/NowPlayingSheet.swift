@@ -1,5 +1,7 @@
+import CoreImage
 import Foundation
 import SwiftUI
+import UIKit
 
 /// Lecteur plein écran — variante "intégrée" du prototype (Encre.dc.html
 /// §1a) : pochette, transport, paroles/file d'attente. Le geste de
@@ -15,8 +17,31 @@ struct NowPlayingSheet: View {
     private enum Mode: Equatable { case cover, lyrics, queue }
     @State private var mode: Mode = .cover
     @State private var isLiked = false
+    @State private var backdropColor: Color = EncreColor.bg
+    @State private var path = NavigationPath()
 
     var body: some View {
+        // Pile de navigation propre à la feuille : Apple Music permet
+        // d'atteindre la fiche artiste depuis l'écran "En cours de lecture"
+        // lui-même, pas seulement depuis les résultats de recherche. Une pile
+        // à elle, plutôt que celle de l'onglet d'où la feuille a été ouverte,
+        // qui n'a aucun sens une fois la feuille refermée.
+        NavigationStack(path: $path) {
+            content
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: Route.self) { route in
+                    switch route {
+                    case .album(let source, let id):
+                        AlbumDetailView(source: source, id: id, path: $path)
+                    case .artist(let source, let id):
+                        ArtistDetailView(source: source, id: id, path: $path)
+                    }
+                }
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             Capsule()
                 .fill(EncreColor.neutral400)
@@ -80,55 +105,71 @@ struct NowPlayingSheet: View {
         }
         .frame(maxWidth: .infinity)
         .background { backdrop }
-        .task(id: player.current?.id) { await refreshLikeState() }
+        .task(id: player.current?.id) {
+            await refreshLikeState()
+            await updateBackdropColor()
+        }
     }
 
-    /// Fond flouté à partir de la pochette du morceau en cours — la signature
-    /// visuelle du lecteur plein écran d'Apple Music. Un voile sombre garde
-    /// le texte lisible quelle que soit la luminosité de la pochette ; sans
-    /// pochette, on retombe sur le fond plat du thème.
+    /// Fond dégradé teinté de la couleur moyenne de la pochette + texture
+    /// floutée dessus — la signature visuelle du lecteur plein écran d'Apple
+    /// Music (qui fait la même extraction de couleur), plutôt qu'un simple
+    /// voile sombre uniforme qui rendait la même chose quelle que soit la
+    /// pochette.
     @ViewBuilder
     private var backdrop: some View {
         ZStack {
-            EncreColor.bg
+            LinearGradient(colors: [backdropColor, EncreColor.bg], startPoint: .top, endPoint: .bottom)
             if let urlString = player.current?.coverURL, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     if case .success(let image) = phase {
                         image.resizable().scaledToFill()
                     }
                 }
-                .blur(radius: 60)
-                .saturation(1.3)
-                .overlay(EncreColor.bg.opacity(0.55))
+                .blur(radius: 80)
+                .opacity(0.5)
+                .overlay(LinearGradient(colors: [.clear, EncreColor.bg], startPoint: .top, endPoint: .bottom))
             }
         }
         .ignoresSafeArea()
-        // Le fond change avec le morceau : sans animation explicite, le
-        // flou remplacerait l'ancien d'un coup plutôt que de fondre dedans.
-        .animation(.easeInOut(duration: 0.5), value: player.current?.coverURL)
+        .animation(.easeInOut(duration: 0.6), value: backdropColor)
+    }
+
+    /// Moyenne des couleurs de la pochette (filtre Core Image `CIAreaAverage`,
+    /// rendu sur un unique pixel) : la même technique qu'utilise Apple Music
+    /// pour teinter son fond, plutôt qu'une couleur fixe qui ignorerait la
+    /// pochette réelle.
+    private func updateBackdropColor() async {
+        guard let urlString = player.current?.coverURL, let url = URL(string: urlString),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let uiImage = UIImage(data: data), let ciImage = CIImage(image: uiImage),
+              let filter = CIFilter(name: "CIAreaAverage", parameters: [
+                kCIInputImageKey: ciImage, kCIInputExtentKey: CIVector(cgRect: ciImage.extent),
+              ]),
+              let output = filter.outputImage
+        else {
+            backdropColor = EncreColor.bg
+            return
+        }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CIContext(options: [.workingColorSpace: NSNull()])
+        context.render(
+            output, toBitmap: &pixel, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8, colorSpace: nil
+        )
+        backdropColor = Color(red: Double(pixel[0]) / 255, green: Double(pixel[1]) / 255, blue: Double(pixel[2]) / 255)
     }
 
     // MARK: - Panneaux
 
     private func coverPanel(_ track: Track) -> some View {
-        ZStack {
-            // Clin d'œil au décalage CMJN du prototype : deux aplats
-            // légèrement décalés derrière la pochette.
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(EncreColor.accent.opacity(0.7))
-                .frame(width: 300, height: 300)
-                .offset(x: -6, y: 4)
-                .blendMode(.multiply)
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(EncreColor.accent2.opacity(0.7))
-                .frame(width: 300, height: 300)
-                .offset(x: 6, y: -4)
-                .blendMode(.multiply)
-            CoverArt(url: track.coverURL, title: track.title, showsHalftone: true)
-                .frame(width: 300, height: 300)
-                .encreShadow(EncreShadow.lg)
-        }
-        .compositingGroup()
+        // Le décalage CMJN (deux aplats décalés derrière la pochette) faisait
+        // sens sur les placeholders sans vraie image, mais rendait mal sur de
+        // vraies photos de pochette — une seule pochette nette avec juste une
+        // ombre, comme Apple Music, plutôt qu'un effet qui la brouille.
+        CoverArt(url: track.coverURL, title: track.title, showsHalftone: true)
+            .frame(width: 300, height: 300)
+            .encreShadow(EncreShadow.lg)
     }
 
     private var lyricsPanel: some View {
@@ -196,10 +237,22 @@ struct NowPlayingSheet: View {
                     .font(EncreFont.heading(24))
                     .foregroundStyle(EncreColor.text)
                     .lineLimit(1)
-                Text(track.artist)
-                    .font(EncreFont.bodyItalic(18))
-                    .foregroundStyle(EncreColor.spotDeep)
-                    .lineLimit(1)
+                if let artistId = track.artistSourceId {
+                    Button {
+                        path.append(Route.artist(source: track.source, id: artistId))
+                    } label: {
+                        Text(track.artist)
+                            .font(EncreFont.bodyItalic(18))
+                            .foregroundStyle(EncreColor.spotDeep)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(track.artist)
+                        .font(EncreFont.bodyItalic(18))
+                        .foregroundStyle(EncreColor.spotDeep)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             Button {

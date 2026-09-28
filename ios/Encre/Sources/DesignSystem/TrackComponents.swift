@@ -21,41 +21,53 @@ struct TrackRow: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                if let rank {
-                    Text("\(rank)")
-                        .font(EncreFont.heading(28))
-                        .frame(width: 30, alignment: .leading)
-                        .foregroundStyle(EncreColor.text)
-                }
-                CoverArt(url: track.coverURL, title: track.title)
-                    .frame(width: 54, height: 54)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(track.title)
-                        .font(EncreFont.heading(17))
-                        .foregroundStyle(isCurrent ? EncreColor.spotDeep : EncreColor.text)
-                        .lineLimit(1)
+        HStack(spacing: 14) {
+            if let rank {
+                Text("\(rank)")
+                    .font(EncreFont.heading(28))
+                    .frame(width: 30, alignment: .leading)
+                    .foregroundStyle(EncreColor.text)
+            }
+            CoverArt(url: track.coverURL, title: track.title)
+                .frame(width: 54, height: 54)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track.title)
+                    .font(EncreFont.heading(17))
+                    .foregroundStyle(isCurrent ? EncreColor.spotDeep : EncreColor.text)
+                    .lineLimit(1)
+                // Un `Button` visible ici plutôt qu'enfoui dans le menu
+                // contextuel : sur Apple Music, taper le nom de l'artiste
+                // sous un morceau ouvre sa fiche — un geste qu'on ne découvre
+                // pas par hasard s'il faut d'abord penser à l'appui long.
+                if let onOpenArtist {
+                    Button(action: onOpenArtist) {
+                        Text(track.artist)
+                            .font(EncreFont.bodyItalic(14))
+                            .foregroundStyle(EncreColor.spotDeep)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                } else {
                     Text(track.artist)
                         .font(EncreFont.bodyItalic(14))
                         .foregroundStyle(EncreColor.neutral600)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 8)
-                if showDuration {
-                    Text(track.durationLabel)
-                        .font(EncreFont.body(14))
-                        .foregroundStyle(EncreColor.neutral600)
-                        .monospacedDigit()
-                }
             }
-            .contentShape(Rectangle())
+            Spacer(minLength: 8)
+            if showDuration {
+                Text(track.durationLabel)
+                    .font(EncreFont.body(14))
+                    .foregroundStyle(EncreColor.neutral600)
+                    .monospacedDigit()
+            }
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        // `onTapGesture` sur le conteneur plutôt qu'un `Button` autour de
+        // tout : un `Button` imbriqué (le nom d'artiste ci-dessus) perdrait
+        // sinon son propre tap, absorbé par celui du parent.
+        .onTapGesture(perform: action)
         .contextMenu {
-            if let onOpenArtist {
-                Button { onOpenArtist() } label: { Label("Voir l'artiste", systemImage: "person.fill") }
-            }
             if let onOpenAlbum {
                 Button { onOpenAlbum() } label: { Label("Voir l'album", systemImage: "square.stack.fill") }
             }
