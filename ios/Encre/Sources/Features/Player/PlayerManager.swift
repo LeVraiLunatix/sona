@@ -37,6 +37,7 @@ final class PlayerManager: ObservableObject {
     private var interruptionObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
     private var coverTask: Task<Void, Never>?
+    private var loadTimeoutTask: Task<Void, Never>?
     private var nowPlayingArtwork: MPMediaItemArtwork?
 
     private init() {
@@ -179,6 +180,7 @@ final class PlayerManager: ObservableObject {
                         self.errorMessage = item.error?.localizedDescription ?? "La lecture a échoué."
                     case .readyToPlay:
                         self.isLoading = false
+                        self.loadTimeoutTask?.cancel()
                     default:
                         break
                     }
@@ -230,6 +232,19 @@ final class PlayerManager: ObservableObject {
             player.play()
             updateNowPlayingInfo(for: track)
             fetchArtwork(for: track)
+
+            // Sans ça, un flux qui ne se décide jamais (serveur qui télécharge
+            // et vérifie l'audio en tâche de fond, requête qui ne timeout pas
+            // toute seule...) laissait le sablier tourner indéfiniment sans le
+            // moindre message — impossible à distinguer d'un blocage réel.
+            loadTimeoutTask?.cancel()
+            loadTimeoutTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(30))
+                guard let self, !Task.isCancelled, self.current?.id == track.id, self.isLoading else { return }
+                self.errorMessage = "Le morceau met trop de temps à démarrer — le serveur est peut-être encore en train de le préparer. Réessaie dans un instant."
+                self.isLoading = false
+                self.player?.pause()
+            }
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -292,6 +307,7 @@ final class PlayerManager: ObservableObject {
         statusObserver?.invalidate()
         timeControlObserver?.invalidate()
         coverTask?.cancel()
+        loadTimeoutTask?.cancel()
         timeObserver = nil
         endObserver = nil
         statusObserver = nil

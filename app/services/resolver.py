@@ -14,7 +14,8 @@ import yt_dlp
 from ytmusicapi import YTMusic
 
 from app.logging_config import ytdlp_logger
-from app.providers.base import TrackInfo
+from app.providers.base import ArtistInfo, TrackInfo
+from app.providers.youtube import YoutubeError
 from app.services.artwork import DISPLAY_SIZE, resize_artwork_url
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,12 @@ class Candidate:
     is_song: bool
     platform: str = "youtube"  # "youtube" | "soundcloud"
     url: str | None = None
+    # Identifiant YouTube Music de l'artiste principal (`artists[0].id` dans
+    # la réponse `ytmusicapi`) : permet d'ouvrir une vraie fiche artiste
+    # (voir `get_artist_info`) pour un morceau qui n'existe que là — Deezer,
+    # Apple et Spotify ont leur propre identifiant d'artiste, YouTube brut
+    # (yt-dlp) n'en a aucun, mais YouTube Music, si.
+    artist_id: str | None = None
 
     @property
     def source_url(self) -> str:
@@ -305,15 +312,17 @@ def _candidate_from_ytmusic(item: dict) -> Candidate | None:
         return None
     thumbnails = item.get("thumbnails") or []
     album = item.get("album")
+    artists = item.get("artists") or []
     return Candidate(
         video_id=video_id,
         title=item.get("title") or "",
-        artist=", ".join(a.get("name", "") for a in item.get("artists") or []),
+        artist=", ".join(a.get("name", "") for a in artists),
         album=album.get("name") if isinstance(album, dict) else None,
         duration_seconds=item.get("duration_seconds"),
         # YouTube Music ne renvoie que des vignettes de 60 et 120 px.
         cover_url=resize_artwork_url(thumbnails[-1]["url"], DISPLAY_SIZE) if thumbnails else None,
         is_song=item.get("resultType") == "song",
+        artist_id=artists[0].get("id") if artists else None,
     )
 
 
@@ -552,8 +561,69 @@ def _search_tracks_youtube_sync(query: str, limit: int) -> list[TrackInfo]:
                 year=None,
                 duration_seconds=candidate.duration_seconds,
                 cover_url=candidate.cover_url,
+                artist_source_id=candidate.artist_id,
             )
         )
+    return tracks
+
+
+def _get_artist_sync(channel_id: str) -> dict:
+    return _ytmusic().get_artist(channel_id)
+
+
+def _track_from_ytmusic_song(item: dict, fallback_artist: str, artist_id: str) -> TrackInfo | None:
+    video_id = item.get("videoId")
+    if not video_id:
+        return None
+    thumbnails = item.get("thumbnails") or []
+    album = item.get("album")
+    artists = item.get("artists") or []
+    return TrackInfo(
+        source="youtube",
+        source_id=video_id,
+        title=item.get("title") or "Titre inconnu",
+        artist=", ".join(a.get("name", "") for a in artists) or fallback_artist,
+        album=album.get("name") if isinstance(album, dict) else None,
+        year=None,
+        duration_seconds=item.get("duration_seconds"),
+        cover_url=resize_artwork_url(thumbnails[-1]["url"], DISPLAY_SIZE) if thumbnails else None,
+        # `artists[0].id` peut être un featuring plutôt que l'artiste de cette
+        # fiche : à défaut, l'identifiant de la fiche elle-même reste un
+        # meilleur repère que rien.
+        artist_source_id=artists[0].get("id") if artists and artists[0].get("id") else artist_id,
+    )
+
+
+async def get_artist_info(channel_id: str) -> ArtistInfo:
+    """Fiche artiste YouTube Music : nom + photo, à partir de son
+    `channelId` (glané dans `artists[0].id` d'un résultat de recherche —
+    voir `Candidate.artist_id`). YouTube (brut, `yt-dlp`) n'a pas cette
+    notion, seule YouTube Music (`ytmusicapi`) en a une exploitable ici."""
+    try:
+        data = await asyncio.to_thread(_get_artist_sync, channel_id)
+    except Exception as exc:
+        raise YoutubeError("Artiste YouTube Music introuvable.") from exc
+    thumbnails = data.get("thumbnails") or []
+    return ArtistInfo(
+        source="youtube",
+        source_id=channel_id,
+        name=data.get("name") or "Artiste inconnu",
+        picture_url=thumbnails[-1]["url"] if thumbnails else None,
+    )
+
+
+async def get_artist_top_tracks_youtube(channel_id: str, limit: int = 25) -> list[TrackInfo]:
+    try:
+        data = await asyncio.to_thread(_get_artist_sync, channel_id)
+    except Exception as exc:
+        raise YoutubeError("Artiste YouTube Music introuvable.") from exc
+    name = data.get("name") or "Artiste inconnu"
+    songs = (data.get("songs") or {}).get("results") or []
+    tracks = []
+    for item in songs[:limit]:
+        track = _track_from_ytmusic_song(item, name, channel_id)
+        if track:
+            tracks.append(track)
     return tracks
 
 

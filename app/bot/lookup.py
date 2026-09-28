@@ -7,6 +7,7 @@ from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 from app.providers.deezer import DeezerError
 from app.providers.spotify import SpotifyError
 from app.providers.youtube import YoutubeError
+from app.services import resolver
 
 ProviderErrors = (DeezerError, AppleMusicError, SpotifyError, YoutubeError)
 
@@ -61,6 +62,8 @@ async def get_artist(deps: Deps, source: str, source_id: str) -> ArtistInfo:
         return await deps.apple.get_artist(source_id)
     if source == "spotify":
         return await deps.spotify.get_artist(source_id)
+    if source == "youtube":
+        return await resolver.get_artist_info(source_id)
     raise UnknownSourceError(source)
 
 
@@ -71,6 +74,8 @@ async def get_artist_top_tracks(deps: Deps, source: str, source_id: str) -> list
         return await deps.apple.get_artist_top_tracks(source_id)
     if source == "spotify":
         return await deps.spotify.get_artist_top_tracks(source_id)
+    if source == "youtube":
+        return await resolver.get_artist_top_tracks_youtube(source_id)
     raise UnknownSourceError(source)
 
 
@@ -83,4 +88,12 @@ async def get_artist_albums(
         return await deps.apple.get_artist_albums(source_id)
     if source == "spotify":
         return await deps.spotify.get_artist_albums(source_id)
+    if source == "youtube":
+        # YouTube Music a bien une notion d'album (`get_artist(...)["albums"]`),
+        # mais son browseId n'est ni un id de playlist ni compatible avec
+        # `youtube.get_playlist_info` (seul chemin actuel de `get_album` pour
+        # cette source) : l'exposer ouvrirait un lien qui casse à l'arrivée.
+        # Une vraie fiche artiste YouTube sans albums reste plus honnête que
+        # des vignettes qui mènent à une erreur.
+        return [], []
     raise UnknownSourceError(source)
