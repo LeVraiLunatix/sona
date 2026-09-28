@@ -31,6 +31,11 @@ targets:
         # simple tant qu'aucun reverse proxy HTTPS n'est en place.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # Lecture en fond + écran verrouillé (MPNowPlayingInfoCenter /
+        # MPRemoteCommandCenter, voir PlayerManager) : sans ce mode, iOS coupe
+        # l'audio dès que l'app passe en arrière-plan ou que l'écran se verrouille.
+        UIBackgroundModes:
+          - audio
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sona.encre

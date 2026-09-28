@@ -42,6 +42,10 @@ struct RootTabView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
+            // Anime l'apparition/disparition du mini-lecteur (voir sa
+            // `.transition` dans `MiniPlayerView`) quand un morceau démarre
+            // ou que la lecture s'arrête complètement.
+            .animation(.spring(duration: 0.35), value: player.current?.id)
         }
         .environmentObject(player)
         .sheet(isPresented: $showingPlayerSheet) {

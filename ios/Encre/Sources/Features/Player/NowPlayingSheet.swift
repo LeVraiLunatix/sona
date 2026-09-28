@@ -59,7 +59,8 @@ struct NowPlayingSheet: View {
                 transportRow
                     .padding(.top, 26)
 
-                volumeRow
+                SystemVolumeView()
+                    .frame(height: 32)
                     .padding(.horizontal, 36)
                     .padding(.top, 26)
 
@@ -195,10 +196,13 @@ struct NowPlayingSheet: View {
             }
             .foregroundStyle(EncreColor.text)
 
-            Button { player.togglePlayPause() } label: {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { player.togglePlayPause() }
+            } label: {
                 Image(systemName: player.isLoading ? "hourglass" : (player.isPlaying ? "pause.fill" : "play.fill"))
                     .font(.system(size: 34))
                     .frame(width: 78, height: 78)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .glassCircle()
             .foregroundStyle(EncreColor.text)
@@ -208,16 +212,6 @@ struct NowPlayingSheet: View {
             }
             .foregroundStyle(EncreColor.text)
         }
-    }
-
-    private var volumeRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "speaker.fill").font(.system(size: 14))
-            Slider(value: $player.volume, in: 0...1)
-            Image(systemName: "speaker.wave.3.fill").font(.system(size: 14))
-        }
-        .foregroundStyle(EncreColor.neutral700)
-        .tint(EncreColor.text)
     }
 
     private var modeRow: some View {

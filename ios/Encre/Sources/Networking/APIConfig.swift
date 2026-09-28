@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Security
 
 /// Adresse du serveur Sona et jeton API, réglables depuis l'onglet Réglages
 /// (voir `Features/Settings`) — usage strictement personnel, comme l'API
@@ -12,7 +13,7 @@ final class APIConfig: ObservableObject {
         didSet { UserDefaults.standard.set(baseURLString, forKey: Keys.baseURL) }
     }
     @Published var token: String {
-        didSet { UserDefaults.standard.set(token, forKey: Keys.token) }
+        didSet { Keychain.set(token, forKey: Keys.token) }
     }
 
     var baseURL: URL? { URL(string: baseURLString) }
@@ -24,10 +25,47 @@ final class APIConfig: ObservableObject {
     }
 
     private init() {
-        // 127.0.0.1 par défaut : ne marche que dans le simulateur, sur le
-        // même Mac que `run_api.py`. Sur un iPhone physique, renseigner
-        // l'adresse locale du serveur (ex: http://192.168.1.x:8000).
+        // Le jeton ne doit jamais figurer dans le code source (il finirait
+        // dans l'historique Git et dans l'IPA distribué) : on le garde dans
+        // le Keychain plutôt que `UserDefaults`. Le Keychain survit en
+        // pratique à une désinstallation/réinstallation de l'app (contrairement
+        // à `UserDefaults`, purgé à chaque reinstall via Sideloadly/AltStore),
+        // ce qui évite d'avoir à le ressaisir à chaque nouvelle build — sans
+        // jamais l'écrire en dur ici.
         baseURLString = UserDefaults.standard.string(forKey: Keys.baseURL) ?? "http://127.0.0.1:8000"
-        token = UserDefaults.standard.string(forKey: Keys.token) ?? ""
+        token = Keychain.get(Keys.token) ?? ""
+    }
+}
+
+/// Enveloppe minimale autour de l'API Keychain de Sécurité — juste de quoi
+/// stocker/lire une chaîne, en `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`
+/// (accessible dès le premier déverrouillage après redémarrage, jamais
+/// synchronisé sur iCloud : ce jeton n'a rien à faire sur un autre appareil).
+private enum Keychain {
+    static func set(_ value: String, forKey key: String) {
+        let data = Data(value.utf8)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+        ]
+        SecItemDelete(query as CFDictionary)
+        guard !value.isEmpty else { return }
+        var attributes = query
+        attributes[kSecValueData as String] = data
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        SecItemAdd(attributes as CFDictionary, nil)
+    }
+
+    static func get(_ key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }

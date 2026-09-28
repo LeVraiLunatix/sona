@@ -14,9 +14,13 @@ struct GlassBackground: ViewModifier {
                 shape
                     .fill(.ultraThinMaterial)
                     .overlay {
+                        // Opacités revues à la baisse pour le thème sombre :
+                        // les mêmes reflets qu'en clair (0.5/0.45/0.72)
+                        // paraissaient criards sur un fond quasi noir — un
+                        // "verre" sobre a un reflet discret, pas un flash.
                         shape.fill(
                             LinearGradient(
-                                colors: [.white.opacity(0.5), .white.opacity(0.14)],
+                                colors: [.white.opacity(0.16), .white.opacity(0.04)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -25,7 +29,7 @@ struct GlassBackground: ViewModifier {
                         // Reflet diagonal (--g-sheen) : concentré en haut-gauche.
                         shape.fill(
                             RadialGradient(
-                                colors: [.white.opacity(0.45), .clear],
+                                colors: [.white.opacity(0.14), .clear],
                                 center: UnitPoint(x: 0.25, y: 0),
                                 startRadius: 0, endRadius: 220
                             )
@@ -35,7 +39,7 @@ struct GlassBackground: ViewModifier {
                         // `.stroke` plutôt que `.strokeBorder` : `AnyShape`
                         // n'est pas `InsettableShape`, seul `.stroke` est
                         // disponible sur un `Shape` quelconque.
-                        shape.stroke(Color.white.opacity(0.72), lineWidth: 1)
+                        shape.stroke(Color.white.opacity(0.16), lineWidth: 1)
                     }
             }
             .encreShadow(EncreShadow.lg)
