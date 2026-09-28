@@ -51,3 +51,16 @@ def test_errors_stay_visible_without_terminal_colours(caplog):
     assert _records(caplog) == [
         (logging.ERROR, "ERROR: [youtube] abc: Sign in to confirm you're not a bot"),
     ]
+
+
+def test_pm2_node_ipc_variables_are_removed_before_running_deno(monkeypatch):
+    import os
+
+    from app.services.ytdlp_runtime import with_js_runtimes
+
+    monkeypatch.setenv("NODE_CHANNEL_FD", "3")
+    monkeypatch.setenv("NODE_CHANNEL_SERIALIZATION_MODE", "json")
+    opts = with_js_runtimes({})
+    assert "NODE_CHANNEL_FD" not in os.environ
+    assert "NODE_CHANNEL_SERIALIZATION_MODE" not in os.environ
+    assert opts["js_runtimes"]
