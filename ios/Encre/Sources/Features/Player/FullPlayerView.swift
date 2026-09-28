@@ -205,65 +205,61 @@ struct FullPlayerView: View {
             QueueToggles(player: player)
                 .padding(.top, 6)
 
+            // En-têtes en lignes ordinaires plutôt qu'en `Section` : les
+            // en-têtes d'une liste simple restent collés en haut, sur un fond
+            // grisé qui jure avec le lecteur.
             List {
-                Section {
-                    if player.queuedNext.isEmpty {
-                        Text("Rien après ce morceau.")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Poursuivre la lecture")
+                        .font(Typo.headline)
+                        .foregroundStyle(Tone.primary)
+                    if let name = player.contextName {
+                        Text("De \(name)")
                             .font(Typo.rowSubtitle)
                             .foregroundStyle(Tone.secondary)
-                            .padding(.vertical, 10)
-                            .queueRowStyle()
-                    } else {
-                        ForEach(player.queuedNext) { track in
-                            QueueRow(track: track) { player.playFromUpNext(track) }
-                                .queueRowStyle()
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        withAnimation(Motion.smooth) { player.removeFromQueue(track) }
-                                    } label: {
-                                        Label("Retirer", systemImage: "minus.circle")
-                                    }
-                                }
-                        }
-                        .onMove { source, destination in
-                            player.moveQueued(from: source, to: destination)
-                        }
                     }
-                } header: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Poursuivre la lecture")
-                            .font(Typo.headline)
-                            .foregroundStyle(Tone.primary)
-                        if let name = player.contextName {
-                            Text("De \(name)")
-                                .font(Typo.rowSubtitle)
-                                .foregroundStyle(Tone.secondary)
+                }
+                .padding(.bottom, 4)
+                .queueRowStyle()
+
+                if player.queuedNext.isEmpty {
+                    Text("Rien après ce morceau.")
+                        .font(Typo.rowSubtitle)
+                        .foregroundStyle(Tone.secondary)
+                        .padding(.vertical, 10)
+                        .queueRowStyle()
+                }
+                ForEach(player.queuedNext) { track in
+                    QueueRow(track: track) { player.playFromUpNext(track) }
+                        .queueRowStyle()
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                withAnimation(Motion.smooth) { player.removeFromQueue(track) }
+                            } label: {
+                                Label("Retirer", systemImage: "minus.circle")
+                            }
                         }
-                    }
-                    .textCase(nil)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .queueRowStyle()
+                }
+                .onMove { source, destination in
+                    player.moveQueued(from: source, to: destination)
                 }
 
                 if player.autoplayEnabled && !player.isStation {
-                    Section {
-                        ForEach(player.autoplayNext) { track in
-                            QueueRow(track: track, showsHandle: false) { player.playFromUpNext(track) }
-                                .queueRowStyle()
-                        }
-                    } header: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Label("Lecture automatique", systemImage: "infinity")
-                                .font(Typo.headline)
-                                .foregroundStyle(Tone.primary)
-                            Text("Des morceaux similaires seront lus automatiquement.")
-                                .font(Typo.rowSubtitle)
-                                .foregroundStyle(Tone.secondary)
-                        }
-                        .textCase(nil)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 12)
-                        .queueRowStyle()
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("Lecture automatique", systemImage: "infinity")
+                            .font(Typo.headline)
+                            .foregroundStyle(Tone.primary)
+                        Text("Des morceaux similaires seront lus automatiquement.")
+                            .font(Typo.rowSubtitle)
+                            .foregroundStyle(Tone.secondary)
+                    }
+                    .padding(.top, 16)
+                    .padding(.bottom, 4)
+                    .queueRowStyle()
+
+                    ForEach(player.autoplayNext) { track in
+                        QueueRow(track: track, showsHandle: false) { player.playFromUpNext(track) }
+                            .queueRowStyle()
                     }
                 }
             }
