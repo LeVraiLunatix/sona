@@ -117,6 +117,11 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
 # téléchargements voués à échouer. Court, pour qu'un souci passager (YouTube
 # qui bride) ne bloque pas le morceau longtemps.
 FAILURE_TTL = 120.0
+# Un seul téléchargement complet à la fois (yt-dlp + moteur JS + ffmpeg +
+# empreinte) : sur une petite machine (1 Go), en lancer plusieurs en même
+# temps — lecture, préparation du suivant, mise en cache en arrière-plan —
+# saturait la mémoire au point de figer tout le serveur.
+_download_slots = asyncio.Semaphore(1)
 _failures: dict[tuple[str, str, str, str], tuple[float, int, str]] = {}
 
 
@@ -158,7 +163,8 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
         if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
             raise HTTPException(failure[1], failure[2])
         try:
-            dest = await _resolve_and_download(deps, source, source_id, quality, fmt)
+            async with _download_slots:
+                dest = await _resolve_and_download(deps, source, source_id, quality, fmt)
         except HTTPException as exc:
             _failures[key] = (time.monotonic(), exc.status_code, str(exc.detail))
             raise

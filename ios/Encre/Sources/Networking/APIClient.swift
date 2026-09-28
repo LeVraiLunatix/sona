@@ -80,8 +80,21 @@ final class APIClient {
         try JSONEncoder().encode(body)
     }
 
+    /// Une connexion restée ouverte peut avoir été fermée par le serveur
+    /// (ou son proxy HTTPS) entre deux requêtes : iOS le découvre en
+    /// réutilisant la connexion et renvoie « The network connection was
+    /// lost ». Une nouvelle tentative, sur une connexion neuve, passe.
+    private func perform(_ req: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: req)
+        } catch let error as URLError where error.code == .networkConnectionLost {
+            try await Task.sleep(for: .milliseconds(400))
+            return try await session.data(for: req)
+        }
+    }
+
     private func send<T: Decodable>(_ req: URLRequest) async throws -> T {
-        let (data, response) = try await session.data(for: req)
+        let (data, response) = try await perform(req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
@@ -90,7 +103,7 @@ final class APIClient {
     }
 
     private func sendNoContent(_ req: URLRequest) async throws {
-        let (data, response) = try await session.data(for: req)
+        let (data, response) = try await perform(req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
