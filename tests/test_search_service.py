@@ -107,6 +107,7 @@ def test_empty_result_is_not_an_error(monkeypatch):
         return []
 
     monkeypatch.setattr(search, "search_tracks_youtube", no_youtube)
+    monkeypatch.setattr(search, "search_tracks_youtube_raw", no_youtube)
     deezer, apple = FakeDeezer(results=[]), FakeApple(results=[])
     cached = query_cache.CachedQuery(text="azerty qwerty")
     tracks, total = run(search.search_tracks(make_deps(deezer, apple), cached))
@@ -118,6 +119,7 @@ def test_all_providers_down_raises_search_error(monkeypatch):
         raise RuntimeError("réseau coupé")
 
     monkeypatch.setattr(search, "search_tracks_youtube", broken_youtube)
+    monkeypatch.setattr(search, "search_tracks_youtube_raw", broken_youtube)
     deezer = FakeDeezer(error=DeezerError("503"))
     apple = FakeApple(error=AppleMusicError("503"))
     cached = query_cache.CachedQuery(text="daft punk")
