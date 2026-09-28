@@ -1,31 +1,34 @@
 import SwiftUI
 
-/// Jetons du design "Encre" (voir le handoff Claude Design :
-/// `_ds/broadsheet-.../styles.css`) — thème imprimerie/CMJN : papier crème,
-/// encre presque noire, cyan et magenta en accents, jaune process réservé
-/// aux seuls effets d'impression (jamais à l'UI).
+/// Jetons du design "Encre" — variante sombre et sobre : fond quasi noir,
+/// texte presque blanc, cyan et magenta gardés comme seuls accents (un peu
+/// éclaircis pour rester lisibles sur fond sombre), jaune process réservé aux
+/// seuls effets d'impression (jamais à l'UI). Les noms `neutral100...900`
+/// restent croissants de clair à sombre comme avant l'inversion, pour ne pas
+/// avoir à retoucher tous les appels existants (`neutral700` reste "texte
+/// secondaire", `neutral300` reste "à peine visible", etc.).
 enum EncreColor {
-    static let bg = Color(hex: 0xF3F2F2)
-    static let surface = Color(hex: 0xEAE9E9)
-    static let text = Color(hex: 0x201E1D)
-    static let accent = Color(hex: 0x0088B0) // cyan
-    static let accent2 = Color(hex: 0xD6006C) // magenta
+    static let bg = Color(hex: 0x121112)
+    static let surface = Color(hex: 0x1C1B1C)
+    static let text = Color(hex: 0xF4F1EF)
+    static let accent = Color(hex: 0x28B8E0) // cyan, éclairci pour le fond sombre
+    static let accent2 = Color(hex: 0xFF4FA0) // magenta, éclairci pour le fond sombre
     static let processYellow = Color(hex: 0xEDBB00)
 
-    static let neutral100 = Color(hex: 0xF8F4F4)
-    static let neutral200 = Color(hex: 0xEAE7E7)
-    static let neutral300 = Color(hex: 0xD7D3D3)
-    static let neutral400 = Color(hex: 0xBAB6B6)
-    static let neutral500 = Color(hex: 0x9B9797)
-    static let neutral600 = Color(hex: 0x7D7979)
-    static let neutral700 = Color(hex: 0x605D5D)
-    static let neutral800 = Color(hex: 0x444141)
-    static let neutral900 = Color(hex: 0x2D2B2B)
+    static let neutral100 = Color(hex: 0x232224)
+    static let neutral200 = Color(hex: 0x2C2B2D)
+    static let neutral300 = Color(hex: 0x3A383B)
+    static let neutral400 = Color(hex: 0x504E51)
+    static let neutral500 = Color(hex: 0x6E6B6E)
+    static let neutral600 = Color(hex: 0x8F8C8F)
+    static let neutral700 = Color(hex: 0xAFACAE)
+    static let neutral800 = Color(hex: 0xD2CFD0)
+    static let neutral900 = Color(hex: 0xF4F1EF)
 
-    static let accent700 = Color(hex: 0x006786)
-    static let accent800 = Color(hex: 0x004961)
-    static let accent2_700 = Color(hex: 0xAA0B56)
-    static let accent2_800 = Color(hex: 0x790E3D)
+    static let accent700 = Color(hex: 0x6CD3F0)
+    static let accent800 = Color(hex: 0x9FE2F6)
+    static let accent2_700 = Color(hex: 0xFF8AC0)
+    static let accent2_800 = Color(hex: 0xFFB6D8)
 
     /// Couleur d'accent "spot" active : cyan par défaut (le prototype permet
     /// de basculer sur magenta — pas encore exposé côté app).

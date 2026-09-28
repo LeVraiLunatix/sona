@@ -28,12 +28,13 @@ struct MiniPlayerView: View {
                     }
                     Spacer(minLength: 8)
                     Button {
-                        player.togglePlayPause()
+                        withAnimation(.easeOut(duration: 0.15)) { player.togglePlayPause() }
                     } label: {
                         Image(systemName: player.isLoading ? "hourglass" : (player.isPlaying ? "pause.fill" : "play.fill"))
                             .font(.system(size: 20))
                             .foregroundStyle(EncreColor.text)
                             .frame(width: 42, height: 42)
+                            .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.plain)
                 }
@@ -43,6 +44,7 @@ struct MiniPlayerView: View {
             }
             .buttonStyle(.plain)
             .glassCapsule()
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 }
