@@ -150,3 +150,15 @@ def test_download_failure_message_names_the_cause():
             "Téléchargement audio impossible : [youtube] abc: Requested format is not available"
         )
     assert "cookies" in stream._download_failure(DownloadError("x", bot_wall=True))
+
+
+def test_prune_cache_removes_least_recently_used(tmp_path):
+    import os
+
+    old, recent, current = (tmp_path / n for n in ("old.m4a", "recent.m4a", "current.m4a"))
+    for i, path in enumerate((old, recent, current)):
+        path.write_bytes(b"x" * 100)
+        os.utime(path, (1000 + i, 1000 + i))
+    assert stream.prune_cache(tmp_path, max_bytes=200, keep=current) == 1
+    assert not old.exists() and recent.exists() and current.exists()
+    assert stream.prune_cache(tmp_path, max_bytes=1000) == 0

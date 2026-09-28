@@ -66,6 +66,7 @@ final class PlayerManager: ObservableObject {
     private var prepareTask: Task<Void, Never>?
     private var recoveryAttempted = false
     private var prefetchTask: Task<Void, Never>?
+    private var nextPrepared = false
     /// Temps réellement écouté du morceau en cours (les sauts ne comptent
     /// pas) : décide s'il devient une écoute des stats (voir `Scrobbler`).
     private var listenedSeconds: Double = 0
@@ -336,14 +337,18 @@ final class PlayerManager: ObservableObject {
                     self.positionSeconds = time.seconds
                     self.durationSeconds = duration
                     self.progress = time.seconds / duration
+                    if !self.nextPrepared && self.progress >= 0.6 {
+                        self.nextPrepared = true
+                        self.prepareNext()
+                    }
                     self.updateNowPlayingElapsedTime()
                 }
             }
 
             player.play()
             listenStartedAt = Date()
+            nextPrepared = false
             updateNowPlayingInfo(for: track)
-            prepareNext()
 
             // Sans ça, un flux qui ne se décide jamais (serveur qui télécharge
             // et vérifie l'audio en tâche de fond, requête qui ne timeout pas
@@ -363,12 +368,14 @@ final class PlayerManager: ObservableObject {
 
     /// Fait préparer le morceau suivant par le serveur pendant l'écoute du
     /// courant : « suivant » (ou la fin du morceau) enchaîne sans attente.
+    /// Lancé une fois le morceau en cours bien entamé (60 %) : son propre
+    /// fichier est alors prêt côté serveur, qui n'a plus qu'un téléchargement
+    /// à mener — le suivant — au lieu de deux en même temps (de quoi saturer
+    /// une petite machine). « Suivant » reste instantané.
     private func prepareNext() {
         prefetchTask?.cancel()
         guard let next = upNext.first else { return }
         prefetchTask = Task {
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
             try? await APIClient.shared.prepareStream(source: next.source, id: next.sourceId)
         }
     }

@@ -125,6 +125,41 @@ _download_slots = asyncio.Semaphore(1)
 _failures: dict[tuple[str, str, str, str], tuple[float, int, str]] = {}
 
 
+def prune_cache(directory: Path, max_bytes: int, keep: Path | None = None) -> int:
+    """Supprime les fichiers les moins récemment utilisés jusqu'à repasser
+    sous `max_bytes`. Un fichier servi voit sa date d'accès rafraîchie (voir
+    `_touch`) : ce sont donc bien les titres écoutés il y a le plus longtemps
+    qui partent. Un fichier supprimé est simplement retéléchargé s'il est
+    redemandé. Renvoie le nombre de fichiers supprimés."""
+    if not directory.is_dir():
+        return 0
+    files = [p for p in directory.iterdir() if p.is_file()]
+    total = sum(p.stat().st_size for p in files)
+    removed = 0
+    for path in sorted(files, key=lambda p: p.stat().st_mtime):
+        if total <= max_bytes:
+            break
+        if keep is not None and path == keep:
+            continue
+        size = path.stat().st_size
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        total -= size
+        removed += 1
+    if removed:
+        logger.info("Cache audio : %d ancien(s) fichier(s) supprimé(s)", removed)
+    return removed
+
+
+def _touch(path: str) -> None:
+    try:
+        Path(path).touch()
+    except OSError:
+        pass
+
+
 def _check_params(quality: str, fmt: str) -> None:
     if quality not in QUALITY_CHOICES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Qualité inconnue : {quality}")
@@ -165,6 +200,7 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
         try:
             async with _download_slots:
                 dest = await _resolve_and_download(deps, source, source_id, quality, fmt)
+            prune_cache(deps.settings.stream_cache_dir, deps.settings.stream_cache_max_mb * 1024 * 1024, keep=dest)
         except HTTPException as exc:
             _failures[key] = (time.monotonic(), exc.status_code, str(exc.detail))
             raise
@@ -284,6 +320,7 @@ async def stream(
     _check_params(quality, format)
     cached = await _cached_file(deps, source, source_id, format, quality)
     if cached is not None:
+        _touch(cached[0])
         return FileResponse(cached[0], media_type=cached[1], filename=Path(cached[0]).name)
 
     # Pas encore en cache : lecture directe si possible (démarrage en
