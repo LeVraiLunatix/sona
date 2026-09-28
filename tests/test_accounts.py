@@ -168,3 +168,9 @@ def test_session_exchange_and_scrobble_requests():
 
     asyncio.run(client.scrobble("SK", [Play(played_at="2026-01-01T00:00:00+00:00", title="T", artist="A")]))
     assert seen[1]["method"] == "track.scrobble" and seen[1]["timestamp%5B0%5D"] == "1767225600"
+
+
+def test_library_accepts_the_app_page_size(client):
+    # L'app charge jusqu'à 200 éléments (bibliothèque, état « J'aime ») :
+    # la limite de 100 renvoyait 422 et laissait ces écrans vides.
+    assert client.get("/library/track", headers=LEGACY, params={"limit": 200}).status_code == 200

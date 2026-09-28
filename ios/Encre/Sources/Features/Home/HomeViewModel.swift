@@ -37,11 +37,19 @@ final class HomeViewModel: ObservableObject {
             radios = groups.compactMap(\.radios.first)
         }
         do {
-            async let historyPage = APIClient.shared.history(limit: 15)
+            async let playsTask = Self.recentlyPlayed()
             async let libraryPage = APIClient.shared.library(kind: "track", limit: 15)
-            let (history, library) = try await (historyPage, libraryPage)
+            let (played, library) = try await (playsTask, libraryPage)
 
-            recentTracks = try await resolve(history.items.map { ($0.source, $0.sourceId) })
+            if played.isEmpty {
+                // Pas encore d'écoute enregistrée : l'historique des fiches
+                // consultées, en ne gardant que les titres (il contient aussi
+                // des albums et artistes, qu'on ne peut pas lire).
+                let history = try await APIClient.shared.history(limit: 15)
+                recentTracks = try await resolve(history.items.map { ($0.source, $0.sourceId) })
+            } else {
+                recentTracks = played
+            }
             libraryTracks = try await resolve(library.items.map { ($0.source, $0.sourceId) })
 
             // Sans `artistSourceId`, impossible d'ouvrir une vraie fiche
@@ -59,6 +67,26 @@ final class HomeViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    /// Derniers titres réellement écoutés (les écoutes des stats), sans
+    /// doublon : ils portent déjà tout ce qu'il faut pour les relancer, pas
+    /// besoin de redemander chaque fiche.
+    private static func recentlyPlayed() async -> [Track] {
+        guard let plays = try? await APIClient.shared.recentPlays(limit: 80) else { return [] }
+        var seen = Set<String>()
+        var tracks: [Track] = []
+        for play in plays {
+            guard let source = play.source, let sourceId = play.sourceId,
+                  seen.insert("\(source):\(sourceId)").inserted else { continue }
+            tracks.append(Track(
+                source: source, sourceId: sourceId, title: play.title, artist: play.artist,
+                album: play.album, year: nil, durationSeconds: play.durationSeconds, coverURL: play.coverURL,
+                artistSourceId: play.artistSourceId, albumSourceId: play.albumSourceId
+            ))
+            if tracks.count == 15 { break }
+        }
+        return tracks
     }
 
     /// L'historique et la bibliothèque ne portent que des résumés (titre,
