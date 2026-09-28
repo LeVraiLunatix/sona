@@ -43,7 +43,7 @@ struct MiniPlayerView: View {
                 .frame(height: 64)
             }
             .buttonStyle(.plain)
-            .glassCapsule()
+            .glassCapsule(interactive: true)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }

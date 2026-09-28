@@ -49,6 +49,6 @@ struct EncreTabBar: View {
         }
         .padding(.horizontal, 6)
         .frame(height: 64)
-        .glassCapsule()
+        .glassCapsule(interactive: true)
     }
 }

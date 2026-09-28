@@ -14,6 +14,7 @@ struct RootTabView: View {
     @State private var showingSettings = false
     @State private var showingOnboarding = false
     @State private var showingPlayerSheet = false
+    @Namespace private var glassNamespace
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -34,11 +35,19 @@ struct RootTabView: View {
                     .allowsHitTesting(selectedTab == .search)
             }
 
-            VStack(spacing: 10) {
-                if player.current != nil {
-                    MiniPlayerView(player: player) { showingPlayerSheet = true }
+            // `GlassEffectContainer` : les deux pastilles (mini-lecteur, barre
+            // d'onglets) partagent le même espace de rendu Liquid Glass — avec
+            // `.glassEffectUnion`, elles se fondent en un seul bloc de verre
+            // plutôt que d'être deux capsules qui se contentent de se toucher.
+            GlassEffectContainer(spacing: 10) {
+                VStack(spacing: 10) {
+                    if player.current != nil {
+                        MiniPlayerView(player: player) { showingPlayerSheet = true }
+                            .glassEffectUnion(id: "shell", namespace: glassNamespace)
+                    }
+                    EncreTabBar(selected: $selectedTab)
+                        .glassEffectUnion(id: "shell", namespace: glassNamespace)
                 }
-                EncreTabBar(selected: $selectedTab)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 6)

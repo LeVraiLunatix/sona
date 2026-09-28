@@ -25,15 +25,17 @@ final class APIConfig: ObservableObject {
     }
 
     private init() {
-        // Le jeton ne doit jamais figurer dans le code source (il finirait
-        // dans l'historique Git et dans l'IPA distribué) : on le garde dans
-        // le Keychain plutôt que `UserDefaults`. Le Keychain survit en
-        // pratique à une désinstallation/réinstallation de l'app (contrairement
-        // à `UserDefaults`, purgé à chaque reinstall via Sideloadly/AltStore),
-        // ce qui évite d'avoir à le ressaisir à chaque nouvelle build — sans
-        // jamais l'écrire en dur ici.
-        baseURLString = UserDefaults.standard.string(forKey: Keys.baseURL) ?? "http://127.0.0.1:8000"
-        token = Keychain.get(Keys.token) ?? ""
+        // Le jeton ne doit jamais figurer en clair dans ce fichier (il finirait
+        // dans l'historique Git et dans l'IPA distribué) : `BuildSecrets` est
+        // réécrit par la CI à partir d'un secret GitHub Actions chiffré juste
+        // avant de compiler (voir `.github/workflows/ios.yml`), jamais commité
+        // avec une vraie valeur. `Keychain` prend le relais ensuite : il
+        // survit en pratique à une désinstallation/réinstallation de l'app
+        // (contrairement à `UserDefaults`, purgé à chaque reinstall via
+        // Sideloadly/AltStore), pour garder un jeton changé depuis Réglages.
+        baseURLString = UserDefaults.standard.string(forKey: Keys.baseURL)
+            ?? (BuildSecrets.apiBaseURL.isEmpty ? "http://127.0.0.1:8000" : BuildSecrets.apiBaseURL)
+        token = Keychain.get(Keys.token) ?? BuildSecrets.apiToken
     }
 }
 

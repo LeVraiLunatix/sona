@@ -1,61 +1,40 @@
 import SwiftUI
 
-/// Reproduit le "verre liquide" du prototype (`--g-bg`, `--g-bf`, `--g-bd`,
-/// `--g-sh` dans Encre.dc.html) : un flou saturé, un reflet diagonal, une
-/// bordure claire et une ombre à la fois interne (liseré lumineux) et externe.
-/// Utilisé pour les pastilles flottantes — barre d'onglets, mini-lecteur,
-/// boutons ronds sur pochette.
+/// Vrai Liquid Glass système (iOS 26, `glassEffect(_:in:)`) plutôt que
+/// l'ancienne reproduction maison au `.ultraThinMaterial` + dégradés blancs :
+/// le rendu (réfraction, reflets spéculaires, ombre de contact) est fourni
+/// par le système et réagit correctement au fond qui défile dessous, chose
+/// qu'un flou statique ne pouvait pas simuler.
 struct GlassBackground: ViewModifier {
     var shape: AnyShape
+    var tint: Color?
+    var interactive: Bool
 
     func body(content: Content) -> some View {
-        content
-            .background {
-                shape
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        // Opacités revues à la baisse pour le thème sombre :
-                        // les mêmes reflets qu'en clair (0.5/0.45/0.72)
-                        // paraissaient criards sur un fond quasi noir — un
-                        // "verre" sobre a un reflet discret, pas un flash.
-                        shape.fill(
-                            LinearGradient(
-                                colors: [.white.opacity(0.16), .white.opacity(0.04)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                        )
-                    }
-                    .overlay {
-                        // Reflet diagonal (--g-sheen) : concentré en haut-gauche.
-                        shape.fill(
-                            RadialGradient(
-                                colors: [.white.opacity(0.14), .clear],
-                                center: UnitPoint(x: 0.25, y: 0),
-                                startRadius: 0, endRadius: 220
-                            )
-                        )
-                    }
-                    .overlay {
-                        // `.stroke` plutôt que `.strokeBorder` : `AnyShape`
-                        // n'est pas `InsettableShape`, seul `.stroke` est
-                        // disponible sur un `Shape` quelconque.
-                        shape.stroke(Color.white.opacity(0.16), lineWidth: 1)
-                    }
-            }
-            .encreShadow(EncreShadow.lg)
+        var glass = Glass.regular
+        if let tint { glass = glass.tint(tint) }
+        if interactive { glass = glass.interactive() }
+        return content.glassEffect(glass, in: shape)
     }
 }
 
 extension View {
     /// Fond "verre liquide" derrière une forme quelconque (capsule, cercle,
-    /// rectangle arrondi...).
-    func glassBackground<S: Shape>(_ shape: S) -> some View {
-        modifier(GlassBackground(shape: AnyShape(shape)))
+    /// rectangle arrondi...). `interactive` ajoute la réaction tactile
+    /// système (léger allumage/ondulation au toucher) — à réserver aux
+    /// éléments qu'on presse vraiment (boutons de transport, onglets), pas
+    /// aux conteneurs purement décoratifs.
+    func glassBackground<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
+        modifier(GlassBackground(shape: AnyShape(shape), tint: tint, interactive: interactive))
     }
 
-    func glassCapsule() -> some View { glassBackground(Capsule()) }
-    func glassCircle() -> some View { glassBackground(Circle()) }
-    func glassRounded(_ radius: CGFloat = 24) -> some View {
-        glassBackground(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    func glassCapsule(tint: Color? = nil, interactive: Bool = false) -> some View {
+        glassBackground(Capsule(), tint: tint, interactive: interactive)
+    }
+    func glassCircle(tint: Color? = nil, interactive: Bool = false) -> some View {
+        glassBackground(Circle(), tint: tint, interactive: interactive)
+    }
+    func glassRounded(_ radius: CGFloat = 24, tint: Color? = nil, interactive: Bool = false) -> some View {
+        glassBackground(RoundedRectangle(cornerRadius: radius, style: .continuous), tint: tint, interactive: interactive)
     }
 }

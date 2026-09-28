@@ -27,7 +27,11 @@ struct SearchView: View {
                 } else if !viewModel.results.isEmpty {
                     VStack(spacing: 16) {
                         ForEach(viewModel.results) { track in
-                            TrackRow(track: track, isCurrent: player.current?.id == track.id) {
+                            TrackRow(
+                                track: track, isCurrent: player.current?.id == track.id,
+                                onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                                onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                            ) {
                                 player.play(track, context: viewModel.results)
                             }
                         }
@@ -82,7 +86,11 @@ struct SearchView: View {
         switch link.kind {
         case .track:
             if let track = link.track {
-                TrackRow(track: track) { player.play(track) }
+                TrackRow(
+                    track: track,
+                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                ) { player.play(track) }
             }
         case .album, .playlist:
             if let album = link.album {
