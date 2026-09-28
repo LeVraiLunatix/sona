@@ -7,7 +7,8 @@ from html.parser import HTMLParser
 
 import httpx
 
-from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
+from app.providers.base import AlbumInfo, ArtistInfo, ExternalPlaylist, TrackInfo
+from app.providers.page_data import BROWSER_HEADERS, script_json, walk
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,10 @@ TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_BASE = "https://api.spotify.com/v1"
 OEMBED_URL = "https://open.spotify.com/oembed"
 TRACK_PAGE_URL = "https://open.spotify.com/track/{track_id}"
+EMBED_PLAYLIST_URL = "https://open.spotify.com/embed/playlist/{playlist_id}"
+# Au-delà, un import prendrait plusieurs minutes pour une playlist qu'on
+# n'écoutera jamais en entier.
+PLAYLIST_MAX_TRACKS = 1000
 
 # Réponses qui disent « pas pour toi » plutôt qu'une panne : identifiants
 # rejetés à l'obtention du jeton, accès interdit, quota dépassé. Depuis 2026,
@@ -151,6 +156,51 @@ def _track_from_public_data(track_id: str, oembed: dict, tags: dict[str, list[st
         year=_year_from_date(first("music:release_date")),
         duration_seconds=int(duration) if duration and duration.isdigit() else None,
         cover_url=first("og:image") or oembed.get("thumbnail_url"),
+    )
+
+
+def _largest_source(sources) -> str | None:
+    images = [s for s in (sources or []) if isinstance(s, dict) and s.get("url")]
+    if not images:
+        return None
+    return max(images, key=lambda s: s.get("width") or s.get("maxWidth") or 0)["url"]
+
+
+def parse_embed_playlist(page: str) -> ExternalPlaylist:
+    """Playlist lue dans le lecteur intégrable public de Spotify (données
+    `__NEXT_DATA__` de la page) : titre, pochette et liste des morceaux, sans
+    identifiants d'API. Artistes dans `subtitle` (« A, B »), durée en ms."""
+    entity = None
+    for document in script_json(page, script_id="__NEXT_DATA__"):
+        entity = next((d for d in walk(document) if isinstance(d.get("trackList"), list)), None)
+        if entity is not None:
+            break
+    if entity is None:
+        raise SpotifyError("Spotify n'a pas renvoyé cette playlist (privée ou supprimée ?)")
+    tracks = []
+    for item in entity["trackList"]:
+        uri = item.get("uri") or ""
+        if not uri.startswith("spotify:track:"):
+            continue  # épisode de podcast, fichier local...
+        artist = " ".join((item.get("subtitle") or "").replace("\u00a0", " ").split())
+        duration = item.get("duration")
+        tracks.append(TrackInfo(
+            source="spotify",
+            source_id=uri.rsplit(":", 1)[-1],
+            title=item.get("title") or "Titre inconnu",
+            artist=artist or "Artiste inconnu",
+            album=None,
+            year=None,
+            duration_seconds=duration // 1000 if isinstance(duration, int) and duration > 0 else None,
+            cover_url=None,
+            preview_url=(item.get("audioPreview") or {}).get("url") or None,
+        ))
+    cover = _largest_source((entity.get("coverArt") or {}).get("sources")) or _largest_source(entity.get("images"))
+    return ExternalPlaylist(
+        name=entity.get("name") or entity.get("title") or "Playlist Spotify",
+        description=None,
+        cover_url=cover,
+        tracks=tracks[:PLAYLIST_MAX_TRACKS],
     )
 
 
@@ -317,3 +367,51 @@ class SpotifyClient:
             logger.info("Page publique Spotify indisponible (%s) : artiste et durée inconnus", exc)
             return {}
         return _preview_tags(resp.text)
+
+    async def get_playlist(self, playlist_id: str) -> ExternalPlaylist:
+        """Playlist publique : par l'API quand elle répond (liste complète,
+        avec ISRC), sinon par le lecteur intégrable public (les 100 premiers
+        titres environ, sans ISRC)."""
+        if self.api_available:
+            try:
+                return await self._get_playlist_via_api(playlist_id)
+            except SpotifyError as exc:
+                # Refus, ou playlist éditoriale fermée aux nouvelles apps
+                # (404) : le lecteur intégrable, lui, la sert.
+                logger.info("Playlist Spotify %s via l'API impossible (%s) : lecteur intégrable", playlist_id, exc)
+        try:
+            resp = await self._client.get(
+                EMBED_PLAYLIST_URL.format(playlist_id=playlist_id),
+                headers=BROWSER_HEADERS,
+                follow_redirects=True,
+            )
+        except httpx.HTTPError as exc:
+            raise SpotifyError(f"Spotify injoignable : {exc}") from exc
+        if resp.status_code == 404:
+            raise SpotifyError("Playlist Spotify introuvable (privée ou supprimée ?)")
+        if resp.is_error:
+            raise SpotifyError(f"Spotify : HTTP {resp.status_code}")
+        return parse_embed_playlist(resp.text)
+
+    async def _get_playlist_via_api(self, playlist_id: str) -> ExternalPlaylist:
+        meta = await self._get(f"/playlists/{playlist_id}", {"fields": "name,description,images"})
+        tracks: list[TrackInfo] = []
+        offset = 0
+        while len(tracks) < PLAYLIST_MAX_TRACKS:
+            page = await self._get(f"/playlists/{playlist_id}/tracks", {"limit": 100, "offset": offset})
+            items = page.get("items") or []
+            for item in items:
+                track = item.get("track") or {}
+                if track.get("type", "track") != "track" or not track.get("id") or item.get("is_local"):
+                    continue
+                tracks.append(_track_from_json(track))
+            if not page.get("next") or not items:
+                break
+            offset += len(items)
+        images = meta.get("images") or []
+        return ExternalPlaylist(
+            name=meta.get("name") or "Playlist Spotify",
+            description=meta.get("description") or None,
+            cover_url=images[0]["url"] if images else None,
+            tracks=tracks[:PLAYLIST_MAX_TRACKS],
+        )

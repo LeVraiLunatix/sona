@@ -141,3 +141,45 @@ CREATE TABLE IF NOT EXISTS app_sessions (
     last_used_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_app_sessions_account ON app_sessions (account_id);
+
+-- Playlists de l'app : créées à la main ou importées (Deezer, Spotify,
+-- Apple Music). Pendant un import, `import_status` vaut 'importing' et
+-- `import_done` / `import_total` donnent l'avancement à l'app.
+CREATE TABLE IF NOT EXISTS playlists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    cover_url TEXT,
+    origin TEXT,
+    origin_url TEXT,
+    import_status TEXT NOT NULL DEFAULT 'done',
+    import_total INTEGER,
+    import_done INTEGER NOT NULL DEFAULT 0,
+    import_missing INTEGER NOT NULL DEFAULT 0,
+    import_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists (user_id, updated_at DESC);
+
+-- Morceaux d'une playlist, recopiés tels quels (pas de nouvelle requête au
+-- catalogue pour l'afficher). Un même titre peut y figurer deux fois : une
+-- entrée s'identifie par son `id`, pas par le morceau.
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    playlist_id INTEGER NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    year TEXT,
+    duration_seconds INTEGER,
+    cover_url TEXT,
+    artist_source_id TEXT,
+    album_source_id TEXT,
+    added_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order ON playlist_tracks (playlist_id, position);

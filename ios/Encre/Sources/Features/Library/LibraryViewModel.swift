@@ -1,6 +1,7 @@
 import Foundation
 
 enum LibraryKind: String, CaseIterable, Identifiable {
+    case playlists = "playlist"
     case tracks = "track"
     case albums = "album"
     case artists = "artist"
@@ -8,6 +9,7 @@ enum LibraryKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
+        case .playlists: "Playlists"
         case .tracks: "Titres"
         case .albums: "Albums"
         case .artists: "Artistes"
@@ -17,10 +19,11 @@ enum LibraryKind: String, CaseIterable, Identifiable {
 
 @MainActor
 final class LibraryViewModel: ObservableObject {
-    @Published var kind: LibraryKind = .tracks {
+    @Published var kind: LibraryKind = .playlists {
         didSet { if kind != oldValue { Task { await load() } } }
     }
     @Published private(set) var items: [LibraryItem] = []
+    @Published private(set) var playlists: [UserPlaylist] = []
     /// Fiches complètes des titres (artiste, durée, pochette...) : la
     /// bibliothèque ne stocke qu'un résumé, et il faut de vrais `Track` pour
     /// jouer la liste d'un bout à l'autre.
@@ -38,6 +41,15 @@ final class LibraryViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         let requested = kind
+        if requested == .playlists {
+            do {
+                playlists = try await APIClient.shared.playlists()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+            return
+        }
         do {
             let page = try await APIClient.shared.library(kind: requested.rawValue, limit: 200)
             guard requested == kind else { return }
@@ -47,6 +59,28 @@ final class LibraryViewModel: ObservableObject {
         }
         isLoading = false
         if requested == .tracks { await resolveTracks() }
+    }
+
+    var hasImportInProgress: Bool { playlists.contains(where: \.isImporting) }
+
+    /// Rafraîchit la liste des playlists sans indicateur de chargement
+    /// (suivi d'un import en cours).
+    func refreshPlaylists() async {
+        if let fresh = try? await APIClient.shared.playlists() { playlists = fresh }
+    }
+
+    func insert(_ playlist: UserPlaylist) {
+        playlists.removeAll { $0.id == playlist.id }
+        playlists.insert(playlist, at: 0)
+    }
+
+    func deletePlaylist(_ playlist: UserPlaylist) async {
+        do {
+            try await APIClient.shared.deletePlaylist(id: playlist.id)
+            playlists.removeAll { $0.id == playlist.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func remove(_ item: LibraryItem) async {

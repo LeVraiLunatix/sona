@@ -5,6 +5,8 @@ struct LibraryView: View {
     @EnvironmentObject private var player: PlayerManager
     @Binding var path: NavigationPath
     @State private var openingId: String?
+    @State private var showingNewPlaylist = false
+    @State private var showingImport = false
 
     var body: some View {
         ScrollView {
@@ -19,7 +21,9 @@ struct LibraryView: View {
                 .sensoryFeedback(.selection, trigger: viewModel.kind)
 
                 Group {
-                    if viewModel.isLoading && viewModel.items.isEmpty {
+                    if viewModel.kind == .playlists {
+                        playlistSection
+                    } else if viewModel.isLoading && viewModel.items.isEmpty {
                         ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 60)
                     } else if viewModel.items.isEmpty {
                         EmptyState(
@@ -32,6 +36,7 @@ struct LibraryView: View {
                         case .tracks: trackList
                         case .albums: albumGrid
                         case .artists: artistList
+                        case .playlists: EmptyView()
                         }
                     }
                 }
@@ -53,6 +58,96 @@ struct LibraryView: View {
         .navigationBarTitleDisplayMode(.large)
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
+        .task(id: viewModel.hasImportInProgress) {
+            // Avancement des imports affiché en direct dans la grille.
+            while viewModel.hasImportInProgress {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                await viewModel.refreshPlaylists()
+            }
+        }
+        .onAppear {
+            // Retour d'une fiche playlist (renommée, vidée, supprimée...).
+            if viewModel.kind == .playlists { Task { await viewModel.refreshPlaylists() } }
+        }
+        .sheet(isPresented: $showingNewPlaylist) {
+            NewPlaylistSheet { playlist in
+                viewModel.insert(playlist)
+                path.append(Route.userPlaylist(id: playlist.id))
+            }
+        }
+        .sheet(isPresented: $showingImport) {
+            ImportPlaylistSheet { playlist in
+                viewModel.insert(playlist)
+                path.append(Route.userPlaylist(id: playlist.id))
+            }
+        }
+    }
+
+    // MARK: - Playlists
+
+    private var playlistSection: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(spacing: 12) {
+                PillButton(title: "Nouvelle", systemImage: "plus") { showingNewPlaylist = true }
+                PillButton(title: "Importer", systemImage: "square.and.arrow.down", kind: .secondary) {
+                    showingImport = true
+                }
+            }
+            .padding(.horizontal, 20)
+
+            if viewModel.isLoading && viewModel.playlists.isEmpty {
+                ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 40)
+            } else if viewModel.playlists.isEmpty {
+                EmptyState(
+                    systemImage: "music.note.list",
+                    title: "Aucune playlist",
+                    message: "Crée ta première playlist, ou importe-en une depuis Spotify, Apple Music ou Deezer."
+                )
+            } else {
+                playlistGrid
+            }
+        }
+    }
+
+    private var playlistGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 22) {
+            ForEach(viewModel.playlists) { playlist in
+                let route = Route.userPlaylist(id: playlist.id)
+                Button { path.append(route) } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        PlaylistCover(playlist: playlist)
+                            .aspectRatio(1, contentMode: .fit)
+                            .overlay {
+                                if playlist.isImporting {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color.black.opacity(0.45))
+                                    ProgressView().tint(.white)
+                                }
+                            }
+                            .zoomSource(route)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(playlist.name).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                            Text(playlist.trackCountLabel)
+                                .font(Typo.rowSubtitle)
+                                .foregroundStyle(playlist.importFailed ? Tone.danger : Tone.secondary)
+                                .lineLimit(1)
+                                .contentTransition(.numericText())
+                        }
+                    }
+                }
+                .buttonStyle(.pressable)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        Task { await viewModel.deletePlaylist(playlist) }
+                    } label: {
+                        Label("Supprimer la playlist", systemImage: "trash")
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .animation(Motion.smooth, value: viewModel.playlists)
     }
 
     private var emptyIcon: String {
@@ -60,6 +155,7 @@ struct LibraryView: View {
         case .tracks: "music.note"
         case .albums: "square.stack"
         case .artists: "person.2"
+        case .playlists: "music.note.list"
         }
     }
 

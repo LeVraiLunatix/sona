@@ -315,6 +315,58 @@ final class APIClient {
         try await sendNoContent(try request("/library/\(kind)/\(source)/\(sourceId)", method: "DELETE"))
     }
 
+    // MARK: - Playlists de l'app
+
+    func playlists() async throws -> [UserPlaylist] {
+        try await send(try request("/me/playlists"))
+    }
+
+    func userPlaylist(id: Int) async throws -> UserPlaylist {
+        try await send(try request("/me/playlists/\(id)"))
+    }
+
+    func createPlaylist(name: String, tracks: [Track] = []) async throws -> UserPlaylist {
+        struct Body: Encodable { let name: String; let tracks: [Track] }
+        let data = try encode(Body(name: name, tracks: tracks))
+        return try await send(try request("/me/playlists", method: "POST", bodyData: data))
+    }
+
+    func renamePlaylist(id: Int, name: String) async throws -> UserPlaylist {
+        struct Body: Encodable { let name: String }
+        let data = try encode(Body(name: name))
+        return try await send(try request("/me/playlists/\(id)", method: "PATCH", bodyData: data))
+    }
+
+    func deletePlaylist(id: Int) async throws {
+        try await sendNoContent(try request("/me/playlists/\(id)", method: "DELETE"))
+    }
+
+    func addToPlaylist(id: Int, tracks: [Track]) async throws -> UserPlaylist {
+        struct Body: Encodable { let tracks: [Track] }
+        let data = try encode(Body(tracks: tracks))
+        return try await send(try request("/me/playlists/\(id)/tracks", method: "POST", bodyData: data))
+    }
+
+    func removeFromPlaylist(id: Int, entryId: Int) async throws -> UserPlaylist {
+        try await send(try request("/me/playlists/\(id)/tracks/\(entryId)", method: "DELETE"))
+    }
+
+    func reorderPlaylist(id: Int, entryIds: [Int]) async throws -> UserPlaylist {
+        struct Body: Encodable { let entryIds: [Int]
+            enum CodingKeys: String, CodingKey { case entryIds = "entry_ids" }
+        }
+        let data = try encode(Body(entryIds: entryIds))
+        return try await send(try request("/me/playlists/\(id)/order", method: "PUT", bodyData: data))
+    }
+
+    /// Lance l'import (en tâche de fond côté serveur) : la playlist revient
+    /// tout de suite, `importStatus == "importing"`, à suivre jusqu'à la fin.
+    func importPlaylist(url: String) async throws -> UserPlaylist {
+        struct Body: Encodable { let url: String }
+        let data = try encode(Body(url: url))
+        return try await send(try request("/me/playlists/import", method: "POST", bodyData: data))
+    }
+
     // MARK: - Historique
 
     func history(offset: Int = 0, limit: Int = 50) async throws -> HistoryPage {

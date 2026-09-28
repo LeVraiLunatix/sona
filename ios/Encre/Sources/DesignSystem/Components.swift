@@ -17,6 +17,7 @@ struct TrackRow: View {
     var onOpenAlbum: (() -> Void)? = nil
     var onRemove: (() -> Void)? = nil
     var action: () -> Void
+    @Environment(\.addToPlaylist) private var addToPlaylist
 
     var body: some View {
         Button(action: action) {
@@ -60,6 +61,11 @@ struct TrackRow: View {
         }
         .buttonStyle(.pressable(scale: 0.98))
         .contextMenu {
+            if let addToPlaylist {
+                Button { addToPlaylist([track]) } label: {
+                    Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
+                }
+            }
             if let onOpenArtist {
                 Button(action: onOpenArtist) { Label("Voir l'artiste", systemImage: "person.crop.circle") }
             }

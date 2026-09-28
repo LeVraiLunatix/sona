@@ -81,3 +81,13 @@ class RadioInfo:
 class SearchResults:
     query: str
     tracks: list[TrackInfo]
+
+
+@dataclass(slots=True)
+class ExternalPlaylist:
+    """Playlist lue sur une autre plateforme, à importer dans l'app."""
+
+    name: str
+    description: str | None
+    cover_url: str | None
+    tracks: list[TrackInfo] = field(default_factory=list)

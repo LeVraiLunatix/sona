@@ -7,7 +7,9 @@ enum AppTab: Hashable {
 }
 
 /// Coquille de l'app : vraie `TabView` système (Liquid Glass natif,
-/// onglet Recherche intégré à la barre), mini-lecteur flottant au-dessus,
+/// onglet Recherche intégré à la barre), mini-lecteur en accessoire de la
+/// barre d'onglets (comme Musique : le système lui réserve sa place, rien
+/// ne passe dessous, et il se range dans la barre quand on fait défiler),
 /// et lecteur plein écran qui *grandit* depuis le mini-lecteur (transition
 /// zoom système, fermeture interactive en glissant vers le bas).
 struct RootTabView: View {
@@ -19,7 +21,7 @@ struct RootTabView: View {
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
     @State private var showingPlayer = false
-    @State private var keyboardVisible = false
+    @State private var playlistPick: PlaylistPickRequest?
     @Namespace private var zoomNamespace
     @Namespace private var playerNamespace
 
@@ -40,12 +42,21 @@ struct RootTabView: View {
                 Label("Rechercher", systemImage: "magnifyingglass")
             }
         }
+        .tabViewBottomAccessory(isEnabled: player.current != nil) {
+            MiniPlayerView(player: player) { showingPlayer = true }
+                .matchedTransitionSource(id: "player", in: playerNamespace)
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
         .tint(.white)
         .environmentObject(player)
         .environment(\.zoomNamespace, zoomNamespace)
         .fullScreenCover(isPresented: $showingPlayer) {
             FullPlayerView(player: player, onOpenRoute: openRoute(_:))
-                .navigationTransition(.zoom(sourceID: playerSourceID(selectedTab), in: playerNamespace))
+                .navigationTransition(.zoom(sourceID: "player", in: playerNamespace))
+        }
+        .environment(\.addToPlaylist, AddToPlaylistAction { playlistPick = PlaylistPickRequest(tracks: $0) })
+        .sheet(item: $playlistPick) { request in
+            AddToPlaylistSheet(tracks: request.tracks)
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack { SettingsView() }
@@ -54,24 +65,6 @@ struct RootTabView: View {
         .task {
             // Écoutes restées en attente (hors connexion au dernier usage).
             await Scrobbler.shared.flush()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            keyboardVisible = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardVisible = false
-        }
-    }
-
-    /// Un mini-lecteur par onglet (chacun sous sa propre pile) : chacun sa
-    /// source de zoom, pour que le lecteur grandisse depuis celui qui est
-    /// réellement à l'écran.
-    private func playerSourceID(_ tab: AppTab) -> String {
-        switch tab {
-        case .home: "player-home"
-        case .library: "player-library"
-        case .stats: "player-stats"
-        case .search: "player-search"
         }
     }
 
@@ -107,26 +100,13 @@ struct RootTabView: View {
                             AlbumDetailView(source: source, id: id, isPlaylist: true, path: path)
                         case .artist(let source, let id):
                             ArtistDetailView(source: source, id: id, path: path)
+                        case .userPlaylist(let id):
+                            UserPlaylistView(playlistId: id, path: path)
                         }
                     }
                     .zoomDestination(route)
                 }
         }
-        // Posé sur la pile de l'onglet (et non sur la `TabView`) : la zone
-        // sûre du contenu d'un onglet s'arrête déjà au-dessus de la barre
-        // d'onglets, le mini-lecteur s'y pose donc au lieu de la recouvrir.
-        // Caché pendant la saisie : il masquait le champ de recherche et le
-        // clavier.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if player.current != nil && !keyboardVisible {
-                MiniPlayerView(player: player) { showingPlayer = true }
-                    .matchedTransitionSource(id: playerSourceID(tab), in: playerNamespace)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(Motion.bouncy, value: player.current != nil && !keyboardVisible)
         .environment(\.zoomNamespace, zoomNamespace)
     }
 }

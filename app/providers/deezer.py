@@ -5,7 +5,7 @@ import unicodedata
 
 import httpx
 
-from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
+from app.providers.base import AlbumInfo, ArtistInfo, ExternalPlaylist, TrackInfo
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +185,26 @@ class DeezerClient:
             track_count=data.get("nb_tracks") or len(tracks),
             duration_seconds=data.get("duration"),
             tracks=tracks,
+        )
+
+    async def get_playlist_for_import(self, playlist_id: str, max_tracks: int = 1000) -> ExternalPlaylist:
+        """Playlist complète (au-delà des ~400 titres de `/playlist/{id}`),
+        page par page."""
+        data = await self._get(f"/playlist/{playlist_id}")
+        tracks: list[TrackInfo] = []
+        index = 0
+        while len(tracks) < max_tracks:
+            page = await self._get(f"/playlist/{playlist_id}/tracks", {"index": index, "limit": 100})
+            items = page.get("data") or []
+            tracks += [_track_from_json(t) for t in items if t.get("id")]
+            if not items or not page.get("next"):
+                break
+            index += len(items)
+        return ExternalPlaylist(
+            name=data.get("title") or "Playlist Deezer",
+            description=data.get("description") or None,
+            cover_url=_largest_image(data, "picture"),
+            tracks=tracks[:max_tracks],
         )
 
     async def get_artist(self, artist_id: str) -> ArtistInfo:

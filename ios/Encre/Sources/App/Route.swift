@@ -9,4 +9,6 @@ enum Route: Hashable {
     /// ouvrir une playlist via `/albums/...` affichait un tout autre contenu.
     case playlist(source: String, id: String)
     case artist(source: String, id: String)
+    /// Playlist de l'utilisateur (créée dans l'app ou importée).
+    case userPlaylist(id: Int)
 }

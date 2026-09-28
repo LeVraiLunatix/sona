@@ -4,7 +4,8 @@ import re
 
 import httpx
 
-from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
+from app.providers.base import AlbumInfo, ArtistInfo, ExternalPlaylist, TrackInfo
+from app.providers.page_data import BROWSER_HEADERS, meta_content, script_json, walk
 
 LOOKUP_URL = "https://itunes.apple.com/lookup"
 SEARCH_URL = "https://itunes.apple.com/search"
@@ -40,6 +41,115 @@ def _track_from_json(d: dict) -> TrackInfo:
         album_source_id=str(d["collectionId"]) if d.get("collectionId") else None,
         preview_url=d.get("previewUrl") or None,
     )
+
+
+_SONG_URL_RE = re.compile(r"music\.apple\.com/[a-z]{2}/song/(?:[^/\"?\s]+/)?(\d+)")
+_DIGITS_RE = re.compile(r"(\d{5,})")
+PLAYLIST_MAX_TRACKS = 1000
+
+
+def _artwork_template(artwork) -> str | None:
+    """`{"dictionary": {"url": ".../{w}x{h}bb.{f}"}}` (ou `{"url": ...}`) →
+    URL en 1000 px."""
+    if not isinstance(artwork, dict):
+        return None
+    url = (artwork.get("dictionary") or {}).get("url") or artwork.get("url")
+    if not url:
+        return None
+    return url.replace("{w}", "1000").replace("{h}", "1000").replace("{c}", "bb").replace("{f}", "jpg")
+
+
+def _song_id(lockup: dict) -> str | None:
+    descriptor = lockup.get("contentDescriptor") or {}
+    identifiers = descriptor.get("identifiers") or {}
+    for value in (identifiers.get("storeAdamID"), identifiers.get("storeAdamId")):
+        if value:
+            return str(value)
+    for value in (descriptor.get("url"), lockup.get("url")):
+        if isinstance(value, str):
+            m = re.search(r"(?:[?&]i=|/)(\d{5,})(?:$|[?&#])", value)
+            if m:
+                return m.group(1)
+    return None
+
+
+def _track_from_lockup(lockup: dict) -> TrackInfo | None:
+    title = lockup.get("title")
+    artist = lockup.get("artistName")
+    if not artist:
+        links = lockup.get("subtitleLinks") or []
+        artist = ", ".join(link.get("title") for link in links if isinstance(link, dict) and link.get("title"))
+    if not isinstance(title, str) or not artist:
+        return None
+    albums = [link.get("title") for link in (lockup.get("tertiaryLinks") or []) if isinstance(link, dict)]
+    duration = lockup.get("duration")
+    song_id = _song_id(lockup)
+    return TrackInfo(
+        source="apple",
+        source_id=song_id or "",
+        title=title,
+        artist=artist,
+        album=albums[0] if albums else None,
+        year=None,
+        duration_seconds=duration // 1000 if isinstance(duration, int) and duration > 0 else None,
+        cover_url=_artwork_template(lockup.get("artwork")),
+    )
+
+
+def _playlist_name(page: str) -> str:
+    name = meta_content(page, "apple:title") or meta_content(page, "og:title") or "Playlist Apple Music"
+    # « Nom - Playlist - Apple Music » / « Nom sur Apple Music »
+    name = re.sub(r"\s+(?:sur|on|en)\s+Apple\s+Music\s*$", "", name, flags=re.I)
+    name = re.sub(r"\s+[-–—|]\s+(?:Playlist\s+[-–—|]\s+)?Apple\s+Music\s*$", "", name, flags=re.I)
+    return name.strip() or "Playlist Apple Music"
+
+
+def parse_playlist_page(page: str) -> tuple[ExternalPlaylist, list[str]]:
+    """Playlist lue dans la page publique d'Apple Music.
+
+    Les morceaux viennent des données embarquées (`serialized-server-data`,
+    lignes « trackLockup » : titre, artiste, durée, pochette). Si la page
+    change de forme, on se rabat sur les identifiants de morceaux qu'elle
+    cite (données structurées schema.org ou liens) : renvoyés à part, pour
+    être complétés par l'API de recherche iTunes.
+    """
+    tracks: list[TrackInfo] = []
+    for document in script_json(page, script_id="serialized-server-data"):
+        sections = [
+            d for d in walk(document)
+            if d.get("itemKind") == "trackLockup" and isinstance(d.get("items"), list)
+        ]
+        lockups = [item for section in sections for item in section["items"] if isinstance(item, dict)]
+        if not lockups:
+            # Forme inconnue : toute ligne qui a un titre, un artiste et une durée.
+            lockups = [
+                d for d in walk(document)
+                if isinstance(d.get("title"), str) and isinstance(d.get("artistName"), str)
+                and ("duration" in d or "contentDescriptor" in d)
+            ]
+        tracks = [t for t in (_track_from_lockup(item) for item in lockups) if t]
+        if tracks:
+            break
+
+    ids: list[str] = []
+    if not tracks:
+        for document in script_json(page, script_type="application/ld+json"):
+            for d in walk(document):
+                if d.get("@type") == "MusicRecording" and isinstance(d.get("url"), str):
+                    m = _DIGITS_RE.findall(d["url"])
+                    if m:
+                        ids.append(m[-1])
+        if not ids:
+            ids = _SONG_URL_RE.findall(page)
+        ids = list(dict.fromkeys(ids))
+
+    playlist = ExternalPlaylist(
+        name=_playlist_name(page),
+        description=meta_content(page, "og:description"),
+        cover_url=meta_content(page, "og:image"),
+        tracks=tracks[:PLAYLIST_MAX_TRACKS],
+    )
+    return playlist, ids[:PLAYLIST_MAX_TRACKS]
 
 
 class AppleMusicClient:
@@ -158,3 +268,35 @@ class AppleMusicClient:
             else:
                 singles.append(info)
         return albums, singles
+
+    async def lookup_tracks(self, track_ids: list[str], country: str = "fr") -> list[TrackInfo]:
+        """Morceaux par identifiants, dans l'ordre demandé (lots de 150)."""
+        found: dict[str, TrackInfo] = {}
+        for start in range(0, len(track_ids), 150):
+            chunk = track_ids[start:start + 150]
+            results = await self._lookup({"id": ",".join(chunk), "country": country, "entity": "song"})
+            for r in results:
+                if r.get("wrapperType") == "track" and r.get("trackId"):
+                    found[str(r["trackId"])] = _track_from_json(r)
+        return [found[i] for i in track_ids if i in found]
+
+    async def get_playlist(self, url: str) -> ExternalPlaylist:
+        """Playlist publique Apple Music, depuis l'URL de sa page."""
+        try:
+            resp = await self._client.get(url, headers=BROWSER_HEADERS, follow_redirects=True)
+        except httpx.HTTPError as exc:
+            raise AppleMusicError(f"Apple Music injoignable : {exc}") from exc
+        if resp.status_code == 404:
+            raise AppleMusicError("Playlist Apple Music introuvable (privée ou supprimée ?)")
+        if resp.is_error:
+            raise AppleMusicError(f"Apple Music : HTTP {resp.status_code}")
+        playlist, ids = parse_playlist_page(resp.text)
+        if not playlist.tracks and ids:
+            country = re.search(r"music\.apple\.com/([a-z]{2})/", url)
+            playlist.tracks = await self.lookup_tracks(ids, country.group(1) if country else "fr")
+        if not playlist.tracks:
+            raise AppleMusicError(
+                "Aucun morceau lisible sur cette page Apple Music (playlist privée ? "
+                "Partage-la en public depuis Musique)."
+            )
+        return playlist

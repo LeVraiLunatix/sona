@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routers import accounts, browse, catalog, history, library, lyrics, search, stats, stream, user_settings
+from app.api.routers import (
+    accounts, browse, catalog, history, library, lyrics, playlists, search, stats, stream, user_settings,
+)
 from app.api.state import ApiDeps
 from app.config import load_settings
 from app.db.database import Database
@@ -40,6 +42,9 @@ async def lifespan(app: FastAPI):
         if settings.lastfm_api_key and settings.lastfm_api_secret
         else None
     )
+
+    # Un import de playlist coupé par un redémarrage ne reprendra pas.
+    await Repository(db).playlists_fail_interrupted_imports()
 
     app.state.deps = ApiDeps(
         settings=settings,
@@ -79,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(browse.router)
     app.include_router(lyrics.router)
     app.include_router(stats.router)
+    app.include_router(playlists.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:

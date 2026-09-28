@@ -364,3 +364,64 @@ struct LoginResponse: Codable {
         case sessionToken = "session_token"
     }
 }
+
+// MARK: - Playlists de l'app
+
+/// Playlist de l'utilisateur (créée dans l'app ou importée). `entries`
+/// n'est rempli que par la fiche détaillée.
+struct UserPlaylist: Codable, Identifiable, Hashable {
+    var id: Int
+    var name: String
+    var description: String?
+    var coverURL: String?
+    var covers: [String]
+    var origin: String?
+    var trackCount: Int
+    var durationSeconds: Int
+    var importStatus: String
+    var importTotal: Int?
+    var importDone: Int
+    var importMissing: Int
+    var importError: String?
+    var updatedAt: String
+    var entries: [PlaylistEntry]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, covers, origin, entries
+        case coverURL = "cover_url"
+        case trackCount = "track_count"
+        case durationSeconds = "duration_seconds"
+        case importStatus = "import_status"
+        case importTotal = "import_total"
+        case importDone = "import_done"
+        case importMissing = "import_missing"
+        case importError = "import_error"
+        case updatedAt = "updated_at"
+    }
+
+    var isImporting: Bool { importStatus == "importing" }
+    var importFailed: Bool { importStatus == "failed" }
+    var tracks: [Track] { (entries ?? []).map(\.track) }
+
+    /// « Spotify », « Apple Music », « Deezer » — d'où vient la playlist.
+    var originLabel: String? {
+        switch origin {
+        case "spotify": "Spotify"
+        case "apple": "Apple Music"
+        case "deezer": "Deezer"
+        default: nil
+        }
+    }
+}
+
+struct PlaylistEntry: Codable, Identifiable, Hashable {
+    var entryId: Int
+    var track: Track
+
+    enum CodingKeys: String, CodingKey {
+        case track
+        case entryId = "entry_id"
+    }
+
+    var id: Int { entryId }
+}

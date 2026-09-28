@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
@@ -146,6 +146,44 @@ class Account:
     scrobble_to_lastfm: bool
     created_at: str
     decided_at: str | None
+
+
+@dataclass(slots=True)
+class Playlist:
+    id: int
+    name: str
+    description: str | None
+    cover_url: str | None
+    origin: str | None
+    origin_url: str | None
+    import_status: str
+    import_total: int | None
+    import_done: int
+    import_missing: int
+    import_error: str | None
+    created_at: str
+    updated_at: str
+    track_count: int = 0
+    duration_seconds: int = 0
+    # Pochettes des premiers morceaux : mosaïque quand la playlist n'a pas
+    # d'image à elle.
+    covers: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class PlaylistEntry:
+    entry_id: int
+    track: TrackInfo
+
+
+_PLAYLIST_COLUMNS = (
+    "id, name, description, cover_url, origin, origin_url, import_status, import_total, "
+    "import_done, import_missing, import_error, created_at, updated_at"
+)
+_PLAYLIST_TRACK_COLUMNS = (
+    "source, source_id, title, artist, album, year, duration_seconds, cover_url, "
+    "artist_source_id, album_source_id"
+)
 
 
 ACCOUNT_STATUSES = ("pending", "approved", "rejected")
@@ -779,5 +817,156 @@ class Repository:
         await self._db.conn.execute(
             "UPDATE access_requests SET status=?, resolved_by=?, resolved_at=? WHERE user_id=?",
             (status, admin_id, _now(), user_id),
+        )
+        await self._db.conn.commit()
+
+    # -- Playlists ---------------------------------------------------
+
+    async def playlist_create(
+        self,
+        user_id: int,
+        name: str,
+        description: str | None = None,
+        *,
+        origin: str | None = None,
+        origin_url: str | None = None,
+        import_status: str = "done",
+    ) -> int:
+        now = _now()
+        cursor = await self._db.conn.execute(
+            """INSERT INTO playlists
+               (user_id, name, description, origin, origin_url, import_status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, name, description, origin, origin_url, import_status, now, now),
+        )
+        await self._db.conn.commit()
+        return cursor.lastrowid
+
+    async def _playlist_extras(self, playlist: Playlist) -> Playlist:
+        cursor = await self._db.conn.execute(
+            """SELECT COUNT(*) AS c, COALESCE(SUM(duration_seconds), 0) AS d
+               FROM playlist_tracks WHERE playlist_id=?""",
+            (playlist.id,),
+        )
+        row = await cursor.fetchone()
+        playlist.track_count, playlist.duration_seconds = row["c"], row["d"]
+        cursor = await self._db.conn.execute(
+            """SELECT cover_url FROM playlist_tracks
+               WHERE playlist_id=? AND cover_url IS NOT NULL
+               ORDER BY position LIMIT 12""",
+            (playlist.id,),
+        )
+        covers: list[str] = []
+        for r in await cursor.fetchall():
+            if r["cover_url"] not in covers:
+                covers.append(r["cover_url"])
+        playlist.covers = covers[:4]
+        return playlist
+
+    async def playlist_get(self, user_id: int, playlist_id: int) -> Playlist | None:
+        cursor = await self._db.conn.execute(
+            f"SELECT {_PLAYLIST_COLUMNS} FROM playlists WHERE id=? AND user_id=?",
+            (playlist_id, user_id),
+        )
+        row = await cursor.fetchone()
+        return await self._playlist_extras(Playlist(**dict(row))) if row else None
+
+    async def playlist_list(self, user_id: int) -> list[Playlist]:
+        cursor = await self._db.conn.execute(
+            f"SELECT {_PLAYLIST_COLUMNS} FROM playlists WHERE user_id=? ORDER BY updated_at DESC",
+            (user_id,),
+        )
+        return [await self._playlist_extras(Playlist(**dict(r))) for r in await cursor.fetchall()]
+
+    async def playlist_update(self, playlist_id: int, **fields) -> None:
+        """Met à jour les colonnes données (nom, description, pochette, état
+        d'import...) et la date de modification."""
+        allowed = {
+            "name", "description", "cover_url", "import_status", "import_total",
+            "import_done", "import_missing", "import_error",
+        }
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"Colonnes inconnues : {sorted(unknown)}")
+        fields["updated_at"] = _now()
+        assignments = ", ".join(f"{k}=?" for k in fields)
+        await self._db.conn.execute(
+            f"UPDATE playlists SET {assignments} WHERE id=?", (*fields.values(), playlist_id)
+        )
+        await self._db.conn.commit()
+
+    async def playlist_delete(self, user_id: int, playlist_id: int) -> None:
+        await self._db.conn.execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id IN (SELECT id FROM playlists WHERE id=? AND user_id=?)",
+            (playlist_id, user_id),
+        )
+        await self._db.conn.execute("DELETE FROM playlists WHERE id=? AND user_id=?", (playlist_id, user_id))
+        await self._db.conn.commit()
+
+    async def playlist_tracks(self, playlist_id: int) -> list[PlaylistEntry]:
+        cursor = await self._db.conn.execute(
+            f"SELECT id, {_PLAYLIST_TRACK_COLUMNS} FROM playlist_tracks WHERE playlist_id=? ORDER BY position, id",
+            (playlist_id,),
+        )
+        entries = []
+        for r in await cursor.fetchall():
+            d = dict(r)
+            entry_id = d.pop("id")
+            entries.append(PlaylistEntry(entry_id=entry_id, track=TrackInfo(**d)))
+        return entries
+
+    async def playlist_add_tracks(self, playlist_id: int, tracks: list[TrackInfo]) -> None:
+        """Ajoute des morceaux à la fin de la playlist, dans l'ordre donné."""
+        if not tracks:
+            return
+        cursor = await self._db.conn.execute(
+            "SELECT COALESCE(MAX(position), -1) AS p FROM playlist_tracks WHERE playlist_id=?",
+            (playlist_id,),
+        )
+        position = (await cursor.fetchone())["p"] + 1
+        now = _now()
+        await self._db.conn.executemany(
+            f"""INSERT INTO playlist_tracks (playlist_id, position, {_PLAYLIST_TRACK_COLUMNS}, added_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                (
+                    playlist_id, position + i, t.source, t.source_id, t.title, t.artist, t.album,
+                    t.year, t.duration_seconds, t.cover_url, t.artist_source_id, t.album_source_id, now,
+                )
+                for i, t in enumerate(tracks)
+            ],
+        )
+        await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (now, playlist_id))
+        await self._db.conn.commit()
+
+    async def playlist_remove_entry(self, playlist_id: int, entry_id: int) -> None:
+        await self._db.conn.execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id=? AND id=?", (playlist_id, entry_id)
+        )
+        await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (_now(), playlist_id))
+        await self._db.conn.commit()
+
+    async def playlist_reorder(self, playlist_id: int, entry_ids: list[int]) -> None:
+        """Nouvel ordre : `entry_ids` d'abord, dans cet ordre ; les entrées
+        absentes de la liste (ajoutées entre-temps) gardent leur ordre, à la
+        suite."""
+        current = [e.entry_id for e in await self.playlist_tracks(playlist_id)]
+        known = set(current)
+        ordered = [e for e in dict.fromkeys(entry_ids) if e in known]
+        ordered += [e for e in current if e not in set(ordered)]
+        await self._db.conn.executemany(
+            "UPDATE playlist_tracks SET position=? WHERE id=? AND playlist_id=?",
+            [(i, e, playlist_id) for i, e in enumerate(ordered)],
+        )
+        await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (_now(), playlist_id))
+        await self._db.conn.commit()
+
+    async def playlists_fail_interrupted_imports(self) -> None:
+        """Au démarrage : un import resté « en cours » a été coupé par un
+        redémarrage du serveur, il ne reprendra pas."""
+        await self._db.conn.execute(
+            """UPDATE playlists SET import_status='failed',
+               import_error='Import interrompu (redémarrage du serveur) : relance-le.'
+               WHERE import_status='importing'"""
         )
         await self._db.conn.commit()

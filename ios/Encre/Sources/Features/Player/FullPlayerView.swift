@@ -18,6 +18,7 @@ struct FullPlayerView: View {
     @State private var isLiked = false
     @State private var likeBounce = 0
     @State private var isStartingRadio = false
+    @State private var playlistPick: PlaylistPickRequest?
     @Namespace private var hero
 
     var body: some View {
@@ -52,6 +53,11 @@ struct FullPlayerView: View {
             palette = colors
         }
         .task(id: player.current?.id) { await refreshLikeState() }
+        // Feuille à part : celle de `RootTabView` ne peut pas s'ouvrir par-dessus
+        // ce plein écran.
+        .sheet(item: $playlistPick) { request in
+            AddToPlaylistSheet(tracks: request.tracks)
+        }
         .onChange(of: player.current == nil) { _, isEmpty in
             if isEmpty { dismiss() }
         }
@@ -79,6 +85,9 @@ struct FullPlayerView: View {
     private var actionsMenu: some View {
         Menu {
             if let track = player.current {
+                Button {
+                    playlistPick = PlaylistPickRequest(tracks: [track])
+                } label: { Label("Ajouter à une playlist…", systemImage: "text.badge.plus") }
                 if let artistId = track.artistSourceId {
                     Button {
                         onOpenRoute(.artist(source: track.source, id: artistId))
