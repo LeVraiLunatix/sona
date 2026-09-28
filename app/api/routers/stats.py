@@ -38,6 +38,13 @@ class PlayIn(BaseModel):
     played_at: datetime | None = Field(default=None, description="Début de l'écoute ; maintenant par défaut")
 
 
+class NowPlayingIn(BaseModel):
+    title: str = Field(min_length=1)
+    artist: str = Field(min_length=1)
+    album: str | None = None
+    duration_seconds: int | None = Field(default=None, ge=0)
+
+
 class PlaysIn(BaseModel):
     plays: list[PlayIn]
 
@@ -135,6 +142,28 @@ async def add_plays(payload: PlaysIn, deps: ApiDeps = Depends(require_token)) ->
         _import_tasks.add(task)
         task.add_done_callback(_import_tasks.discard)
     return {"added": len(added)}
+
+
+@router.post("/plays/now", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def now_playing(payload: NowPlayingIn, deps: ApiDeps = Depends(require_token)) -> None:
+    """Titre qui vient de démarrer dans l'app : affiché « en train
+    d'écouter » sur le profil Last.fm du compte, en direct (en arrière-plan :
+    Last.fm lent ou en panne ne retarde pas la lecture)."""
+    account = deps.account
+    if not (account and account.scrobble_to_lastfm and account.lastfm_session_key and deps.lastfm_auth):
+        return
+    task = asyncio.create_task(_now_playing(deps, account.lastfm_session_key, payload))
+    _import_tasks.add(task)
+    task.add_done_callback(_import_tasks.discard)
+
+
+async def _now_playing(deps: ApiDeps, session_key: str, payload: NowPlayingIn) -> None:
+    try:
+        await deps.lastfm_auth.update_now_playing(
+            session_key, payload.title.strip(), payload.artist.strip(), payload.album, payload.duration_seconds
+        )
+    except LastfmAuthError as exc:
+        logger.info("« En train d'écouter » Last.fm impossible : %s", exc)
 
 
 async def _scrobble(deps: ApiDeps, session_key: str, plays: list[Play]) -> None:

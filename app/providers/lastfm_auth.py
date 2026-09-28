@@ -96,6 +96,18 @@ class LastfmAuthClient:
                 avatar = url
         return LastfmProfile(display_name=(user.get("realname") or "").strip() or None, avatar_url=avatar)
 
+    async def update_now_playing(
+        self, session_key: str, title: str, artist: str, album: str | None, duration: int | None
+    ) -> None:
+        """« En train d'écouter » sur le profil Last.fm (s'efface tout seul à
+        la fin du titre, ou quand un scrobble arrive)."""
+        params = {"sk": session_key, "track": title, "artist": artist}
+        if album:
+            params["album"] = album
+        if duration:
+            params["duration"] = str(duration)
+        await self._call("track.updateNowPlaying", params, signed=True, post=True)
+
     async def scrobble(self, session_key: str, plays: list[Play]) -> None:
         """Envoie des écoutes terminées sur le profil Last.fm de l'utilisateur
         (par lots de 50, le maximum accepté)."""

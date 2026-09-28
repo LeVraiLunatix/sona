@@ -83,6 +83,8 @@ final class PlayerManager: ObservableObject {
     private var listenedSeconds: Double = 0
     private var lastTick: Double?
     private var listenStartedAt: Date?
+    /// L'écoute en cours a déjà été enregistrée (dès la moitié du titre).
+    private var scrobbled = false
     private var nowPlayingArtwork: MPMediaItemArtwork?
 
     private init() {
@@ -348,6 +350,14 @@ final class PlayerManager: ObservableObject {
                     self.positionSeconds = time.seconds
                     self.durationSeconds = duration
                     self.progress = min(1, time.seconds / duration)
+                    // Écoute comptée dès la moitié du titre (ou 4 min), comme
+                    // Last.fm : elle apparaît sur le profil pendant qu'on
+                    // écoute encore, pas seulement au titre suivant.
+                    if !self.scrobbled, let track = self.current, let startedAt = self.listenStartedAt,
+                       Scrobbler.qualifies(listened: self.listenedSeconds, duration: duration) {
+                        self.scrobbled = true
+                        Scrobbler.shared.record(track, startedAt: startedAt, listened: duration, duration: duration)
+                    }
                     if !self.nextPrepared && self.progress >= 0.6 {
                         self.nextPrepared = true
                         self.prepareNext()
@@ -358,8 +368,10 @@ final class PlayerManager: ObservableObject {
 
             player.play()
             listenStartedAt = Date()
+            scrobbled = false
             nextPrepared = false
             updateNowPlayingInfo(for: track)
+            Task { try? await APIClient.shared.nowPlaying(track) }
 
             // Sans ça, un flux qui ne se décide jamais (serveur qui télécharge
             // et vérifie l'audio en tâche de fond, requête qui ne timeout pas
@@ -400,8 +412,12 @@ final class PlayerManager: ObservableObject {
             // Morceau terminé sans suivant : relancer depuis le début plutôt
             // que de rester bloqué sur la dernière image.
             if progress >= 0.995 {
+                // Réécoute depuis le début : une nouvelle écoute à compter.
                 seek(toFraction: 0)
                 listenStartedAt = Date()
+                listenedSeconds = 0
+                scrobbled = false
+                if let current { Task { try? await APIClient.shared.nowPlaying(current) } }
             }
             player.play()
         }
@@ -505,13 +521,14 @@ final class PlayerManager: ObservableObject {
     /// Clôt l'écoute du morceau en cours : l'enregistre dans les stats si
     /// elle a assez duré, puis remet le compteur à zéro.
     private func finishListening() {
-        if let track = current, let startedAt = listenStartedAt {
+        if !scrobbled, let track = current, let startedAt = listenStartedAt {
             let duration = durationSeconds > 0 ? durationSeconds : Double(track.durationSeconds ?? 0)
             Scrobbler.shared.record(track, startedAt: startedAt, listened: listenedSeconds, duration: duration)
         }
         listenedSeconds = 0
         lastTick = nil
         listenStartedAt = nil
+        scrobbled = false
     }
 
     private func teardown() {
