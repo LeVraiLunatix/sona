@@ -4,7 +4,8 @@ import asyncio
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from app.api.auth import bearer_token, get_deps, identify, require_admin
@@ -37,6 +38,10 @@ class AccountOut(BaseModel):
 class AuthConfigOut(BaseModel):
     lastfm_enabled: bool
     auth_url: str | None
+    # L'app construit elle-même l'adresse de connexion avec, en retour,
+    # `<serveur>/auth/lastfm/callback` : Last.fm n'accepte que des adresses
+    # http(s), pas `encre://`.
+    api_key: str | None = None
 
 
 class LastfmLoginIn(BaseModel):
@@ -66,7 +71,14 @@ async def auth_config(deps: ApiDeps = Depends(get_deps)) -> AuthConfigOut:
     if deps.lastfm_auth is None or not deps.settings.lastfm_api_key:
         return AuthConfigOut(lastfm_enabled=False, auth_url=None)
     url = str(httpx.URL(AUTH_URL, params={"api_key": deps.settings.lastfm_api_key, "cb": APP_CALLBACK}))
-    return AuthConfigOut(lastfm_enabled=True, auth_url=url)
+    return AuthConfigOut(lastfm_enabled=True, auth_url=url, api_key=deps.settings.lastfm_api_key)
+
+
+@router.get("/auth/lastfm/callback", include_in_schema=False)
+async def lastfm_callback(token: str = Query(...)) -> RedirectResponse:
+    """Retour de Last.fm après autorisation : renvoie vers l'app
+    (`encre://lastfm?token=…`), que la feuille de connexion d'iOS intercepte."""
+    return RedirectResponse(str(httpx.URL(APP_CALLBACK, params={"token": token})), status_code=302)
 
 
 @router.post("/auth/lastfm", response_model=LoginOut)

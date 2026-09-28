@@ -346,10 +346,12 @@ struct AppAccount: Codable, Identifiable, Hashable {
 struct AuthConfig: Codable {
     var lastfmEnabled: Bool
     var authURL: String?
+    var apiKey: String?
 
     enum CodingKeys: String, CodingKey {
         case lastfmEnabled = "lastfm_enabled"
         case authURL = "auth_url"
+        case apiKey = "api_key"
     }
 }
 

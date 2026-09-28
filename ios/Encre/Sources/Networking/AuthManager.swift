@@ -69,7 +69,7 @@ final class AuthManager: ObservableObject {
         defer { isWorking = false }
         do {
             let config = try await APIClient.shared.authConfig()
-            guard config.lastfmEnabled, let raw = config.authURL, let url = URL(string: raw) else {
+            guard config.lastfmEnabled, let url = Self.loginURL(config) else {
                 errorMessage = "La connexion Last.fm n'est pas configurée sur le serveur (LASTFM_API_KEY et LASTFM_API_SECRET)."
                 return
             }
@@ -87,6 +87,21 @@ final class AuthManager: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Page d'autorisation Last.fm, avec pour retour
+    /// `<serveur>/auth/lastfm/callback` — Last.fm refuse `encre://` ; c'est
+    /// le serveur qui renvoie ensuite vers l'app.
+    private static func loginURL(_ config: AuthConfig) -> URL? {
+        guard let apiKey = config.apiKey, let base = APIConfig.shared.baseURL else {
+            return config.authURL.flatMap(URL.init(string:))
+        }
+        var components = URLComponents(string: "https://www.last.fm/api/auth/")
+        components?.queryItems = [
+            URLQueryItem(name: "api_key", value: apiKey),
+            URLQueryItem(name: "cb", value: base.appendingPathComponent("auth/lastfm/callback").absoluteString),
+        ]
+        return components?.url
     }
 
     func signOut() async {
