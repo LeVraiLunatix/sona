@@ -31,6 +31,8 @@ struct AppGate: View {
                 ProgressView().tint(.white)
             case .signedOut:
                 LoginView().transition(.opacity)
+            case .unreachable(let message):
+                ServerUnreachableView(message: message).transition(.opacity)
             case .pending(let account):
                 AccessPendingView(account: account, rejected: false).transition(.opacity)
             case .rejected(let account):

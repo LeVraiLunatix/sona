@@ -160,3 +160,52 @@ struct AccessPendingView: View {
         }
     }
 }
+
+
+/// Session enregistrée, mais le serveur ne répond pas : réessai
+/// automatique toutes les 5 s, sans repasser par la connexion.
+struct ServerUnreachableView: View {
+    let message: String
+    @EnvironmentObject private var auth: AuthManager
+    @State private var retrying = false
+
+    var body: some View {
+        ZStack {
+            Tone.background.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Spacer()
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 46, weight: .semibold))
+                    .foregroundStyle(Tone.secondary)
+                    .symbolEffect(.pulse, options: .repeating)
+                Text("Serveur injoignable")
+                    .font(Typo.largeTitle)
+                    .foregroundStyle(Tone.primary)
+                Text(message)
+                    .font(Typo.body)
+                    .foregroundStyle(Tone.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                Spacer()
+                PillButton(title: "Réessayer", systemImage: "arrow.clockwise", isLoading: retrying) {
+                    Task {
+                        retrying = true
+                        await auth.refresh()
+                        retrying = false
+                    }
+                }
+                .padding(.horizontal, 28)
+                Button("Se déconnecter") { Task { await auth.signOut() } }
+                    .font(Typo.rowSubtitle)
+                    .foregroundStyle(Tone.tertiary)
+                    .padding(.bottom, 40)
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await auth.refresh()
+            }
+        }
+    }
+}
