@@ -18,6 +18,12 @@ symboles qui rebondissent, retours haptiques.
 
 ## Fonctionnalités
 
+- **Connexion avec Last.fm**, sur invitation : un nouveau compte attend
+  qu'un admin l'accepte (écran d'attente qui se met à jour tout seul). Les
+  admins gèrent les accès depuis Réglages → Administration (accepter,
+  refuser, révoquer, nommer admin) et sont prévenus sur Telegram à chaque
+  demande. Chaque compte a ses propres bibliothèque, historique et stats, et
+  peut envoyer ses écoutes sur son profil Last.fm.
 - **Écouter** : reprendre l'écoute, écouté récemment, radios, vos artistes,
   vos titres.
 - **Bibliothèque** : titres (joués comme une liste, suivant/précédent

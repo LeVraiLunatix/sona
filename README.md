@@ -365,6 +365,8 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `POST /plays` · `GET /plays/recent` | Écoutes terminées envoyées par l'app (moitié du titre ou 4 min, comme Last.fm), par lots, doublons ignorés. |
 | `GET /stats?period=day\|week\|month\|year\|all&offset=0&tz=Europe/Paris` | Stats d'écoute façon Wrapped pour n'importe quelle période : écoutes, minutes, tops artistes/titres/albums, courbe, heures, jours, découvertes, série de jours. |
 | `GET/POST /stats/import/lastfm` | Import (en tâche de fond, reprise automatique) de l'historique Last.fm de `LASTFM_USER` — nécessite `LASTFM_API_KEY`. |
+| `GET /auth/config` · `POST /auth/lastfm` · `GET/PUT /auth/me` · `POST /auth/logout` | Connexion de l'app avec Last.fm (`LASTFM_API_KEY` + `LASTFM_API_SECRET`) : un nouveau compte attend la validation d'un admin ; les pseudos de `ADMIN_LASTFM_USERS` (par défaut `LASTFM_USER`) sont acceptés d'office. Chaque compte a ses propres bibliothèque, historique, réglages et stats ; ses écoutes peuvent aussi partir sur son profil Last.fm. |
+| `GET /admin/accounts` · `POST /admin/accounts/{id}/approve\|reject\|promote\|demote` | Panel d'admin : accorder, refuser/révoquer l'accès, droits d'admin. Chaque nouvelle demande est signalée aux admins du bot Telegram. |
 | `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
 | `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
 | `GET/DELETE /history` | Historique. |

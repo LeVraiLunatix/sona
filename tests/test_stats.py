@@ -121,7 +121,10 @@ class MemoryRepo:
         known = {(p.played_at, p.title, p.artist) for p in self.plays}
         fresh = [p for p in plays if (p.played_at, p.title, p.artist) not in known]
         self.plays.extend(fresh)
-        return len(fresh)
+        return fresh
+
+    async def plays_timestamps(self, user_id, origin):
+        return {p.played_at for p in self.plays if p.origin == origin}
 
 
 def lastfm_page(page, total, tracks):

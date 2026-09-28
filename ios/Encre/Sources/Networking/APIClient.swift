@@ -50,9 +50,10 @@ final class APIClient {
     }
 
     private func request(
-        _ path: String, method: String = "GET", query: [URLQueryItem] = [], bodyData: Data? = nil
+        _ path: String, method: String = "GET", query: [URLQueryItem] = [], bodyData: Data? = nil,
+        authenticated: Bool = true
     ) throws -> URLRequest {
-        guard let base = APIConfig.shared.baseURL, APIConfig.shared.isConfigured else {
+        guard let base = APIConfig.shared.baseURL, !authenticated || APIConfig.shared.isConfigured else {
             throw APIError.notConfigured
         }
         var components = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)
@@ -61,7 +62,9 @@ final class APIClient {
 
         var req = URLRequest(url: url)
         req.httpMethod = method
-        req.setValue("Bearer \(APIConfig.shared.token)", forHTTPHeaderField: "Authorization")
+        if authenticated {
+            req.setValue("Bearer \(APIConfig.shared.bearer)", forHTTPHeaderField: "Authorization")
+        }
         if let bodyData {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = bodyData
@@ -92,6 +95,44 @@ final class APIClient {
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
         }
+    }
+
+    // MARK: - Compte
+
+    func authConfig() async throws -> AuthConfig {
+        try await send(try request("/auth/config", authenticated: false))
+    }
+
+    func loginWithLastfm(token: String) async throws -> LoginResponse {
+        struct Body: Encodable { let token: String }
+        let data = try encode(Body(token: token))
+        return try await send(try request("/auth/lastfm", method: "POST", bodyData: data, authenticated: false))
+    }
+
+    func me() async throws -> AppAccount {
+        try await send(try request("/auth/me"))
+    }
+
+    func updateMe(scrobbleToLastfm: Bool) async throws -> AppAccount {
+        struct Body: Encodable {
+            let scrobbleToLastfm: Bool
+            enum CodingKeys: String, CodingKey { case scrobbleToLastfm = "scrobble_to_lastfm" }
+        }
+        let data = try encode(Body(scrobbleToLastfm: scrobbleToLastfm))
+        return try await send(try request("/auth/me", method: "PUT", bodyData: data))
+    }
+
+    func logout() async throws {
+        try await sendNoContent(try request("/auth/logout", method: "POST"))
+    }
+
+    func adminAccounts() async throws -> [AppAccount] {
+        try await send(try request("/admin/accounts"))
+    }
+
+    /// `approve`, `reject`, `promote` ou `demote`.
+    func adminDecide(accountId: Int, action: String) async throws -> AppAccount {
+        try await send(try request("/admin/accounts/\(accountId)/\(action)", method: "POST"))
     }
 
     // MARK: - Recherche
@@ -295,6 +336,6 @@ final class APIClient {
             URLQueryItem(name: "format", value: format),
         ]
         guard let url = components?.url else { throw APIError.invalidResponse }
-        return (url, ["Authorization": "Bearer \(APIConfig.shared.token)"])
+        return (url, ["Authorization": "Bearer \(APIConfig.shared.bearer)"])
     }
 }

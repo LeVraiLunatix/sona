@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routers import browse, catalog, history, library, lyrics, search, stats, stream, user_settings
+from app.api.routers import accounts, browse, catalog, history, library, lyrics, search, stats, stream, user_settings
 from app.api.state import ApiDeps
 from app.config import load_settings
 from app.db.database import Database
@@ -13,6 +13,7 @@ from app.db.repository import Repository
 from app.logging_config import setup_logging
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
+from app.providers.lastfm_auth import LastfmAuthClient
 from app.providers.lrclib import LrclibClient
 from app.providers.spotify import SpotifyClient
 
@@ -25,7 +26,7 @@ async def lifespan(app: FastAPI):
     settings = load_settings()
     if not settings.api_token:
         logger.warning(
-            "API_TOKEN manquant dans .env : toutes les requêtes seront refusées (503)."
+            "API_TOKEN manquant dans .env : seules les connexions Last.fm de l'app sont acceptées."
         )
 
     db = Database(settings.database_path)
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
     apple = AppleMusicClient()
     spotify = SpotifyClient(settings.spotify_client_id, settings.spotify_client_secret)
     lrclib = LrclibClient()
+    lastfm_auth = (
+        LastfmAuthClient(settings.lastfm_api_key, settings.lastfm_api_secret)
+        if settings.lastfm_api_key and settings.lastfm_api_secret
+        else None
+    )
 
     app.state.deps = ApiDeps(
         settings=settings,
@@ -42,6 +48,7 @@ async def lifespan(app: FastAPI):
         apple=apple,
         spotify=spotify,
         lrclib=lrclib,
+        lastfm_auth=lastfm_auth,
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     try:
@@ -51,6 +58,8 @@ async def lifespan(app: FastAPI):
         await apple.aclose()
         await spotify.aclose()
         await lrclib.aclose()
+        if lastfm_auth is not None:
+            await lastfm_auth.aclose()
         await db.close()
 
 
@@ -60,6 +69,7 @@ def create_app() -> FastAPI:
         description="API privée servant de backend à l'app iOS de Sona.",
         lifespan=lifespan,
     )
+    app.include_router(accounts.router)
     app.include_router(search.router)
     app.include_router(catalog.router)
     app.include_router(stream.router)

@@ -18,7 +18,6 @@ struct RootTabView: View {
     @State private var statsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
-    @State private var showingOnboarding = false
     @State private var showingPlayer = false
     @State private var keyboardVisible = false
     @Namespace private var zoomNamespace
@@ -49,14 +48,10 @@ struct RootTabView: View {
                 .navigationTransition(.zoom(sourceID: playerSourceID(selectedTab), in: playerNamespace))
         }
         .sheet(isPresented: $showingSettings) {
-            NavigationStack { ServerSettingsView() }
-                .presentationDetents([.medium, .large])
-        }
-        .fullScreenCover(isPresented: $showingOnboarding) {
-            OnboardingView { showingOnboarding = false }
+            NavigationStack { SettingsView() }
+                .environmentObject(AuthManager.shared)
         }
         .task {
-            if !APIConfig.shared.isConfigured { showingOnboarding = true }
             // Écoutes restées en attente (hors connexion au dernier usage).
             await Scrobbler.shared.flush()
         }

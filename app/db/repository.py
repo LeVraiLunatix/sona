@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -132,6 +133,39 @@ _PLAY_COLUMNS = (
 )
 
 
+@dataclass(slots=True)
+class Account:
+    id: int
+    lastfm_username: str
+    display_name: str | None
+    avatar_url: str | None
+    status: str
+    is_admin: bool
+    user_id: int
+    lastfm_session_key: str | None
+    scrobble_to_lastfm: bool
+    created_at: str
+    decided_at: str | None
+
+
+ACCOUNT_STATUSES = ("pending", "approved", "rejected")
+# Espace de données des comptes de l'app, au-delà des identifiants Telegram
+# (quelques milliards au plus) : jamais de collision avec un utilisateur du bot.
+ACCOUNT_USER_ID_BASE = 100_000_000_000
+
+
+def _account(row) -> Account:
+    d = dict(row)
+    d["is_admin"] = bool(d["is_admin"])
+    d["scrobble_to_lastfm"] = bool(d["scrobble_to_lastfm"])
+    d.pop("decided_by", None)
+    return Account(**d)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 class Repository:
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -155,12 +189,18 @@ class Repository:
         )
 
     async def set_quality(self, user_id: int, quality: str) -> None:
+        # Sans ligne existante, l'UPDATE ne toucherait rien : le réglage
+        # choisi depuis l'app était perdu en silence.
+        await self.ensure_user(user_id)
         await self._db.conn.execute(
             "UPDATE users SET quality = ? WHERE user_id = ?", (quality, user_id)
         )
         await self._db.conn.commit()
 
     async def set_format(self, user_id: int, fmt: str) -> None:
+        # Sans ligne existante, l'UPDATE ne toucherait rien : le réglage
+        # choisi depuis l'app était perdu en silence.
+        await self.ensure_user(user_id)
         await self._db.conn.execute(
             "UPDATE users SET format = ? WHERE user_id = ?", (fmt, user_id)
         )
@@ -266,27 +306,31 @@ class Repository:
 
     # -- Écoutes (stats) ---------------------------------------------
 
-    async def plays_add(self, user_id: int, plays: list[Play]) -> int:
+    async def plays_add(self, user_id: int, plays: list[Play]) -> list[Play]:
         """Ajoute des écoutes ; les doublons exacts (même instant, titre,
         artiste) sont ignorés — un import relancé ou une écoute renvoyée par
-        l'app après une coupure réseau ne compte pas deux fois. Renvoie le
-        nombre de lignes réellement ajoutées."""
-        if not plays:
-            return 0
-        before = self._db.conn.total_changes
-        await self._db.conn.executemany(
-            f"INSERT OR IGNORE INTO plays (user_id, {_PLAY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [
+        l'app après une coupure réseau ne compte pas deux fois. Renvoie les
+        écoutes réellement ajoutées."""
+        added: list[Play] = []
+        for p in plays:
+            cursor = await self._db.conn.execute(
+                f"INSERT OR IGNORE INTO plays (user_id, {_PLAY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     user_id, p.played_at, p.title, p.artist, p.album, p.source, p.source_id,
                     p.artist_source_id, p.album_source_id, p.cover_url, p.duration_seconds,
                     p.listened_seconds, p.origin,
-                )
-                for p in plays
-            ],
-        )
+                ),
+            )
+            if cursor.rowcount:
+                added.append(p)
         await self._db.conn.commit()
-        return self._db.conn.total_changes - before
+        return added
+
+    async def plays_timestamps(self, user_id: int, origin: str) -> set[str]:
+        cursor = await self._db.conn.execute(
+            "SELECT played_at FROM plays WHERE user_id=? AND origin=?", (user_id, origin)
+        )
+        return {r["played_at"] for r in await cursor.fetchall()}
 
     async def plays_between(self, user_id: int, start: str | None, end: str | None) -> list[Play]:
         """Écoutes de [start, end[ (horodatages ISO UTC), ordre chronologique."""
@@ -332,6 +376,107 @@ class Repository:
         )
         row = await cursor.fetchone()
         return row["m"] if row else None
+
+    # -- Comptes de l'app (connexion Last.fm) ---------------------------
+
+    async def account_by_username(self, username: str) -> Account | None:
+        cursor = await self._db.conn.execute(
+            "SELECT * FROM app_accounts WHERE lastfm_username=? COLLATE NOCASE", (username,)
+        )
+        row = await cursor.fetchone()
+        return _account(row) if row else None
+
+    async def account_by_id(self, account_id: int) -> Account | None:
+        cursor = await self._db.conn.execute("SELECT * FROM app_accounts WHERE id=?", (account_id,))
+        row = await cursor.fetchone()
+        return _account(row) if row else None
+
+    async def upsert_account(
+        self,
+        username: str,
+        display_name: str | None,
+        avatar_url: str | None,
+        session_key: str | None,
+        is_admin: bool,
+        legacy_user_id: int,
+    ) -> tuple[Account, bool]:
+        """Crée le compte à la première connexion (en attente, sauf admin),
+        ou met à jour son profil et sa clé Last.fm. Renvoie (compte, créé)."""
+        existing = await self.account_by_username(username)
+        if existing is not None:
+            await self._db.conn.execute(
+                """UPDATE app_accounts SET display_name=?, avatar_url=?, lastfm_session_key=COALESCE(?, lastfm_session_key),
+                   is_admin=MAX(is_admin, ?), status=CASE WHEN ? THEN 'approved' ELSE status END WHERE id=?""",
+                (display_name, avatar_url, session_key, int(is_admin), int(is_admin), existing.id),
+            )
+            await self._db.conn.commit()
+            return await self.account_by_id(existing.id), False
+
+        # Le premier admin garde les données de l'ancien jeton unique.
+        cursor = await self._db.conn.execute("SELECT 1 FROM app_accounts WHERE user_id=?", (legacy_user_id,))
+        takes_legacy = is_admin and await cursor.fetchone() is None
+        cursor = await self._db.conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM app_accounts")
+        next_id = (await cursor.fetchone())["n"]
+        user_id = legacy_user_id if takes_legacy else ACCOUNT_USER_ID_BASE + next_id
+        now = _now()
+        cursor = await self._db.conn.execute(
+            """INSERT INTO app_accounts (lastfm_username, display_name, avatar_url, status, is_admin, user_id,
+                                         lastfm_session_key, created_at, decided_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (username, display_name, avatar_url, "approved" if is_admin else "pending", int(is_admin),
+             user_id, session_key, now, now if is_admin else None),
+        )
+        await self._db.conn.commit()
+        return await self.account_by_id(cursor.lastrowid), True
+
+    async def list_accounts(self) -> list[Account]:
+        cursor = await self._db.conn.execute(
+            """SELECT * FROM app_accounts
+               ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, created_at DESC"""
+        )
+        return [_account(r) for r in await cursor.fetchall()]
+
+    async def set_account_status(self, account_id: int, status: str, decided_by: int | None) -> None:
+        await self._db.conn.execute(
+            "UPDATE app_accounts SET status=?, decided_at=?, decided_by=? WHERE id=?",
+            (status, _now(), decided_by, account_id),
+        )
+        if status != "approved":
+            await self._db.conn.execute("DELETE FROM app_sessions WHERE account_id=?", (account_id,))
+        await self._db.conn.commit()
+
+    async def set_account_admin(self, account_id: int, is_admin: bool) -> None:
+        await self._db.conn.execute("UPDATE app_accounts SET is_admin=? WHERE id=?", (int(is_admin), account_id))
+        await self._db.conn.commit()
+
+    async def set_account_scrobbling(self, account_id: int, enabled: bool) -> None:
+        await self._db.conn.execute(
+            "UPDATE app_accounts SET scrobble_to_lastfm=? WHERE id=?", (int(enabled), account_id)
+        )
+        await self._db.conn.commit()
+
+    async def create_session(self, account_id: int) -> str:
+        token = secrets.token_urlsafe(32)
+        now = _now()
+        await self._db.conn.execute(
+            "INSERT INTO app_sessions (token_hash, account_id, created_at, last_used_at) VALUES (?, ?, ?, ?)",
+            (_hash_token(token), account_id, now, now),
+        )
+        await self._db.conn.commit()
+        return token
+
+    async def account_for_session(self, token: str) -> Account | None:
+        cursor = await self._db.conn.execute(
+            """SELECT a.* FROM app_sessions s JOIN app_accounts a ON a.id = s.account_id
+               WHERE s.token_hash=?""",
+            (_hash_token(token),),
+        )
+        row = await cursor.fetchone()
+        return _account(row) if row else None
+
+    async def delete_session(self, token: str) -> None:
+        await self._db.conn.execute("DELETE FROM app_sessions WHERE token_hash=?", (_hash_token(token),))
+        await self._db.conn.commit()
 
     # -- Cache audio Telegram -----------------------------------------
 

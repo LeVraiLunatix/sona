@@ -318,3 +318,47 @@ struct LastfmImportStatus: Codable, Hashable {
         case finishedAt = "finished_at"
     }
 }
+
+// MARK: - Comptes (`/auth`, `/admin`)
+
+struct AppAccount: Codable, Identifiable, Hashable {
+    var id: Int?
+    var username: String
+    var displayName: String?
+    var avatarURL: String?
+    var status: String
+    var isAdmin: Bool
+    var scrobbleToLastfm: Bool
+    var createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, username, status
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+        case isAdmin = "is_admin"
+        case scrobbleToLastfm = "scrobble_to_lastfm"
+        case createdAt = "created_at"
+    }
+
+    var name: String { displayName ?? username }
+}
+
+struct AuthConfig: Codable {
+    var lastfmEnabled: Bool
+    var authURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case lastfmEnabled = "lastfm_enabled"
+        case authURL = "auth_url"
+    }
+}
+
+struct LoginResponse: Codable {
+    var sessionToken: String
+    var account: AppAccount
+
+    enum CodingKeys: String, CodingKey {
+        case account
+        case sessionToken = "session_token"
+    }
+}
