@@ -354,6 +354,9 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `GET /tracks\|albums\|playlists\|artists/{source}/{id}` | Fiche détaillée (et sous-routes `/top-tracks`, `/albums`, `/related`, `/radio` pour un artiste). |
 | `GET /browse/radios`, `GET /radios/{id}/tracks` | Radios thématiques Deezer triées à la main ; chaque appel à `/tracks` est un nouveau tirage. |
 | `GET /lyrics?title=&artist=&album=&duration=` | Paroles via [LRCLIB](https://lrclib.net) (base publique, sans clé) : synchronisées quand elles existent (`time` en secondes par ligne), sinon brutes ; 404 si inconnues. |
+| `POST /plays` · `GET /plays/recent` | Écoutes terminées envoyées par l'app (moitié du titre ou 4 min, comme Last.fm), par lots, doublons ignorés. |
+| `GET /stats?period=day\|week\|month\|year\|all&offset=0&tz=Europe/Paris` | Stats d'écoute façon Wrapped pour n'importe quelle période : écoutes, minutes, tops artistes/titres/albums, courbe, heures, jours, découvertes, série de jours. |
+| `GET/POST /stats/import/lastfm` | Import (en tâche de fond, reprise automatique) de l'historique Last.fm de `LASTFM_USER` — nécessite `LASTFM_API_KEY`. |
 | `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
 | `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
 | `GET/DELETE /history` | Historique. |

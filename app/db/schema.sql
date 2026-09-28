@@ -89,3 +89,26 @@ CREATE TABLE IF NOT EXISTS access_requests (
     resolved_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests (status, requested_at DESC);
+
+-- Écoutes réelles (« scrobbles ») : une ligne par morceau écouté assez
+-- longtemps dans l'app (moitié du titre ou 4 min, la règle de Last.fm), ou
+-- importé depuis l'historique Last.fm (origin = 'lastfm'). Base des stats
+-- d'écoute de l'app — à ne pas confondre avec `history` (fiches consultées).
+CREATE TABLE IF NOT EXISTS plays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    played_at TEXT NOT NULL,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    source TEXT,
+    source_id TEXT,
+    artist_source_id TEXT,
+    album_source_id TEXT,
+    cover_url TEXT,
+    duration_seconds INTEGER,
+    listened_seconds INTEGER,
+    origin TEXT NOT NULL DEFAULT 'sona',
+    UNIQUE (user_id, played_at, title, artist)
+);
+CREATE INDEX IF NOT EXISTS idx_plays_user_time ON plays (user_id, played_at);

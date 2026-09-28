@@ -188,3 +188,133 @@ struct UserSettingsDTO: Codable {
     var format: String
     var autoplay: Bool
 }
+
+// MARK: - Stats d'écoute (`/plays`, `/stats`)
+
+/// Écoute terminée envoyée au serveur — aussi stockée telle quelle en
+/// attente d'envoi quand le réseau manque (voir `Scrobbler`).
+struct PlayPayload: Codable, Hashable {
+    var title: String
+    var artist: String
+    var album: String?
+    var source: String
+    var sourceId: String
+    var artistSourceId: String?
+    var albumSourceId: String?
+    var coverURL: String?
+    var durationSeconds: Int?
+    var listenedSeconds: Int
+    var playedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case title, artist, album, source
+        case sourceId = "source_id"
+        case artistSourceId = "artist_source_id"
+        case albumSourceId = "album_source_id"
+        case coverURL = "cover_url"
+        case durationSeconds = "duration_seconds"
+        case listenedSeconds = "listened_seconds"
+        case playedAt = "played_at"
+    }
+}
+
+struct RecentPlay: Codable, Identifiable, Hashable {
+    var playedAt: String
+    var title: String
+    var artist: String
+    var album: String?
+    var source: String?
+    var sourceId: String?
+    var artistSourceId: String?
+    var albumSourceId: String?
+    var coverURL: String?
+    var durationSeconds: Int?
+    var origin: String
+
+    enum CodingKeys: String, CodingKey {
+        case title, artist, album, source, origin
+        case playedAt = "played_at"
+        case sourceId = "source_id"
+        case artistSourceId = "artist_source_id"
+        case albumSourceId = "album_source_id"
+        case coverURL = "cover_url"
+        case durationSeconds = "duration_seconds"
+    }
+
+    var id: String { "\(playedAt)|\(title)|\(artist)" }
+}
+
+struct RankedStat: Codable, Identifiable, Hashable {
+    var name: String
+    var subtitle: String?
+    var plays: Int
+    var minutes: Int
+    var coverURL: String?
+    var source: String?
+    var sourceId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, subtitle, plays, minutes, source
+        case coverURL = "cover_url"
+        case sourceId = "source_id"
+    }
+
+    var id: String { "\(name)|\(subtitle ?? "")" }
+}
+
+struct StatBucket: Codable, Hashable {
+    var label: String
+    var plays: Int
+    var minutes: Int
+}
+
+struct StatsReport: Codable, Hashable {
+    var period: String
+    var offset: Int
+    var label: String
+    var plays: Int
+    var minutes: Int
+    var artists: Int
+    var tracks: Int
+    var albums: Int
+    var previousPlays: Int
+    var topArtists: [RankedStat]
+    var topTracks: [RankedStat]
+    var topAlbums: [RankedStat]
+    var timeline: [StatBucket]
+    var hours: [Int]
+    var weekdays: [Int]
+    var discoveries: [RankedStat]
+    var topHour: Int?
+    var topWeekday: String?
+    var streakDays: Int
+    var firstPlay: String?
+
+    enum CodingKeys: String, CodingKey {
+        case period, offset, label, plays, minutes, artists, tracks, albums, timeline, hours, weekdays, discoveries
+        case previousPlays = "previous_plays"
+        case topArtists = "top_artists"
+        case topTracks = "top_tracks"
+        case topAlbums = "top_albums"
+        case topHour = "top_hour"
+        case topWeekday = "top_weekday"
+        case streakDays = "streak_days"
+        case firstPlay = "first_play"
+    }
+}
+
+struct LastfmImportStatus: Codable, Hashable {
+    var configured: Bool
+    var running: Bool
+    var page: Int
+    var totalPages: Int
+    var imported: Int
+    var error: String?
+    var finishedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case configured, running, page, imported, error
+        case totalPages = "total_pages"
+        case finishedAt = "finished_at"
+    }
+}

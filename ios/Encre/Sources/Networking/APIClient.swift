@@ -181,6 +181,34 @@ final class APIClient {
         }
     }
 
+    // MARK: - Stats d'écoute
+
+    func submitPlays(_ plays: [PlayPayload]) async throws {
+        struct Body: Encodable { let plays: [PlayPayload] }
+        let data = try encode(Body(plays: plays))
+        try await sendNoContent(try request("/plays", method: "POST", bodyData: data))
+    }
+
+    func recentPlays(limit: Int = 50) async throws -> [RecentPlay] {
+        try await send(try request("/plays/recent", query: [URLQueryItem(name: "limit", value: "\(limit)")]))
+    }
+
+    func stats(period: String, offset: Int) async throws -> StatsReport {
+        try await send(try request("/stats", query: [
+            URLQueryItem(name: "period", value: period),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+            URLQueryItem(name: "tz", value: TimeZone.current.identifier),
+        ]))
+    }
+
+    func lastfmImportStatus() async throws -> LastfmImportStatus {
+        try await send(try request("/stats/import/lastfm"))
+    }
+
+    func startLastfmImport() async throws -> LastfmImportStatus {
+        try await send(try request("/stats/import/lastfm", method: "POST"))
+    }
+
     // MARK: - Radios
 
     func radioGroups() async throws -> [RadioGroup] {

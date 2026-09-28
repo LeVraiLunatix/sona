@@ -65,6 +65,11 @@ final class PlayerManager: ObservableObject {
     private var loadTimeoutTask: Task<Void, Never>?
     private var prepareTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
+    /// Temps réellement écouté du morceau en cours (les sauts ne comptent
+    /// pas) : décide s'il devient une écoute des stats (voir `Scrobbler`).
+    private var listenedSeconds: Double = 0
+    private var lastTick: Double?
+    private var listenStartedAt: Date?
     private var nowPlayingArtwork: MPMediaItemArtwork?
 
     private init() {
@@ -307,6 +312,11 @@ final class PlayerManager: ObservableObject {
                 // `@Published` de ce `@MainActor final class`.
                 Task { @MainActor in
                     guard let self, let duration = self.player?.currentItem?.duration.seconds, duration.isFinite, duration > 0 else { return }
+                    if let last = self.lastTick, self.isPlaying {
+                        let delta = time.seconds - last
+                        if delta > 0 && delta <= 1.5 { self.listenedSeconds += delta }
+                    }
+                    self.lastTick = time.seconds
                     self.positionSeconds = time.seconds
                     self.durationSeconds = duration
                     self.progress = time.seconds / duration
@@ -315,6 +325,7 @@ final class PlayerManager: ObservableObject {
             }
 
             player.play()
+            listenStartedAt = Date()
             updateNowPlayingInfo(for: track)
             prepareNext()
 
@@ -356,7 +367,10 @@ final class PlayerManager: ObservableObject {
             try? AVAudioSession.sharedInstance().setActive(true)
             // Morceau terminé sans suivant : relancer depuis le début plutôt
             // que de rester bloqué sur la dernière image.
-            if progress >= 0.995 { seek(toFraction: 0) }
+            if progress >= 0.995 {
+                seek(toFraction: 0)
+                listenStartedAt = Date()
+            }
             player.play()
         }
     }
@@ -401,6 +415,8 @@ final class PlayerManager: ObservableObject {
                 self.start(self.context[target], context: self.context)
             }
         } else {
+            // Fin de la liste : l'écoute du dernier morceau compte dès maintenant.
+            finishListening()
             isPlaying = false
         }
     }
@@ -454,7 +470,20 @@ final class PlayerManager: ObservableObject {
         updateNowPlayingElapsedTime()
     }
 
+    /// Clôt l'écoute du morceau en cours : l'enregistre dans les stats si
+    /// elle a assez duré, puis remet le compteur à zéro.
+    private func finishListening() {
+        if let track = current, let startedAt = listenStartedAt {
+            let duration = durationSeconds > 0 ? durationSeconds : Double(track.durationSeconds ?? 0)
+            Scrobbler.shared.record(track, startedAt: startedAt, listened: listenedSeconds, duration: duration)
+        }
+        listenedSeconds = 0
+        lastTick = nil
+        listenStartedAt = nil
+    }
+
     private func teardown() {
+        finishListening()
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         statusObserver?.invalidate()
