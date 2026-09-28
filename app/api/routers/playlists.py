@@ -78,6 +78,18 @@ async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depend
     return PlaylistOut.from_playlist(await _owned(deps, playlist_id))
 
 
+@router.post("/{playlist_id}/reimport", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
+async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+    """Relit la playlist d'origine (Deezer, Spotify, Apple Music) et remplace
+    ses titres — pour récupérer les ajouts, ou un import incomplet."""
+    playlist = await _owned(deps, playlist_id)
+    try:
+        await playlist_import.start_reimport(deps, playlist)
+    except playlist_import.PlaylistImportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return PlaylistOut.from_playlist(await _owned(deps, playlist_id))
+
+
 @router.get("/{playlist_id}", response_model=PlaylistDetailOut)
 async def get_playlist(playlist_id: int, deps: ApiDeps = Depends(require_token)) -> PlaylistDetailOut:
     return await _detail(deps, playlist_id)

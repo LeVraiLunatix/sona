@@ -939,6 +939,10 @@ class Repository:
         await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (now, playlist_id))
         await self._db.conn.commit()
 
+    async def playlist_clear_tracks(self, playlist_id: int) -> None:
+        await self._db.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=?", (playlist_id,))
+        await self._db.conn.commit()
+
     async def playlist_remove_entry(self, playlist_id: int, entry_id: int) -> None:
         await self._db.conn.execute(
             "DELETE FROM playlist_tracks WHERE playlist_id=? AND id=?", (playlist_id, entry_id)

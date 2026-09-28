@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import json
+import logging
 import re
+import time
+from urllib.parse import unquote
 
 import httpx
 
 from app.providers.base import AlbumInfo, ArtistInfo, ExternalPlaylist, TrackInfo
 from app.providers.page_data import BROWSER_HEADERS, meta_content, script_json, walk
 
+logger = logging.getLogger(__name__)
+
 LOOKUP_URL = "https://itunes.apple.com/lookup"
 SEARCH_URL = "https://itunes.apple.com/search"
+# API du lecteur web d'Apple Music : la page publique d'une playlist ne
+# contient que ses 300 premiers titres, la suite se charge par là.
+WEB_ORIGIN = "https://music.apple.com"
+MEDIA_API = "https://amp-api.music.apple.com"
+# Jeton « développeur » du lecteur web, embarqué dans son code JavaScript
+# (un JWT ES256 : son en-tête encodé commence toujours par « eyJh »).
+_TOKEN_RE = re.compile(r"eyJh[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}")
+_SCRIPT_SRC_RE = re.compile(r"""<script[^>]+src=["']([^"']+\.js)["']""", re.I)
+_PLAYLIST_ID_RE = re.compile(r"/(pl\.[A-Za-z0-9._-]+)")
+TOKEN_TTL_SECONDS = 12 * 3600
 
 
 class AppleMusicError(Exception):
@@ -152,10 +168,43 @@ def parse_playlist_page(page: str) -> tuple[ExternalPlaylist, list[str]]:
     return playlist, ids[:PLAYLIST_MAX_TRACKS]
 
 
+def _track_from_media_api(item: dict) -> TrackInfo | None:
+    """Morceau de l'API du lecteur web (`/v1/catalog/.../tracks`)."""
+    attributes = item.get("attributes") or {}
+    if item.get("type", "songs") != "songs" or not attributes.get("name") or not item.get("id"):
+        return None
+    duration = attributes.get("durationInMillis")
+    return TrackInfo(
+        source="apple",
+        source_id=str(item["id"]),
+        title=attributes["name"],
+        artist=attributes.get("artistName") or "Artiste inconnu",
+        album=attributes.get("albumName"),
+        year=_year_from_date(attributes.get("releaseDate")),
+        duration_seconds=duration // 1000 if isinstance(duration, int) and duration > 0 else None,
+        cover_url=_artwork_template(attributes.get("artwork")),
+        isrc=attributes.get("isrc") or None,
+    )
+
+
+def _token_from_page(page: str) -> str | None:
+    """Ancienne version du lecteur web : le jeton est dans une balise
+    <meta name="desktop-music-app/config/environment"> (JSON encodé URL)."""
+    raw = meta_content(page, "desktop-music-app/config/environment")
+    if not raw:
+        return None
+    try:
+        return ((json.loads(unquote(raw)).get("MEDIA_API") or {}).get("token")) or None
+    except ValueError:
+        return None
+
+
 class AppleMusicClient:
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         self._client = client or httpx.AsyncClient(timeout=10)
         self._owns_client = client is None
+        self._web_token: str | None = None
+        self._web_token_expiry = 0.0
 
     async def aclose(self) -> None:
         if self._owns_client:
@@ -290,7 +339,17 @@ class AppleMusicClient:
             raise AppleMusicError("Playlist Apple Music introuvable (privée ou supprimée ?)")
         if resp.is_error:
             raise AppleMusicError(f"Apple Music : HTTP {resp.status_code}")
-        playlist, ids = parse_playlist_page(resp.text)
+        page = resp.text
+        playlist, ids = parse_playlist_page(page)
+        # Liste complète (au-delà des 300 titres de la page, avec les ISRC)
+        # par l'API du lecteur web ; la page reste le repli si elle change.
+        try:
+            full = await self._playlist_tracks_via_web_api(url, page)
+        except AppleMusicError as exc:
+            logger.info("Playlist Apple Music via l'API du lecteur web impossible (%s) : page seule", exc)
+            full = []
+        if len(full) >= len(playlist.tracks):
+            playlist.tracks = full
         if not playlist.tracks and ids:
             country = re.search(r"music\.apple\.com/([a-z]{2})/", url)
             playlist.tracks = await self.lookup_tracks(ids, country.group(1) if country else "fr")
@@ -300,3 +359,64 @@ class AppleMusicClient:
                 "Partage-la en public depuis Musique)."
             )
         return playlist
+
+    async def _web_api_token(self, page: str) -> str:
+        if self._web_token and time.monotonic() < self._web_token_expiry:
+            return self._web_token
+        token = _token_from_page(page)
+        if not token:
+            scripts = [src for src in _SCRIPT_SRC_RE.findall(page) if "/assets/" in src]
+            # Le jeton est dans le script principal (« index… ») : on commence par lui.
+            scripts.sort(key=lambda src: 0 if "index" in src else 1)
+            for src in scripts[:6]:
+                script_url = src if src.startswith("http") else f"{WEB_ORIGIN}{src}"
+                try:
+                    resp = await self._client.get(script_url, headers=BROWSER_HEADERS)
+                except httpx.HTTPError:
+                    continue
+                match = _TOKEN_RE.search(resp.text) if resp.is_success else None
+                if match:
+                    token = match.group(0)
+                    break
+        if not token:
+            raise AppleMusicError("jeton du lecteur web introuvable")
+        self._web_token = token
+        self._web_token_expiry = time.monotonic() + TOKEN_TTL_SECONDS
+        return token
+
+    async def _playlist_tracks_via_web_api(self, url: str, page: str) -> list[TrackInfo]:
+        playlist_id = _PLAYLIST_ID_RE.search(url)
+        storefront = re.search(r"music\.apple\.com/([a-z]{2})/", url)
+        if not playlist_id or not storefront:
+            raise AppleMusicError("identifiant de playlist absent du lien")
+        token = await self._web_api_token(page)
+        headers = {
+            **BROWSER_HEADERS,
+            "Authorization": f"Bearer {token}",
+            "Origin": WEB_ORIGIN,
+            "Referer": f"{WEB_ORIGIN}/",
+        }
+        next_url: str | None = (
+            f"{MEDIA_API}/v1/catalog/{storefront.group(1)}/playlists/{playlist_id.group(1)}/tracks?limit=100"
+        )
+        tracks: list[TrackInfo] = []
+        while next_url and len(tracks) < PLAYLIST_MAX_TRACKS:
+            try:
+                resp = await self._client.get(next_url, headers=headers)
+            except httpx.HTTPError as exc:
+                raise AppleMusicError(str(exc)) from exc
+            if resp.status_code in (401, 403):
+                self._web_token = None  # jeton renouvelé par Apple : on le relira
+                raise AppleMusicError(f"jeton refusé (HTTP {resp.status_code})")
+            if resp.is_error:
+                raise AppleMusicError(f"HTTP {resp.status_code}")
+            data = resp.json()
+            items = data.get("data") or []
+            tracks += [t for t in (_track_from_media_api(item) for item in items) if t]
+            following = data.get("next")
+            if not items or not following:
+                break
+            next_url = following if following.startswith("http") else f"{MEDIA_API}{following}"
+            if "limit=" not in next_url:
+                next_url += ("&" if "?" in next_url else "?") + "limit=100"
+        return tracks[:PLAYLIST_MAX_TRACKS]

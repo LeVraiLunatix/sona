@@ -359,6 +359,11 @@ final class APIClient {
         return try await send(try request("/me/playlists/\(id)/order", method: "PUT", bodyData: data))
     }
 
+    /// Relit la playlist d'origine et remplace ses titres (en tâche de fond).
+    func reimportPlaylist(id: Int) async throws -> UserPlaylist {
+        try await send(try request("/me/playlists/\(id)/reimport", method: "POST"))
+    }
+
     /// Lance l'import (en tâche de fond côté serveur) : la playlist revient
     /// tout de suite, `importStatus == "importing"`, à suivre jusqu'à la fin.
     func importPlaylist(url: String) async throws -> UserPlaylist {

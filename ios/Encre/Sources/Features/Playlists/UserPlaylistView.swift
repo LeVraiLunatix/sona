@@ -33,6 +33,11 @@ struct UserPlaylistView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if let playlist {
                     Menu {
+                        if let origin = playlist.originLabel, !playlist.isImporting {
+                            Button { Task { await reimport() } } label: {
+                                Label("Mettre à jour depuis \(origin)", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                        }
                         Button {
                             newName = playlist.name
                             renaming = true
@@ -226,6 +231,16 @@ struct UserPlaylistView: View {
             apply(updated)
         } else {
             await load()
+        }
+    }
+
+    private func reimport() async {
+        do {
+            let updated = try await APIClient.shared.reimportPlaylist(id: playlistId)
+            playlist = updated  // `importing` : le suivi de l'import démarre
+        } catch {
+            playlist?.importError = error.localizedDescription
+            playlist?.importStatus = "failed"
         }
     }
 

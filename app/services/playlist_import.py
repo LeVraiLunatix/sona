@@ -220,20 +220,40 @@ async def start_import(deps, user_id: int, text: str) -> int:
     return playlist_id
 
 
-async def run_import(deps, playlist_id: int, link: PlaylistLink) -> None:
+async def start_reimport(deps, playlist) -> None:
+    """« Mettre à jour » une playlist importée : relit la source et remplace
+    ses titres (les anciens restent affichés jusqu'à la fin de l'import)."""
+    if not playlist.origin_url:
+        raise PlaylistImportError("Cette playlist n'a pas été importée : rien à mettre à jour.")
+    if playlist.import_status == "importing":
+        raise PlaylistImportError("Import déjà en cours.")
+    link = await detect_playlist_link(playlist.origin_url)
+    await deps.repo.playlist_update(
+        playlist.id, import_status="importing", import_total=None, import_done=0,
+        import_missing=0, import_error=None,
+    )
+    task = asyncio.create_task(run_import(deps, playlist.id, link, replace=True))
+    _running.add(task)
+    task.add_done_callback(_running.discard)
+
+
+async def run_import(deps, playlist_id: int, link: PlaylistLink, *, replace: bool = False) -> None:
+    """`replace` : mise à jour d'une playlist existante — ses titres sont
+    remplacés et son nom (peut-être changé dans l'app) est gardé."""
     repo = deps.repo
     try:
         playlist = await fetch_playlist(deps, link)
         if not playlist.tracks:
             raise PlaylistImportError("Cette playlist est vide.")
         total = len(playlist.tracks)
-        await repo.playlist_update(
-            playlist_id,
-            name=playlist.name[:200],
-            description=(playlist.description or None) and playlist.description[:1000],
-            cover_url=playlist.cover_url,
-            import_total=total,
-        )
+        details = {
+            "description": (playlist.description or None) and playlist.description[:1000],
+            "cover_url": playlist.cover_url,
+            "import_total": total,
+        }
+        if not replace:
+            details["name"] = playlist.name[:200]
+        await repo.playlist_update(playlist_id, **details)
 
         async def progress(done: int) -> None:
             if done % 10 == 0 or done == total:
@@ -241,6 +261,8 @@ async def run_import(deps, playlist_id: int, link: PlaylistLink) -> None:
 
         resolved = await resolve_tracks(deps, playlist.tracks, progress)
         kept = [t for t in resolved if t is not None]
+        if replace:
+            await repo.playlist_clear_tracks(playlist_id)
         await repo.playlist_add_tracks(playlist_id, kept)
         await repo.playlist_update(
             playlist_id, import_status="done", import_done=total, import_missing=total - len(kept)

@@ -311,3 +311,112 @@ def test_run_import_reports_failure():
     assert deps.repo.updates == [
         {"import_status": "failed", "import_error": "Playlist Spotify introuvable (privée ou supprimée ?)"}
     ]
+
+
+# -- Apple Music : au-delà des 300 titres de la page ---------------------
+
+import httpx  # noqa: E402
+
+from app.providers.apple import AppleMusicClient  # noqa: E402
+
+FAKE_TOKEN = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9." + "a" * 40 + "." + "b" * 40
+PLAYLIST_URL = "https://music.apple.com/fr/playlist/ma-playlist/pl.u-8aAVZAxCkLoD9m"
+
+
+def _apple_page(n_tracks: int) -> str:
+    items = [
+        {"title": f"T{i}", "artistName": "A", "duration": 1000,
+         "contentDescriptor": {"identifiers": {"storeAdamID": str(100000 + i)}}}
+        for i in range(n_tracks)
+    ]
+    data = [{"data": {"sections": [{"itemKind": "trackLockup", "items": items}]}}]
+    return (
+        '<html><head><meta name="apple:title" content="Grosse playlist"></head><body>'
+        f'<script type="application/json" id="serialized-server-data">{json.dumps(data)}</script>'
+        '<script type="module" crossorigin src="/assets/index~abc123.js"></script>'
+        "</body></html>"
+    )
+
+
+def _media_item(i: int) -> dict:
+    return {"id": str(100000 + i), "type": "songs", "attributes": {
+        "name": f"T{i}", "artistName": "A", "albumName": "Album", "durationInMillis": 200000,
+        "isrc": f"ISRC{i}", "releaseDate": "2024-01-01",
+        "artwork": {"url": "https://is1.mzstatic.com/x/{w}x{h}bb.jpg"},
+    }}
+
+
+def test_apple_playlist_reads_past_the_page_limit_with_the_web_api():
+    seen_auth = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.startswith(PLAYLIST_URL):
+            return httpx.Response(200, text=_apple_page(300))
+        if url == "https://music.apple.com/assets/index~abc123.js":
+            return httpx.Response(200, text=f'var a="x";const t="{FAKE_TOKEN}";')
+        if "amp-api.music.apple.com" in url:
+            seen_auth.append(request.headers.get("authorization"))
+            offset = int(request.url.params.get("offset", "0"))
+            batch = [_media_item(i) for i in range(offset, min(offset + 100, 550))]
+            body = {"data": batch}
+            if offset + 100 < 550:
+                body["next"] = f"/v1/catalog/fr/playlists/pl.u-8aAVZAxCkLoD9m/tracks?offset={offset + 100}"
+            return httpx.Response(200, json=body)
+        return httpx.Response(404)
+
+    client = AppleMusicClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    playlist = asyncio.run(client.get_playlist(PLAYLIST_URL))
+    assert playlist.name == "Grosse playlist"
+    assert len(playlist.tracks) == 550
+    assert playlist.tracks[549].isrc == "ISRC549"
+    assert playlist.tracks[0].cover_url == "https://is1.mzstatic.com/x/1000x1000bb.jpg"
+    assert set(seen_auth) == {f"Bearer {FAKE_TOKEN}"}
+    assert len(seen_auth) == 6
+
+
+def test_apple_playlist_falls_back_to_the_page_without_token():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith(PLAYLIST_URL):
+            return httpx.Response(200, text=_apple_page(300))
+        return httpx.Response(200, text="pas de jeton ici")
+
+    client = AppleMusicClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    playlist = asyncio.run(client.get_playlist(PLAYLIST_URL))
+    assert len(playlist.tracks) == 300
+
+
+def test_reimport_replaces_tracks_and_keeps_name(client):
+    deps = client.app_state.deps
+    rounds = [
+        [TrackInfo("deezer", str(i), f"T{i}", "A", None, None, 200, None) for i in range(3)],
+        [TrackInfo("deezer", str(i), f"T{i}", "A", None, None, 200, None) for i in range(5)],
+    ]
+
+    async def fake_fetch(playlist_id, max_tracks=1000):
+        return ExternalPlaylist("Nom d'origine", None, None, rounds.pop(0))
+
+    deps.deezer.get_playlist_for_import = fake_fetch
+
+    def wait_done(pid):
+        for _ in range(50):
+            detail = client.get(f"/me/playlists/{pid}", headers=AUTH).json()
+            if detail["import_status"] != "importing":
+                return detail
+            client.portal.call(asyncio.sleep, 0.02)
+        raise AssertionError("import jamais terminé")
+
+    pid = client.post(
+        "/me/playlists/import", headers=AUTH, json={"url": "https://www.deezer.com/playlist/1"}
+    ).json()["id"]
+    assert wait_done(pid)["track_count"] == 3
+    client.patch(f"/me/playlists/{pid}", headers=AUTH, json={"name": "Renommée"})
+
+    assert client.post(f"/me/playlists/{pid}/reimport", headers=AUTH).status_code == 202
+    detail = wait_done(pid)
+    assert detail["import_status"] == "done"
+    assert detail["name"] == "Renommée"
+    assert [e["track"]["source_id"] for e in detail["entries"]] == ["0", "1", "2", "3", "4"]
+
+    manual = client.post("/me/playlists", headers=AUTH, json={"name": "Perso"}).json()["id"]
+    assert client.post(f"/me/playlists/{manual}/reimport", headers=AUTH).status_code == 400
