@@ -22,8 +22,13 @@ def setup_logging(level: int = logging.INFO) -> None:
 # Avertissements yt-dlp qui expliquent un mur « Sign in to confirm you're not
 # a bot » ou des formats introuvables : session/cookies, et moteur JavaScript.
 # Ceux-là doivent se voir ; le reste (formats écartés, PO token…) part en DEBUG.
+# Les messages du résolveur de défis YouTube (`[jsc]`, « Error solving
+# challenge requests using "deno" provider: … ») disent POURQUOI Deno/Node
+# échouent — sans eux, les logs ne montraient que « n challenge solving
+# failed », sans la cause.
 _IMPORTANT_WARNING_RE = re.compile(
-    r"cookie|sign in|logged|login|account|javascript runtime", re.IGNORECASE
+    r"cookie|sign in|logged|login|account|javascript runtime|jsc|challenge|deno|node",
+    re.IGNORECASE,
 )
 # yt-dlp ignore `only_once` dès qu'un logger est branché : sans ce filtre, un
 # même avertissement de cookies revient après chaque requête d'une extraction.
