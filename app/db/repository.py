@@ -110,6 +110,28 @@ def _item_from_object(obj: TrackInfo | AlbumInfo | ArtistInfo) -> tuple[str, str
     raise TypeError(f"Type non supporté: {type(obj)!r}")
 
 
+@dataclass(slots=True)
+class Play:
+    played_at: str
+    title: str
+    artist: str
+    album: str | None = None
+    source: str | None = None
+    source_id: str | None = None
+    artist_source_id: str | None = None
+    album_source_id: str | None = None
+    cover_url: str | None = None
+    duration_seconds: int | None = None
+    listened_seconds: int | None = None
+    origin: str = "sona"
+
+
+_PLAY_COLUMNS = (
+    "played_at, title, artist, album, source, source_id, artist_source_id, album_source_id, "
+    "cover_url, duration_seconds, listened_seconds, origin"
+)
+
+
 class Repository:
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -241,6 +263,75 @@ class Repository:
     async def history_clear(self, user_id: int) -> None:
         await self._db.conn.execute("DELETE FROM history WHERE user_id=?", (user_id,))
         await self._db.conn.commit()
+
+    # -- Écoutes (stats) ---------------------------------------------
+
+    async def plays_add(self, user_id: int, plays: list[Play]) -> int:
+        """Ajoute des écoutes ; les doublons exacts (même instant, titre,
+        artiste) sont ignorés — un import relancé ou une écoute renvoyée par
+        l'app après une coupure réseau ne compte pas deux fois. Renvoie le
+        nombre de lignes réellement ajoutées."""
+        if not plays:
+            return 0
+        before = self._db.conn.total_changes
+        await self._db.conn.executemany(
+            f"INSERT OR IGNORE INTO plays (user_id, {_PLAY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    user_id, p.played_at, p.title, p.artist, p.album, p.source, p.source_id,
+                    p.artist_source_id, p.album_source_id, p.cover_url, p.duration_seconds,
+                    p.listened_seconds, p.origin,
+                )
+                for p in plays
+            ],
+        )
+        await self._db.conn.commit()
+        return self._db.conn.total_changes - before
+
+    async def plays_between(self, user_id: int, start: str | None, end: str | None) -> list[Play]:
+        """Écoutes de [start, end[ (horodatages ISO UTC), ordre chronologique."""
+        clauses, params = ["user_id=?"], [user_id]
+        if start:
+            clauses.append("played_at >= ?")
+            params.append(start)
+        if end:
+            clauses.append("played_at < ?")
+            params.append(end)
+        cursor = await self._db.conn.execute(
+            f"SELECT {_PLAY_COLUMNS} FROM plays WHERE {' AND '.join(clauses)} ORDER BY played_at",
+            params,
+        )
+        return [Play(**dict(r)) for r in await cursor.fetchall()]
+
+    async def plays_recent(self, user_id: int, limit: int = 50) -> list[Play]:
+        cursor = await self._db.conn.execute(
+            f"SELECT {_PLAY_COLUMNS} FROM plays WHERE user_id=? ORDER BY played_at DESC LIMIT ?",
+            (user_id, limit),
+        )
+        return [Play(**dict(r)) for r in await cursor.fetchall()]
+
+    async def plays_first_by_artist(self, user_id: int) -> dict[str, str]:
+        """Première écoute de chaque artiste (clé : nom en minuscules) — pour
+        repérer les découvertes d'une période."""
+        cursor = await self._db.conn.execute(
+            "SELECT lower(artist) AS k, MIN(played_at) AS first FROM plays WHERE user_id=? GROUP BY lower(artist)",
+            (user_id,),
+        )
+        return {r["k"]: r["first"] for r in await cursor.fetchall()}
+
+    async def plays_days(self, user_id: int) -> list[str]:
+        """Horodatages de toutes les écoutes (pour la série de jours)."""
+        cursor = await self._db.conn.execute(
+            "SELECT played_at FROM plays WHERE user_id=? ORDER BY played_at", (user_id,)
+        )
+        return [r["played_at"] for r in await cursor.fetchall()]
+
+    async def plays_latest(self, user_id: int, origin: str) -> str | None:
+        cursor = await self._db.conn.execute(
+            "SELECT MAX(played_at) AS m FROM plays WHERE user_id=? AND origin=?", (user_id, origin)
+        )
+        row = await cursor.fetchone()
+        return row["m"] if row else None
 
     # -- Cache audio Telegram -----------------------------------------
 

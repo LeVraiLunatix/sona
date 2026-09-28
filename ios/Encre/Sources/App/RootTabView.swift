@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 enum AppTab: Hashable {
-    case home, library, search
+    case home, library, stats, search
 }
 
 /// Coquille de l'app : vraie `TabView` système (Liquid Glass natif,
@@ -15,6 +15,7 @@ struct RootTabView: View {
     @State private var selectedTab: AppTab = .home
     @State private var homePath = NavigationPath()
     @State private var libraryPath = NavigationPath()
+    @State private var statsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
     @State private var showingOnboarding = false
@@ -30,6 +31,9 @@ struct RootTabView: View {
             }
             Tab("Bibliothèque", systemImage: "square.stack.fill", value: AppTab.library) {
                 tab(.library, path: $libraryPath) { LibraryView(path: $libraryPath) }
+            }
+            Tab("Stats", systemImage: "chart.bar.fill", value: AppTab.stats) {
+                tab(.stats, path: $statsPath) { StatsView(path: $statsPath) }
             }
             Tab(value: AppTab.search, role: .search) {
                 tab(.search, path: $searchPath) { SearchView(path: $searchPath) }
@@ -53,6 +57,8 @@ struct RootTabView: View {
         }
         .task {
             if !APIConfig.shared.isConfigured { showingOnboarding = true }
+            // Écoutes restées en attente (hors connexion au dernier usage).
+            await Scrobbler.shared.flush()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
@@ -69,6 +75,7 @@ struct RootTabView: View {
         switch tab {
         case .home: "player-home"
         case .library: "player-library"
+        case .stats: "player-stats"
         case .search: "player-search"
         }
     }
@@ -80,6 +87,7 @@ struct RootTabView: View {
         switch selectedTab {
         case .home: homePath.append(route)
         case .library: libraryPath.append(route)
+        case .stats: statsPath.append(route)
         case .search: searchPath.append(route)
         }
     }

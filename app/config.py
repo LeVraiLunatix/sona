@@ -42,6 +42,10 @@ class Settings:
     # et les réglages côté API (indépendant des `user_id` Telegram).
     api_user_id: int = 1
     stream_cache_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "stream_cache")
+    # Import de l'historique Last.fm dans les stats d'écoute (optionnel) :
+    # clé API gratuite (https://www.last.fm/api/account/create) + pseudo.
+    lastfm_api_key: str | None = None
+    lastfm_user: str | None = None
 
     @property
     def is_private_mode(self) -> bool:
@@ -99,4 +103,6 @@ def load_settings() -> Settings:
         api_token=os.getenv("API_TOKEN", "").strip() or None,
         api_user_id=int(api_user_id_raw) if api_user_id_raw else 1,
         stream_cache_dir=stream_cache_dir,
+        lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip() or None,
+        lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
     )
