@@ -21,8 +21,13 @@ Usage strictement personnel, comme le reste du projet.
       Sona n'a pas de source de paroles, donc un état vide plutôt qu'un texte
       inventé) et mode File d'attente (les morceaux à suivre dans le contexte
       en cours).
-- [x] Barre d'onglets "verre liquide" maison (`EncreTabBar`), à la place du
-      chrome natif d'un `TabView`.
+- [x] Vraie `TabView` système (iOS 26, Liquid Glass natif, onglet
+      Recherche intégré à la barre) + mini-lecteur en verre `glassEffect()`.
+- [x] Découverte : la recherche montre aussi les **artistes** (tolérante aux
+      fautes) et les **albums** ; champ vide → **radios thématiques** Deezer
+      à parcourir ; fiche artiste → bouton **Radio** et **artistes
+      similaires**. Une radio est une station sans fin : le lecteur redemande
+      un tirage au serveur quand « À suivre » s'épuise.
 - [x] Onboarding au premier lancement : écran de bienvenue puis configuration
       du serveur — adapté honnêtement (pas de "quels artistes écoutez-vous ?"
       inventé : Sona n'a ni compte ni préférences à collecter, seule la
@@ -69,7 +74,7 @@ un Mac pour l'obtenir :
 
 ## Construire le projet (avec un Mac)
 
-Avec Xcode 15+ et [XcodeGen](https://github.com/yonaskolb/XcodeGen), pour
+Avec Xcode 26+ et [XcodeGen](https://github.com/yonaskolb/XcodeGen), pour
 développer plutôt que juste installer :
 
 ```bash
@@ -94,7 +99,7 @@ Les deux restent modifiables ensuite depuis l'icône ⚙️ de chaque onglet.
 
 ```
 Sources/
-  App/            Point d'entrée, coquille à onglets (+ EncreTabBar), routes
+  App/            Point d'entrée, coquille à onglets (TabView système), routes
   DesignSystem/   Couleurs/typographie/"verre liquide"/halftone, composants
   Networking/     Client de l'API Sona (APIClient, modèles, réglages serveur)
   Features/
@@ -103,23 +108,18 @@ Sources/
     Library/      Onglet Bibliothèque
     Search/       Onglet Rechercher
     Detail/       Fiches Album / Artiste
-    Player/       Lecture audio (+ contexte de lecture), mini-lecteur, plein écran
+    Player/       Lecture audio (+ contexte de lecture, stations radio), mini-lecteur, plein écran
     Settings/     Adresse serveur + jeton API (accessible après l'onboarding)
   Resources/Fonts/  Source Serif 4 (SIL OFL — licence incluse)
 ```
 
 ## Limites connues
 
-- Pas de mode sombre (le papier "Encre" n'en a pas encore dans le
-  prototype).
 - Pas de paroles (Sona n'en a jamais eu côté serveur — le prototype en
   affichait un texte d'exemple statique, ce que l'app ne reproduit pas
   volontairement).
-- La barre d'onglets ne se replie pas encore en bulle au défilement (fusion
-  avec le mini-lecteur) : ça demande de suivre le décalage de scroll en
-  continu, une API arrivée avec iOS 18 (`onScrollGeometryChange`) — notre
-  cible est iOS 17. Faisable via l'ancienne méthode `PreferenceKey`, mais pas
-  tenté sans pouvoir compiler pour le vérifier.
+- Cible **iOS 26** minimum (Liquid Glass système) : un iPhone resté sous
+  une version antérieure ne peut pas installer l'app.
 - La fermeture du lecteur plein écran utilise le geste natif de la feuille
   SwiftUI (glisser vers le bas) plutôt que l'animation `clip-path` du
   prototype.

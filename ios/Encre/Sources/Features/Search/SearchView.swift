@@ -5,6 +5,8 @@ struct SearchView: View {
     @EnvironmentObject private var player: PlayerManager
     @Binding var path: NavigationPath
     @FocusState private var focused: Bool
+    @State private var loadingRadioId: String?
+    @State private var radioError: String?
 
     var body: some View {
         ScrollView {
@@ -24,18 +26,8 @@ struct SearchView: View {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 20)
                 } else if let link = viewModel.resolvedLink {
                     resolvedView(link)
-                } else if !viewModel.results.isEmpty {
-                    VStack(spacing: 16) {
-                        ForEach(viewModel.results) { track in
-                            TrackRow(
-                                track: track, isCurrent: player.current?.id == track.id,
-                                onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
-                                onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
-                            ) {
-                                player.play(track, context: viewModel.results)
-                            }
-                        }
-                    }
+                } else if viewModel.hasResults {
+                    results
                 } else if !viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty {
                     if let message = viewModel.errorMessage {
                         Text(message).font(EncreFont.body(15)).foregroundStyle(EncreColor.accent2_700)
@@ -53,6 +45,7 @@ struct SearchView: View {
             .padding(.bottom, 120)
         }
         .background(EncreColor.bg)
+        .task { await viewModel.loadRadios() }
     }
 
     private var searchField: some View {
@@ -74,11 +67,108 @@ struct SearchView: View {
         .glassCapsule()
     }
 
+    /// Artistes et albums d'abord (une rangée chacun, comme le haut des
+    /// résultats d'Apple Music), puis les titres : chercher « Ziak » doit
+    /// mener à sa fiche, pas seulement à une liste de morceaux en vrac.
+    private var results: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            if !viewModel.artists.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "Artistes")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 18) {
+                            ForEach(viewModel.artists) { artist in
+                                ArtistBubble(name: artist.name, coverURL: artist.pictureURL) {
+                                    path.append(Route.artist(source: artist.source, id: artist.sourceId))
+                                }
+                            }
+                        }
+                    }
+                    .scrollClipDisabled()
+                }
+            }
+
+            if !viewModel.albums.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "Albums")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 14) {
+                            ForEach(viewModel.albums) { album in
+                                AlbumTile(album: album) {
+                                    path.append(Route.album(source: album.source, id: album.sourceId))
+                                }
+                            }
+                        }
+                    }
+                    .scrollClipDisabled()
+                }
+            }
+
+            if !viewModel.results.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "Titres")
+                    VStack(spacing: 16) {
+                        ForEach(viewModel.results) { track in
+                            TrackRow(
+                                track: track, isCurrent: player.current?.id == track.id,
+                                onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                                onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                            ) {
+                                player.play(track, context: viewModel.results)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var hint: some View {
-        Text("Collez un lien Deezer, Spotify, Apple Music ou YouTube pour ouvrir directement un titre, un album ou un artiste.")
-            .font(EncreFont.body(15))
-            .foregroundStyle(EncreColor.neutral600)
-            .padding(.top, 20)
+        VStack(alignment: .leading, spacing: 28) {
+            Text("Collez un lien Deezer, Spotify, Apple Music ou YouTube pour ouvrir directement un titre, un album ou un artiste.")
+                .font(EncreFont.body(15))
+                .foregroundStyle(EncreColor.neutral600)
+
+            if let radioError {
+                Text(radioError).font(EncreFont.body(14)).foregroundStyle(EncreColor.accent2_700)
+            }
+
+            ForEach(viewModel.radioGroups) { group in
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: group.title)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 14) {
+                            ForEach(group.radios) { radio in
+                                RadioTile(radio: radio, isLoading: loadingRadioId == radio.id) {
+                                    startRadio(radio)
+                                }
+                            }
+                        }
+                    }
+                    .scrollClipDisabled()
+                }
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    /// Station sans fin : `/radios/{id}/tracks` renvoie un nouveau tirage à
+    /// chaque appel, rappelé par le lecteur quand la file s'épuise.
+    private func startRadio(_ radio: RadioStation) {
+        guard loadingRadioId == nil else { return }
+        loadingRadioId = radio.id
+        radioError = nil
+        let radioId = radio.id
+        Task {
+            do {
+                try await player.playStation {
+                    try await APIClient.shared.radioTracks(id: radioId)
+                }
+            } catch {
+                radioError = "« \(radio.title) » : \(error.localizedDescription)"
+            }
+            loadingRadioId = nil
+        }
     }
 
     @ViewBuilder

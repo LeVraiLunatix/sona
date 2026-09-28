@@ -4,6 +4,14 @@ import Foundation
 import MediaPlayer
 import UIKit
 
+enum StationError: LocalizedError {
+    case empty
+
+    var errorDescription: String? {
+        "Cette radio n'a rien renvoyé pour l'instant — réessaie dans un instant."
+    }
+}
+
 /// Lecture audio : encapsule `AVPlayer`, pointé sur `/stream/{source}/{id}`
 /// de l'API Sona (téléchargement + vérification côté serveur, servi avec
 /// support `Range` — voir `APIClient.streamRequest`). Garde aussi le
@@ -28,7 +36,19 @@ final class PlayerManager: ObservableObject {
         return Array(context[(index + 1)...])
     }
 
-    private var context: [Track] = []
+    /// `@Published` : une station qui se recharge allonge la liste en cours
+    /// de lecture, et "À suivre" doit le refléter sans attendre le morceau
+    /// suivant.
+    @Published private var context: [Track] = []
+    /// Station en cours (radio thématique ou d'artiste) : rappelée pour
+    /// allonger `context` quand il ne reste presque plus rien à suivre — la
+    /// radio ne s'arrête jamais. `nil` pour un album, une liste... finis.
+    private var refill: (() async throws -> [Track])?
+    private var refillTask: Task<Void, Never>?
+    /// Incrémenté à chaque nouveau contexte : un rechargement de station
+    /// terminé après que l'utilisateur a lancé autre chose ne doit pas
+    /// ajouter ses morceaux à la nouvelle liste.
+    private var contextGeneration = 0
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
@@ -142,9 +162,41 @@ final class PlayerManager: ObservableObject {
             togglePlayPause()
             return
         }
+        endStation()
+        start(track, context: playbackContext)
+    }
+
+    /// Lance une station : `fetch` donne les premiers morceaux, puis est
+    /// rappelée chaque fois que la file s'épuise (nouveau tirage côté
+    /// serveur). Lève une erreur si le tout premier tirage échoue ou est
+    /// vide, pour que l'écran appelant puisse l'afficher — rien ne joue
+    /// encore à ce stade, le mini-lecteur ne le montrerait pas.
+    func playStation(fetch: @escaping () async throws -> [Track]) async throws {
+        let fetched = try await fetch()
+        let tracks = PlayerManager.withoutDuplicates(fetched, excluding: [])
+        guard let first = tracks.first else { throw StationError.empty }
+        endStation()
+        refill = fetch
+        start(first, context: tracks)
+    }
+
+    private func endStation() {
+        refill = nil
+        refillTask?.cancel()
+        refillTask = nil
+        contextGeneration += 1
+    }
+
+    /// Démarre la lecture sans toucher à la station en cours : utilisé tel
+    /// quel pour avancer/reculer dans le contexte, où `play` couperait la
+    /// radio.
+    private func start(_ track: Track, context playbackContext: [Track]) {
         teardown()
         current = track
         context = playbackContext.isEmpty ? [track] : playbackContext
+        if refill != nil && upNext.count < 3 {
+            Task { await self.topUpStation() }
+        }
         isLoading = true
         errorMessage = nil
 
@@ -268,7 +320,7 @@ final class PlayerManager: ObservableObject {
             seek(toFraction: 0)
             return
         }
-        play(context[index - 1], context: context)
+        start(context[index - 1], context: context)
     }
 
     func next() {
@@ -278,7 +330,7 @@ final class PlayerManager: ObservableObject {
     /// Saute directement à un morceau de "À suivre" : ne change pas le
     /// contexte, juste la position de lecture dedans.
     func playFromUpNext(_ track: Track) {
-        play(track, context: context)
+        start(track, context: context)
     }
 
     private func advance(by offset: Int) {
@@ -287,11 +339,50 @@ final class PlayerManager: ObservableObject {
             return
         }
         let target = index + offset
-        guard context.indices.contains(target) else {
+        if context.indices.contains(target) {
+            start(context[target], context: context)
+        } else if refill != nil {
+            // Normalement déjà rechargée par `start` (moins de 3 morceaux à
+            // suivre) ; ce chemin couvre un rechargement lent ou échoué.
+            Task {
+                await self.topUpStation()
+                guard self.current?.id == current.id, self.context.indices.contains(target) else {
+                    self.isPlaying = false
+                    return
+                }
+                self.start(self.context[target], context: self.context)
+            }
+        } else {
             isPlaying = false
+        }
+    }
+
+    /// Allonge la station en cours d'un nouveau tirage, sans doublons (un
+    /// tirage Deezer repioche volontiers des titres déjà passés). Un seul
+    /// rechargement à la fois : un second appel attend simplement le premier.
+    private func topUpStation() async {
+        if let refillTask {
+            await refillTask.value
             return
         }
-        play(context[target], context: context)
+        guard let refill else { return }
+        let generation = contextGeneration
+        let task = Task { [weak self] in
+            guard let more = try? await refill() else { return }
+            guard let self, !Task.isCancelled, self.contextGeneration == generation else { return }
+            self.context.append(contentsOf: PlayerManager.withoutDuplicates(more, excluding: Set(self.context.map(\.id))))
+        }
+        refillTask = task
+        await task.value
+        if contextGeneration == generation { refillTask = nil }
+    }
+
+    /// Un même morceau deux fois dans le contexte casserait "suivant" (qui
+    /// repère la position par `firstIndex`) : une station n'y met donc
+    /// chaque titre qu'une fois.
+    private static func withoutDuplicates(_ tracks: [Track], excluding known: Set<String>) -> [Track] {
+        var seen = known
+        return tracks.filter { seen.insert($0.id).inserted }
     }
 
     func seek(toFraction fraction: Double) {
