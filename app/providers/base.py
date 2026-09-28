@@ -59,10 +59,22 @@ class ArtistInfo:
     source_id: str
     name: str
     picture_url: str | None
+    # Nombre de fans (Deezer `nb_fan`) : départage les homonymes (deux
+    # « Ziak » chez Deezer, l'un à 600 000 fans, l'autre à 248).
+    fans: int | None = None
 
     @property
     def uid(self) -> str:
         return f"{self.source}:{self.source_id}"
+
+
+@dataclass(slots=True)
+class RadioInfo:
+    """Station thématique Deezer (« Rap français », « Années 80 »…)."""
+
+    source_id: str
+    title: str
+    picture_url: str | None
 
 
 @dataclass(slots=True)
