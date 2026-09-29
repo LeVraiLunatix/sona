@@ -22,6 +22,8 @@ class TrackInfo:
     # plateforme à l'autre. Permet de retrouver le morceau exact sur Deezer
     # quand la source ne fournit pas d'extrait (voir services/preview.py).
     isrc: str | None = None
+    # Tempo (Deezer, fiche complète seulement) : pour l'AutoMix.
+    bpm: float | None = None
 
     @property
     def uid(self) -> str:

@@ -9,8 +9,8 @@ from fastapi import FastAPI
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
-    accounts, browse, catalog, friends, history, home, library, lyrics, playlists, search, stats, stream,
-    user_settings,
+    accounts, blindtest, browse, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
+    search, stats, stream, user_settings,
 )
 from app.api.state import ApiDeps
 from app.config import load_settings
@@ -123,6 +123,9 @@ def create_app() -> FastAPI:
     app.include_router(playlists.router)
     app.include_router(friends.router)
     app.include_router(home.router)
+    app.include_router(party.router)
+    app.include_router(blindtest.router)
+    app.include_router(concerts.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:

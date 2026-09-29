@@ -1110,3 +1110,35 @@ class Repository:
                WHERE import_status='importing'"""
         )
         await self._db.conn.commit()
+
+    # -- Blind test ----------------------------------------------------
+
+    async def blindtest_add_score(
+        self, user_id: int, mode: str, day: str, score: int, correct: int, total: int
+    ) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO blindtest_scores (user_id, mode, day, score, correct, total, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, mode, day, score, correct, total, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def blindtest_daily_played(self, user_id: int, day: str) -> bool:
+        cursor = await self._db.conn.execute(
+            "SELECT 1 FROM blindtest_scores WHERE user_id=? AND mode='daily' AND day=? LIMIT 1", (user_id, day)
+        )
+        return (await cursor.fetchone()) is not None
+
+    async def blindtest_leaderboard(self, mode: str, day: str | None, limit: int = 30) -> list[dict]:
+        """Meilleur score de chacun (du jour pour le défi, de tous les temps sinon)."""
+        clauses, params = ["mode=?"], [mode]
+        if day:
+            clauses.append("day=?")
+            params.append(day)
+        cursor = await self._db.conn.execute(
+            f"""SELECT user_id, MAX(score) AS score, MAX(correct) AS correct, MAX(total) AS total
+                FROM blindtest_scores WHERE {' AND '.join(clauses)}
+                GROUP BY user_id ORDER BY score DESC LIMIT ?""",
+            (*params, limit),
+        )
+        return [dict(r) for r in await cursor.fetchall()]

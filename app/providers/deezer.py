@@ -65,6 +65,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         album_source_id=str(album["id"]) if album.get("id") else None,
         preview_url=d.get("preview") or None,
         isrc=d.get("isrc") or None,
+        bpm=float(d["bpm"]) if isinstance(d.get("bpm"), (int, float)) and d["bpm"] > 0 else None,
     )
 
 
@@ -251,6 +252,11 @@ class DeezerClient:
         en renvoie un nouveau tirage à chaque appel — de quoi alimenter une
         station sans fin."""
         data = await self._get(f"/artist/{artist_id}/radio", {"limit": limit})
+        return [_track_from_json(d) for d in data.get("data", [])]
+
+    async def get_chart_tracks(self, limit: int = 50) -> list[TrackInfo]:
+        """Titres du moment (classement Deezer)."""
+        data = await self._get("/chart/0/tracks", {"limit": limit})
         return [_track_from_json(d) for d in data.get("data", [])]
 
     async def get_radio_tracks(self, radio_id: str, limit: int = 25) -> list[TrackInfo]:

@@ -55,6 +55,8 @@ class Settings:
     # Pseudos Last.fm administrateurs de l'app (acceptés d'office, accès au
     # panel d'admin). Par défaut : LASTFM_USER.
     admin_lastfm_users: frozenset[str] = frozenset()
+    # Identifiant d'application Bandsintown (concerts des artistes écoutés).
+    bandsintown_app_id: str = "sona-app"
 
     @property
     def is_private_mode(self) -> bool:
@@ -115,6 +117,7 @@ def load_settings() -> Settings:
         stream_cache_max_mb=int(os.getenv("STREAM_CACHE_MAX_MB", "").strip() or 2048),
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip() or None,
         lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
+        bandsintown_app_id=os.getenv("BANDSINTOWN_APP_ID", "").strip() or "sona-app",
         lastfm_api_secret=os.getenv("LASTFM_API_SECRET", "").strip() or None,
         admin_lastfm_users=frozenset(
             name.strip().casefold()

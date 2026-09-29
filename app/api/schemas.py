@@ -19,6 +19,7 @@ class Track(BaseModel):
     cover_url: str | None = None
     artist_source_id: str | None = None
     album_source_id: str | None = None
+    bpm: float | None = None
 
     @classmethod
     def from_info(cls, t: TrackInfo) -> "Track":
@@ -33,6 +34,7 @@ class Track(BaseModel):
             cover_url=t.cover_url,
             artist_source_id=t.artist_source_id,
             album_source_id=t.album_source_id,
+            bpm=t.bpm,
         )
 
     def to_info(self) -> TrackInfo:

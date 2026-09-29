@@ -207,3 +207,17 @@ CREATE TABLE IF NOT EXISTS rejected_sources (
     rejected_at TEXT NOT NULL,
     PRIMARY KEY (source, source_id, video_id)
 );
+
+-- Blind test : un score par partie ; le défi du jour (mode 'daily') est le
+-- même pour tout le monde, classement du jour.
+CREATE TABLE IF NOT EXISTS blindtest_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    mode TEXT NOT NULL,
+    day TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    correct INTEGER NOT NULL,
+    total INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_blindtest_day ON blindtest_scores (mode, day, score DESC);
