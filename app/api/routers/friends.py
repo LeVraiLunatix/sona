@@ -10,6 +10,7 @@ admin — pas besoin de demandes d'ami en plus.
 from __future__ import annotations
 
 import math
+import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
@@ -102,6 +103,23 @@ async def _recent_plays(deps: ApiDeps, user_id: int, days: int) -> list[Play]:
     return await deps.repo.plays_between(user_id, start, None)
 
 
+# Goûts (écoutes par artiste sur 90 jours) gardés 10 min : l'onglet Amis se
+# rafraîchit toutes les 15 s, et relire des milliers d'écoutes à chaque fois
+# ralentissait tout le serveur.
+TASTE_CACHE_SECONDS = 600
+_tastes: dict[int, tuple[float, Counter]] = {}
+
+
+async def _taste_of(deps: ApiDeps, user_id: int) -> Counter:
+    now = time.monotonic()
+    hit = _tastes.get(user_id)
+    if hit is not None and hit[0] > now:
+        return hit[1]
+    taste = _taste(await _recent_plays(deps, user_id, TASTE_WINDOW_DAYS))
+    _tastes[user_id] = (now + TASTE_CACHE_SECONDS, taste)
+    return taste
+
+
 async def _friends(deps: ApiDeps) -> list[Account]:
     return [
         a for a in await deps.repo.list_accounts()
@@ -113,8 +131,7 @@ async def _friend_out(deps: ApiDeps, friend: Account, my_taste: Counter, cls=Fri
     playing = presence.get(friend.user_id)
     last = await deps.repo.plays_recent(friend.user_id, 1)
     theirs = extra.pop("_their_plays", None)
-    if theirs is None:
-        theirs = await _recent_plays(deps, friend.user_id, TASTE_WINDOW_DAYS)
+    their_taste = _taste(theirs) if theirs is not None else await _taste_of(deps, friend.user_id)
     return cls(
         account_id=friend.id,
         username=friend.lastfm_username,
@@ -124,14 +141,14 @@ async def _friend_out(deps: ApiDeps, friend: Account, my_taste: Counter, cls=Fri
             track=Track.from_info(playing.track), started_at=stats_service.to_utc_iso(playing.started_at)
         ) if playing else None,
         last_play=FriendPlayOut.from_play(last[0]) if last else None,
-        compatibility=compatibility(my_taste, _taste(theirs)),
+        compatibility=compatibility(my_taste, their_taste),
         **extra,
     )
 
 
 @router.get("", response_model=list[FriendOut])
 async def list_friends(deps: ApiDeps = Depends(require_token)) -> list[FriendOut]:
-    my_taste = _taste(await _recent_plays(deps, deps.user_id, TASTE_WINDOW_DAYS))
+    my_taste = await _taste_of(deps, deps.user_id)
     friends = [await _friend_out(deps, f, my_taste) for f in await _friends(deps)]
     # En train d'écouter d'abord, puis par écoute la plus récente (tris
     # stables : le second garde l'ordre du premier à égalité).

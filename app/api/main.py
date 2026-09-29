@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
     accounts, browse, catalog, friends, history, home, library, lyrics, playlists, search, stats, stream,
@@ -69,12 +70,29 @@ async def lifespan(app: FastAPI):
         await db.close()
 
 
+class GZipExceptStream:
+    """Compression gzip des réponses JSON (listes de titres, mixes, stats :
+    bien plus rapides en 4G/5G), jamais de l'audio : les requêtes `Range` du
+    lecteur exigent les octets tels quels."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self.gzip = GZipMiddleware(app, minimum_size=1024)
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and not scope.get("path", "").startswith("/stream"):
+            await self.gzip(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Sona API",
         description="API privée servant de backend à l'app iOS de Sona.",
         lifespan=lifespan,
     )
+    app.add_middleware(GZipExceptStream)
     app.include_router(accounts.router)
     app.include_router(search.router)
     app.include_router(catalog.router)

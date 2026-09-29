@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
@@ -88,6 +89,20 @@ class LibraryItem:
     subtitle: str | None
     cover_url: str | None
     added_at: str
+    # Titres ajoutés depuis que la fiche complète est gardée.
+    track: TrackInfo | None = None
+
+
+def _library_item(row) -> LibraryItem:
+    d = dict(row)
+    data = d.pop("data", None)
+    track = None
+    if data:
+        try:
+            track = TrackInfo(**json.loads(data))
+        except (ValueError, TypeError):
+            track = None
+    return LibraryItem(**d, track=track)
 
 
 @dataclass(slots=True)
@@ -289,23 +304,32 @@ class Repository:
         """Ajoute à la bibliothèque ; False si l'élément y était déjà."""
         source, source_id, title, subtitle = _item_from_object(obj)
         cover_url = getattr(obj, "cover_url", None) or getattr(obj, "picture_url", None)
+        data = json.dumps(asdict(obj)) if isinstance(obj, TrackInfo) else None
         cursor = await self._db.conn.execute(
             """INSERT OR IGNORE INTO library
-               (user_id, kind, source, source_id, title, subtitle, cover_url, added_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, kind, source, source_id, title, subtitle, cover_url, added_at or _now()),
+               (user_id, kind, source, source_id, title, subtitle, cover_url, added_at, data)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, kind, source, source_id, title, subtitle, cover_url, added_at or _now(), data),
         )
         await self._db.conn.commit()
         return bool(cursor.rowcount)
 
     async def library_get(self, user_id: int, kind: str, source: str, source_id: str) -> LibraryItem | None:
         cursor = await self._db.conn.execute(
-            """SELECT kind, source, source_id, title, subtitle, cover_url, added_at
+            """SELECT kind, source, source_id, title, subtitle, cover_url, added_at, data
                FROM library WHERE user_id=? AND kind=? AND source=? AND source_id=?""",
             (user_id, kind, source, source_id),
         )
         row = await cursor.fetchone()
-        return LibraryItem(**dict(row)) if row else None
+        return _library_item(row) if row else None
+
+    async def library_fill_track(self, user_id: int, track: TrackInfo) -> None:
+        """Complète la fiche d'un titre ajouté avant qu'on la garde."""
+        await self._db.conn.execute(
+            "UPDATE library SET data=? WHERE user_id=? AND kind='track' AND source=? AND source_id=? AND data IS NULL",
+            (json.dumps(asdict(track)), user_id, track.source, track.source_id),
+        )
+        await self._db.conn.commit()
 
     async def library_has_title(self, user_id: int, title: str, artist: str) -> bool:
         """Un titre de même nom et même artiste est-il déjà dans la
@@ -332,13 +356,13 @@ class Repository:
         )
         total = (await cursor.fetchone())["c"]
         cursor = await self._db.conn.execute(
-            """SELECT kind, source, source_id, title, subtitle, cover_url, added_at
+            """SELECT kind, source, source_id, title, subtitle, cover_url, added_at, data
                FROM library WHERE user_id=? AND kind=?
                ORDER BY added_at DESC LIMIT ? OFFSET ?""",
             (user_id, kind, limit, offset),
         )
         rows = await cursor.fetchall()
-        items = [LibraryItem(**dict(r)) for r in rows]
+        items = [_library_item(r) for r in rows]
         return items, total
 
     # -- Historique --------------------------------------------------

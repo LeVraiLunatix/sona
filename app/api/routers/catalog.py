@@ -23,6 +23,9 @@ async def _handle(coro):
 async def get_track(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> Track:
     track = await _handle(lookup.get_track(deps, source, source_id))
     await deps.repo.history_add(deps.user_id, track)
+    # Titre de la bibliothèque ajouté avant qu'on garde les fiches : complété
+    # une fois pour toutes, la bibliothèque n'aura plus à le redemander.
+    await deps.repo.library_fill_track(deps.user_id, track)
     return Track.from_info(track)
 
 

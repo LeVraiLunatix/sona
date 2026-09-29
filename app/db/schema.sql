@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS library (
     subtitle TEXT,
     cover_url TEXT,
     added_at TEXT NOT NULL,
+    -- Fiche complète d'un titre (JSON) : la bibliothèque se relit sans
+    -- redemander chaque titre au catalogue.
+    data TEXT,
     UNIQUE (user_id, kind, source, source_id)
 );
 CREATE INDEX IF NOT EXISTS idx_library_lookup ON library (user_id, kind, added_at DESC);

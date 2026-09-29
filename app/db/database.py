@@ -21,6 +21,7 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("users", "autoplay", "INTEGER NOT NULL DEFAULT 1"),
     ("app_accounts", "share_listening", "INTEGER NOT NULL DEFAULT 1"),
     ("playlists", "visibility", "TEXT NOT NULL DEFAULT 'private'"),
+    ("library", "data", "TEXT"),
 )
 
 

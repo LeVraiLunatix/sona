@@ -54,6 +54,11 @@ final class LibraryViewModel: ObservableObject {
             let page = try await APIClient.shared.library(kind: requested.rawValue, limit: 200)
             guard requested == kind else { return }
             items = page.items
+            // Fiches déjà fournies par le serveur : seules les autres
+            // (titres ajoutés il y a longtemps) sont redemandées.
+            for item in page.items {
+                if let track = item.track { tracks[track.id] = track }
+            }
         } catch {
             if requested == kind { errorMessage = error.localizedDescription }
         }

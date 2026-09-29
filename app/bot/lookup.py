@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
 import random
+import time
+from collections.abc import Awaitable, Callable
 
 from app.bot.deps import Deps
 from app.providers import youtube
@@ -18,7 +21,36 @@ class UnknownSourceError(Exception):
     pass
 
 
-async def get_track(deps: Deps, source: str, source_id: str) -> TrackInfo:
+# Fiches du catalogue (titre, album, artiste...) gardées en mémoire : la
+# bibliothèque, l'accueil et les fiches redemandent sans cesse les mêmes, et
+# chaque aller-retour vers Deezer coûte sur une petite machine. Les radios ne
+# sont pas concernées (un nouveau tirage à chaque appel).
+CACHE_TTL = 6 * 3600
+CACHE_MAX = 4000
+_cache: dict[tuple, tuple[float, object]] = {}
+
+
+def clear_cache() -> None:
+    _cache.clear()
+
+
+async def _cached(kind: str, source: str, source_id: str, load: Callable[[], Awaitable]):
+    key = (kind, source, source_id)
+    now = time.monotonic()
+    hit = _cache.get(key)
+    if hit is not None and hit[0] > now:
+        # Copie : un appelant qui complète la fiche (extrait, ISRC...) ne
+        # doit pas modifier celle du cache.
+        return copy.deepcopy(hit[1])
+    value = await load()
+    if len(_cache) >= CACHE_MAX:
+        for old in sorted(_cache, key=lambda k: _cache[k][0])[: CACHE_MAX // 10]:
+            del _cache[old]
+    _cache[key] = (now + CACHE_TTL, value)
+    return copy.deepcopy(value)
+
+
+async def _get_track(deps: Deps, source: str, source_id: str) -> TrackInfo:
     if source == "deezer":
         return await deps.deezer.get_track(source_id)
     if source == "apple":
@@ -30,7 +62,7 @@ async def get_track(deps: Deps, source: str, source_id: str) -> TrackInfo:
     raise UnknownSourceError(source)
 
 
-async def get_album(deps: Deps, source: str, source_id: str) -> AlbumInfo:
+async def _get_album(deps: Deps, source: str, source_id: str) -> AlbumInfo:
     if source == "deezer":
         return await deps.deezer.get_album(source_id)
     if source == "apple":
@@ -57,7 +89,7 @@ async def get_playlist(deps: Deps, source: str, source_id: str) -> AlbumInfo:
     raise UnknownSourceError(source)
 
 
-async def get_artist(deps: Deps, source: str, source_id: str) -> ArtistInfo:
+async def _get_artist(deps: Deps, source: str, source_id: str) -> ArtistInfo:
     if source == "deezer":
         return await deps.deezer.get_artist(source_id)
     if source == "apple":
@@ -69,7 +101,7 @@ async def get_artist(deps: Deps, source: str, source_id: str) -> ArtistInfo:
     raise UnknownSourceError(source)
 
 
-async def get_artist_top_tracks(deps: Deps, source: str, source_id: str) -> list[TrackInfo]:
+async def _get_artist_top_tracks(deps: Deps, source: str, source_id: str) -> list[TrackInfo]:
     if source == "deezer":
         return await deps.deezer.get_artist_top_tracks(source_id)
     if source == "apple":
@@ -81,7 +113,7 @@ async def get_artist_top_tracks(deps: Deps, source: str, source_id: str) -> list
     raise UnknownSourceError(source)
 
 
-async def get_related_artists(deps: Deps, source: str, source_id: str) -> list[ArtistInfo]:
+async def _get_related_artists(deps: Deps, source: str, source_id: str) -> list[ArtistInfo]:
     """Artistes similaires — seul Deezer expose cette donnée ; les autres
     sources renvoient une liste vide plutôt qu'une erreur (section masquée
     côté app)."""
@@ -102,7 +134,7 @@ async def get_artist_radio(deps: Deps, source: str, source_id: str) -> list[Trac
     return tracks
 
 
-async def get_artist_albums(
+async def _get_artist_albums(
     deps: Deps, source: str, source_id: str
 ) -> tuple[list[AlbumInfo], list[AlbumInfo]]:
     if source == "deezer":
@@ -120,3 +152,30 @@ async def get_artist_albums(
         # des vignettes qui mènent à une erreur.
         return [], []
     raise UnknownSourceError(source)
+
+
+# -- Versions en cache (voir `_cached`) ------------------------------------
+
+
+async def get_track(deps: Deps, source: str, source_id: str) -> TrackInfo:
+    return await _cached("get_track", source, source_id, lambda: _get_track(deps, source, source_id))
+
+
+async def get_album(deps: Deps, source: str, source_id: str) -> AlbumInfo:
+    return await _cached("get_album", source, source_id, lambda: _get_album(deps, source, source_id))
+
+
+async def get_artist(deps: Deps, source: str, source_id: str) -> ArtistInfo:
+    return await _cached("get_artist", source, source_id, lambda: _get_artist(deps, source, source_id))
+
+
+async def get_artist_top_tracks(deps: Deps, source: str, source_id: str) -> list[TrackInfo]:
+    return await _cached("get_artist_top_tracks", source, source_id, lambda: _get_artist_top_tracks(deps, source, source_id))
+
+
+async def get_related_artists(deps: Deps, source: str, source_id: str) -> list[ArtistInfo]:
+    return await _cached("get_related_artists", source, source_id, lambda: _get_related_artists(deps, source, source_id))
+
+
+async def get_artist_albums(deps: Deps, source: str, source_id: str) -> tuple[list[AlbumInfo], list[AlbumInfo]]:
+    return await _cached("get_artist_albums", source, source_id, lambda: _get_artist_albums(deps, source, source_id))

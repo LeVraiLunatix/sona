@@ -140,12 +140,15 @@ class LibraryItemOut(BaseModel):
     subtitle: str | None
     cover_url: str | None
     added_at: str
+    # Fiche complète (titres) : l'app n'a plus à la redemander.
+    track: "Track | None" = None
 
     @classmethod
     def from_item(cls, i: LibraryItem) -> "LibraryItemOut":
         return cls(
             kind=i.kind, source=i.source, source_id=i.source_id, title=i.title,
             subtitle=i.subtitle, cover_url=i.cover_url, added_at=i.added_at,
+            track=Track.from_info(i.track) if i.track else None,
         )
 
 

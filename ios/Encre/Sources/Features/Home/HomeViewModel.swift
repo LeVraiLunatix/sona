@@ -65,7 +65,12 @@ final class HomeViewModel: ObservableObject {
             } else {
                 recentTracks = played
             }
-            libraryTracks = try await resolve(library.items.map { ($0.source, $0.sourceId) })
+            // Fiches fournies par la bibliothèque ; les anciennes, sans
+            // fiche, sont redemandées (une seule fois : le serveur la garde).
+            let missing = library.items.filter { $0.track == nil }
+            let fetched = try await resolve(missing.map { ($0.source, $0.sourceId) })
+            let byId = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            libraryTracks = library.items.compactMap { $0.track ?? byId["\($0.source):\($0.sourceId)"] }
 
             // Sans `artistSourceId`, impossible d'ouvrir une vraie fiche
             // artiste (voir `ArtistDetailView`) : ces morceaux-là (source sans

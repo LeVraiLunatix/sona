@@ -144,9 +144,11 @@ struct LibraryItem: Codable, Identifiable, Hashable {
     var subtitle: String?
     var coverURL: String?
     var addedAt: String
+    /// Fiche complète d'un titre, quand le serveur l'a : rien à redemander.
+    var track: Track?
 
     enum CodingKeys: String, CodingKey {
-        case kind, source, title, subtitle
+        case kind, source, title, subtitle, track
         case sourceId = "source_id"
         case coverURL = "cover_url"
         case addedAt = "added_at"
