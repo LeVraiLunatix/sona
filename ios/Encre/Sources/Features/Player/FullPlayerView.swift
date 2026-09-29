@@ -326,6 +326,10 @@ struct FullPlayerView: View {
             .id(track.id)
             .transition(.opacity)
 
+            if compact && panel == .lyrics {
+                LyricsHeaderButtons(player: player)
+            }
+
             Button {
                 Task { await toggleLike(track) }
             } label: {

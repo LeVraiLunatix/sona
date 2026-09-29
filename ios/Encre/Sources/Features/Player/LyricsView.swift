@@ -8,9 +8,22 @@ import Translation
 /// fluide à chaque changement de ligne, et un tap sur une ligne y ramène la
 /// lecture. La ligne en cours s'allume mot par mot (karaoké), et le mode
 /// « chante » baisse la voix du titre.
+/// Options des paroles partagées avec l'en-tête du lecteur, où sont leurs
+/// boutons (« Chante », « Traduire »).
+@MainActor
+final class LyricsOptions: ObservableObject {
+    static let shared = LyricsOptions()
+    /// Paroles synchronisées affichées (le mode « chante » a un sens).
+    @Published var synced = false
+    /// Paroles dans une autre langue que le français.
+    @Published var foreign = false
+    @Published var translating = false
+}
+
 struct LyricsView: View {
     @ObservedObject var player: PlayerManager
     let track: Track
+    @ObservedObject private var options = LyricsOptions.shared
 
     private enum LoadState: Equatable {
         case loading, loaded(Lyrics), unavailable(String)
@@ -18,8 +31,6 @@ struct LyricsView: View {
     @State private var state: LoadState = .loading
     // Traduction en français (sur l'iPhone, hors ligne une fois la langue
     // téléchargée) des paroles dans une autre langue.
-    @State private var foreign = false
-    @State private var translating = false
     @State private var translations: [String: String] = [:]
     @State private var translationConfig: TranslationSession.Configuration?
 
@@ -37,18 +48,6 @@ struct LyricsView: View {
                         .frame(maxHeight: .infinity)
                 } else if lyrics.synced {
                     synced(lyrics.lines)
-                        // En bas à droite, juste au-dessus de la barre de
-                        // lecture : ne cache pas les paroles, et reste là
-                        // quand les commandes se masquent.
-                        .overlay(alignment: .bottomTrailing) {
-                            HStack(spacing: 8) {
-                                if foreign { translateButton }
-                                singButton
-                            }
-                            .padding(.trailing, Self.sideInset)
-                            .padding(.bottom, 10)
-                            .shadow(color: .black.opacity(0.35), radius: 10, y: 3)
-                        }
                         .translationTask(translationConfig) { session in
                             await translate(lyrics.lines, with: session)
                         }
@@ -58,6 +57,16 @@ struct LyricsView: View {
             }
         }
         .task(id: track.id) { await load() }
+        // Boutons dans l'en-tête du lecteur (`LyricsHeaderButtons`).
+        .onChange(of: options.translating) { _, on in
+            if on && translations.isEmpty {
+                translationConfig = TranslationSession.Configuration(target: Locale.Language(identifier: "fr"))
+            }
+        }
+        .onChange(of: state) { _, new in
+            if case .loaded(let lyrics) = new { options.synced = lyrics.synced && !lyrics.instrumental } else { options.synced = false }
+        }
+        .onDisappear { options.synced = false }
     }
 
     /// Marge du lecteur plein écran (voir `FullPlayerView`).
@@ -86,7 +95,7 @@ struct LyricsView: View {
                                 Text(line.text.isEmpty ? "♪" : line.text)
                                     .foregroundStyle(Color.white.opacity(index < (active ?? 0) ? 0.3 : 0.45))
                             }
-                            if translating, let translated = translations[line.text], translated != line.text {
+                            if options.translating, let translated = translations[line.text], translated != line.text {
                                 Text(translated)
                                     .font(.system(size: 17, weight: .semibold))
                                     .foregroundStyle(Color.white.opacity(isActive ? 0.75 : 0.35))
@@ -123,25 +132,6 @@ struct LyricsView: View {
         }
     }
 
-    /// Traduction ligne par ligne sous les paroles.
-    private var translateButton: some View {
-        Button {
-            translating.toggle()
-            if translating && translations.isEmpty {
-                translationConfig = TranslationSession.Configuration(target: Locale.Language(identifier: "fr"))
-            }
-        } label: {
-            Label(translating ? "Traduit" : "Traduire", systemImage: "character.bubble")
-                .font(Typo.caption)
-                .foregroundStyle(translating ? .black : .white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(translating ? Color.white : Color.white.opacity(0.15)))
-        }
-        .buttonStyle(.pressable(scale: 0.95))
-        .padding(.top, 8)
-    }
-
     private func translate(_ lines: [Lyrics.Line], with session: TranslationSession) async {
         let texts = Array(Set(lines.map(\.text).filter { !$0.isEmpty }))
         let requests = texts.enumerated().map { index, text in
@@ -155,32 +145,6 @@ struct LyricsView: View {
             }
         }
         withAnimation(Motion.smooth) { translations = result }
-    }
-
-    /// Mode « chante » : voix du titre baissée.
-    private var singButton: some View {
-        Button {
-            player.setSingAlong(!player.singAlong)
-        } label: {
-            Label(singLabel, systemImage: player.singAlong ? "mic.fill" : "mic")
-                .font(Typo.caption)
-                .foregroundStyle(player.singAlong ? .black : .white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(player.singAlong ? Color.white : Color.white.opacity(0.15)))
-        }
-        .buttonStyle(.pressable(scale: 0.95))
-        .sensoryFeedback(.selection, trigger: player.singAlong)
-        .padding(.top, 8)
-    }
-
-    private var singLabel: String {
-        switch player.singSource {
-        case .off: "Chante"
-        case .searching: "Recherche de l'instru…"
-        case .instrumental: "Instrumentale"
-        case .reduced: "Voix baissée"
-        }
     }
 
     private func plain(_ lines: [Lyrics.Line]) -> some View {
@@ -200,11 +164,11 @@ struct LyricsView: View {
         do {
             if let lyrics = try await APIClient.shared.lyrics(for: track) {
                 translations = [:]
-                translating = false
+                options.translating = false
                 translationConfig = nil
                 let recognizer = NLLanguageRecognizer()
                 recognizer.processString(lyrics.lines.map(\.text).joined(separator: "\n"))
-                foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
+                options.foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
                 state = .loaded(lyrics)
             } else {
                 state = .unavailable("Pas de paroles connues pour ce morceau.")
@@ -212,6 +176,55 @@ struct LyricsView: View {
         } catch {
             guard !Task.isCancelled else { return }
             state = .unavailable("Les paroles n'ont pas pu être chargées.")
+        }
+    }
+}
+
+/// « Traduire » et « Chante », en ronds dans l'en-tête du lecteur quand
+/// les paroles sont affichées (à côté du titre, sans cacher le texte).
+struct LyricsHeaderButtons: View {
+    @ObservedObject var player: PlayerManager
+    @ObservedObject private var options = LyricsOptions.shared
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if options.foreign {
+                circle("character.bubble", on: options.translating, label: "Traduire") {
+                    options.translating.toggle()
+                }
+            }
+            if options.synced {
+                circle(player.singAlong ? "mic.fill" : "mic", on: player.singAlong, label: singLabel) {
+                    player.setSingAlong(!player.singAlong)
+                }
+                .symbolEffect(.pulse, isActive: player.singSource == .searching)
+                .sensoryFeedback(.selection, trigger: player.singAlong)
+            }
+        }
+        .animation(Motion.smooth, value: options.synced)
+        .animation(Motion.smooth, value: options.foreign)
+    }
+
+    private func circle(_ icon: String, on: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(on ? .black : .white)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(on ? Color.white : Color.white.opacity(0.15)))
+        }
+        .buttonStyle(.pressable(scale: 0.88))
+        .accessibilityLabel(label)
+        .transition(.scale.combined(with: .opacity))
+    }
+
+    private var singLabel: String {
+        switch player.singSource {
+        case .off: "Chante"
+        case .searching: "Recherche de l'instru"
+        case .instrumental: "Instrumentale"
+        case .reduced: "Voix baissée"
         }
     }
 }
