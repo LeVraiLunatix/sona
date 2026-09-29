@@ -83,3 +83,17 @@ def test_web_page_and_stream_token(client):
     assert client.get("/stream/deezer/1").status_code == 401
     assert client.get(f"/stream/deezer/1?token={token}").status_code != 401
     assert client.get(f"/me/playlists?token={token}").status_code == 401
+
+
+def test_web_page_calls_existing_routes(client):
+    """Chaque appel fixe de la page web existe bien côté serveur (un
+    `/me` au lieu de `/auth/me` bloquait la connexion sur une 404)."""
+    import re
+
+    page = client.get("/web").text
+    me = login(client, "alice")
+    paths = set(re.findall(r'api\("(/[^"?]*)', page))
+    assert "/auth/me" in paths
+    for path in paths:
+        method = client.post if path in {"/plays", "/plays/now"} else client.get
+        assert method(path, headers=me).status_code != 404, path

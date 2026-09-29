@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sona</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237333f2'/%3E%3Cpath d='M9 12v8M14 8v16M19 11v10M24 14v4' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -123,7 +124,7 @@ async function login() {
   }
   if (!token) return renderLogin();
   try {
-    const me = await api("/me");
+    const me = await api("/auth/me");
     if (me.status !== "approved") return renderLogin("Ton compte attend la validation d'un administrateur.");
     render();
   } catch (e) { renderLogin(e.message); }
