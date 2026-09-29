@@ -19,7 +19,19 @@ struct FullPlayerView: View {
     @State private var likeBounce = 0
     @State private var isStartingRadio = false
     @State private var playlistPick: PlaylistPickRequest?
+    /// Paroles : commandes du bas masquées après quelques secondes sans
+    /// toucher l'écran (comme Musique) ; un tap les ramène.
+    @State private var controlsHidden = false
+    @State private var activity = 0
+    @State private var scrubbing = false
     @Namespace private var hero
+
+    private struct AutoHideKey: Equatable {
+        var panel: Panel
+        var activity: Int
+        var playing: Bool
+        var scrubbing: Bool
+    }
 
     var body: some View {
         ZStack {
@@ -33,13 +45,20 @@ struct FullPlayerView: View {
                     Group {
                         switch panel {
                         case .artwork: artworkPanel(track)
-                        case .lyrics: compactPanel(track) { LyricsView(player: player, track: track) }
+                        case .lyrics:
+                            compactPanel(track) {
+                                LyricsView(player: player, track: track)
+                                    .simultaneousGesture(TapGesture().onEnded { revealControls() })
+                            }
                         case .queue: compactPanel(track) { queueList }
                         }
                     }
                     .frame(maxHeight: .infinity)
 
-                    controls(track)
+                    if !(controlsHidden && panel == .lyrics) {
+                        controls(track)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
                 .padding(.horizontal, 26)
                 .padding(.bottom, 8)
@@ -53,6 +72,15 @@ struct FullPlayerView: View {
             palette = colors
         }
         .task(id: player.current?.id) { await refreshLikeState() }
+        .task(id: AutoHideKey(panel: panel, activity: activity, playing: player.isPlaying, scrubbing: scrubbing)) {
+            guard panel == .lyrics, player.isPlaying, !scrubbing else {
+                if controlsHidden { withAnimation(Motion.smooth) { controlsHidden = false } }
+                return
+            }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.5)) { controlsHidden = true }
+        }
         // Feuille à part : celle de `RootTabView` ne peut pas s'ouvrir par-dessus
         // ce plein écran.
         .sheet(item: $playlistPick) { request in
@@ -61,6 +89,11 @@ struct FullPlayerView: View {
         .onChange(of: player.current == nil) { _, isEmpty in
             if isEmpty { dismiss() }
         }
+    }
+
+    private func revealControls() {
+        withAnimation(Motion.smooth) { controlsHidden = false }
+        activity += 1
     }
 
     // MARK: - Haut
@@ -106,66 +139,24 @@ struct FullPlayerView: View {
         }
     }
 
+    /// Menu « ⋯ » isolé dans sa propre vue, comparée par valeur : le lecteur
+    /// se redessine deux fois par seconde (progression), et un menu ouvert
+    /// reconstruit à chaque fois scintillait.
     private var actionsMenu: some View {
-        Menu {
-            if let track = player.current {
-                Button {
-                    playlistPick = PlaylistPickRequest(tracks: [track])
-                } label: { Label("Ajouter à une playlist…", systemImage: "text.badge.plus") }
-                if DownloadManager.shared.isDownloaded(track) {
-                    Button(role: .destructive) { DownloadManager.shared.remove(track) } label: {
-                        Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
-                    }
-                } else {
-                    Button { DownloadManager.shared.download([track]) } label: {
-                        Label("Télécharger", systemImage: "arrow.down.circle")
-                    }
-                }
-                Menu {
-                    ForEach([15, 30, 45, 60], id: \.self) { minutes in
-                        Button("\(minutes) minutes") { player.setSleepTimer(.minutes(minutes)) }
-                    }
-                    Button("Fin du titre") { player.setSleepTimer(.endOfTrack) }
-                    if player.sleepTimer != nil {
-                        Button("Désactiver", role: .destructive) { player.setSleepTimer(nil) }
-                    }
-                } label: {
-                    Label(player.sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé", systemImage: "moon.zzz")
-                }
-                Divider()
-                if let artistId = track.artistSourceId {
-                    Button {
-                        onOpenRoute(.artist(source: track.source, id: artistId))
-                    } label: { Label("Voir l'artiste", systemImage: "person.crop.circle") }
-                    Button {
-                        startArtistRadio(source: track.source, artistId: artistId)
-                    } label: { Label("Radio de l'artiste", systemImage: "dot.radiowaves.left.and.right") }
-                }
-                if let albumId = track.albumSourceId {
-                    Button {
-                        onOpenRoute(.album(source: track.source, id: albumId))
-                    } label: { Label("Voir l'album", systemImage: "square.stack") }
-                }
-                Button {
-                    Task { await toggleLike(track) }
-                } label: {
-                    Label(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
-                          systemImage: isLiked ? "minus.circle" : "plus.circle")
-                }
-            }
-        } label: {
-            Group {
-                if isStartingRadio {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "ellipsis")
-                }
-            }
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(Tone.primary)
-            .frame(width: 40, height: 40)
-            .background(Circle().fill(Color.white.opacity(0.12)))
-        }
+        PlayerActionsMenu(
+            track: player.current,
+            isLiked: isLiked,
+            isStartingRadio: isStartingRadio,
+            sleepTimer: player.sleepTimer,
+            actions: PlayerActionsMenu.Actions(
+                addToPlaylist: { track in playlistPick = PlaylistPickRequest(tracks: [track]) },
+                setSleepTimer: { player.setSleepTimer($0) },
+                openRoute: onOpenRoute,
+                startRadio: { source, id in startArtistRadio(source: source, artistId: id) },
+                toggleLike: { track in Task { await toggleLike(track) } }
+            )
+        )
+        .equatable()
     }
 
     // MARK: - Panneaux
@@ -334,6 +325,9 @@ struct FullPlayerView: View {
                 duration: player.durationSeconds > 0 ? player.durationSeconds : Double(track.durationSeconds ?? 0)
             ) { fraction in
                 player.seek(toFraction: fraction)
+            } onScrub: { active in
+                scrubbing = active
+                if !active { activity += 1 }
             }
 
             if let message = player.errorMessage {
@@ -484,6 +478,8 @@ struct PlayerScrubber: View {
     let progress: Double
     let duration: Double
     var onSeek: (Double) -> Void
+    /// Début / fin d'un glissement du doigt sur la barre.
+    var onScrub: (Bool) -> Void = { _ in }
 
     @State private var dragFraction: Double?
 
@@ -504,11 +500,13 @@ struct PlayerScrubber: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+                            if dragFraction == nil { onScrub(true) }
                             dragFraction = min(1, max(0, Double(value.location.x / max(1, proxy.size.width))))
                         }
                         .onEnded { _ in
                             if let dragFraction { onSeek(dragFraction) }
                             dragFraction = nil
+                            onScrub(false)
                         }
                 )
             }
@@ -641,5 +639,88 @@ private extension View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+    }
+}
+
+/// Contenu du menu « ⋯ » du lecteur plein écran (voir `actionsMenu`).
+struct PlayerActionsMenu: View, Equatable {
+    struct Actions {
+        var addToPlaylist: (Track) -> Void
+        var setSleepTimer: (PlayerManager.SleepTimer?) -> Void
+        var openRoute: (Route) -> Void
+        var startRadio: (String, String) -> Void
+        var toggleLike: (Track) -> Void
+    }
+
+    let track: Track?
+    let isLiked: Bool
+    let isStartingRadio: Bool
+    let sleepTimer: PlayerManager.SleepTimer?
+    let actions: Actions
+    @ObservedObject private var downloads = DownloadManager.shared
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.track?.id == rhs.track?.id && lhs.isLiked == rhs.isLiked
+            && lhs.isStartingRadio == rhs.isStartingRadio && lhs.sleepTimer == rhs.sleepTimer
+    }
+
+    var body: some View {
+        Menu {
+            if let track {
+                Button { actions.addToPlaylist(track) } label: {
+                    Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
+                }
+                if downloads.isDownloaded(track) {
+                    Button(role: .destructive) { downloads.remove(track) } label: {
+                        Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
+                    }
+                } else {
+                    Button { downloads.download([track]) } label: {
+                        Label("Télécharger", systemImage: "arrow.down.circle")
+                    }
+                }
+                Menu {
+                    ForEach([15, 30, 45, 60], id: \.self) { minutes in
+                        Button("\(minutes) minutes") { actions.setSleepTimer(.minutes(minutes)) }
+                    }
+                    Button("Fin du titre") { actions.setSleepTimer(.endOfTrack) }
+                    if sleepTimer != nil {
+                        Button("Désactiver", role: .destructive) { actions.setSleepTimer(nil) }
+                    }
+                } label: {
+                    Label(sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé", systemImage: "moon.zzz")
+                }
+                Divider()
+                if let artistId = track.artistSourceId {
+                    Button {
+                        actions.openRoute(.artist(source: track.source, id: artistId))
+                    } label: { Label("Voir l'artiste", systemImage: "person.crop.circle") }
+                    Button {
+                        actions.startRadio(track.source, artistId)
+                    } label: { Label("Radio de l'artiste", systemImage: "dot.radiowaves.left.and.right") }
+                }
+                if let albumId = track.albumSourceId {
+                    Button {
+                        actions.openRoute(.album(source: track.source, id: albumId))
+                    } label: { Label("Voir l'album", systemImage: "square.stack") }
+                }
+                Button { actions.toggleLike(track) } label: {
+                    Label(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
+                          systemImage: isLiked ? "minus.circle" : "plus.circle")
+                }
+            }
+        } label: {
+            Group {
+                if isStartingRadio {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "ellipsis")
+                }
+            }
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(Tone.primary)
+            .frame(width: 40, height: 40)
+            .background(Circle().fill(Color.white.opacity(0.12)))
+        }
     }
 }
