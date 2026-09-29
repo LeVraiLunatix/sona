@@ -74,8 +74,11 @@ def test_smart_playlists(client):
 
 
 def test_web_page_and_stream_token(client):
-    page = client.get("/web")
+    page = client.get("/web/")
     assert page.status_code == 200 and "Sona" in page.text
+    assert client.get("/web", follow_redirects=False).status_code in (302, 307)
+    assert "#/home" in client.get("/web/app.js").text or "viewHome" in client.get("/web/app.js").text
+    assert client.get("/web/app.css").headers["content-type"].startswith("text/css")
     me = login(client, "alice")
     token = me["Authorization"].split()[1]
     # Sans jeton : refusé ; jeton dans l'adresse : accepté pour un flux audio
@@ -90,7 +93,7 @@ def test_web_page_calls_existing_routes(client):
     `/me` au lieu de `/auth/me` bloquait la connexion sur une 404)."""
     import re
 
-    page = client.get("/web").text
+    page = client.get("/web/app.js").text
     me = login(client, "alice")
     paths = set(re.findall(r'api\("(/[^"?]*)', page))
     assert "/auth/me" in paths

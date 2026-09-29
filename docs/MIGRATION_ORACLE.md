@@ -198,5 +198,17 @@ ajoute les secrets GitHub `TELEGRAM_BOT_TOKEN` (le token du bot) et
 
 ### Sona sur ordinateur
 
-`https://<ton-adresse>/web` : connexion Last.fm, écoute, recherche,
+`https://<ton-adresse>/web/` : connexion Last.fm, écoute, recherche,
 playlists et paroles depuis n'importe quel navigateur.
+
+**Sur Vercel** (adresse du genre `sona-xxx.vercel.app`, mise à jour à chaque
+push sur master) :
+
+1. <https://vercel.com> → connecte-toi avec GitHub → **Add New… → Project**.
+2. Choisis le dépôt `sona` → **Import**.
+3. **Root Directory** : `web` (bouton « Edit »). Framework : « Other ».
+   Rien d'autre à régler → **Deploy**.
+
+Le site appelle le serveur dont l'adresse est dans `web/index.html`
+(balise `<meta name="sona-server">`) : à changer là si le serveur change
+d'adresse (DuckDNS…).

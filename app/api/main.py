@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
@@ -121,6 +122,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.add_middleware(GZipExceptStream)
+    # Sona web hébergé ailleurs (Vercel) : appels de l'API depuis une autre
+    # adresse. Sans risque ici : l'authentification passe par un jeton
+    # (en-tête Authorization), jamais par un cookie.
+    app.add_middleware(
+        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+        expose_headers=["Content-Length", "Content-Range", "Accept-Ranges"],
+    )
     app.include_router(accounts.router)
     app.include_router(search.router)
     app.include_router(catalog.router)
@@ -147,13 +155,20 @@ def create_app() -> FastAPI:
         # savoir d'un coup d'œil si le serveur est à jour.
         return {"status": "ok", "version": SERVER_VERSION}
 
-    # Sona sur ordinateur : une page, qui passe ensuite par la même API.
-    web_page = Path(__file__).resolve().parent.parent / "web" / "index.html"
+    # Sona sur ordinateur (dossier `web/` du dépôt, le même que sur Vercel),
+    # qui passe ensuite par la même API.
+    web_dir = Path(__file__).resolve().parents[2] / "web"
+    web_files = {"": ("index.html", "text/html"), "app.css": ("app.css", "text/css"),
+                 "app.js": ("app.js", "application/javascript")}
 
     @app.get("/web", include_in_schema=False)
-    @app.get("/web/", include_in_schema=False)
-    async def web() -> FileResponse:
-        return FileResponse(web_page, media_type="text/html")
+    async def web_root() -> RedirectResponse:
+        return RedirectResponse("/web/")
+
+    @app.get("/web/{name:path}", include_in_schema=False)
+    async def web(name: str) -> FileResponse:
+        file, media_type = web_files.get(name, web_files[""])
+        return FileResponse(web_dir / file, media_type=media_type, headers={"Cache-Control": "no-cache"})
 
     return app
 
