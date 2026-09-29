@@ -1243,5 +1243,6 @@ struct ConnectPlayback: Codable {
     var index: Int
     var position: Double
     var paused: Bool
+    var volume: Double?
     var name: String?
 }

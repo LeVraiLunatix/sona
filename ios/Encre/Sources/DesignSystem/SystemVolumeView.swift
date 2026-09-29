@@ -47,3 +47,35 @@ struct AirPlayButton: View {
         func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
     }
 }
+
+/// Volume de l'iPhone réglé par l'app (Sona Connect : depuis le PC). iOS n'a
+/// pas d'API publique pour ça ; le curseur système de `MPVolumeView`, lui,
+/// règle le vrai volume — un curseur invisible, posé hors de l'écran, sert
+/// de télécommande.
+@MainActor
+enum SystemVolume {
+    private static var volumeView: MPVolumeView?
+
+    /// Volume actuel (0…1), celui des boutons physiques.
+    static var current: Double { Double(AVAudioSession.sharedInstance().outputVolume) }
+
+    static func set(_ value: Double) {
+        let view = volumeView ?? makeView()
+        guard let slider = view.subviews.compactMap({ $0 as? UISlider }).first else { return }
+        slider.setValue(Float(min(1, max(0, value))), animated: false)
+        slider.sendActions(for: .valueChanged)
+    }
+
+    private static func makeView() -> MPVolumeView {
+        let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 100, height: 40))
+        view.alpha = 0.01
+        view.isUserInteractionEnabled = false
+        // Dans une fenêtre, sinon le curseur ne répond pas.
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first
+        window?.addSubview(view)
+        volumeView = view
+        return view
+    }
+}

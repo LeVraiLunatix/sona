@@ -643,6 +643,7 @@ function renderTopbar() {
   const t = remote ? state.connect.session?.track : state.queue[state.index];
   const liked = t && state.liked.has(`${t.source}:${t.source_id}`);
   const playingIcon = remote ? icons.pause : audio.paused ? icons.play : icons.pause;
+  const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : audio.volume;
   bar.innerHTML = `
     <div class="transport">
       <button class="tbtn small ${state.shuffle ? "on" : ""}" data-act="shuffle" title="Aléatoire">${icons.shuffle}</button>
@@ -661,7 +662,7 @@ function renderTopbar() {
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
       <button class="tbtn small ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
       <button class="tbtn small ${state.npOpen && state.npTab === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
-      <div class="volume">${icons.speaker}<input type="range" class="slider" id="vol" min="0" max="1" step="0.01" value="${audio.volume}" style="--p:${audio.volume * 100}%" aria-label="Volume"></div>
+      <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : "Volume"}">${icons.speaker}<input type="range" class="slider" id="vol" min="0" max="1" step="0.01" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume"></div>
     </div>`;
   bar.onclick = (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
@@ -685,7 +686,21 @@ function renderTopbar() {
     }
   };
   const vol = $("#vol");
-  if (vol) vol.oninput = () => { audio.volume = +vol.value; vol.style.setProperty("--p", `${vol.value * 100}%`); store.set("sona.volume", vol.value); };
+  if (vol) {
+    vol.oninput = () => {
+      vol.style.setProperty("--p", `${vol.value * 100}%`);
+      if (remoteDevice()) { state.connect.pendingVolume = +vol.value; return; }
+      audio.volume = +vol.value;
+      store.set("sona.volume", vol.value);
+    };
+    // Volume de l'appareil distant (iPhone) : envoyé au relâchement.
+    vol.onchange = () => {
+      const target = remoteDevice();
+      if (!target) return;
+      sendCommand(target.id, "volume", { volume: +vol.value });
+      setTimeout(() => { state.connect.pendingVolume = null; }, 6000);
+    };
+  }
   updateProgress();
 }
 
@@ -906,17 +921,21 @@ async function connectSync() {
   const wasRemote = remoteDevice()?.id;
   Object.assign(state.connect, { devices: data.devices, session: data.session, active: data.active_device_id, receivedAt: Date.now() });
   for (const command of data.commands || []) runCommand(command);
-  if (wasRemote !== remoteDevice()?.id || remoteDevice()) renderTopbar();
+  // Pas de rafraîchissement pendant qu'on fait glisser un curseur de volume.
+  const dragging = document.activeElement?.matches?.('#vol, input[data-dc="volume"]') && state.connect.pointerDown;
+  if (!dragging && (wasRemote !== remoteDevice()?.id || remoteDevice())) renderTopbar();
   const resume = $("#resume");
   if (resume) {
     const html = resumeCard();
     if (resume.innerHTML !== html) resume.innerHTML = html;
   }
-  if (state.connect.open) renderDevices();
+  if (state.connect.open && !dragging) renderDevices();
 }
 
 function startConnect() {
   let timer;
+  document.addEventListener("pointerdown", () => { state.connect.pointerDown = true; });
+  document.addEventListener("pointerup", () => { state.connect.pointerDown = false; });
   const loop = async () => {
     clearTimeout(timer);
     await connectSync();

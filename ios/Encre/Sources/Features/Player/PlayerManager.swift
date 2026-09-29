@@ -75,7 +75,7 @@ final class PlayerManager: ObservableObject {
         let window = Array(queue[start..<min(queue.count, start + 150)])
         return ConnectPlayback(
             queue: window, index: context.isEmpty ? 0 : index - start,
-            position: positionSeconds, paused: !isPlaying, name: contextName
+            position: positionSeconds, paused: !isPlaying, volume: SystemVolume.current, name: contextName
         )
     }
 

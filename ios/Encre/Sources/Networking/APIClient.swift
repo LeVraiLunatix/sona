@@ -621,14 +621,17 @@ final class APIClient {
         return try await send(try request("/connect/sync", method: "POST", bodyData: data))
     }
 
-    func connectCommand(from deviceId: String, to target: String, action: String, position: Double? = nil) async throws {
+    func connectCommand(
+        from deviceId: String, to target: String, action: String, position: Double? = nil, volume: Double? = nil
+    ) async throws {
         struct Body: Encodable {
             let device_id: String
             let target: String
             let action: String
             let position: Double?
+            let volume: Double?
         }
-        let data = try encode(Body(device_id: deviceId, target: target, action: action, position: position))
+        let data = try encode(Body(device_id: deviceId, target: target, action: action, position: position, volume: volume))
         try await sendNoContent(try request("/connect/command", method: "POST", bodyData: data))
     }
 

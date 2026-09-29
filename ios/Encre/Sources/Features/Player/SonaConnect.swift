@@ -109,6 +109,8 @@ final class ConnectManager: ObservableObject {
             player.previous()
         case "seek":
             if let position = command.position { player.seek(toSeconds: position) }
+        case "volume":
+            if let volume = command.volume { SystemVolume.set(volume) }
         case "transfer":
             guard let queue = command.queue, !queue.isEmpty else { return }
             remoteStartUntil = Date().addingTimeInterval(3)
@@ -118,7 +120,7 @@ final class ConnectManager: ObservableObject {
             )
             if let from = command.from { show("Musique reprise depuis \(from)") }
         default:
-            break  // volume : celui de l'iPhone ne se règle pas à distance
+            break
         }
     }
 
@@ -154,10 +156,12 @@ final class ConnectManager: ObservableObject {
     }
 
     /// Télécommande de l'appareil qui joue ailleurs.
-    func remote(_ action: String, position: Double? = nil) {
+    func remote(_ action: String, position: Double? = nil, volume: Double? = nil) {
         guard let target = remoteDevice else { return }
         Task {
-            try? await APIClient.shared.connectCommand(from: deviceId, to: target.id, action: action, position: position)
+            try? await APIClient.shared.connectCommand(
+                from: deviceId, to: target.id, action: action, position: position, volume: volume
+            )
             syncSoon()
         }
     }
@@ -263,6 +267,7 @@ struct ConnectSheet: View {
 private struct RemoteControls: View {
     let session: ConnectSession
     @ObservedObject private var connect = ConnectManager.shared
+    @State private var volume: Double?
 
     var body: some View {
         VStack(spacing: 14) {
@@ -278,6 +283,17 @@ private struct RemoteControls: View {
                 button("backward.fill", "previous")
                 button("pause.fill", "toggle", size: 30)
                 button("forward.fill", "next")
+            }
+            HStack(spacing: 12) {
+                Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+                Slider(value: Binding(
+                    get: { volume ?? connect.remoteDevice?.volume ?? 1 },
+                    set: { volume = $0 }
+                ), in: 0...1) { editing in
+                    if !editing, let volume { connect.remote("volume", volume: volume) }
+                }
+                .tint(.white)
+                Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
             }
         }
         .padding(.vertical, 6)
