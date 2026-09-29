@@ -43,6 +43,8 @@ class LiveSource:
     url: str
     headers: dict[str, str]
     content_type: str = "audio/mp4"
+    # Source retenue (vidéo YouTube) : pour « Mauvaise version ? ».
+    video_id: str | None = None
 
 
 def _extract_sync(source_url: str, cookies_file: Path | None) -> LiveSource | None:
@@ -75,16 +77,21 @@ def _extract_sync(source_url: str, cookies_file: Path | None) -> LiveSource | No
     return None
 
 
-async def resolve(track: TrackInfo, cookies_file: Path | None) -> LiveSource | None:
+async def resolve(
+    track: TrackInfo, cookies_file: Path | None, excluded: frozenset[str] | set[str] = frozenset()
+) -> LiveSource | None:
     """Flux direct de la source la plus probable (la même que le chemin
     complet essaie en premier), ou None pour se rabattre sur le chemin
     complet."""
-    async with aclosing(iter_audio_sources(track, cookies_file)) as sources:
+    async with aclosing(iter_audio_sources(track, cookies_file, excluded)) as sources:
         async for candidate in sources:
             if candidate.platform != "youtube":
                 return None
             async with _extract_slots:
-                return await asyncio.to_thread(_extract_sync, candidate.source_url, cookies_file)
+                found = await asyncio.to_thread(_extract_sync, candidate.source_url, cookies_file)
+            if found is not None:
+                found.video_id = candidate.video_id
+            return found
     return None
 
 
@@ -114,3 +121,8 @@ class LiveCache:
 
     def clear(self) -> None:
         self._entries.clear()
+
+    def drop_track(self, source: str, source_id: str) -> None:
+        """Toutes les entrées d'un morceau (tous formats et qualités)."""
+        for key in [k for k in self._entries if k[:2] == (source, source_id)]:
+            del self._entries[key]

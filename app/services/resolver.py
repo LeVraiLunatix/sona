@@ -55,6 +55,15 @@ _DERIVATIVE_VERSIONS: dict[str, re.Pattern[str]] = {
     "hauteur modifiée": _word_re(r"\d{3}\s*hz"),
     "hors musique": _word_re(r"making\s+of|reaction|react|tutorial|tuto|lesson|amv|backing\s+track|back\s+track"),
 }
+# Clip officiel : souvent le même morceau, mais avec intro, bruitages,
+# dialogues ou fin différente — l'audio officiel (« Art Track ») passe devant.
+_CLIP_RE = _word_re(
+    r"clip|music\s+video|official\s+video|vid[ée]o\s+officielle|video\s+officielle|visualizer|court[\s-]*m[ée]trage|short\s+film"
+)
+# Types de vidéo de YouTube Music : l'audio seul de l'album (ATV), le clip
+# officiel (OMV), une vidéo quelconque (UGC).
+AUDIO_TRACK_TYPE = "MUSIC_VIDEO_TYPE_ATV"
+MUSIC_VIDEO_TYPE = "MUSIC_VIDEO_TYPE_OMV"
 # Même audio, mais une mise en ligne secondaire : départage seulement.
 _SECONDARY_UPLOAD_RE = _word_re(r"lyrics?|paroles|letra|tradu\w*|translat\w*")
 _FEAT_WORD_RE = _word_re(r"feat|ft|featuring")
@@ -108,6 +117,12 @@ class Candidate:
     # Apple et Spotify ont leur propre identifiant d'artiste, YouTube brut
     # (yt-dlp) n'en a aucun, mais YouTube Music, si.
     artist_id: str | None = None
+    # `videoType` de YouTube Music (voir AUDIO_TRACK_TYPE), si connu.
+    video_type: str | None = None
+
+    @property
+    def is_audio_track(self) -> bool:
+        return self.video_type == AUDIO_TRACK_TYPE
 
     @property
     def source_url(self) -> str:
@@ -256,11 +271,20 @@ def score_candidate(track: TrackInfo, candidate: Candidate) -> float:
 
     if candidate.is_song:
         score += 0.05
+    reference_title = _plain(track.title)
+    if candidate.is_audio_track:
+        # L'audio de l'album lui-même : exactement ce qu'on veut.
+        score += 0.12
+    elif candidate.video_type == MUSIC_VIDEO_TYPE or (
+        _CLIP_RE.search(_plain(candidate.title)) and not _CLIP_RE.search(reference_title)
+    ):
+        # Clip : à ne prendre que faute de mieux.
+        score -= 0.1
     if _is_by_artist(track, candidate):
         # Publié par l'artiste : préférable à un repost du même audio.
         score += 0.05
 
-    candidate_title, reference_title = _plain(candidate.title), _plain(track.title)
+    candidate_title = _plain(candidate.title)
     if _SECONDARY_UPLOAD_RE.search(candidate_title) and not _SECONDARY_UPLOAD_RE.search(reference_title):
         score -= 0.05
     if _FEAT_WORD_RE.search(candidate_title) and not _FEAT_WORD_RE.search(reference_title):
@@ -324,6 +348,7 @@ def _candidate_from_ytmusic(item: dict) -> Candidate | None:
         cover_url=resize_artwork_url(thumbnails[-1]["url"], DISPLAY_SIZE) if thumbnails else None,
         is_song=item.get("resultType") == "song",
         artist_id=artists[0].get("id") if artists else None,
+        video_type=item.get("videoType"),
     )
 
 
@@ -475,7 +500,9 @@ def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candi
     )
 
 
-async def iter_audio_sources(track: TrackInfo, cookies_file: Path | None = None) -> AsyncIterator[Candidate]:
+async def iter_audio_sources(
+    track: TrackInfo, cookies_file: Path | None = None, excluded: frozenset[str] | set[str] = frozenset()
+) -> AsyncIterator[Candidate]:
     """Sources audio acceptables d'un morceau, de la plus probable à la moins probable.
 
     L'appelant télécharge chaque source, la compare à l'extrait officiel et
@@ -487,6 +514,9 @@ async def iter_audio_sources(track: TrackInfo, cookies_file: Path | None = None)
     4. la recherche YouTube de `yt-dlp`, en dernier recours.
     Chaque recherche n'est lancée qu'une fois les sources précédentes
     épuisées. Lève ResolutionError si aucun moteur ne répond.
+
+    `excluded` : identifiants de sources signalées comme mauvaise version
+    pour ce morceau (« Mauvaise version ? » dans l'app), jamais reproposées.
     """
     if track.source == "youtube":
         yield Candidate(
@@ -503,7 +533,7 @@ async def iter_audio_sources(track: TrackInfo, cookies_file: Path | None = None)
     queries = _query_variants(track)
     candidates = await asyncio.to_thread(_search_ytmusic_sync, queries)
     youtube_music = rank_candidates(track, candidates)
-    offered: set[str] = set()
+    offered: set[str] = set(excluded)
 
     def offer(candidate: Candidate) -> bool:
         if candidate.video_id in offered:

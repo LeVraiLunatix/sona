@@ -475,6 +475,12 @@ final class APIClient {
     /// serveur télécharge (si besoin), vérifie l'audio puis le sert avec
     /// support des requêtes `Range`, indispensable pour qu'`AVPlayer` puisse
     /// démarrer la lecture avant d'avoir tout reçu.
+    /// « Mauvaise version ? » : le serveur écarte la source servie pour ce
+    /// titre (et son cache) ; la prochaine lecture en cherche une autre.
+    func reportWrongVersion(_ track: Track) async throws {
+        try await sendNoContent(try request("/stream/\(track.source)/\(track.sourceId)/wrong-version", method: "POST"))
+    }
+
     /// `live: false` : le fichier complet vérifié, jamais le relais direct de
     /// YouTube (téléchargement hors ligne).
     func streamRequest(

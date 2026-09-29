@@ -185,3 +185,22 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
     added_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order ON playlist_tracks (playlist_id, position);
+
+-- Source audio (vidéo YouTube, piste SoundCloud) servie pour chaque morceau
+-- — celle du fichier en cache, ou du flux direct —, et celles signalées
+-- comme « mauvaise version » depuis l'app (clip, live...), jamais reprises.
+CREATE TABLE IF NOT EXISTS stream_sources (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    video_id TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id)
+);
+
+CREATE TABLE IF NOT EXISTS rejected_sources (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    video_id TEXT NOT NULL,
+    rejected_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id, video_id)
+);

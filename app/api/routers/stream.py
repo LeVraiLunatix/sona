@@ -67,10 +67,11 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Morceau introuvable : {exc}") from exc
 
     track = await complete_preview(deps.deezer, track)
+    excluded = await deps.repo.rejected_sources(source, source_id)
 
     attempts = 0
     try:
-        async with aclosing(iter_audio_sources(track, deps.settings.youtube_cookies_file)) as sources:
+        async with aclosing(iter_audio_sources(track, deps.settings.youtube_cookies_file, excluded)) as sources:
             async for source_candidate in sources:
                 attempts += 1
                 try:
@@ -93,6 +94,7 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                     cleanup_download(path)  # nettoie le dossier de travail temporaire restant
                     content_type = _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream")
                     await deps.repo.stream_cache_set(source, source_id, fmt, quality, str(dest), content_type)
+                    await deps.repo.stream_source_set(source, source_id, source_candidate.video_id)
                     return dest
 
                 logger.info(
@@ -253,7 +255,10 @@ async def _live_source(deps: ApiDeps, source: str, source_id: str, key: tuple) -
             return cached
         try:
             track = await lookup.get_track(deps, source, source_id)
-            found = await live_stream.resolve(track, deps.settings.youtube_cookies_file)
+            excluded = await deps.repo.rejected_sources(source, source_id)
+            found = await live_stream.resolve(track, deps.settings.youtube_cookies_file, excluded)
+            if found is not None and found.video_id:
+                await deps.repo.stream_source_set(source, source_id, found.video_id)
         except Exception as exc:  # le chemin complet prend le relais, avec son propre message
             logger.info("Flux direct indisponible pour %s:%s : %s", source, source_id, exc)
             found = None
@@ -338,3 +343,27 @@ async def stream(
 
     file_path, content_type = await ensure_file(deps, source, source_id, quality, format)
     return FileResponse(file_path, media_type=content_type, filename=Path(file_path).name)
+
+
+@router.post("/stream/{source}/{source_id}/wrong-version")
+async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    """« Mauvaise version ? » dans l'app (clip avec bruitages, live, autre
+    enregistrement...) : la source servie pour ce morceau est écartée pour
+    de bon, son fichier en cache supprimé, et la prochaine lecture en
+    cherche une autre."""
+    video_id = await deps.repo.stream_source_get(source, source_id)
+    if video_id is not None:
+        await deps.repo.reject_source(source, source_id, video_id)
+    # Fichier mis en cache avant qu'on note les sources : pas d'identifiant à
+    # écarter, mais le supprimer suffit souvent (le classement favorise
+    # maintenant l'audio officiel).
+    for path in await deps.repo.stream_cache_delete(source, source_id):
+        try:
+            Path(path).unlink(missing_ok=True)
+        except OSError as exc:
+            logger.info("Fichier %s impossible à supprimer : %s", path, exc)
+    _live.drop_track(source, source_id)
+    for key in [k for k in _failures if k[:2] == (source, source_id)]:
+        del _failures[key]
+    logger.info("Source %s écartée pour %s:%s (mauvaise version signalée)", video_id, source, source_id)
+    return {"rejected": video_id}

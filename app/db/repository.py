@@ -638,6 +638,49 @@ class Repository:
         )
         await self._db.conn.commit()
 
+    async def stream_cache_delete(self, source: str, source_id: str) -> list[str]:
+        """Oublie les fichiers en cache d'un morceau (tous formats) ; renvoie
+        leurs chemins, à supprimer du disque."""
+        cursor = await self._db.conn.execute(
+            "SELECT file_path FROM stream_cache WHERE source=? AND source_id=?", (source, source_id)
+        )
+        paths = [r["file_path"] for r in await cursor.fetchall()]
+        await self._db.conn.execute("DELETE FROM stream_cache WHERE source=? AND source_id=?", (source, source_id))
+        await self._db.conn.commit()
+        return paths
+
+    async def stream_source_set(self, source: str, source_id: str, video_id: str) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO stream_sources (source, source_id, video_id, updated_at) VALUES (?, ?, ?, ?)
+               ON CONFLICT(source, source_id) DO UPDATE SET video_id=excluded.video_id, updated_at=excluded.updated_at""",
+            (source, source_id, video_id, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def stream_source_get(self, source: str, source_id: str) -> str | None:
+        cursor = await self._db.conn.execute(
+            "SELECT video_id FROM stream_sources WHERE source=? AND source_id=?", (source, source_id)
+        )
+        row = await cursor.fetchone()
+        return row["video_id"] if row else None
+
+    async def reject_source(self, source: str, source_id: str, video_id: str) -> None:
+        await self._db.conn.execute(
+            """INSERT OR IGNORE INTO rejected_sources (source, source_id, video_id, rejected_at)
+               VALUES (?, ?, ?, ?)""",
+            (source, source_id, video_id, _now()),
+        )
+        await self._db.conn.execute(
+            "DELETE FROM stream_sources WHERE source=? AND source_id=? AND video_id=?", (source, source_id, video_id)
+        )
+        await self._db.conn.commit()
+
+    async def rejected_sources(self, source: str, source_id: str) -> set[str]:
+        cursor = await self._db.conn.execute(
+            "SELECT video_id FROM rejected_sources WHERE source=? AND source_id=?", (source, source_id)
+        )
+        return {r["video_id"] for r in await cursor.fetchall()}
+
     # -- Accès (whitelist + invitations) -------------------------------
 
     async def bootstrap_admins(self, user_ids: list[int]) -> None:

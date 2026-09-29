@@ -19,6 +19,7 @@ struct FullPlayerView: View {
     @State private var likeBounce = 0
     @State private var isStartingRadio = false
     @State private var playlistPick: PlaylistPickRequest?
+    @State private var confirmingWrongVersion = false
     /// Paroles : commandes du bas masquées après quelques secondes sans
     /// toucher l'écran (comme Musique) ; un tap les ramène.
     @State private var controlsHidden = false
@@ -85,6 +86,15 @@ struct FullPlayerView: View {
         // ce plein écran.
         .sheet(item: $playlistPick) { request in
             AddToPlaylistSheet(tracks: request.tracks)
+        }
+        .confirmationDialog(
+            "Ce n'est pas la bonne version ?", isPresented: $confirmingWrongVersion, titleVisibility: .visible
+        ) {
+            Button("Chercher une autre version") {
+                if let track = player.current { Task { await reportWrongVersion(track) } }
+            }
+        } message: {
+            Text("Clip avec bruitages, live, remix… Cette source sera écartée pour de bon et le titre relancé avec une autre.")
         }
         .onChange(of: player.current == nil) { _, isEmpty in
             if isEmpty { dismiss() }
@@ -153,7 +163,8 @@ struct FullPlayerView: View {
                 setSleepTimer: { player.setSleepTimer($0) },
                 openRoute: onOpenRoute,
                 startRadio: { source, id in startArtistRadio(source: source, artistId: id) },
-                toggleLike: { track in Task { await toggleLike(track) } }
+                toggleLike: { track in Task { await toggleLike(track) } },
+                reportWrongVersion: { _ in confirmingWrongVersion = true }
             )
         )
         .equatable()
@@ -379,6 +390,17 @@ struct FullPlayerView: View {
     }
 
     // MARK: - Actions
+
+    private func reportWrongVersion(_ track: Track) async {
+        do {
+            try await APIClient.shared.reportWrongVersion(track)
+            // Un téléchargement de ce titre est la même mauvaise version.
+            DownloadManager.shared.remove(track)
+            if player.current?.id == track.id { player.reloadCurrent() }
+        } catch {
+            player.errorMessage = error.localizedDescription
+        }
+    }
 
     private func startArtistRadio(source: String, artistId: String) {
         isStartingRadio = true
@@ -650,6 +672,7 @@ struct PlayerActionsMenu: View, Equatable {
         var openRoute: (Route) -> Void
         var startRadio: (String, String) -> Void
         var toggleLike: (Track) -> Void
+        var reportWrongVersion: (Track) -> Void
     }
 
     let track: Track?
@@ -707,6 +730,10 @@ struct PlayerActionsMenu: View, Equatable {
                 Button { actions.toggleLike(track) } label: {
                     Label(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
                           systemImage: isLiked ? "minus.circle" : "plus.circle")
+                }
+                Divider()
+                Button { actions.reportWrongVersion(track) } label: {
+                    Label("Mauvaise version ?", systemImage: "exclamationmark.bubble")
                 }
             }
         } label: {

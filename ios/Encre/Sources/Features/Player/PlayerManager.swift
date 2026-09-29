@@ -51,6 +51,13 @@ final class PlayerManager: ObservableObject {
         return Array(context[(index + 1)...])
     }
 
+    /// Relance le titre en cours depuis le début, en redemandant le flux au
+    /// serveur (après « Mauvaise version ? »).
+    func reloadCurrent() {
+        guard let current else { return }
+        start(current, context: context)
+    }
+
     // MARK: Fin du titre
 
     private func handleTrackEnd() {
