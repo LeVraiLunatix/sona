@@ -13,16 +13,24 @@ DIR="$HOME/sona"
 step() { printf '\n\033[1;35m▶ %s\033[0m\n' "$1"; }
 
 main() {
+    if ! command -v apt-get >/dev/null; then
+        echo "Ce script est prévu pour Ubuntu (apt-get introuvable)." >&2
+        exit 1
+    fi
     step "Paquets système (Python, FFmpeg, Git, Node/PM2, Caddy)"
     sudo apt-get update -qq
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
         git curl python3 python3-venv python3-pip ffmpeg sqlite3 nodejs npm \
         iptables-persistent debian-keyring debian-archive-keyring apt-transport-https gnupg >/dev/null
-    python3 - <<'PY'
-import sys
-if sys.version_info < (3, 11):
-    sys.exit("Python 3.11 ou plus est nécessaire : choisis l'image Ubuntu 24.04 pour le serveur.")
-PY
+    # Python 3.11 minimum : sur Ubuntu 22.04 (Python 3.10), on installe 3.12.
+    PY=python3
+    if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq software-properties-common >/dev/null
+        sudo add-apt-repository -y ppa:deadsnakes/ppa >/dev/null
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3.12 python3.12-venv >/dev/null
+        PY=python3.12
+    fi
     if ! command -v caddy >/dev/null; then
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
             | sudo gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
@@ -49,6 +57,9 @@ PY
     sudo netfilter-persistent save >/dev/null
 
     step "Code de Sona"
+    if [ -d "$DIR" ] && [ ! -d "$DIR/.git" ]; then
+        mv "$DIR" "$DIR.ancien.$(date +%s)"  # dossier qui n'est pas un clone : mis de côté
+    fi
     if [ ! -d "$DIR/.git" ]; then
         git clone --quiet "$REPO" "$DIR"
     else
@@ -56,7 +67,11 @@ PY
         git -C "$DIR" reset --hard --quiet origin/master
     fi
     cd "$DIR"
-    [ -d .venv ] || python3 -m venv .venv
+    # Environnement Python : recréé s'il date d'une version trop ancienne.
+    if [ -x .venv/bin/python ] && ! .venv/bin/python -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+        rm -rf .venv
+    fi
+    [ -d .venv ] || "$PY" -m venv .venv
     .venv/bin/pip install --quiet --upgrade pip
     .venv/bin/pip install --quiet -r requirements.txt magic-wormhole
     mkdir -p data
@@ -67,6 +82,7 @@ PY
     step "Adresse HTTPS (Caddy + sslip.io)"
     ip=$(curl -fsS -4 https://api.ipify.org || curl -fsS -4 https://ifconfig.me)
     domain="${ip//./-}.sslip.io"
+    [ -f /etc/caddy/Caddyfile ] && sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.avant-sona
     sudo tee /etc/caddy/Caddyfile >/dev/null <<CADDY
 # Sona : HTTPS automatique (certificat Let's Encrypt) devant l'API locale.
 $domain {
@@ -77,10 +93,12 @@ CADDY
     sudo systemctl reload caddy
 
     step "Processus (PM2) et démarrage automatique"
-    if ! pm2 describe sona-api >/dev/null 2>&1; then
-        pm2 start .venv/bin/python --name sona-api --cwd "$DIR" -- run_api.py >/dev/null
-    fi
-    if grep -q '^BOT_TOKEN=.\+' .env && ! pm2 describe sona >/dev/null 2>&1; then
+    # Processus d'une ancienne installation : recréés proprement (l'ancien
+    # environnement Python a pu être remplacé).
+    pm2 delete sona-api >/dev/null 2>&1 || true
+    pm2 start .venv/bin/python --name sona-api --cwd "$DIR" -- run_api.py >/dev/null
+    if grep -q '^BOT_TOKEN=.\+' .env; then
+        pm2 delete sona >/dev/null 2>&1 || true
         pm2 start .venv/bin/python --name sona --cwd "$DIR" -- run.py >/dev/null
     fi
     pm2 save >/dev/null

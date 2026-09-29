@@ -12,6 +12,20 @@ Durée : 20 à 30 minutes.
 
 ## 1. Créer la machine
 
+**Tu as déjà une instance ?** Vérifie qu'elle vaut le coup, une fois
+connecté dessus :
+
+```bash
+uname -m; nproc; free -h | head -2; lsb_release -ds
+```
+
+`aarch64` avec plusieurs cœurs et plusieurs Go : c'est une machine Ampere,
+passe directement à l'étape 2. `x86_64`, 1 ou 2 cœurs et ~1 Go : c'est la
+petite machine AMD gratuite, pas plus rapide que Google — crée plutôt une
+Ampere ci-dessous. Ubuntu 22.04 ou 24.04 conviennent tous les deux (le
+script installe Python 3.12 si besoin) ; une installation de Sona déjà
+présente est mise à jour, pas cassée.
+
 Console Oracle Cloud → **Compute → Instances → Create instance**.
 
 - **Name** : `sona`
