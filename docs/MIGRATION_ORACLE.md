@@ -148,3 +148,55 @@ passer au vert (le déploiement automatique remarche).
 - Cookies YouTube : `~/sona/data/cookies.txt`, comme avant.
 - Après un redémarrage de la machine, tout repart seul (PM2 et Caddy
   démarrent au boot).
+
+---
+
+## En plus (facultatif, conseillé)
+
+### Adresse fixe (DuckDNS)
+
+Une adresse du genre `https://sona-toi.duckdns.org` qui suit le serveur,
+même s'il change d'IP ou de machine :
+
+1. Sur <https://www.duckdns.org>, connecte-toi et crée un sous-domaine,
+   puis copie ton **token** (en haut de la page).
+2. Sur le serveur :
+
+   ```bash
+   cd ~/sona && ./deploy/setup_domain.sh <sous-domaine> <token>
+   ```
+
+3. Mets la nouvelle adresse dans l'app (Réglages) et dans le secret
+   GitHub `IOS_API_BASE_URL`. L'adresse sslip.io continue de marcher.
+
+### Sauvegarde hors du serveur
+
+La base est sauvegardée chaque nuit sur le serveur ; pour en garder une
+copie ailleurs (si la machine disparaît) :
+
+1. Oracle Cloud → **Storage → Buckets → Create Bucket** (nom : `sona-backups`).
+2. Dans le bucket : **Pre-Authenticated Requests → Create** :
+   « Objects with prefix », accès **Permit object writes**, expiration
+   lointaine (ex. dans 5 ans). Copie l'URL affichée (elle n'est montrée
+   qu'une fois).
+3. Sur le serveur, ajoute-la à `~/sona/.env` :
+
+   ```bash
+   echo 'BACKUP_UPLOAD_URL=<l-url-copiée>' >> ~/sona/.env && pm2 restart all
+   ```
+
+Chaque sauvegarde est alors envoyée compressée dans le bucket
+(10 Go gratuits).
+
+### Alerte si le serveur tombe
+
+Le workflow GitHub « Uptime » vérifie `/health` toutes les 15 minutes et
+ouvre une issue « 🔴 Serveur Sona injoignable » (notification GitHub),
+refermée toute seule au retour. Pour être prévenu aussi sur Telegram,
+ajoute les secrets GitHub `TELEGRAM_BOT_TOKEN` (le token du bot) et
+`TELEGRAM_CHAT_ID` (ton identifiant, donné par @userinfobot).
+
+### Sona sur ordinateur
+
+`https://<ton-adresse>/web` : connexion Last.fm, écoute, recherche,
+playlists et paroles depuis n'importe quel navigateur.
