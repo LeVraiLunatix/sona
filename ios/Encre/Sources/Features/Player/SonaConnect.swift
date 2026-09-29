@@ -20,6 +20,10 @@ final class ConnectManager: ObservableObject {
     private var claimPending = false
     /// Lecture lancée par une commande reçue : pas de « prise de main ».
     private var remoteStartUntil = Date.distantPast
+    /// Lecture/pause demandée à l'instant à l'autre appareil : gardée à
+    /// l'écran jusqu'à sa confirmation (une réponse partie avant ne
+    /// l'annule pas).
+    private var expectedPaused: (value: Bool, until: Date)?
     private var cancellables = Set<AnyCancellable>()
 
     let deviceId: String = {
@@ -109,7 +113,16 @@ final class ConnectManager: ObservableObject {
         ) else { return false }
         receivedAt = Date()
         devices = response.devices
-        session = response.session
+        var fresh = response.session
+        if let expected = expectedPaused, var current = fresh {
+            if Date() > expected.until || current.paused == expected.value {
+                expectedPaused = nil
+            } else {
+                current.paused = expected.value
+                fresh = current
+            }
+        }
+        session = fresh
         activeDeviceId = response.activeDeviceId
         for command in response.commands { run(command) }
         RemoteFlag.shared.update(remoteTarget != nil)
@@ -196,16 +209,22 @@ final class ConnectManager: ObservableObject {
     /// Télécommande de l'appareil qui joue ailleurs.
     func remote(_ action: String, position: Double? = nil, volume: Double? = nil) {
         guard let target = remoteTarget else { return }
-        // Réponse immédiate à l'écran, confirmée au relevé suivant.
-        if action == "toggle", var current = session {
-            current.paused.toggle()
+        var action = action
+        // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs
+        // appuis rapprochés ne s'annulent pas.
+        if action == "toggle" { action = (session?.paused ?? true) ? "play" : "pause" }
+        // Réponse immédiate à l'écran, confirmée par l'autre appareil.
+        if action == "play" || action == "pause", var current = session {
             current.position = remotePosition
+            current.paused = action == "pause"
             session = current
             receivedAt = Date()
+            expectedPaused = (current.paused, Date().addingTimeInterval(4))
         }
+        let command = action
         Task {
             try? await APIClient.shared.connectCommand(
-                from: deviceId, to: target.id, action: action, position: position, volume: volume
+                from: deviceId, to: target.id, action: command, position: position, volume: volume
             )
             syncSoon()
         }

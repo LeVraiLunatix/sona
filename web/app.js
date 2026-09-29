@@ -646,7 +646,7 @@ function playAt(index) {
   Object.assign(state, { listened: 0, lastTick: 0, scrobbled: false, lyrics: null, lastLyric: -1, startedAt: new Date().toISOString() });
   state.connect.claim = true;
   audio.src = `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
-  audio.play().catch(() => {});
+  remotePlay();
   api("/plays/now", {
     method: "POST",
     body: JSON.stringify({ title: t.title, artist: t.artist, album: t.album, duration_seconds: t.duration_seconds, source: t.source, source_id: t.source_id, cover_url: t.cover_url }),
@@ -679,7 +679,9 @@ function prev() {
 
 function toggle() {
   const remote = remoteDevice();
-  if (remote) return sendCommand(remote.id, "toggle");
+  // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs appuis
+  // rapprochés ne s'annulent pas.
+  if (remote) return sendCommand(remote.id, state.connect.session?.paused ? "play" : "pause");
   if (!audio.src) return state.connect.session ? resumeHere() : null;
   if (audio.paused) { state.connect.claim = true; audio.play(); } else audio.pause();
 }
@@ -1002,6 +1004,13 @@ async function connectSync(wait = 0) {
     });
   } catch { return false; }
   const wasRemote = remoteDevice()?.id;
+  // Lecture/pause demandée à l'instant : on garde l'état voulu le temps que
+  // l'autre appareil le confirme (une réponse partie avant ne l'annule pas).
+  const expected = state.connect.expected;
+  if (expected && data.session) {
+    if (Date.now() > expected.until || data.session.paused === expected.paused) state.connect.expected = null;
+    else data.session.paused = expected.paused;
+  }
   Object.assign(state.connect, { devices: data.devices, session: data.session, active: data.active_device_id, receivedAt: Date.now() });
   for (const command of data.commands || []) runCommand(command);
   // Pas de rafraîchissement pendant qu'on fait glisser un curseur de volume.
@@ -1022,12 +1031,9 @@ function startConnect() {
   // Connexion qui attend les nouvelles : le serveur répond dès qu'une
   // commande arrive ou que la lecture change sur un autre appareil.
   (async function listen() {
+    // Même onglet en arrière-plan : une commande de l'iPhone doit arriver
+    // tout de suite (une seule requête ouverte, rien de coûteux).
     for (;;) {
-      if (document.hidden && audio.paused) {
-        await connectSync(0);
-        await new Promise((r) => setTimeout(r, 8000));
-        continue;
-      }
       const ok = await connectSync(25);
       if (ok === false) await new Promise((r) => setTimeout(r, 3000));
     }
@@ -1043,11 +1049,20 @@ function startConnect() {
   setInterval(() => remoteDevice() && updateProgress(), 500);
 }
 
+/** Lecture demandée à distance : le navigateur peut la bloquer tant que la
+    page n'a pas été touchée — un clic n'importe où la lance alors. */
+function remotePlay() {
+  audio.play().catch(() => {
+    toast("Clique sur la page Sona pour autoriser la lecture à distance");
+    document.addEventListener("click", () => audio.play().catch(() => {}), { once: true });
+  });
+}
+
 function runCommand(c) {
   switch (c.action) {
-    case "play": if (audio.src) audio.play(); break;
+    case "play": if (audio.src) remotePlay(); break;
     case "pause": if (!audio.paused) { audio.pause(); if (c.from) toast(`Lecture passée sur ${c.from}`); } break;
-    case "toggle": if (audio.src) (audio.paused ? audio.play() : audio.pause()); break;
+    case "toggle": if (audio.src) (audio.paused ? remotePlay() : audio.pause()); break;
     case "next": next(); break;
     case "previous": prev(); break;
     case "seek": if (c.position != null) audio.currentTime = c.position; break;
@@ -1077,10 +1092,11 @@ function resumeHere() {
 async function sendCommand(target, action, extra = {}) {
   // Réponse immédiate à l'écran, confirmée par le serveur juste après.
   const session = state.connect.session;
-  if (action === "toggle" && session && session.device_id === target) {
+  if ((action === "toggle" || action === "play" || action === "pause") && session && session.device_id === target) {
     session.position = remotePosition();
-    session.paused = !session.paused;
+    session.paused = action === "toggle" ? !session.paused : action === "pause";
     state.connect.receivedAt = Date.now();
+    state.connect.expected = { paused: session.paused, until: Date.now() + 4000 };
     renderTopbar();
     if (state.connect.open) renderDevices();
   }
@@ -1157,7 +1173,11 @@ function renderDevices() {
       <span class="go">${d.is_me ? (remote || (session && !audio.src) ? "Écouter ici" : "") : "Écouter dessus"}</span></button>`).join("")}
     ${devices.length < 2 ? `<p class="dp-hint">Ouvre Sona sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}`;
   $$("[data-device]", pop).forEach((b) => (b.onclick = () => listenOn(devices.find((d) => d.id === b.dataset.device))));
-  $$("button[data-dc]", pop).forEach((b) => (b.onclick = () => remote && sendCommand(remote.id, b.dataset.dc)));
+  $$("button[data-dc]", pop).forEach((b) => (b.onclick = () => {
+    if (!remote) return;
+    const action = b.dataset.dc === "toggle" ? (state.connect.session?.paused ? "play" : "pause") : b.dataset.dc;
+    sendCommand(remote.id, action);
+  }));
   const vol = $('input[data-dc="volume"]', pop);
   if (vol) vol.onchange = () => { vol.style.setProperty("--p", `${vol.value * 100}%`); sendCommand(remote.id, "volume", { volume: +vol.value }); };
   const anchor = $('.right-tools [data-act="devices"]')?.getBoundingClientRect();
