@@ -422,6 +422,24 @@ final class APIClient {
         return try await send(try request("/auth/me", method: "PUT", bodyData: data))
     }
 
+    // MARK: - Stats en direct & serveur
+
+    func liveStats() async throws -> LiveStats {
+        try await send(try request("/stats/live", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
+    }
+
+    /// Version (commit) du serveur : pour savoir s'il est à jour.
+    func health() async throws -> ServerHealth {
+        try await send(try request("/health", authenticated: false))
+    }
+
+    /// Playlist lue dans la bibliothèque Musique de l'iPhone (liste complète).
+    func importDevicePlaylist(name: String, tracks: [DeviceTrack]) async throws -> UserPlaylist {
+        struct Body: Encodable { let name: String; let tracks: [DeviceTrack] }
+        let data = try encode(Body(name: name, tracks: tracks))
+        return try await send(try request("/me/playlists/import-tracks", method: "POST", bodyData: data))
+    }
+
     // MARK: - Titres aimés Last.fm
 
     func lovedImportStatus() async throws -> LovedImportStatus {

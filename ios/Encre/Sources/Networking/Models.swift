@@ -561,3 +561,76 @@ struct LovedImportStatus: Codable, Equatable {
     var missing: Int
     var error: String?
 }
+
+// MARK: - Stats en direct
+
+struct LiveNowPlaying: Codable, Hashable {
+    var title: String
+    var artist: String
+    var coverURL: String?
+    var startedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case title, artist
+        case coverURL = "cover_url"
+        case startedAt = "started_at"
+    }
+}
+
+struct LastfmSync: Codable, Hashable {
+    var connected: Bool
+    var enabled: Bool
+    var username: String?
+    var nowPlayingAt: String?
+    var nowPlayingTitle: String?
+    var scrobbledAt: String?
+    var scrobbledCount: Int
+    var lastTitle: String?
+    var error: String?
+    var errorAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case connected, enabled, username, error
+        case nowPlayingAt = "now_playing_at"
+        case nowPlayingTitle = "now_playing_title"
+        case scrobbledAt = "scrobbled_at"
+        case scrobbledCount = "scrobbled_count"
+        case lastTitle = "last_title"
+        case errorAt = "error_at"
+    }
+}
+
+struct LiveStats: Codable, Hashable {
+    var nowPlaying: LiveNowPlaying?
+    var todayPlays: Int
+    var todayMinutes: Int
+    var recent: [RecentPlay]
+    var lastfm: LastfmSync
+
+    enum CodingKeys: String, CodingKey {
+        case recent, lastfm
+        case nowPlaying = "now_playing"
+        case todayPlays = "today_plays"
+        case todayMinutes = "today_minutes"
+    }
+}
+
+struct ServerHealth: Codable {
+    var status: String
+    var version: String?
+}
+
+/// Titre lu dans la bibliothèque Musique de l'iPhone, envoyé pour import.
+struct DeviceTrack: Codable {
+    var title: String
+    var artist: String
+    var album: String?
+    var durationSeconds: Int?
+    var appleId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title, artist, album
+        case durationSeconds = "duration_seconds"
+        case appleId = "apple_id"
+    }
+}

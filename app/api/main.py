@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from starlette.middleware.gzip import GZipMiddleware
@@ -22,6 +24,21 @@ from app.providers.lrclib import LrclibClient
 from app.providers.spotify import SpotifyClient
 
 logger = logging.getLogger(__name__)
+
+
+def _server_version() -> str:
+    """Commit Git en cours (les 7 premiers caractères), ou « inconnue »."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True, timeout=5,
+            cwd=Path(__file__).resolve().parents[2],
+        )
+        return out.stdout.strip() or "inconnue"
+    except (OSError, subprocess.SubprocessError):
+        return "inconnue"
+
+
+SERVER_VERSION = _server_version()
 
 
 @asynccontextmanager
@@ -109,7 +126,9 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:
-        return {"status": "ok"}
+        # `version` : commit déployé — l'app l'affiche dans ses réglages, pour
+        # savoir d'un coup d'œil si le serveur est à jour.
+        return {"status": "ok", "version": SERVER_VERSION}
 
     return app
 

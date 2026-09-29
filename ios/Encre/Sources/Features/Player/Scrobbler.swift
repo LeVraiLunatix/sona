@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Enregistre les écoutes terminées côté serveur (nos propres « scrobbles »,
@@ -6,12 +7,19 @@ import Foundation
 /// Hors connexion, les écoutes attendent sur l'appareil et partent au
 /// prochain envoi — le serveur ignore les doublons.
 @MainActor
-final class Scrobbler {
+final class Scrobbler: ObservableObject {
     static let shared = Scrobbler()
 
     private let storageKey = "encre.pendingPlays"
-    private var pending: [PlayPayload]
+    private var pending: [PlayPayload] {
+        didSet { pendingCount = pending.count }
+    }
     private var isFlushing = false
+    /// Écoutes pas encore arrivées au serveur (hors connexion) : l'onglet
+    /// Stats les signale.
+    @Published private(set) var pendingCount = 0
+    /// Dernier envoi réussi au serveur.
+    @Published private(set) var lastSentAt: Date?
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
@@ -20,6 +28,7 @@ final class Scrobbler {
         } else {
             pending = []
         }
+        pendingCount = pending.count
     }
 
     static func qualifies(listened: Double, duration: Double) -> Bool {
@@ -56,6 +65,7 @@ final class Scrobbler {
         let batch = Array(pending.prefix(200))
         do {
             try await APIClient.shared.submitPlays(batch)
+            lastSentAt = Date()
             pending.removeFirst(min(batch.count, pending.count))
             save()
             if !pending.isEmpty { Task { await flush() } }

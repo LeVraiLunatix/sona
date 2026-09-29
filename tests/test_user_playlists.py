@@ -430,3 +430,34 @@ def test_adding_a_track_without_optional_fields(client):
     added = client.post(f"/me/playlists/{pid}/tracks", headers=AUTH, json={"tracks": [minimal]})
     assert added.status_code == 200, added.text
     assert added.json()["entries"][0]["track"]["album"] is None
+
+
+def test_import_from_device_library(client, monkeypatch):
+    """Liste complète envoyée par l'app (bibliothèque Musique de l'iPhone)."""
+    monkeypatch.setattr(playlist_import, "DEEZER_REQUESTS_PER_SECOND", 100_000)
+    deps = client.app_state.deps
+
+    class FakeDeezer:
+        async def get_track_by_isrc(self, isrc):
+            return None
+
+        async def search_tracks(self, query, index=0, limit=25):
+            if "Titre 1" in query:
+                return [TrackInfo("deezer", "d1", "Titre 1", "Artiste", "Album", None, 200, "https://c")], 1
+            return [], 0
+
+    deps.deezer = FakeDeezer()
+    tracks = [{"title": f"Titre {i}", "artist": "Artiste", "duration_seconds": 200,
+               "apple_id": str(1000 + i)} for i in range(550)]
+    started = client.post("/me/playlists/import-tracks", headers=AUTH, json={"name": "Nuance", "tracks": tracks})
+    assert started.status_code == 202
+    pid = started.json()["id"]
+    for _ in range(300):
+        detail = client.get(f"/me/playlists/{pid}", headers=AUTH).json()
+        if detail["import_status"] != "importing":
+            break
+        client.portal.call(asyncio.sleep, 0.05)
+    assert detail["import_status"] == "done"
+    assert detail["track_count"] == 550  # tous gardés : Deezer quand trouvé, Apple sinon
+    assert detail["entries"][1]["track"]["source"] == "deezer"
+    assert detail["entries"][2]["track"] == {**detail["entries"][2]["track"], "source": "apple", "source_id": "1002"}

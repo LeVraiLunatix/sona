@@ -16,6 +16,7 @@ from app.api.schemas import (
     PlaylistDetailOut,
     PlaylistEntryOut,
     PlaylistImportRequest,
+    PlaylistImportTracksRequest,
     PlaylistOut,
     PlaylistReorder,
     PlaylistUpdate,
@@ -23,6 +24,7 @@ from app.api.schemas import (
 )
 from app.api.state import ApiDeps
 from app.db.repository import PLAYLIST_VISIBILITIES, Playlist
+from app.providers.base import TrackInfo
 from app.services import playlist_import
 
 router = APIRouter(prefix="/me/playlists", tags=["playlists"])
@@ -113,6 +115,25 @@ async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(require_to
     playlist = await _owned(deps, playlist_id)
     try:
         await playlist_import.start_reimport(deps, playlist)
+    except playlist_import.PlaylistImportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return await _out(deps, await _owned(deps, playlist_id))
+
+
+@router.post("/import-tracks", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
+async def import_tracks(payload: PlaylistImportTracksRequest, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+    """Playlist lue par l'app dans la bibliothèque Musique de l'iPhone — la
+    liste complète, là où la page publique d'Apple Music s'arrête à 300."""
+    tracks = [
+        TrackInfo(
+            source="apple", source_id=(t.apple_id or "").strip() if (t.apple_id or "").strip().isdigit() else "",
+            title=t.title, artist=t.artist, album=t.album, year=None,
+            duration_seconds=t.duration_seconds, cover_url=None,
+        )
+        for t in payload.tracks
+    ]
+    try:
+        playlist_id = await playlist_import.start_import_from_tracks(deps, deps.user_id, payload.name.strip(), tracks)
     except playlist_import.PlaylistImportError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return await _out(deps, await _owned(deps, playlist_id))

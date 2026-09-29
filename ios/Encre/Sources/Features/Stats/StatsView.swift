@@ -15,6 +15,10 @@ struct StatsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 30) {
+                LiveStatsSection()
+                    .padding(.horizontal, 20)
+                    .reveal(0)
+
                 periodControls
 
                 if let report = viewModel.report {
@@ -137,6 +141,19 @@ struct StatsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(22)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Tone.surface)
+                // Halo discret qui grandit avec le temps d'écoute de la période.
+                RadialGradient(
+                    colors: [Color(red: 0.45, green: 0.35, blue: 1).opacity(0.45), .clear],
+                    center: .topTrailing, startRadius: 10, endRadius: chartsVisible ? 260 : 60
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .animation(.easeOut(duration: 1.2), value: chartsVisible)
+            }
+        )
     }
 
     private func metrics(_ report: StatsReport) -> some View {
@@ -175,7 +192,12 @@ struct StatsView: View {
                     x: .value("Période", bucket.label),
                     y: .value("Écoutes", chartsVisible ? bucket.plays : 0)
                 )
-                .foregroundStyle(Color.white.gradient)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color(red: 0.55, green: 0.45, blue: 1), .white],
+                        startPoint: .bottom, endPoint: .top
+                    )
+                )
                 .cornerRadius(4)
             }
             .chartYAxis {

@@ -260,3 +260,24 @@ def test_mix_seed_picks_the_most_followed_homonym():
     assert asyncio.run(mixes._deezer_artist_id(Deezer(), "PNL", None, None)) == "vrai"
     # Identifiant Deezer déjà connu (écoute faite dans l'app) : gardé tel quel.
     assert asyncio.run(mixes._deezer_artist_id(Deezer(), "PNL", "deezer", "42")) == "42"
+
+
+def test_live_stats_show_now_playing_today_and_lastfm_sync(client):
+    me, _ = login(client, "alice")
+    client.post("/plays/now", headers=me, json={"title": "Grabba", "artist": "Ziak", "duration_seconds": 180})
+    now = datetime.now(timezone.utc)
+    client.post("/plays", headers=me, json={"plays": [
+        {"title": "T1", "artist": "A", "played_at": now.isoformat(), "listened_seconds": 120},
+    ]})
+    live = client.get("/stats/live", headers=me, params={"tz": "UTC"}).json()
+    assert live["now_playing"]["title"] == "Grabba"
+    assert live["today_plays"] == 1 and live["today_minutes"] == 2
+    assert live["recent"][0]["title"] == "T1"
+    assert live["lastfm"]["connected"] is True and live["lastfm"]["username"] == "alice"
+    wait_for(client, lambda: client.get("/stats/live", headers=me).json()["lastfm"]["scrobbled_count"] >= 1)
+    assert client.get("/stats/live", headers=me).json()["lastfm"]["now_playing_title"] == "Grabba"
+
+
+def test_health_reports_server_version(client):
+    body = client.get("/health").json()
+    assert body["status"] == "ok" and body["version"]

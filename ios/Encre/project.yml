@@ -37,6 +37,9 @@ targets:
         # l'audio dès que l'app passe en arrière-plan ou que l'écran se verrouille.
         UIBackgroundModes:
           - audio
+        # Import d'une playlist depuis la bibliothèque Musique de l'iPhone
+        # (liste complète, là où la page web d'Apple Music s'arrête à 300).
+        NSAppleMusicUsageDescription: Sona lit tes playlists Musique pour les importer en entier.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sona.encre

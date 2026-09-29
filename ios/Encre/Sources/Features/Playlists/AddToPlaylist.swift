@@ -239,6 +239,33 @@ struct ImportPlaylistSheet: View {
                     Task { await start() }
                 }
                 .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                // Apple Music : la page web publique s'arrête à 300 titres ;
+                // la bibliothèque de l'iPhone, elle, donne tout.
+                NavigationLink {
+                    DeviceLibraryImportView { playlist in
+                        dismiss()
+                        onStarted(playlist)
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "music.note.house.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Tone.primary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Depuis la bibliothèque Musique de l'iPhone")
+                                .font(Typo.rowTitle)
+                                .foregroundStyle(Tone.primary)
+                            Text("Playlist Apple Music complète, même au-delà de 300 titres")
+                                .font(Typo.caption)
+                                .foregroundStyle(Tone.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Tone.tertiary)
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tone.surfaceStrong))
+                }
                 Spacer()
             }
             .padding(20)
@@ -251,7 +278,7 @@ struct ImportPlaylistSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
     private func start() async {

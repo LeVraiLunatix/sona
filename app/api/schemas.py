@@ -257,5 +257,21 @@ class PlaylistReorder(BaseModel):
     entry_ids: list[int]
 
 
+class DeviceTrackIn(BaseModel):
+    """Titre lu dans la bibliothèque Musique de l'iPhone."""
+
+    title: str = Field(min_length=1)
+    artist: str = Field(min_length=1)
+    album: str | None = None
+    duration_seconds: int | None = None
+    # Identifiant du catalogue Apple Music (`playbackStoreID`), s'il y en a un.
+    apple_id: str | None = None
+
+
+class PlaylistImportTracksRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    tracks: list[DeviceTrackIn] = Field(min_length=1, max_length=3000)
+
+
 class PlaylistImportRequest(BaseModel):
     url: str = Field(min_length=1, max_length=2000)

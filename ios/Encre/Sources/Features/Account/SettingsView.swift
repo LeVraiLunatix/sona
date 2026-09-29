@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var lovedImport: LovedImportStatus?
     @ObservedObject private var downloads = DownloadManager.shared
     @State private var pendingCount = 0
+    /// Commit déployé sur le serveur : pour vérifier qu'une mise à jour est passée.
+    @State private var serverVersion: String?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -119,6 +121,13 @@ struct SettingsView: View {
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                HStack {
+                    Text("Version du serveur")
+                    Spacer()
+                    Text(serverVersion ?? "…")
+                        .font(Typo.mono)
+                        .foregroundStyle(Tone.secondary)
+                }
             } header: {
                 Text("Serveur")
             }
@@ -140,6 +149,10 @@ struct SettingsView: View {
             shareListening = auth.account?.shareListening ?? true
         }
         .task { await loadPendingCount() }
+        .task {
+            let health = try? await APIClient.shared.health()
+            serverVersion = health?.version ?? (health == nil ? "injoignable" : "ancienne")
+        }
         .task {
             // État d'un import déjà lancé, puis suivi tant qu'il tourne.
             lovedImport = try? await APIClient.shared.lovedImportStatus()

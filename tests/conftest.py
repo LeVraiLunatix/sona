@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.api.routers import friends
+from app.api.routers import friends, stats
 from app.bot import lookup
 
 
@@ -12,6 +12,7 @@ def _empty_catalog_cache():
     fournisseurs d'un test ne doivent pas répondre dans le suivant."""
     lookup.clear_cache()
     friends._tastes.clear()
+    stats._lastfm_sync.clear()
     yield
     lookup.clear_cache()
     friends._tastes.clear()

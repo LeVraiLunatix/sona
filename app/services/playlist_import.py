@@ -237,12 +237,31 @@ async def start_reimport(deps, playlist) -> None:
     task.add_done_callback(_running.discard)
 
 
-async def run_import(deps, playlist_id: int, link: PlaylistLink, *, replace: bool = False) -> None:
+async def start_import_from_tracks(deps, user_id: int, name: str, tracks: list[TrackInfo]) -> int:
+    """Playlist envoyée par l'app elle-même (lue dans la bibliothèque Musique
+    de l'iPhone, liste complète) : seulement le rapprochement avec Deezer."""
+    if not tracks:
+        raise PlaylistImportError("Cette playlist est vide.")
+    playlist_id = await deps.repo.playlist_create(user_id, name[:200], origin="apple", import_status="importing")
+    playlist = ExternalPlaylist(name=name, description=None, cover_url=None, tracks=tracks)
+    task = asyncio.create_task(run_import(deps, playlist_id, None, playlist=playlist))
+    _running.add(task)
+    task.add_done_callback(_running.discard)
+    return playlist_id
+
+
+async def run_import(
+    deps, playlist_id: int, link: PlaylistLink | None, *, replace: bool = False,
+    playlist: ExternalPlaylist | None = None,
+) -> None:
     """`replace` : mise à jour d'une playlist existante — ses titres sont
-    remplacés et son nom (peut-être changé dans l'app) est gardé."""
+    remplacés et son nom (peut-être changé dans l'app) est gardé.
+    `playlist` : déjà lue (envoyée par l'app), rien à aller chercher."""
     repo = deps.repo
+    origin = link.source if link else "appareil"
     try:
-        playlist = await fetch_playlist(deps, link)
+        if playlist is None:
+            playlist = await fetch_playlist(deps, link)
         if not playlist.tracks:
             raise PlaylistImportError("Cette playlist est vide.")
         total = len(playlist.tracks)
@@ -269,10 +288,10 @@ async def run_import(deps, playlist_id: int, link: PlaylistLink, *, replace: boo
             import_error=playlist.note,
         )
         logger.info(
-            "Playlist importée (%s) : « %s », %d/%d morceaux", link.source, playlist.name, len(kept), total
+            "Playlist importée (%s) : « %s », %d/%d morceaux", origin, playlist.name, len(kept), total
         )
     except PlaylistImportError as exc:
         await repo.playlist_update(playlist_id, import_status="failed", import_error=str(exc))
     except Exception as exc:  # noqa: BLE001 — l'échec doit s'afficher dans l'app, pas disparaître
-        logger.exception("Import de playlist %s échoué", link.url)
+        logger.exception("Import de playlist %s échoué", link.url if link else origin)
         await repo.playlist_update(playlist_id, import_status="failed", import_error=f"Import impossible : {exc}")

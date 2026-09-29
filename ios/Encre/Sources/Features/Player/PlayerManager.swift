@@ -334,6 +334,10 @@ final class PlayerManager: ObservableObject {
     /// L'écoute en cours a déjà été enregistrée (dès la moitié du titre).
     private var scrobbled = false
     private var nowPlayingArtwork: MPMediaItemArtwork?
+    /// Avancée vers le seuil où l'écoute compte (moitié du titre ou 4 min),
+    /// de 0 à 1, et écoute déjà comptée : affichées en direct dans Stats.
+    @Published private(set) var scrobbleProgress: Double = 0
+    @Published private(set) var didScrobble = false
     /// « En train d'écouter » annoncé aux amis pour le titre en cours.
     private var presenceShared = false
     private var presenceStopTask: Task<Void, Never>?
@@ -662,9 +666,15 @@ final class PlayerManager: ObservableObject {
                     // Écoute comptée dès la moitié du titre (ou 4 min), comme
                     // Last.fm : elle apparaît sur le profil pendant qu'on
                     // écoute encore, pas seulement au titre suivant.
+                    let threshold = min(duration / 2, 240)
+                    if threshold > 0 {
+                        let value = min(1, self.listenedSeconds / threshold)
+                        if abs(value - self.scrobbleProgress) >= 0.01 || value == 1 { self.scrobbleProgress = value }
+                    }
                     if !self.scrobbled, let track = self.current, let startedAt = self.listenStartedAt,
                        Scrobbler.qualifies(listened: self.listenedSeconds, duration: duration) {
                         self.scrobbled = true
+                        self.didScrobble = true
                         Scrobbler.shared.record(track, startedAt: startedAt, listened: duration, duration: duration)
                     }
                     // Durée du catalogue dépassée : le flux joue du vide ou
@@ -681,6 +691,8 @@ final class PlayerManager: ObservableObject {
             }
 
             endHandled = false
+            scrobbleProgress = 0
+            didScrobble = false
             player.play()
             listenStartedAt = Date()
             scrobbled = false
@@ -734,6 +746,8 @@ final class PlayerManager: ObservableObject {
                 listenStartedAt = Date()
                 listenedSeconds = 0
                 scrobbled = false
+                didScrobble = false
+                scrobbleProgress = 0
                 if let current { Task { try? await APIClient.shared.nowPlaying(current) } }
             }
             player.play()

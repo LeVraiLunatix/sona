@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -184,20 +184,104 @@ async def stop_playing(deps: ApiDeps = Depends(require_token)) -> None:
     presence.clear(deps.user_id)
 
 
+@dataclass
+class LastfmSync:
+    """Derniers échanges avec Last.fm pour un compte : l'onglet Stats les
+    montre, pour vérifier que le scrobbling marche vraiment."""
+
+    now_playing_at: str | None = None
+    now_playing_title: str | None = None
+    scrobbled_at: str | None = None
+    scrobbled_count: int = 0
+    last_title: str | None = None
+    error: str | None = None
+    error_at: str | None = None
+
+
+_lastfm_sync: dict[int, LastfmSync] = {}
+
+
+def _now_iso() -> str:
+    return stats_service.to_utc_iso(datetime.now(timezone.utc))
+
+
 async def _now_playing(deps: ApiDeps, session_key: str, payload: NowPlayingIn) -> None:
+    sync = _lastfm_sync.setdefault(deps.user_id, LastfmSync())
     try:
         await deps.lastfm_auth.update_now_playing(
             session_key, payload.title.strip(), payload.artist.strip(), payload.album, payload.duration_seconds
         )
+        sync.now_playing_at, sync.now_playing_title = _now_iso(), payload.title.strip()
     except LastfmAuthError as exc:
         logger.info("« En train d'écouter » Last.fm impossible : %s", exc)
+        sync.error, sync.error_at = str(exc), _now_iso()
 
 
 async def _scrobble(deps: ApiDeps, session_key: str, plays: list[Play]) -> None:
+    sync = _lastfm_sync.setdefault(deps.user_id, LastfmSync())
     try:
         await deps.lastfm_auth.scrobble(session_key, plays)
+        sync.scrobbled_at = _now_iso()
+        sync.scrobbled_count += len(plays)
+        sync.last_title = plays[-1].title if plays else None
+        sync.error = None
     except LastfmAuthError as exc:
         logger.info("Scrobbling Last.fm impossible : %s", exc)
+        sync.error, sync.error_at = str(exc), _now_iso()
+
+
+class LastfmSyncOut(BaseModel):
+    connected: bool
+    enabled: bool
+    username: str | None
+    now_playing_at: str | None
+    now_playing_title: str | None
+    scrobbled_at: str | None
+    scrobbled_count: int
+    last_title: str | None
+    error: str | None
+    error_at: str | None
+
+
+class LiveOut(BaseModel):
+    """En direct : ce que le serveur sait de l'écoute en cours et du jour."""
+
+    now_playing: dict | None
+    today_plays: int
+    today_minutes: int
+    recent: list[PlayOut]
+    lastfm: LastfmSyncOut
+
+
+@router.get("/stats/live", response_model=LiveOut)
+async def live(
+    tz: str | None = Query(None, description="Fuseau IANA de l'appareil"),
+    deps: ApiDeps = Depends(require_token),
+) -> LiveOut:
+    zone = stats_service.resolve_tz(tz)
+    now = datetime.now(timezone.utc).astimezone(zone)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today = await deps.repo.plays_between(deps.user_id, stats_service.to_utc_iso(start), None)
+    recent = await deps.repo.plays_recent(deps.user_id, 8)
+    playing = presence.get(deps.user_id)
+    account = deps.account
+    sync = _lastfm_sync.get(deps.user_id, LastfmSync())
+    return LiveOut(
+        now_playing={
+            "title": playing.track.title, "artist": playing.track.artist,
+            "cover_url": playing.track.cover_url,
+            "started_at": stats_service.to_utc_iso(playing.started_at),
+        } if playing else None,
+        today_plays=len(today),
+        today_minutes=sum(stats_service.seconds_of(p) for p in today) // 60,
+        recent=[PlayOut(**{k: v for k, v in asdict(p).items() if k != "listened_seconds"}) for p in recent],
+        lastfm=LastfmSyncOut(
+            connected=bool(account and account.lastfm_session_key),
+            enabled=bool(account and account.scrobble_to_lastfm and deps.lastfm_auth),
+            username=account.lastfm_username if account else None,
+            **asdict(sync),
+        ),
+    )
 
 
 @router.get("/plays/recent", response_model=list[PlayOut])
