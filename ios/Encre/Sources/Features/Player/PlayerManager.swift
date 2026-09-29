@@ -721,6 +721,30 @@ final class PlayerManager: ObservableObject {
         start(first, context: tracks)
     }
 
+    /// Radio DJ à partir d'un titre : lui d'abord, puis une suite sans fin
+    /// pensée pour l'AutoMix (activé au passage). Chaque rechargement repart
+    /// du dernier titre en file : la chaîne de tempos continue.
+    func playDJRadio(from seed: Track) async throws {
+        let batch = try await APIClient.shared.djRadio(seed: seed, exclude: [seed.sourceId])
+        guard !batch.isEmpty else { throw StationError.empty }
+        if !crossfadeEnabled { toggleCrossfade() }
+        let alreadyPlaying = current?.id == seed.id && player != nil
+        endStation()
+        resetQueueState(name: "Radio DJ · \(seed.title)")
+        refill = { [weak self] in
+            guard let self else { return [] }
+            let tail = self.context.last ?? seed
+            return try await APIClient.shared.djRadio(seed: tail, exclude: self.context.suffix(80).map(\.sourceId))
+        }
+        let tracks = PlayerManager.withoutDuplicates([seed] + batch, excluding: [])
+        if alreadyPlaying {
+            // Le titre joue déjà : on garde la lecture, seule la suite change.
+            context = tracks
+        } else {
+            start(seed, context: tracks)
+        }
+    }
+
     private func endStation() {
         refill = nil
         refillTask?.cancel()

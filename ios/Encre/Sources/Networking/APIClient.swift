@@ -216,6 +216,16 @@ final class APIClient {
 
     /// Nouveau tirage à chaque appel (le « mix » Deezer de l'artiste, ou ses
     /// titres populaires mélangés pour les autres sources).
+    /// Radio DJ : la suite de la station à partir de `seed` (tempos qui
+    /// s'enchaînent, artistes alternés), sans les titres de `exclude`.
+    func djRadio(seed: Track, exclude: [String]) async throws -> [Track] {
+        try await send(try request("/djradio/\(seed.source)/\(seed.sourceId)", query: [
+            URLQueryItem(name: "title", value: seed.title),
+            URLQueryItem(name: "artist", value: seed.artist),
+            URLQueryItem(name: "exclude", value: exclude.joined(separator: ",")),
+        ]))
+    }
+
     func artistRadio(source: String, id: String) async throws -> [Track] {
         try await send(try request("/artists/\(source)/\(id)/radio"))
     }

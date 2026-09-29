@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.auth import require_token
 from app.api.schemas import Album, Artist, Track
 from app.api.state import ApiDeps
 from app.bot import lookup
+from app.providers.base import TrackInfo
+from app.services import djradio
 
 router = APIRouter(tags=["catalog"])
 
@@ -81,3 +83,21 @@ async def get_artist_albums(
         "albums": [Album.from_info(a) for a in albums],
         "singles": [Album.from_info(a) for a in singles],
     }
+
+
+@router.get("/djradio/{source}/{source_id}", response_model=list[Track])
+async def dj_radio(
+    source: str,
+    source_id: str,
+    title: str = Query(..., min_length=1),
+    artist: str = Query(..., min_length=1),
+    exclude: str = Query("", description="Identifiants déjà joués, séparés par des virgules"),
+    deps: ApiDeps = Depends(require_token),
+) -> list[Track]:
+    """Radio DJ (voir services/djradio.py) : la suite de la station à partir
+    du dernier titre en file."""
+    seed = TrackInfo(source, source_id, title, artist, None, None, None, None)
+    excluded = {x for x in exclude.split(",") if x}
+    tracks = await djradio.build(deps, seed, excluded)
+    return [Track.from_info(t) for t in tracks]
+

@@ -179,6 +179,7 @@ struct FullPlayerView: View {
                 setSleepTimer: { player.setSleepTimer($0) },
                 openRoute: onOpenRoute,
                 startRadio: { source, id in startArtistRadio(source: source, artistId: id) },
+                startDJRadio: { track in startDJRadio(track) },
                 toggleLike: { track in Task { await toggleLike(track) } },
                 reportWrongVersion: { _ in confirmingWrongVersion = true }
             )
@@ -415,6 +416,18 @@ struct FullPlayerView: View {
             if player.current?.id == track.id { player.reloadCurrent() }
         } catch {
             player.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func startDJRadio(_ track: Track) {
+        isStartingRadio = true
+        Task {
+            do {
+                try await player.playDJRadio(from: track)
+            } catch {
+                player.errorMessage = error.localizedDescription
+            }
+            isStartingRadio = false
         }
     }
 
@@ -687,6 +700,7 @@ struct PlayerActionsMenu: View, Equatable {
         var setSleepTimer: (PlayerManager.SleepTimer?) -> Void
         var openRoute: (Route) -> Void
         var startRadio: (String, String) -> Void
+        var startDJRadio: (Track) -> Void
         var toggleLike: (Track) -> Void
         var reportWrongVersion: (Track) -> Void
     }
@@ -730,6 +744,9 @@ struct PlayerActionsMenu: View, Equatable {
                     Label(sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé", systemImage: "moon.zzz")
                 }
                 Divider()
+                Button { actions.startDJRadio(track) } label: {
+                    Label("Radio DJ à partir de ce titre", systemImage: "dial.medium")
+                }
                 if let artistId = track.artistSourceId {
                     Button {
                         actions.openRoute(.artist(source: track.source, id: artistId))

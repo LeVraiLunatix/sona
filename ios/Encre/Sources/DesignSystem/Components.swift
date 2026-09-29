@@ -74,6 +74,17 @@ struct TrackRow: View {
             Button { PlayerManager.shared.playLater([track]) } label: {
                 Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
+            Button {
+                Task {
+                    do {
+                        try await PlayerManager.shared.playDJRadio(from: track)
+                    } catch {
+                        PlayerManager.shared.errorMessage = error.localizedDescription
+                    }
+                }
+            } label: {
+                Label("Radio DJ à partir de ce titre", systemImage: "dial.medium")
+            }
             if downloads.isDownloaded(track) {
                 Button(role: .destructive) { downloads.remove(track) } label: {
                     Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
