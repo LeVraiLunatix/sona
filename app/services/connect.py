@@ -6,11 +6,16 @@ Chaque appareil se signale toutes les quelques secondes (`sync`) avec son
 lecture du compte (pour reprendre ailleurs) et les commandes qu'un autre
 appareil lui a envoyées (pause, suivant, « écoute ici »…).
 
+Réactivité : un appareil peut attendre la nouvelle (`sync_wait`, jusqu'à
+une trentaine de secondes) plutôt que redemander sans cesse — il est
+réveillé dès qu'une commande l'attend ou que la lecture change ailleurs.
+
 Gardé en mémoire seulement : c'est un état de l'instant.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 
@@ -38,6 +43,18 @@ class Account:
     commands: dict[str, list[dict]] = field(default_factory=dict)
     # Dernière lecture du compte, sur n'importe quel appareil.
     session: dict | None = None
+    # Réveil des appareils qui attendent (voir `sync_wait`).
+    event: asyncio.Event | None = None
+
+    def notify(self) -> None:
+        if self.event is not None:
+            self.event.set()
+        self.event = asyncio.Event()
+
+    def waiter(self) -> asyncio.Event:
+        if self.event is None:
+            self.event = asyncio.Event()
+        return self.event
 
 
 _accounts: dict[int, Account] = {}
@@ -80,6 +97,7 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
     appareils qui jouent se mettent en pause (un seul lecteur à la fois)."""
     now = _now()
     account = _account(user_id)
+    before = _signature(account, now)
     device = account.devices.get(device_id) or Device(id=device_id, name=name, kind=kind)
     device.name, device.kind, device.last_seen = name, kind, now
     account.devices[device_id] = device
@@ -92,9 +110,12 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
         device.track = queue[index]
         device.volume = state.get("volume")
         current = account.session
-        # La session suit l'appareil qui joue ; un appareil en pause ne la
-        # reprend pas à celui qui joue ailleurs.
-        if not paused or current is None or current["device_id"] == device_id or not _session_playing(account, now):
+        # La session suit l'appareil qui joue. Un appareil en pause ne la
+        # prend jamais à un autre — même en pause lui aussi : sinon, mettre
+        # le PC en pause depuis l'iPhone rendait la main à l'iPhone.
+        moved = current is not None and current["device_id"] == device_id and abs(
+            _position(current, now) - float(state.get("position") or 0)) > 3
+        if not paused or current is None or current["device_id"] == device_id:
             account.session = {
                 "device_id": device_id, "device_name": name, "queue": queue, "index": index,
                 "position": float(state.get("position") or 0), "paused": paused, "at": now,
@@ -109,8 +130,39 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
         device.playing = False
         device.track = None
 
+    if _signature(account, now) != before or (state and state.get("queue") and moved):
+        account.notify()
     commands = account.commands.pop(device_id, [])
     return snapshot(user_id, device_id) | {"commands": commands}
+
+
+def _signature(account: Account, now: float) -> tuple:
+    """Ce qui, en changeant, doit réveiller les appareils qui attendent."""
+    session = account.session
+    online = tuple(sorted((d.id, d.playing) for d in account.devices.values() if _online(d, now)))
+    if session is None:
+        return (None, online)
+    return (session["device_id"], session["paused"], session["index"], (session["track"] or {}).get("source_id"), online)
+
+
+async def sync_wait(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
+                    claim: bool = False, wait: float = 0) -> dict:
+    """`sync`, puis, s'il n'y a rien de neuf pour cet appareil, attente
+    (au plus `wait` secondes) d'une commande ou d'un changement de lecture."""
+    result = sync(user_id, device_id, name, kind, state, claim)
+    if wait <= 0 or result["commands"]:
+        return result
+    account = _account(user_id)
+    event = account.waiter()
+    try:
+        await asyncio.wait_for(event.wait(), timeout=wait)
+    except asyncio.TimeoutError:
+        pass
+    account = _account(user_id)
+    device = account.devices.get(device_id)
+    if device is not None:
+        device.last_seen = _now()
+    return snapshot(user_id, device_id) | {"commands": account.commands.pop(device_id, [])}
 
 
 def _session_playing(account: Account, now: float) -> bool:
@@ -176,5 +228,13 @@ def command(user_id: int, from_device: str, target: str, action: str, payload: d
             if other.id != target and other.playing and _online(other, now):
                 _push(account, other.id, {"action": "pause", "from": device.name})
                 other.playing = False
+        # La lecture passe tout de suite sur la cible (chaque appareil
+        # l'affiche sans attendre) ; la cible confirme en jouant.
+        account.session = session | {
+            "device_id": target, "device_name": device.name, "position": body["position"], "paused": False, "at": now,
+        }
+        device.playing = True
+        device.track = session["track"]
     _push(account, target, body)
+    account.notify()
     return True

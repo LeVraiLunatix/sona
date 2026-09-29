@@ -30,6 +30,9 @@ class SyncIn(BaseModel):
     state: PlaybackIn | None = None
     # Lecture lancée à la main sur cet appareil : les autres se mettent en pause.
     claim: bool = False
+    # Secondes d'attente d'une nouveauté (commande, lecture qui change
+    # ailleurs) avant de répondre : réactions quasi instantanées.
+    wait: float = Field(0, ge=0, le=30)
 
 
 class CommandIn(BaseModel):
@@ -46,7 +49,9 @@ async def sync(payload: SyncIn, deps: ApiDeps = Depends(require_token)) -> dict:
     if payload.state is not None:
         state = payload.state.model_dump()
         state["queue"] = [t.model_dump() for t in payload.state.queue]
-    return connect.sync(deps.user_id, payload.device_id, payload.name, payload.kind, state, payload.claim)
+    return await connect.sync_wait(
+        deps.user_id, payload.device_id, payload.name, payload.kind, state, payload.claim, payload.wait
+    )
 
 
 @router.post("/command", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

@@ -62,42 +62,58 @@ final class ConnectManager: ObservableObject {
             .sink { [weak self] playing in
                 guard let self else { return }
                 RemoteFlag.shared.update(!playing && self.remoteTarget != nil)
-                guard playing, Date() > self.remoteStartUntil else { return }
-                self.claimPending = true
+                // Lecture/pause ici : les autres appareils le savent tout de suite.
+                if playing, Date() > self.remoteStartUntil { self.claimPending = true }
                 self.syncSoon()
             }
             .store(in: &cancellables)
+        PlayerManager.shared.$current
+            .map { $0?.id }
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in self?.syncSoon() }
+            .store(in: &cancellables)
+        // Connexion qui attend les nouvelles : le serveur répond dès qu'une
+        // commande arrive ou que la lecture change sur un autre appareil.
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                await self.sync()
-                let busy = PlayerManager.shared.isPlaying || self.remoteTarget != nil
                 let active = UIApplication.shared.applicationState == .active
-                try? await Task.sleep(for: .seconds(busy ? (active ? 2.5 : 5) : (active ? 5 : 20)))
+                let listening = active || PlayerManager.shared.isPlaying || self.remoteTarget != nil
+                if listening {
+                    if !(await self.sync(wait: 25)) { try? await Task.sleep(for: .seconds(3)) }
+                } else {
+                    await self.sync()
+                    try? await Task.sleep(for: .seconds(20))
+                }
             }
         }
     }
 
     func syncSoon() {
         Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(400))
+            try? await Task.sleep(for: .milliseconds(150))
             await self?.sync()
         }
     }
 
-    func sync() async {
+    /// Relevé (et, avec `wait`, attente d'une nouveauté côté serveur).
+    /// Faux si le serveur n'a pas répondu.
+    @discardableResult
+    func sync(wait: Double = 0) async -> Bool {
         let player = PlayerManager.shared
         let claim = claimPending && player.isPlaying
         if claim { claimPending = false }
         guard let response = try? await APIClient.shared.connectSync(
-            deviceId: deviceId, name: UIDevice.current.name, state: player.connectPlayback, claim: claim
-        ) else { return }
+            deviceId: deviceId, name: UIDevice.current.name, state: player.connectPlayback, claim: claim, wait: wait
+        ) else { return false }
         receivedAt = Date()
         devices = response.devices
         session = response.session
         activeDeviceId = response.activeDeviceId
         for command in response.commands { run(command) }
         RemoteFlag.shared.update(remoteTarget != nil)
+        return true
     }
 
     private func run(_ command: ConnectCommand) {
@@ -160,10 +176,21 @@ final class ConnectManager: ObservableObject {
             return
         }
         await sync()  // position à jour avant l'envoi
+        // La télécommande s'affiche tout de suite, sans attendre que l'autre
+        // appareil ait repris : le serveur confirme juste après.
+        if let playback = PlayerManager.shared.connectPlayback, playback.queue.indices.contains(playback.index) {
+            session = ConnectSession(
+                deviceId: device.id, deviceName: device.name, queue: playback.queue, index: playback.index,
+                name: playback.name, track: playback.queue[playback.index], position: playback.position,
+                paused: false, ageSeconds: 0
+            )
+            receivedAt = Date()
+        }
         try? await APIClient.shared.connectCommand(from: deviceId, to: device.id, action: "transfer")
+        remoteStartUntil = Date().addingTimeInterval(3)
         PlayerManager.shared.pause()
+        RemoteFlag.shared.update(remoteTarget != nil)
         show("Musique envoyée sur \(device.name)")
-        syncSoon()
     }
 
     /// Télécommande de l'appareil qui joue ailleurs.
@@ -232,12 +259,7 @@ struct ConnectDevicesSection: View {
                  ? "Ouvre Sona sur ton ordinateur (soonaa.vercel.app) : il apparaîtra ici."
                  : "La musique continue sur l'appareil choisi, à la même seconde.")
         }
-        .task {
-            while !Task.isCancelled {
-                await connect.sync()
-                try? await Task.sleep(for: .seconds(2))
-            }
-        }
+        .task { await connect.sync() }
     }
 
     private func row(_ device: ConnectDevice) -> some View {

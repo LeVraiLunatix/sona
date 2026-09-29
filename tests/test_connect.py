@@ -65,3 +65,47 @@ def test_claim_pauses_other_devices_and_accounts_are_separate(client):
     got = sync(client, me, "iphone-123", "iPhone", "iphone", {"queue": [TRACK], "paused": True})
     assert [c["action"] for c in got["commands"]] == ["pause"]
     assert sync(client, bob, "web-bobbob", "Firefox")["session"] is None
+
+
+def test_pausing_the_pc_keeps_it_as_the_remote_target(client):
+    """Mettre le PC en pause depuis l'iPhone (lui aussi en pause) : la
+    lecture reste celle du PC — l'iPhone garde sa télécommande."""
+    me = login(client, "alice")
+    sync(client, me, "iphone-123", "iPhone", "iphone", {"queue": [NEXT], "position": 5, "paused": True})
+    sync(client, me, "web-abcdef", "Chrome", state={"queue": [TRACK], "position": 20, "paused": False}, claim=True)
+    sync(client, me, "web-abcdef", "Chrome", state={"queue": [TRACK], "position": 21, "paused": True})
+    seen = sync(client, me, "iphone-123", "iPhone", "iphone", {"queue": [NEXT], "position": 5, "paused": True})
+    assert seen["session"]["device_id"] == "web-abcdef" and seen["session"]["paused"]
+    assert seen["session"]["track"]["title"] == "Titre"
+
+
+def test_waiting_device_is_woken_by_a_command():
+    import asyncio
+    import time as clock
+
+    async def scenario():
+        connect.sync(1, "web-abcdef", "Chrome", "web", None)
+        connect.sync(1, "iphone-123", "iPhone", "iphone", {"queue": [TRACK], "paused": False})
+        started = clock.monotonic()
+        waiting = asyncio.create_task(connect.sync_wait(1, "web-abcdef", "Chrome", "web", None, wait=10))
+        await asyncio.sleep(0.05)
+        assert connect.command(1, "iphone-123", "web-abcdef", "pause")
+        result = await waiting
+        return clock.monotonic() - started, result
+
+    elapsed, result = asyncio.run(scenario())
+    assert elapsed < 1 and [c["action"] for c in result["commands"]] == ["pause"]
+
+
+def test_waiting_device_is_woken_when_playback_moves():
+    import asyncio
+
+    async def scenario():
+        connect.sync(1, "iphone-123", "iPhone", "iphone", None)
+        waiting = asyncio.create_task(connect.sync_wait(1, "iphone-123", "iPhone", "iphone", None, wait=10))
+        await asyncio.sleep(0.05)
+        connect.sync(1, "web-abcdef", "Chrome", "web", {"queue": [TRACK], "paused": False}, claim=True)
+        return await asyncio.wait_for(waiting, 2)
+
+    result = asyncio.run(scenario())
+    assert result["session"]["device_id"] == "web-abcdef" and result["active_device_id"] == "web-abcdef"

@@ -628,16 +628,22 @@ final class APIClient {
 
     // MARK: - Sona Connect
 
-    func connectSync(deviceId: String, name: String, state: ConnectPlayback?, claim: Bool) async throws -> ConnectSyncResponse {
+    func connectSync(
+        deviceId: String, name: String, state: ConnectPlayback?, claim: Bool, wait: Double = 0
+    ) async throws -> ConnectSyncResponse {
         struct Body: Encodable {
             let device_id: String
             let name: String
             let kind = "iphone"
             let state: ConnectPlayback?
             let claim: Bool
+            let wait: Double
         }
-        let data = try encode(Body(device_id: deviceId, name: name, state: state, claim: claim))
-        return try await send(try request("/connect/sync", method: "POST", bodyData: data))
+        let data = try encode(Body(device_id: deviceId, name: name, state: state, claim: claim, wait: wait))
+        var req = try request("/connect/sync", method: "POST", bodyData: data)
+        // Attente côté serveur (jusqu'à `wait` s) : délai du client au-delà.
+        req.timeoutInterval = wait + 20
+        return try await send(req)
     }
 
     func connectCommand(

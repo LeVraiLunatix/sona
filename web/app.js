@@ -724,7 +724,7 @@ function renderTopbar() {
   const remote = remoteDevice();
   const t = remote ? state.connect.session?.track : state.queue[state.index];
   const liked = t && state.liked.has(`${t.source}:${t.source_id}`);
-  const playingIcon = remote ? icons.pause : audio.paused ? icons.play : icons.pause;
+  const playingIcon = remote ? (state.connect.session?.paused ? icons.play : icons.pause) : audio.paused ? icons.play : icons.pause;
   const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : audio.volume;
   bar.innerHTML = `
     <div class="transport">
@@ -964,12 +964,13 @@ function deviceName() {
 
 const otherDevices = () => state.connect.devices.filter((d) => !d.is_me);
 
-/** L'appareil qui joue ailleurs, quand rien ne joue ici : les commandes du
-    lecteur (lecture, suivant…) le pilotent à distance. */
+/** L'appareil de la dernière lecture du compte, quand rien ne joue ici —
+    qu'il joue ou soit en pause : les commandes du lecteur (lecture,
+    suivant…) le pilotent à distance. */
 function remoteDevice() {
-  const { active, devices } = state.connect;
-  if (!active || active === deviceId || (audio.src && !audio.paused)) return null;
-  return devices.find((d) => d.id === active && d.playing) || null;
+  const { session, devices } = state.connect;
+  if (!session || session.device_id === deviceId || (audio.src && !audio.paused)) return null;
+  return devices.find((d) => d.id === session.device_id && !d.is_me) || null;
 }
 
 function remotePosition() {
@@ -990,16 +991,16 @@ function localState() {
   return { queue, index: state.index - start, position: audio.currentTime || 0, paused: audio.paused, volume: audio.volume, name: state.name || null };
 }
 
-async function connectSync() {
+async function connectSync(wait = 0) {
   const claim = state.connect.claim && !audio.paused;
   if (claim) state.connect.claim = false;
   let data;
   try {
     data = await api("/connect/sync", {
       method: "POST",
-      body: JSON.stringify({ device_id: deviceId, name: deviceName(), kind: "web", state: localState(), claim }),
+      body: JSON.stringify({ device_id: deviceId, name: deviceName(), kind: "web", state: localState(), claim, wait }),
     });
-  } catch { return; }
+  } catch { return false; }
   const wasRemote = remoteDevice()?.id;
   Object.assign(state.connect, { devices: data.devices, session: data.session, active: data.active_device_id, receivedAt: Date.now() });
   for (const command of data.commands || []) runCommand(command);
@@ -1012,23 +1013,33 @@ async function connectSync() {
     if (resume.innerHTML !== html) resume.innerHTML = html;
   }
   if (state.connect.open && !dragging) renderDevices();
+  return true;
 }
 
 function startConnect() {
-  let timer;
   document.addEventListener("pointerdown", () => { state.connect.pointerDown = true; });
   document.addEventListener("pointerup", () => { state.connect.pointerDown = false; });
-  const loop = async () => {
-    clearTimeout(timer);
-    await connectSync();
-    const busy = !audio.paused || remoteDevice() || state.connect.open;
-    timer = setTimeout(loop, document.hidden ? 8000 : busy ? 2000 : 4000);
-  };
-  loop();
-  document.addEventListener("visibilitychange", () => !document.hidden && loop());
-  audio.addEventListener("play", () => setTimeout(loop, 300));
-  audio.addEventListener("pause", () => setTimeout(loop, 300));
-  startConnect.now = loop;
+  // Connexion qui attend les nouvelles : le serveur répond dès qu'une
+  // commande arrive ou que la lecture change sur un autre appareil.
+  (async function listen() {
+    for (;;) {
+      if (document.hidden && audio.paused) {
+        await connectSync(0);
+        await new Promise((r) => setTimeout(r, 8000));
+        continue;
+      }
+      const ok = await connectSync(25);
+      if (ok === false) await new Promise((r) => setTimeout(r, 3000));
+    }
+  })();
+  // Changement ici : prévenir tout de suite les autres appareils.
+  let pending;
+  const report = () => { clearTimeout(pending); pending = setTimeout(() => connectSync(0), 150); };
+  document.addEventListener("visibilitychange", () => !document.hidden && report());
+  audio.addEventListener("play", report);
+  audio.addEventListener("pause", report);
+  audio.addEventListener("seeked", report);
+  startConnect.now = report;
   setInterval(() => remoteDevice() && updateProgress(), 500);
 }
 
@@ -1064,6 +1075,15 @@ function resumeHere() {
 }
 
 async function sendCommand(target, action, extra = {}) {
+  // Réponse immédiate à l'écran, confirmée par le serveur juste après.
+  const session = state.connect.session;
+  if (action === "toggle" && session && session.device_id === target) {
+    session.position = remotePosition();
+    session.paused = !session.paused;
+    state.connect.receivedAt = Date.now();
+    renderTopbar();
+    if (state.connect.open) renderDevices();
+  }
   try {
     await api("/connect/command", { method: "POST", body: JSON.stringify({ device_id: deviceId, target, action, ...extra }) });
     setTimeout(() => startConnect.now?.(), 700);
@@ -1127,7 +1147,7 @@ function renderDevices() {
     ${remote && session ? `<div class="dp-remote">
       <img src="${esc(big(session.track.cover_url, 120))}" alt="">
       <div style="min-width:0"><div class="t">${esc(session.track.title)}</div><div class="s">${esc(session.track.artist)}</div></div>
-      <div class="dp-ctl"><button data-dc="previous">${icons.prev}</button><button data-dc="toggle">${icons.pause}</button><button data-dc="next">${icons.next}</button></div>
+      <div class="dp-ctl"><button data-dc="previous">${icons.prev}</button><button data-dc="toggle">${session.paused ? icons.play : icons.pause}</button><button data-dc="next">${icons.next}</button></div>
       <input type="range" class="slider" data-dc="volume" min="0" max="1" step="0.05" value="${remote.volume ?? 1}" style="--p:${(remote.volume ?? 1) * 100}%" aria-label="Volume à distance">
     </div>` : ""}
     ${devices.map((d) => `<button class="dp-device ${d.playing ? "playing" : ""}" data-device="${esc(d.id)}">
