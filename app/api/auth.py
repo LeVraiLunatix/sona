@@ -18,10 +18,15 @@ def get_deps(request: Request) -> ApiDeps:
     return request.app.state.deps
 
 
-def bearer_token(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
-    if credentials is None or not credentials.credentials:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Connexion requise.")
-    return credentials.credentials
+def bearer_token(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
+    if credentials is not None and credentials.credentials:
+        return credentials.credentials
+    # Lecteur web : une balise <audio> ne sait pas envoyer d'en-tête, le jeton
+    # passe alors dans l'adresse — seulement pour lire un flux audio.
+    token = request.query_params.get("token", "")
+    if token and request.method == "GET" and request.url.path.startswith("/stream/"):
+        return token
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Connexion requise.")
 
 
 async def identify(deps: ApiDeps = Depends(get_deps), token: str = Depends(bearer_token)) -> ApiDeps:

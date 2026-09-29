@@ -29,7 +29,7 @@ DEFAULT_QUESTIONS = 10
 CHOICES = 4
 POOL_DAYS = 180
 MODES = ("daily", "solo", "chart", "artist", "radio", "playlist")
-GUESSES = ("title", "artist")
+GUESSES = ("title", "artist", "lyrics")
 
 
 def _key(track: TrackInfo) -> tuple[str, str]:
@@ -103,6 +103,11 @@ async def _with_preview(deps, track: TrackInfo) -> TrackInfo | None:
 async def build_round(
     deps, pool: list[TrackInfo], seed, count: int = DEFAULT_QUESTIONS, guess: str = "title"
 ) -> list[dict]:
+    if guess == "lyrics":
+        # « Complète les paroles » (voir services/lyricsgame.py).
+        from app.services import lyricsgame
+
+        return await lyricsgame.build_round(deps, pool, seed, count)
     rng = random.Random(seed)
     # Ordre stable avant le tirage : le défi du jour doit être le même pour tous.
     pool = sorted(pool, key=lambda t: (_artist_key(t.artist), t.title.casefold()))

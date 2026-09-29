@@ -11,6 +11,7 @@ ouverte : un simple `cp` pendant une écriture donnerait un fichier tronqué.
 from __future__ import annotations
 
 import asyncio
+import gzip
 import logging
 import os
 import sqlite3
@@ -112,6 +113,37 @@ def create_backup(db_path: Path, backup_dir: Path) -> Path | None:
     return destination
 
 
+# Copie hors du serveur : URL d'écriture (« pre-authenticated request ») d'un
+# bucket Oracle Object Storage, finissant par « /o/ » (voir
+# docs/MIGRATION_ORACLE.md). Si le serveur meurt, les données survivent.
+UPLOAD_URL_ENV = "BACKUP_UPLOAD_URL"
+
+
+def upload_backup(path: Path, url: str | None = None, client=None) -> bool:
+    """Envoie la sauvegarde (compressée) vers le stockage distant. Ne lève
+    jamais : un envoi raté est signalé dans les logs, la copie locale reste."""
+    url = (url if url is not None else os.getenv(UPLOAD_URL_ENV, "")).strip()
+    if not url:
+        return False
+    import httpx
+
+    target = url.rstrip("/") + "/" + path.name + ".gz"
+    try:
+        body = gzip.compress(path.read_bytes())
+        http = client or httpx.Client(timeout=120)
+        try:
+            response = http.put(target, content=body, headers={"Content-Type": "application/gzip"})
+        finally:
+            if client is None:
+                http.close()
+        response.raise_for_status()
+    except Exception as exc:
+        logger.warning("Envoi de la sauvegarde hors du serveur impossible : %s", exc)
+        return False
+    logger.info("Sauvegarde envoyée hors du serveur (%s Ko)", len(body) // 1024)
+    return True
+
+
 async def run_backups(db_path: Path, backup_dir: Path, interval: float = INTERVAL_SECONDS) -> None:
     """Boucle de sauvegarde, à lancer en tâche de fond au démarrage.
 
@@ -125,5 +157,7 @@ async def run_backups(db_path: Path, backup_dir: Path, interval: float = INTERVA
         if delay > 0:
             await asyncio.sleep(delay)
             continue
-        await asyncio.to_thread(create_backup, db_path, backup_dir)
+        created = await asyncio.to_thread(create_backup, db_path, backup_dir)
+        if created is not None:
+            await asyncio.to_thread(upload_backup, created)
         await asyncio.sleep(interval)

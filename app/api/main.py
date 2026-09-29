@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
@@ -14,6 +17,7 @@ from app.api.routers import (
 )
 from app.api.state import ApiDeps
 from app.config import load_settings
+from app.services.backup import run_backups
 from app.db.database import Database
 from app.db.repository import Repository
 from app.logging_config import setup_logging
@@ -75,9 +79,16 @@ async def lifespan(app: FastAPI):
         lastfm_auth=lastfm_auth,
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
+    # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
+    # les sauvegardes quotidiennes en charge — jamais pendant les tests.
+    backups = None
+    if not settings.bot_token and "PYTEST_CURRENT_TEST" not in os.environ:
+        backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
     try:
         yield
     finally:
+        if backups is not None:
+            backups.cancel()
         await deezer.aclose()
         await apple.aclose()
         await spotify.aclose()
@@ -135,6 +146,14 @@ def create_app() -> FastAPI:
         # `version` : commit déployé — l'app l'affiche dans ses réglages, pour
         # savoir d'un coup d'œil si le serveur est à jour.
         return {"status": "ok", "version": SERVER_VERSION}
+
+    # Sona sur ordinateur : une page, qui passe ensuite par la même API.
+    web_page = Path(__file__).resolve().parent.parent / "web" / "index.html"
+
+    @app.get("/web", include_in_schema=False)
+    @app.get("/web/", include_in_schema=False)
+    async def web() -> FileResponse:
+        return FileResponse(web_page, media_type="text/html")
 
     return app
 

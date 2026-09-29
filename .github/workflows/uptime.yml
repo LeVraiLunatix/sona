@@ -1,0 +1,68 @@
+name: Surveillance du serveur
+
+# Toutes les 15 minutes : Sona répond-il ? Sinon, une « issue » GitHub est
+# ouverte (notification sur ton téléphone via l'appli GitHub, et par mail),
+# et un message Telegram part si TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID sont
+# configurés. Refermée toute seule quand le serveur répond de nouveau.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier le serveur
+        env:
+          SERVER: ${{ secrets.IOS_API_BASE_URL }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -u
+          if [ -z "$SERVER" ]; then echo "IOS_API_BASE_URL non configuré : rien à surveiller."; exit 0; fi
+          TITLE="🔴 Serveur Sona injoignable"
+          # Trois essais espacés : un redémarrage (déploiement) n'est pas une panne.
+          ok=false
+          for attempt in 1 2 3; do
+            if curl -fsS --max-time 20 "$SERVER/health" >/dev/null; then ok=true; break; fi
+            sleep 30
+          done
+          open=$(gh issue list --repo "$REPO" --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          notify() {
+            if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+              curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+                --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=$1" >/dev/null || true
+            fi
+          }
+          if $ok; then
+            echo "Serveur OK."
+            if [ -n "$open" ]; then
+              gh issue close "$open" --repo "$REPO" --comment "✅ Le serveur répond de nouveau ($(date -u '+%H:%M UTC'))."
+              notify "✅ Sona répond de nouveau."
+            fi
+          else
+            echo "::warning::Serveur injoignable"
+            if [ -z "$open" ]; then
+              gh issue create --repo "$REPO" --title "$TITLE" --body "Le serveur ne répond plus depuis $(date -u '+%H:%M UTC').
+
+          À vérifier sur la machine Oracle :
+          \`\`\`
+          pm2 status
+          pm2 logs sona-api --lines 50 --nostream
+          sudo systemctl status caddy
+          \`\`\`
+          Cette issue se fermera toute seule quand le serveur répondra."
+              notify "🔴 Sona ne répond plus. pm2 status / pm2 logs sona-api sur le serveur."
+            fi
+          fi

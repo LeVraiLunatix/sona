@@ -65,6 +65,10 @@ class Room:
     count: int = 10
     guess: str = "title"
     phase: str = "lobby"  # lobby | question | reveal | finished
+    # « Complète les paroles » : plus de temps (extrait avant la ligne) et
+    # plus d'avance (le titre complet doit se charger).
+    question_seconds: float = QUESTION_SECONDS
+    lead_seconds: float = LEAD_SECONDS
     questions: list[dict] = field(default_factory=list)
     index: int = 0
     starts_at: float = 0.0
@@ -78,7 +82,7 @@ class Room:
 
     @property
     def deadline(self) -> float:
-        return self.starts_at + QUESTION_SECONDS
+        return self.starts_at + self.question_seconds
 
     def bump(self) -> None:
         self.version += 1
@@ -204,15 +208,18 @@ def start(room: Room, user_id: int, questions: list[dict]) -> None:
     for player in room.players.values():
         player.score = player.correct = player.streak = 0
     room.questions = questions
+    lyrics = questions[0].get("kind") == "lyrics"
+    room.question_seconds = QUESTION_SECONDS + (10 if lyrics else 0)
+    room.lead_seconds = LEAD_SECONDS + (3 if lyrics else 0)
     room.index = 0
     room.answers = {}
     room.phase = "question"
-    room.starts_at = _now() + LEAD_SECONDS
+    room.starts_at = _now() + room.lead_seconds
     room.bump()
 
 
-def points(elapsed: float, streak: int) -> int:
-    remaining = max(0.0, QUESTION_SECONDS - elapsed)
+def points(elapsed: float, streak: int, total: float = QUESTION_SECONDS) -> int:
+    remaining = max(0.0, total - elapsed)
     return 100 + int(remaining * 10) + (50 if streak >= 3 else 0)
 
 
@@ -234,7 +241,9 @@ def answer(room: Room, user_id: int, index: int, choice: int) -> None:
     if choice == question["answer"]:
         player.streak += 1
         player.correct += 1
-        gained = points(elapsed, player.streak)
+        # Paroles : le chrono ne compte qu'une fois la ligne atteinte.
+        head = question["line_time"] - question["clip_start"] if question.get("kind") == "lyrics" else 0.0
+        gained = points(max(0.0, elapsed - head), player.streak, room.question_seconds - head)
         player.score += gained
     else:
         player.streak = 0
@@ -264,7 +273,7 @@ def advance(room: Room, now: float) -> None:
                 room.index += 1
                 room.answers = {}
                 room.phase = "question"
-                room.starts_at = room.revealed_at + REVEAL_SECONDS + LEAD_SECONDS
+                room.starts_at = room.revealed_at + REVEAL_SECONDS + room.lead_seconds
             room.bump()
             continue
         return
@@ -276,7 +285,11 @@ def _question_view(room: Room, viewer_id: int) -> dict | None:
     q = room.questions[room.index]
     reveal = room.phase == "reveal"
     mine = room.answers.get(viewer_id)
+    lyrics = {k: q[k] for k in ("kind", "before", "prompt", "clip_start", "line_time", "reveal_end") if k in q}
     return {
+        **lyrics,
+        # Paroles : le titre complet (flux de l'app) joue autour de la ligne.
+        "stream": {"source": q["track"]["source"], "source_id": q["track"]["source_id"]} if lyrics else None,
         "index": room.index,
         "preview_url": q["preview_url"],
         "choices": q["choices"],

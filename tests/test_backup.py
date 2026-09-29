@@ -192,3 +192,28 @@ def test_the_backup_directory_is_configurable_and_ignored_by_git():
     assert "data/backups/" in gitignore
     example = (Path(__file__).resolve().parent.parent / ".env.example").read_text(encoding="utf-8")
     assert "BACKUP_DIR" in example
+
+
+def test_backup_is_uploaded_off_server(tmp_path):
+    import gzip
+
+    import httpx
+
+    from app.services.backup import upload_backup
+
+    backup = tmp_path / "sona-20260101-000000.db"
+    backup.write_bytes(b"SQLite data")
+    sent = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent["url"] = str(request.url)
+        sent["body"] = gzip.decompress(request.content)
+        return httpx.Response(200)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert upload_backup(backup, "https://objectstorage/p/abc/n/ns/b/sona/o/", client) is True
+    assert sent == {"url": "https://objectstorage/p/abc/n/ns/b/sona/o/sona-20260101-000000.db.gz", "body": b"SQLite data"}
+    assert upload_backup(backup, "", client) is False
+
+    failing = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(403)))
+    assert upload_backup(backup, "https://objectstorage/o/", failing) is False

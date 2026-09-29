@@ -21,7 +21,7 @@ from app.api.auth import require_token
 from app.api.schemas import PlaylistOut, Track
 from app.api.state import ApiDeps
 from app.db.repository import Account, Play
-from app.services import presence
+from app.services import blend, presence
 from app.services import stats as stats_service
 
 router = APIRouter(prefix="/friends", tags=["amis"])
@@ -155,6 +155,30 @@ async def list_friends(deps: ApiDeps = Depends(require_token)) -> list[FriendOut
     friends.sort(key=lambda f: f.last_play.played_at if f.last_play else "", reverse=True)
     friends.sort(key=lambda f: f.now_playing is None)
     return friends
+
+
+@router.get("/{account_id}/blend")
+async def friend_blend(account_id: int, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Blend : playlist commune du jour avec cet ami (voir services/blend.py)."""
+    friend = next((f for f in await _friends(deps) if f.id == account_id), None)
+    if friend is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profil introuvable ou privé.")
+    mine = await _recent_plays(deps, deps.user_id, TASTE_WINDOW_DAYS)
+    theirs = await _recent_plays(deps, friend.user_id, TASTE_WINDOW_DAYS)
+    tracks, shared, total = blend.mix(mine, theirs, blend.seed_for(deps.user_id, friend.user_id))
+    my_top = {a.name.casefold() for a in stats_service.top_artists(mine, limit=50)}
+    shared_artists = [a.name for a in stats_service.top_artists(theirs, limit=50) if a.name.casefold() in my_top][:8]
+    name = friend.display_name or friend.lastfm_username
+    me = deps.account.display_name or deps.account.lastfm_username if deps.account else "Toi"
+    return {
+        "title": f"Blend {me} + {name}",
+        "friend_name": name,
+        "friend_avatar_url": friend.avatar_url,
+        "compatibility": compatibility(_taste(mine), _taste(theirs)),
+        "shared_tracks": shared,
+        "shared_artists": shared_artists,
+        "tracks": tracks,
+    }
 
 
 @router.get("/{account_id}", response_model=FriendProfileOut)

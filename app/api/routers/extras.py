@@ -11,9 +11,29 @@ from app.api.auth import require_token
 from app.api.schemas import Track
 from app.api.state import ApiDeps
 from app.providers.base import TrackInfo
-from app.services import challenges, instrumental, listening_map, memories, releases, sport
+from app.services import challenges, instrumental, listening_map, memories, releases, smart_playlists, sport
 
 router = APIRouter(tags=["extras"])
+
+
+@router.get("/smart")
+async def smart_playlists_list(tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> list[dict]:
+    """Playlists intelligentes non vides, avec quelques pochettes."""
+    out = []
+    for kind, (title, subtitle, icon) in smart_playlists.KINDS.items():
+        tracks = await smart_playlists.build(deps.repo, deps.user_id, kind, tz)
+        if tracks:
+            covers = list(dict.fromkeys(t["cover_url"] for t in tracks if t["cover_url"]))[:4]
+            out.append({"id": kind, "title": title, "subtitle": subtitle, "icon": icon,
+                        "count": len(tracks), "covers": covers})
+    return out
+
+
+@router.get("/smart/{kind}", response_model=list[Track])
+async def smart_playlist(kind: str, tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> list[Track]:
+    if kind not in smart_playlists.KINDS:
+        raise HTTPException(404, "Playlist intelligente inconnue.")
+    return [Track(**t) for t in await smart_playlists.build(deps.repo, deps.user_id, kind, tz)]
 
 
 @router.get("/releases")

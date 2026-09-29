@@ -29,6 +29,9 @@ jobs:
     name: ipa (sideload)
     runs-on: macos-latest
     timeout-minutes: 30
+    # Publication des versions (SideStore) sur master : créer une release.
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: ios/Encre
@@ -84,7 +87,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
-            PROVISIONING_PROFILE_SPECIFIER=""
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            MARKETING_VERSION="1.0.${{ github.run_number }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}"
 
       - name: Empaqueter en .ipa
         # Un .ipa est juste une archive zip contenant Payload/<App>.app :
@@ -103,3 +108,59 @@ jobs:
           name: Sona-ipa
           path: Sona.ipa
           retention-days: 14
+
+      - name: Publier la version (SideStore)
+        # Sur master seulement : une release par version, avec l'.ipa et la
+        # « source » SideStore/AltStore. Ajoutée une fois dans SideStore
+        # (adresse fixe : …/releases/latest/download/source.json), elle y fait
+        # apparaître chaque nouvelle version — mise à jour en un geste, sans PC.
+        if: github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -e
+          TAG="build-$RUN"
+          export SIZE=$(stat -f%z Sona.ipa)
+          python3 - <<'PY'
+          import datetime, json, os
+          run, repo, size = os.environ["RUN"], os.environ["REPO"], int(os.environ["SIZE"])
+          notes = (os.environ.get("MESSAGE") or "Nouvelle version").split("\n")[0][:200]
+          base = f"https://github.com/{repo}"
+          source = {
+              "name": "Sona",
+              "identifier": "com.sona.encre.source",
+              "sourceURL": f"{base}/releases/latest/download/source.json",
+              "iconURL": f"https://raw.githubusercontent.com/{repo}/master/ios/Encre/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+              "apps": [{
+                  "name": "Sona",
+                  "bundleIdentifier": "com.sona.encre",
+                  "developerName": "Sona",
+                  "subtitle": "Ta musique, tes amis, tes stats.",
+                  "localizedDescription": "Sona : écoute, playlists, stats, blind tests et écoute ensemble entre amis.",
+                  "iconURL": f"https://raw.githubusercontent.com/{repo}/master/ios/Encre/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+                  "tintColor": "8B5CF6",
+                  "versions": [{
+                      "version": f"1.0.{run}",
+                      "buildVersion": run,
+                      "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      "localizedDescription": notes,
+                      "downloadURL": f"{base}/releases/download/build-{run}/Sona.ipa",
+                      "size": size,
+                      "minOSVersion": "26.0",
+                  }],
+                  "appPermissions": {"entitlements": [], "privacy": {}},
+              }],
+              "news": [],
+          }
+          json.dump(source, open("source.json", "w"), ensure_ascii=False, indent=2)
+          PY
+          gh release create "$TAG" Sona.ipa source.json --repo "$REPO" --title "Sona 1.0.$RUN" --notes "$(printf '%s' "$MESSAGE" | head -n 1)" --latest
+          # Garde les 5 dernières versions.
+          gh release list --repo "$REPO" --limit 100 --json tagName --jq '.[].tagName' | grep '^build-' | sort -t- -k2 -n -r | tail -n +6 | while read -r old; do
+            gh release delete "$old" --repo "$REPO" --yes --cleanup-tag || true
+          done
+
