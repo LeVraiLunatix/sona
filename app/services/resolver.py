@@ -501,7 +501,10 @@ def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candi
 
 
 async def iter_audio_sources(
-    track: TrackInfo, cookies_file: Path | None = None, excluded: frozenset[str] | set[str] = frozenset()
+    track: TrackInfo,
+    cookies_file: Path | None = None,
+    excluded: frozenset[str] | set[str] = frozenset(),
+    preferred: str | None = None,
 ) -> AsyncIterator[Candidate]:
     """Sources audio acceptables d'un morceau, de la plus probable à la moins probable.
 
@@ -517,6 +520,8 @@ async def iter_audio_sources(
 
     `excluded` : identifiants de sources signalées comme mauvaise version
     pour ce morceau (« Mauvaise version ? » dans l'app), jamais reproposées.
+    `preferred` : source déjà retenue pour ce morceau lors d'une écoute
+    précédente — proposée d'emblée, sans aucune recherche (le plus lent).
     """
     if track.source == "youtube":
         yield Candidate(
@@ -530,10 +535,26 @@ async def iter_audio_sources(
         )
         return
 
-    queries = _query_variants(track)
-    candidates = await asyncio.to_thread(_search_ytmusic_sync, queries)
-    youtube_music = rank_candidates(track, candidates)
     offered: set[str] = set(excluded)
+    if preferred and preferred not in offered:
+        offered.add(preferred)
+        yield Candidate(
+            video_id=preferred, title=track.title, artist=track.artist, album=track.album,
+            duration_seconds=track.duration_seconds, cover_url=track.cover_url, is_song=True,
+        )
+
+    # Recherches YouTube Music une formulation à la fois : dès qu'un titre
+    # publié par l'artiste convient, inutile d'en lancer d'autres (chacune
+    # coûte une à deux secondes sur une petite machine).
+    queries = _query_variants(track)
+    candidates: list[Candidate] = []
+    youtube_music: list[Candidate] = []
+    for query in queries:
+        known = {c.video_id for c in candidates}
+        candidates += [c for c in await asyncio.to_thread(_search_ytmusic_sync, [query]) if c.video_id not in known]
+        youtube_music = rank_candidates(track, candidates)
+        if any(_is_by_artist(track, c) and c.video_id not in offered for c in youtube_music):
+            break
 
     def offer(candidate: Candidate) -> bool:
         if candidate.video_id in offered:

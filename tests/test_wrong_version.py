@@ -97,3 +97,35 @@ def test_wrong_version_without_known_source_still_clears_cache(client, tmp_path)
     got = client.post("/stream/deezer/5/wrong-version", headers=AUTH)
     assert got.json() == {"rejected": None}
     assert not cached.exists()
+
+
+def test_search_stops_at_the_first_good_query(monkeypatch):
+    calls = []
+
+    def fake_search(queries):
+        calls.append(list(queries))
+        return [cand("audio", "7/7", video_type=AUDIO_TRACK_TYPE, is_song=True)]
+
+    monkeypatch.setattr(resolver, "_search_ytmusic_sync", fake_search)
+    monkeypatch.setattr(resolver, "_search_soundcloud_sync", lambda query: [])
+    monkeypatch.setattr(resolver, "_search_ytdlp_sync", lambda query, cookies: [])
+
+    async def first():
+        async for candidate in resolver.iter_audio_sources(TRACK, None):
+            return candidate.video_id
+
+    assert asyncio.run(first()) == "audio"
+    assert len(calls) == 1  # une seule formulation cherchée, pas les 4
+
+
+def test_known_source_is_offered_without_searching(monkeypatch):
+    def no_search(queries):
+        raise AssertionError("aucune recherche attendue")
+
+    monkeypatch.setattr(resolver, "_search_ytmusic_sync", no_search)
+
+    async def first():
+        async for candidate in resolver.iter_audio_sources(TRACK, None, preferred="known"):
+            return candidate.video_id
+
+    assert asyncio.run(first()) == "known"

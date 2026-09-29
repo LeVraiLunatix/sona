@@ -68,10 +68,15 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
 
     track = await complete_preview(deps.deezer, track)
     excluded = await deps.repo.rejected_sources(source, source_id)
+    # Source déjà trouvée (lecture directe précédente) : essayée d'abord,
+    # sans nouvelle recherche. Toujours vérifiée par empreinte ci-dessous.
+    preferred = await deps.repo.stream_source_get(source, source_id)
 
     attempts = 0
     try:
-        async with aclosing(iter_audio_sources(track, deps.settings.youtube_cookies_file, excluded)) as sources:
+        async with aclosing(
+            iter_audio_sources(track, deps.settings.youtube_cookies_file, excluded, preferred)
+        ) as sources:
             async for source_candidate in sources:
                 attempts += 1
                 try:
@@ -256,7 +261,8 @@ async def _live_source(deps: ApiDeps, source: str, source_id: str, key: tuple) -
         try:
             track = await lookup.get_track(deps, source, source_id)
             excluded = await deps.repo.rejected_sources(source, source_id)
-            found = await live_stream.resolve(track, deps.settings.youtube_cookies_file, excluded)
+            preferred = await deps.repo.stream_source_get(source, source_id)
+            found = await live_stream.resolve(track, deps.settings.youtube_cookies_file, excluded, preferred)
             if found is not None and found.video_id:
                 await deps.repo.stream_source_set(source, source_id, found.video_id)
         except Exception as exc:  # le chemin complet prend le relais, avec son propre message

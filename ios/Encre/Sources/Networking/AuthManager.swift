@@ -42,6 +42,12 @@ final class AuthManager: ObservableObject {
             state = .signedOut
             return
         }
+        // Démarrage instantané : compte déjà accepté la dernière fois → on
+        // entre tout de suite, la vérification se fait en arrière-plan (un
+        // accès révoqué entre-temps est pris en compte dès sa réponse).
+        if state == .checking, let cached = Self.cachedAccount, cached.status == "approved" {
+            state = .approved(cached)
+        }
         do {
             apply(try await APIClient.shared.me())
         } catch APIError.server(let status, _) where status == 401 {
@@ -56,6 +62,7 @@ final class AuthManager: ObservableObject {
             } else {
                 APIConfig.shared.token = ""
             }
+            Self.cachedAccount = nil
             state = .signedOut
         } catch {
             // Serveur injoignable ou en panne : jamais une raison de renvoyer
@@ -119,6 +126,7 @@ final class AuthManager: ObservableObject {
         }
         APIConfig.shared.sessionToken = ""
         APIConfig.shared.token = ""
+        Self.cachedAccount = nil
         state = .signedOut
     }
 
@@ -126,8 +134,25 @@ final class AuthManager: ObservableObject {
         apply(account)
     }
 
+    private static let cacheKey = "encre.lastAccount"
+
+    private static var cachedAccount: AppAccount? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: cacheKey) else { return nil }
+            return try? JSONDecoder().decode(AppAccount.self, from: data)
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: cacheKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: cacheKey)
+            }
+        }
+    }
+
     private func apply(_ account: AppAccount) {
         offline = false
+        Self.cachedAccount = account
         switch account.status {
         case "approved": state = .approved(account)
         case "rejected": state = .rejected(account)

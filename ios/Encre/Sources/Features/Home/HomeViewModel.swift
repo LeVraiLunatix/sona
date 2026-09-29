@@ -32,24 +32,77 @@ final class HomeViewModel: ObservableObject {
     /// morceau écouté ("Reprendre l'écoute").
     var heroTrack: Track? { recentTracks.first }
 
+    /// Dernier accueil affiché, gardé sur l'iPhone : à l'ouverture, il
+    /// s'affiche tout de suite, et se met à jour dès que le serveur répond.
+    private struct Snapshot: Codable {
+        var recent: [Track]
+        var library: [Track]
+        var mixes: [Mix]
+        var playlists: [UserPlaylist]
+        var radios: [RadioStation]
+    }
+
+    private static var snapshotURL: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("home.json")
+    }
+
+    init() {
+        guard let data = try? Data(contentsOf: Self.snapshotURL),
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
+        recentTracks = snapshot.recent
+        libraryTracks = snapshot.library
+        mixes = snapshot.mixes
+        playlists = snapshot.playlists
+        radios = snapshot.radios
+        MixStore.shared.mixes = snapshot.mixes
+        refreshArtists()
+    }
+
+    private func saveSnapshot() {
+        let snapshot = Snapshot(recent: recentTracks, library: libraryTracks, mixes: mixes, playlists: playlists, radios: radios)
+        if let data = try? JSONEncoder().encode(snapshot) {
+            try? data.write(to: Self.snapshotURL, options: .atomic)
+        }
+    }
+
+    private func refreshArtists() {
+        // Sans `artistSourceId`, impossible d'ouvrir une vraie fiche
+        // artiste (voir `ArtistDetailView`) : ces morceaux-là n'alimentent
+        // pas "Vos artistes" plutôt que d'y figurer comme une bulle qui ne
+        // mène nulle part.
+        var seen = Set<String>()
+        artists = (recentTracks + libraryTracks).compactMap { t -> ArtistSummary? in
+            guard let artistSourceId = t.artistSourceId else { return nil }
+            let key = "\(t.source):\(artistSourceId)"
+            guard seen.insert(key).inserted else { return nil }
+            return ArtistSummary(name: t.artist, coverURL: t.coverURL, source: t.source, artistSourceId: artistSourceId)
+        }
+    }
+
     func load() async {
         isLoading = true
         errorMessage = nil
-        // Mixes et playlists à part : un calcul de mix lent (le premier du
-        // jour) ne retarde pas le reste de l'accueil.
+        // Mixes, playlists et radios à part : un calcul de mix lent (le
+        // premier du jour) ne retarde pas le reste de l'accueil.
         Task {
             if let fresh = try? await APIClient.shared.mixes() {
                 mixes = fresh
                 MixStore.shared.mixes = fresh
+                saveSnapshot()
             }
         }
         Task {
             if let fresh = try? await APIClient.shared.playlists() {
                 playlists = Array(fresh.filter { !$0.isImporting }.prefix(12))
+                saveSnapshot()
             }
         }
-        if radios.isEmpty, let groups = try? await APIClient.shared.radioGroups() {
-            radios = groups.compactMap(\.radios.first)
+        if radios.isEmpty {
+            Task {
+                if let groups = try? await APIClient.shared.radioGroups() {
+                    radios = groups.compactMap(\.radios.first)
+                }
+            }
         }
         do {
             async let playsTask = Self.recentlyPlayed()
@@ -71,20 +124,12 @@ final class HomeViewModel: ObservableObject {
             let fetched = try await resolve(missing.map { ($0.source, $0.sourceId) })
             let byId = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             libraryTracks = library.items.compactMap { $0.track ?? byId["\($0.source):\($0.sourceId)"] }
-
-            // Sans `artistSourceId`, impossible d'ouvrir une vraie fiche
-            // artiste (voir `ArtistDetailView`) : ces morceaux-là (source sans
-            // identifiant d'artiste exploité) n'alimentent pas "Vos artistes"
-            // plutôt que d'y figurer comme une bulle qui ne mène nulle part.
-            var seen = Set<String>()
-            artists = (recentTracks + libraryTracks).compactMap { t -> ArtistSummary? in
-                guard let artistSourceId = t.artistSourceId else { return nil }
-                let key = "\(t.source):\(artistSourceId)"
-                guard seen.insert(key).inserted else { return nil }
-                return ArtistSummary(name: t.artist, coverURL: t.coverURL, source: t.source, artistSourceId: artistSourceId)
-            }
+            refreshArtists()
+            saveSnapshot()
         } catch {
-            errorMessage = error.localizedDescription
+            // Déjà quelque chose à l'écran (accueil gardé) : pas d'erreur
+            // plein écran pour un serveur un peu lent.
+            if recentTracks.isEmpty && libraryTracks.isEmpty { errorMessage = error.localizedDescription }
         }
         isLoading = false
     }

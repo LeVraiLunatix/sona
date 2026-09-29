@@ -78,12 +78,17 @@ def _extract_sync(source_url: str, cookies_file: Path | None) -> LiveSource | No
 
 
 async def resolve(
-    track: TrackInfo, cookies_file: Path | None, excluded: frozenset[str] | set[str] = frozenset()
+    track: TrackInfo,
+    cookies_file: Path | None,
+    excluded: frozenset[str] | set[str] = frozenset(),
+    preferred: str | None = None,
 ) -> LiveSource | None:
     """Flux direct de la source la plus probable (la même que le chemin
     complet essaie en premier), ou None pour se rabattre sur le chemin
-    complet."""
-    async with aclosing(iter_audio_sources(track, cookies_file, excluded)) as sources:
+    complet. `preferred` : source déjà connue pour ce morceau (pas de
+    recherche du tout)."""
+    started = time.monotonic()
+    async with aclosing(iter_audio_sources(track, cookies_file, excluded, preferred)) as sources:
         async for candidate in sources:
             if candidate.platform != "youtube":
                 return None
@@ -91,6 +96,11 @@ async def resolve(
                 found = await asyncio.to_thread(_extract_sync, candidate.source_url, cookies_file)
             if found is not None:
                 found.video_id = candidate.video_id
+            logger.info(
+                "Flux direct %s pour %s — %s en %.1f s%s",
+                "prêt" if found else "introuvable", track.artist, track.title, time.monotonic() - started,
+                " (source connue)" if preferred and candidate.video_id == preferred else "",
+            )
             return found
     return None
 
