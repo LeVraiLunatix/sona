@@ -14,7 +14,11 @@ main() {
     fi
     cd "$HOME/sona"
     archive="$HOME/sona-transfer.tgz"
-    .venv/bin/wormhole receive --accept-file -o "$archive" "$code"
+    rm -f "$archive"
+    if ! .venv/bin/wormhole receive --accept-file -o "$archive" "$code" || [ ! -s "$archive" ]; then
+        echo "⚠️  Rien reçu : relance l'envoi sur l'ancien serveur pour avoir un nouveau code." >&2
+        exit 1
+    fi
 
     # La base actuelle (vide ou non) est gardée de côté, au cas où.
     [ -f data/sona.db ] && mv data/sona.db "data/sona.db.avant-import.$(date +%s)"
