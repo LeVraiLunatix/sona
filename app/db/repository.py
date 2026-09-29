@@ -146,11 +146,17 @@ class Account:
     scrobble_to_lastfm: bool
     created_at: str
     decided_at: str | None
+    # Visible des autres comptes : « en train d'écouter », écoutes, profil.
+    share_listening: bool = True
+
+
+PLAYLIST_VISIBILITIES = ("private", "friends", "collaborative")
 
 
 @dataclass(slots=True)
 class Playlist:
     id: int
+    user_id: int
     name: str
     description: str | None
     cover_url: str | None
@@ -161,6 +167,9 @@ class Playlist:
     import_done: int
     import_missing: int
     import_error: str | None
+    # private : pour soi ; friends : visible des amis ; collaborative : les
+    # amis peuvent aussi y ajouter / retirer / déplacer des titres.
+    visibility: str
     created_at: str
     updated_at: str
     track_count: int = 0
@@ -177,8 +186,8 @@ class PlaylistEntry:
 
 
 _PLAYLIST_COLUMNS = (
-    "id, name, description, cover_url, origin, origin_url, import_status, import_total, "
-    "import_done, import_missing, import_error, created_at, updated_at"
+    "id, user_id, name, description, cover_url, origin, origin_url, import_status, import_total, "
+    "import_done, import_missing, import_error, visibility, created_at, updated_at"
 )
 _PLAYLIST_TRACK_COLUMNS = (
     "source, source_id, title, artist, album, year, duration_seconds, cover_url, "
@@ -196,6 +205,7 @@ def _account(row) -> Account:
     d = dict(row)
     d["is_admin"] = bool(d["is_admin"])
     d["scrobble_to_lastfm"] = bool(d["scrobble_to_lastfm"])
+    d["share_listening"] = bool(d.get("share_listening", 1))
     d.pop("decided_by", None)
     return Account(**d)
 
@@ -273,16 +283,39 @@ class Repository:
         )
         return (await cursor.fetchone()) is not None
 
-    async def library_add(self, user_id: int, kind: str, obj: TrackInfo | AlbumInfo | ArtistInfo) -> None:
+    async def library_add(
+        self, user_id: int, kind: str, obj: TrackInfo | AlbumInfo | ArtistInfo, added_at: str | None = None
+    ) -> bool:
+        """Ajoute à la bibliothèque ; False si l'élément y était déjà."""
         source, source_id, title, subtitle = _item_from_object(obj)
         cover_url = getattr(obj, "cover_url", None) or getattr(obj, "picture_url", None)
-        await self._db.conn.execute(
+        cursor = await self._db.conn.execute(
             """INSERT OR IGNORE INTO library
                (user_id, kind, source, source_id, title, subtitle, cover_url, added_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, kind, source, source_id, title, subtitle, cover_url, _now()),
+            (user_id, kind, source, source_id, title, subtitle, cover_url, added_at or _now()),
         )
         await self._db.conn.commit()
+        return bool(cursor.rowcount)
+
+    async def library_get(self, user_id: int, kind: str, source: str, source_id: str) -> LibraryItem | None:
+        cursor = await self._db.conn.execute(
+            """SELECT kind, source, source_id, title, subtitle, cover_url, added_at
+               FROM library WHERE user_id=? AND kind=? AND source=? AND source_id=?""",
+            (user_id, kind, source, source_id),
+        )
+        row = await cursor.fetchone()
+        return LibraryItem(**dict(row)) if row else None
+
+    async def library_has_title(self, user_id: int, title: str, artist: str) -> bool:
+        """Un titre de même nom et même artiste est-il déjà dans la
+        bibliothèque (quelle que soit sa source) ?"""
+        cursor = await self._db.conn.execute(
+            """SELECT 1 FROM library WHERE user_id=? AND kind='track'
+               AND lower(title)=lower(?) AND lower(subtitle) LIKE lower(?) || '%' LIMIT 1""",
+            (user_id, title, artist),
+        )
+        return (await cursor.fetchone()) is not None
 
     async def library_remove(self, user_id: int, kind: str, source: str, source_id: str) -> None:
         await self._db.conn.execute(
@@ -485,6 +518,17 @@ class Repository:
 
     async def set_account_admin(self, account_id: int, is_admin: bool) -> None:
         await self._db.conn.execute("UPDATE app_accounts SET is_admin=? WHERE id=?", (int(is_admin), account_id))
+        await self._db.conn.commit()
+
+    async def account_by_user_id(self, user_id: int) -> Account | None:
+        cursor = await self._db.conn.execute("SELECT * FROM app_accounts WHERE user_id=?", (user_id,))
+        row = await cursor.fetchone()
+        return _account(row) if row else None
+
+    async def set_account_sharing(self, account_id: int, enabled: bool) -> None:
+        await self._db.conn.execute(
+            "UPDATE app_accounts SET share_listening=? WHERE id=?", (int(enabled), account_id)
+        )
         await self._db.conn.commit()
 
     async def set_account_scrobbling(self, account_id: int, enabled: bool) -> None:
@@ -871,9 +915,34 @@ class Repository:
         row = await cursor.fetchone()
         return await self._playlist_extras(Playlist(**dict(row))) if row else None
 
-    async def playlist_list(self, user_id: int) -> list[Playlist]:
+    async def playlist_list(self, user_id: int, include_collaborative: bool = False) -> list[Playlist]:
+        """Playlists du compte ; avec `include_collaborative`, aussi celles que
+        les autres ont ouvertes à tous (playlists à plusieurs)."""
+        if include_collaborative:
+            cursor = await self._db.conn.execute(
+                f"""SELECT {_PLAYLIST_COLUMNS} FROM playlists
+                    WHERE user_id=? OR visibility='collaborative' ORDER BY updated_at DESC""",
+                (user_id,),
+            )
+        else:
+            cursor = await self._db.conn.execute(
+                f"SELECT {_PLAYLIST_COLUMNS} FROM playlists WHERE user_id=? ORDER BY updated_at DESC",
+                (user_id,),
+            )
+        return [await self._playlist_extras(Playlist(**dict(r))) for r in await cursor.fetchall()]
+
+    async def playlist_by_id(self, playlist_id: int) -> Playlist | None:
+        """Playlist quel que soit son propriétaire (droits vérifiés par l'appelant)."""
         cursor = await self._db.conn.execute(
-            f"SELECT {_PLAYLIST_COLUMNS} FROM playlists WHERE user_id=? ORDER BY updated_at DESC",
+            f"SELECT {_PLAYLIST_COLUMNS} FROM playlists WHERE id=?", (playlist_id,)
+        )
+        row = await cursor.fetchone()
+        return await self._playlist_extras(Playlist(**dict(row))) if row else None
+
+    async def playlists_shared_by(self, user_id: int) -> list[Playlist]:
+        cursor = await self._db.conn.execute(
+            f"""SELECT {_PLAYLIST_COLUMNS} FROM playlists
+                WHERE user_id=? AND visibility IN ('friends', 'collaborative') ORDER BY updated_at DESC""",
             (user_id,),
         )
         return [await self._playlist_extras(Playlist(**dict(r))) for r in await cursor.fetchall()]
@@ -883,7 +952,7 @@ class Repository:
         d'import...) et la date de modification."""
         allowed = {
             "name", "description", "cover_url", "import_status", "import_total",
-            "import_done", "import_missing", "import_error",
+            "import_done", "import_missing", "import_error", "visibility",
         }
         unknown = set(fields) - allowed
         if unknown:

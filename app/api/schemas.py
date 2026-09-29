@@ -199,14 +199,23 @@ class PlaylistOut(BaseModel):
     import_missing: int
     import_error: str | None
     updated_at: str
+    visibility: str = "private"
+    # Faux pour une playlist d'un ami (partagée ou à plusieurs).
+    is_owner: bool = True
+    owner_name: str | None = None
+    # Peut ajouter, retirer, déplacer des titres (propriétaire, ou playlist à plusieurs).
+    can_edit: bool = True
 
     @classmethod
-    def from_playlist(cls, p: Playlist) -> "PlaylistOut":
+    def from_playlist(cls, p: Playlist, viewer_id: int | None = None, owner_name: str | None = None) -> "PlaylistOut":
+        is_owner = viewer_id is None or p.user_id == viewer_id
         return cls(
             id=p.id, name=p.name, description=p.description, cover_url=p.cover_url, covers=p.covers,
             origin=p.origin, track_count=p.track_count, duration_seconds=p.duration_seconds,
             import_status=p.import_status, import_total=p.import_total, import_done=p.import_done,
             import_missing=p.import_missing, import_error=p.import_error, updated_at=p.updated_at,
+            visibility=p.visibility, is_owner=is_owner, owner_name=None if is_owner else owner_name,
+            can_edit=is_owner or p.visibility == "collaborative",
         )
 
 
@@ -232,6 +241,7 @@ class PlaylistCreate(BaseModel):
 class PlaylistUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=1000)
+    visibility: str | None = None
 
 
 class PlaylistAddTracks(BaseModel):

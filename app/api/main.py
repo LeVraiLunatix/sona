@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.routers import (
-    accounts, browse, catalog, history, library, lyrics, playlists, search, stats, stream, user_settings,
+    accounts, browse, catalog, friends, history, home, library, lyrics, playlists, search, stats, stream,
+    user_settings,
 )
 from app.api.state import ApiDeps
 from app.config import load_settings
@@ -85,6 +86,8 @@ def create_app() -> FastAPI:
     app.include_router(lyrics.router)
     app.include_router(stats.router)
     app.include_router(playlists.router)
+    app.include_router(friends.router)
+    app.include_router(home.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:

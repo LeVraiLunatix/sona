@@ -19,6 +19,8 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("invites", "uses", "INTEGER NOT NULL DEFAULT 0"),
     ("invites", "revoked", "INTEGER NOT NULL DEFAULT 0"),
     ("users", "autoplay", "INTEGER NOT NULL DEFAULT 1"),
+    ("app_accounts", "share_listening", "INTEGER NOT NULL DEFAULT 1"),
+    ("playlists", "visibility", "TEXT NOT NULL DEFAULT 'private'"),
 )
 
 

@@ -12,6 +12,7 @@ from app.api.auth import bearer_token, get_deps, identify, require_admin
 from app.api.state import ApiDeps
 from app.db.repository import Account
 from app.providers.lastfm_auth import APP_CALLBACK, AUTH_URL, LastfmAuthError
+from app.services import presence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["comptes"])
@@ -26,12 +27,14 @@ class AccountOut(BaseModel):
     is_admin: bool
     scrobble_to_lastfm: bool
     created_at: str | None
+    share_listening: bool = True
 
     @classmethod
     def from_account(cls, a: Account) -> "AccountOut":
         return cls(
             id=a.id, username=a.lastfm_username, display_name=a.display_name, avatar_url=a.avatar_url,
             status=a.status, is_admin=a.is_admin, scrobble_to_lastfm=a.scrobble_to_lastfm, created_at=a.created_at,
+            share_listening=a.share_listening,
         )
 
 
@@ -55,6 +58,7 @@ class LoginOut(BaseModel):
 
 class MeUpdate(BaseModel):
     scrobble_to_lastfm: bool | None = None
+    share_listening: bool | None = None
 
 
 def _legacy_account(deps: ApiDeps) -> AccountOut:
@@ -119,6 +123,10 @@ async def update_me(payload: MeUpdate, deps: ApiDeps = Depends(identify)) -> Acc
         return _legacy_account(deps)
     if payload.scrobble_to_lastfm is not None:
         await deps.repo.set_account_scrobbling(deps.account.id, payload.scrobble_to_lastfm)
+    if payload.share_listening is not None:
+        await deps.repo.set_account_sharing(deps.account.id, payload.share_listening)
+        if not payload.share_listening:
+            presence.clear(deps.user_id)
     return AccountOut.from_account(await deps.repo.account_by_id(deps.account.id))
 
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -35,6 +35,13 @@ class LastfmAuthError(Exception):
 class LastfmSession:
     username: str
     key: str
+
+
+@dataclass(slots=True)
+class LovedTrack:
+    title: str
+    artist: str
+    loved_at: datetime | None
 
 
 @dataclass(slots=True)
@@ -122,3 +129,34 @@ class LastfmAuthClient:
                 if play.duration_seconds:
                     params[f"duration[{i}]"] = str(play.duration_seconds)
             await self._call("track.scrobble", params, signed=True, post=True)
+
+    async def love(self, session_key: str, title: str, artist: str) -> None:
+        """♥ sur Last.fm (titre aimé)."""
+        await self._call("track.love", {"sk": session_key, "track": title, "artist": artist}, signed=True, post=True)
+
+    async def unlove(self, session_key: str, title: str, artist: str) -> None:
+        await self._call("track.unlove", {"sk": session_key, "track": title, "artist": artist}, signed=True, post=True)
+
+    async def loved_tracks(self, username: str, max_tracks: int = 2000) -> list[LovedTrack]:
+        """Titres aimés du profil, du plus récent au plus ancien."""
+        loved: list[LovedTrack] = []
+        page, total_pages = 1, 1
+        while page <= total_pages and len(loved) < max_tracks:
+            body = await self._call(
+                "user.getLovedTracks", {"user": username, "limit": "200", "page": str(page)}, signed=False
+            )
+            block = body.get("lovedtracks") or {}
+            total_pages = int((block.get("@attr") or {}).get("totalPages") or 1)
+            for item in block.get("track") or []:
+                artist = item.get("artist") or {}
+                artist_name = (artist.get("name") or artist.get("#text") or "") if isinstance(artist, dict) else str(artist)
+                title = (item.get("name") or "").strip()
+                if not title or not artist_name.strip():
+                    continue
+                uts = (item.get("date") or {}).get("uts")
+                loved.append(LovedTrack(
+                    title=title, artist=artist_name.strip(),
+                    loved_at=datetime.fromtimestamp(int(uts), tz=timezone.utc) if uts else None,
+                ))
+            page += 1
+        return loved[:max_tracks]

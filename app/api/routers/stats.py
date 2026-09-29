@@ -12,7 +12,9 @@ from app.api.auth import require_token
 from app.api.state import ApiDeps
 from app.db.repository import Play
 from app.providers.lastfm import ImportStatus, LastfmClient, import_history
+from app.providers.base import TrackInfo
 from app.providers.lastfm_auth import LastfmAuthError
+from app.services import presence
 from app.services import stats as stats_service
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,13 @@ class NowPlayingIn(BaseModel):
     artist: str = Field(min_length=1)
     album: str | None = None
     duration_seconds: int | None = Field(default=None, ge=0)
+    # De quoi relancer le même titre depuis l'onglet Amis.
+    source: str | None = None
+    source_id: str | None = None
+    cover_url: str | None = None
+    artist_source_id: str | None = None
+    album_source_id: str | None = None
+    position_seconds: float | None = Field(default=None, ge=0)
 
 
 class PlaysIn(BaseModel):
@@ -148,13 +157,31 @@ async def add_plays(payload: PlaysIn, deps: ApiDeps = Depends(require_token)) ->
 async def now_playing(payload: NowPlayingIn, deps: ApiDeps = Depends(require_token)) -> None:
     """Titre qui vient de démarrer dans l'app : affiché « en train
     d'écouter » sur le profil Last.fm du compte, en direct (en arrière-plan :
-    Last.fm lent ou en panne ne retarde pas la lecture)."""
+    Last.fm lent ou en panne ne retarde pas la lecture), et pour les amis
+    dans l'app."""
     account = deps.account
+    if account is None or account.share_listening:
+        presence.set_playing(
+            deps.user_id,
+            TrackInfo(
+                source=payload.source or "", source_id=payload.source_id or "",
+                title=payload.title.strip(), artist=payload.artist.strip(), album=payload.album, year=None,
+                duration_seconds=payload.duration_seconds, cover_url=payload.cover_url,
+                artist_source_id=payload.artist_source_id, album_source_id=payload.album_source_id,
+            ),
+            payload.position_seconds or 0,
+        )
     if not (account and account.scrobble_to_lastfm and account.lastfm_session_key and deps.lastfm_auth):
         return
     task = asyncio.create_task(_now_playing(deps, account.lastfm_session_key, payload))
     _import_tasks.add(task)
     task.add_done_callback(_import_tasks.discard)
+
+
+@router.delete("/plays/now", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def stop_playing(deps: ApiDeps = Depends(require_token)) -> None:
+    """Pause ou arrêt dans l'app : plus « en train d'écouter » pour les amis."""
+    presence.clear(deps.user_id)
 
 
 async def _now_playing(deps: ApiDeps, session_key: str, payload: NowPlayingIn) -> None:

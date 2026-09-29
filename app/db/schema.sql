@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS app_accounts (
     user_id INTEGER NOT NULL UNIQUE,
     lastfm_session_key TEXT,
     scrobble_to_lastfm INTEGER NOT NULL DEFAULT 1,
+    share_listening INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     decided_at TEXT,
     decided_by INTEGER
@@ -158,6 +159,7 @@ CREATE TABLE IF NOT EXISTS playlists (
     import_done INTEGER NOT NULL DEFAULT 0,
     import_missing INTEGER NOT NULL DEFAULT 0,
     import_error TEXT,
+    visibility TEXT NOT NULL DEFAULT 'private',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
