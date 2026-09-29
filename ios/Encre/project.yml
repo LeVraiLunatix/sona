@@ -18,6 +18,9 @@ targets:
     sources:
       - path: Sources
       - path: Assets.xcassets
+    # Widgets et Live Activity (voir Widgets/), intégrés à l'app.
+    dependencies:
+      - target: SonaWidgets
     info:
       path: Generated/Info.plist
       properties:
@@ -46,9 +49,36 @@ targets:
         # Import d'une playlist depuis la bibliothèque Musique de l'iPhone
         # (liste complète, là où la page web d'Apple Music s'arrête à 300).
         NSAppleMusicUsageDescription: Sona lit tes playlists Musique pour les importer en entier.
+        # Live Activity de l'écoute ensemble (écran verrouillé, Dynamic Island).
+        NSSupportsLiveActivities: true
+        # Liens `encre://` : ouverture depuis les widgets (blind test, récap…).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.sona.encre
+            CFBundleURLSchemes:
+              - encre
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sona.encre
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  SonaWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Sources/Shared
+      - path: Sources/DesignSystem/SonaLogoGeometry.swift
+    info:
+      path: Generated/Widgets-Info.plist
+      properties:
+        CFBundleDisplayName: Sona
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sona.encre.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+

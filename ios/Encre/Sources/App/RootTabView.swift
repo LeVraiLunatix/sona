@@ -27,6 +27,10 @@ struct RootTabView: View {
     @State private var showingSettings = false
     @State private var showingPlayer = false
     @State private var playlistPick: PlaylistPickRequest?
+    // Ouvertures depuis les widgets (liens `encre://`).
+    @State private var showingBlindTest = false
+    @State private var showingParty = false
+    @State private var recap: RecapLaunch?
     @Namespace private var zoomNamespace
     @Namespace private var playerNamespace
 
@@ -70,9 +74,46 @@ struct RootTabView: View {
             NavigationStack { SettingsView() }
                 .environmentObject(AuthManager.shared)
         }
+        .fullScreenCover(isPresented: $showingBlindTest) {
+            BlindTestView()
+        }
+        .fullScreenCover(item: $recap) { launch in
+            RecapView(period: launch.period, offset: launch.offset)
+        }
+        .sheet(isPresented: $showingParty) {
+            PartyView().environmentObject(player)
+        }
+        .onOpenURL { url in open(url) }
         .task {
             // Écoutes restées en attente (hors connexion au dernier usage).
             await Scrobbler.shared.flush()
+        }
+    }
+
+    /// Liens `encre://…` des widgets et de la Live Activity.
+    private func open(_ url: URL) {
+        guard url.scheme == "encre" else { return }
+        showingPlayer = false
+        showingSettings = false
+        switch url.host() {
+        case "blindtest":
+            showingBlindTest = true
+        case "recap":
+            let lastMonth = Calendar.current.component(.day, from: Date()) <= 7
+            recap = RecapLaunch(period: "month", offset: lastMonth ? -1 : 0)
+        case "party":
+            showingParty = true
+        case "player":
+            if player.current != nil { showingPlayer = true }
+        case "djradio":
+            if let track = player.current {
+                Task { try? await player.playDJRadio(from: track) }
+                showingPlayer = true
+            } else {
+                selectedTab = .home
+            }
+        default:
+            break
         }
     }
 

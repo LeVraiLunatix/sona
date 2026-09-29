@@ -10,7 +10,9 @@ import Foundation
 final class PartyManager: ObservableObject {
     static let shared = PartyManager()
 
-    @Published private(set) var state: PartyState?
+    @Published private(set) var state: PartyState? {
+        didSet { PartyActivity.sync(state, reaction: nil) }
+    }
     @Published var errorMessage: String?
     /// Réactions arrivées depuis la dernière lecture de l'état (animées à l'écran).
     @Published private(set) var freshReactions: [PartyReaction] = []
@@ -153,6 +155,7 @@ final class PartyManager: ObservableObject {
         guard !new.isEmpty else { return }
         lastReactionId = new.map(\.id).max() ?? lastReactionId
         freshReactions = new
+        PartyActivity.sync(fresh, reaction: new.last?.emoji)
     }
 
     // MARK: - Actions
