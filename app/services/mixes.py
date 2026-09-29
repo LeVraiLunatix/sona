@@ -22,6 +22,7 @@ from app.db.repository import Play
 from app.providers.base import TrackInfo
 from app.providers.deezer import DeezerError, _artist_key
 from app.services import stats as stats_service
+from app.services.artist_search import rank_artists
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +107,14 @@ async def _deezer_artist_id(deezer, name: str, source: str | None, source_id: st
     if source == "deezer" and source_id:
         return source_id
     try:
-        found = await deezer.search_artists(name, limit=3)
+        found = await deezer.search_artists(name, limit=10)
     except DeezerError:
         return None
+    # Homonymes : le plus suivi l'emporte. Deezer renvoie parfois d'abord un
+    # « Pnl » à 14 000 fans avant PNL et ses millions.
+    ranked = rank_artists(name, found)
     wanted = _artist_key(name)
-    match = next((a for a in found if _artist_key(a.name) == wanted), None)
+    match = next((a for a in ranked if _artist_key(a.name) == wanted), None)
     return match.source_id if match else None
 
 

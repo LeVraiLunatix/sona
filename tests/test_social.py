@@ -246,3 +246,17 @@ def test_import_lastfm_loved_tracks(client, monkeypatch):
     assert status == {"running": False, "total": 2, "done": 2, "added": 1, "missing": 1, "error": None}
     items = client.get("/library/track", headers=me).json()["items"]
     assert [(i["title"], i["added_at"][:10]) for i in items] == [("Grabba", "2024-05-01")]
+
+
+def test_mix_seed_picks_the_most_followed_homonym():
+    class Deezer:
+        async def search_artists(self, name, limit=10):
+            return [
+                ArtistInfo("deezer", "petit", "Pnl", None, fans=14_000),
+                ArtistInfo("deezer", "vrai", "PNL", None, fans=3_000_000),
+                ArtistInfo("deezer", "autre", "PNL Tribute", None, fans=9_000_000),
+            ]
+
+    assert asyncio.run(mixes._deezer_artist_id(Deezer(), "PNL", None, None)) == "vrai"
+    # Identifiant Deezer déjà connu (écoute faite dans l'app) : gardé tel quel.
+    assert asyncio.run(mixes._deezer_artist_id(Deezer(), "PNL", "deezer", "42")) == "42"
