@@ -249,19 +249,41 @@ final class APIClient {
     }
 
     /// « En train d'écouter » sur Last.fm, dès qu'un titre démarre.
-    func nowPlaying(_ track: Track) async throws {
+    /// « En train d'écouter » (Last.fm et amis) ; `position` quand on
+    /// reprend un titre en cours.
+    func nowPlaying(_ track: Track, position: Double = 0) async throws {
         struct Body: Encodable {
             let title: String
             let artist: String
             let album: String?
             let durationSeconds: Int?
+            let source: String
+            let sourceId: String
+            let coverURL: String?
+            let artistSourceId: String?
+            let albumSourceId: String?
+            let positionSeconds: Double
             enum CodingKeys: String, CodingKey {
-                case title, artist, album
+                case title, artist, album, source
                 case durationSeconds = "duration_seconds"
+                case sourceId = "source_id"
+                case coverURL = "cover_url"
+                case artistSourceId = "artist_source_id"
+                case albumSourceId = "album_source_id"
+                case positionSeconds = "position_seconds"
             }
         }
-        let data = try encode(Body(title: track.title, artist: track.artist, album: track.album, durationSeconds: track.durationSeconds))
+        let data = try encode(Body(
+            title: track.title, artist: track.artist, album: track.album, durationSeconds: track.durationSeconds,
+            source: track.source, sourceId: track.sourceId, coverURL: track.coverURL,
+            artistSourceId: track.artistSourceId, albumSourceId: track.albumSourceId, positionSeconds: position
+        ))
         try await sendNoContent(try request("/plays/now", method: "POST", bodyData: data))
+    }
+
+    /// Pause : plus « en train d'écouter » pour les amis.
+    func stopNowPlaying() async throws {
+        try await sendNoContent(try request("/plays/now", method: "DELETE"))
     }
 
     func recentPlays(limit: Int = 50) async throws -> [RecentPlay] {
@@ -337,6 +359,12 @@ final class APIClient {
         return try await send(try request("/me/playlists/\(id)", method: "PATCH", bodyData: data))
     }
 
+    func setPlaylistVisibility(id: Int, visibility: String) async throws -> UserPlaylist {
+        struct Body: Encodable { let visibility: String }
+        let data = try encode(Body(visibility: visibility))
+        return try await send(try request("/me/playlists/\(id)", method: "PATCH", bodyData: data))
+    }
+
     func deletePlaylist(id: Int) async throws {
         try await sendNoContent(try request("/me/playlists/\(id)", method: "DELETE"))
     }
@@ -370,6 +398,38 @@ final class APIClient {
         struct Body: Encodable { let url: String }
         let data = try encode(Body(url: url))
         return try await send(try request("/me/playlists/import", method: "POST", bodyData: data))
+    }
+
+    // MARK: - Accueil & amis
+
+    func mixes(refresh: Bool = false) async throws -> [Mix] {
+        try await send(try request("/home/mixes", query: refresh ? [URLQueryItem(name: "refresh", value: "true")] : []))
+    }
+
+    func friends() async throws -> [Friend] {
+        try await send(try request("/friends"))
+    }
+
+    func friend(id: Int) async throws -> Friend {
+        try await send(try request("/friends/\(id)"))
+    }
+
+    func updateMe(shareListening: Bool) async throws -> AppAccount {
+        struct Body: Encodable { let shareListening: Bool
+            enum CodingKeys: String, CodingKey { case shareListening = "share_listening" }
+        }
+        let data = try encode(Body(shareListening: shareListening))
+        return try await send(try request("/auth/me", method: "PUT", bodyData: data))
+    }
+
+    // MARK: - Titres aimés Last.fm
+
+    func lovedImportStatus() async throws -> LovedImportStatus {
+        try await send(try request("/library/lastfm-loved/import"))
+    }
+
+    func startLovedImport() async throws -> LovedImportStatus {
+        try await send(try request("/library/lastfm-loved/import", method: "POST"))
     }
 
     // MARK: - Historique
@@ -415,7 +475,11 @@ final class APIClient {
     /// serveur télécharge (si besoin), vérifie l'audio puis le sert avec
     /// support des requêtes `Range`, indispensable pour qu'`AVPlayer` puisse
     /// démarrer la lecture avant d'avoir tout reçu.
-    func streamRequest(source: String, id: String, quality: String = "best", format: String = "auto") throws -> (url: URL, headers: [String: String]) {
+    /// `live: false` : le fichier complet vérifié, jamais le relais direct de
+    /// YouTube (téléchargement hors ligne).
+    func streamRequest(
+        source: String, id: String, quality: String = "best", format: String = "auto", live: Bool = true
+    ) throws -> (url: URL, headers: [String: String]) {
         guard let base = APIConfig.shared.baseURL, APIConfig.shared.isConfigured else {
             throw APIError.notConfigured
         }
@@ -426,6 +490,7 @@ final class APIClient {
             URLQueryItem(name: "quality", value: quality),
             URLQueryItem(name: "format", value: format),
         ]
+        if !live { components?.queryItems?.append(URLQueryItem(name: "live", value: "false")) }
         guard let url = components?.url else { throw APIError.invalidResponse }
         return (url, ["Authorization": "Bearer \(APIConfig.shared.bearer)"])
     }

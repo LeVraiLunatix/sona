@@ -22,6 +22,9 @@ final class AuthManager: ObservableObject {
     @Published private(set) var state: State = .checking
     @Published var errorMessage: String?
     @Published private(set) var isWorking = false
+    /// Serveur injoignable, mais l'utilisateur a choisi d'entrer quand même
+    /// pour écouter ses téléchargements.
+    @Published var offline = false
 
     var account: AppAccount? {
         switch state {
@@ -124,6 +127,7 @@ final class AuthManager: ObservableObject {
     }
 
     private func apply(_ account: AppAccount) {
+        offline = false
         switch account.status {
         case "approved": state = .approved(account)
         case "rejected": state = .rejected(account)

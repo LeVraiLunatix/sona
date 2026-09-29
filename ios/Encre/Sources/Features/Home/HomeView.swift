@@ -14,6 +14,38 @@ struct HomeView: View {
                     heroCard(hero).padding(.horizontal, 20).reveal(0)
                 }
 
+                if !viewModel.mixes.isEmpty {
+                    section("Faits pour toi", index: 1) {
+                        Carousel(items: viewModel.mixes) { mix in
+                            MixTile(mix: mix) {
+                                path.append(Route.mix(id: mix.id))
+                            } onPlay: {
+                                if let first = mix.tracks.first { player.play(first, context: mix.tracks, name: mix.title) }
+                            }
+                            .zoomSource(.mix(id: mix.id))
+                        }
+                    }
+                }
+
+                if !viewModel.playlists.isEmpty {
+                    section("Tes playlists", index: 1) {
+                        Carousel(items: viewModel.playlists) { playlist in
+                            let route = Route.userPlaylist(id: playlist.id)
+                            Button { path.append(route) } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    PlaylistCover(playlist: playlist)
+                                        .frame(width: 150, height: 150)
+                                        .zoomSource(route)
+                                    Text(playlist.name).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                                    Text(playlist.trackCountLabel).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                                }
+                                .frame(width: 150, alignment: .leading)
+                            }
+                            .buttonStyle(.pressable)
+                        }
+                    }
+                }
+
                 if !viewModel.recentTracks.isEmpty {
                     section("Écouté récemment", index: 1) {
                         Carousel(items: viewModel.recentTracks) { track in

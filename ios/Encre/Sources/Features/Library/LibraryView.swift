@@ -96,6 +96,9 @@ struct LibraryView: View {
             }
             .padding(.horizontal, 20)
 
+            DownloadsRow { path.append(Route.downloads) }
+                .padding(.horizontal, 20)
+
             if viewModel.isLoading && viewModel.playlists.isEmpty {
                 ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 40)
             } else if viewModel.playlists.isEmpty {
@@ -138,10 +141,14 @@ struct LibraryView: View {
                 }
                 .buttonStyle(.pressable)
                 .contextMenu {
-                    Button(role: .destructive) {
-                        Task { await viewModel.deletePlaylist(playlist) }
-                    } label: {
-                        Label("Supprimer la playlist", systemImage: "trash")
+                    if playlist.mine {
+                        Button(role: .destructive) {
+                            Task { await viewModel.deletePlaylist(playlist) }
+                        } label: {
+                            Label("Supprimer la playlist", systemImage: "trash")
+                        }
+                    } else if let owner = playlist.ownerName {
+                        Text("Playlist à plusieurs de \(owner)")
                     }
                 }
             }

@@ -164,6 +164,7 @@ struct AccessPendingView: View {
 struct ServerUnreachableView: View {
     let message: String
     @EnvironmentObject private var auth: AuthManager
+    @ObservedObject private var downloads = DownloadManager.shared
     @State private var retrying = false
 
     var body: some View {
@@ -192,6 +193,16 @@ struct ServerUnreachableView: View {
                     }
                 }
                 .padding(.horizontal, 28)
+                if !downloads.items.isEmpty {
+                    PillButton(
+                        title: "Écouter hors ligne (\(downloads.items.count))",
+                        systemImage: "arrow.down.circle",
+                        kind: .secondary
+                    ) {
+                        auth.offline = true
+                    }
+                    .padding(.horizontal, 28)
+                }
                 Button("Se déconnecter") { Task { await auth.signOut() } }
                     .font(Typo.rowSubtitle)
                     .foregroundStyle(Tone.tertiary)

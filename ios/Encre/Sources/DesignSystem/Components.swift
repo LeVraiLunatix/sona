@@ -18,6 +18,7 @@ struct TrackRow: View {
     var onRemove: (() -> Void)? = nil
     var action: () -> Void
     @Environment(\.addToPlaylist) private var addToPlaylist
+    @ObservedObject private var downloads = DownloadManager.shared
 
     var body: some View {
         Button(action: action) {
@@ -53,6 +54,7 @@ struct TrackRow: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
+                downloadBadge
                 Text(track.durationLabel)
                     .font(Typo.mono)
                     .foregroundStyle(Tone.tertiary)
@@ -61,6 +63,21 @@ struct TrackRow: View {
         }
         .buttonStyle(.pressable(scale: 0.98))
         .contextMenu {
+            Button { PlayerManager.shared.playNext([track]) } label: {
+                Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+            Button { PlayerManager.shared.playLater([track]) } label: {
+                Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
+            }
+            if downloads.isDownloaded(track) {
+                Button(role: .destructive) { downloads.remove(track) } label: {
+                    Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
+                }
+            } else {
+                Button { downloads.download([track]) } label: {
+                    Label("Télécharger", systemImage: "arrow.down.circle")
+                }
+            }
             if let addToPlaylist {
                 Button { addToPlaylist([track]) } label: {
                     Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
@@ -75,6 +92,31 @@ struct TrackRow: View {
             if let onRemove {
                 Button(role: .destructive, action: onRemove) { Label("Retirer de la bibliothèque", systemImage: "trash") }
             }
+        }
+    }
+}
+
+extension TrackRow {
+    /// Pastille « téléchargé » (ou en cours) à côté de la durée.
+    @ViewBuilder
+    fileprivate var downloadBadge: some View {
+        switch downloads.state(of: track) {
+        case .done:
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(Tone.tertiary)
+        case .downloading:
+            ProgressView().controlSize(.mini).tint(.white)
+        case .queued:
+            Image(systemName: "arrow.down.circle.dotted")
+                .font(.system(size: 12))
+                .foregroundStyle(Tone.tertiary)
+        case .failed:
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(Tone.danger)
+        case .none:
+            EmptyView()
         }
     }
 }

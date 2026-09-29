@@ -12,6 +12,7 @@ struct AlbumDetailView: View {
     @State private var inLibrary = false
     @State private var libraryBounce = 0
     @EnvironmentObject private var player: PlayerManager
+    @Environment(\.addToPlaylist) private var addToPlaylist
 
     var body: some View {
         ScrollView {
@@ -34,6 +35,26 @@ struct AlbumDetailView: View {
         .background(Tone.background)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let album, !album.tracks.isEmpty {
+                    Menu {
+                        DownloadMenuItems(tracks: album.tracks)
+                        Button { player.playNext(album.tracks) } label: {
+                            Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
+                        }
+                        Button { player.playLater(album.tracks) } label: {
+                            Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
+                        }
+                        if let addToPlaylist {
+                            Button { addToPlaylist(album.tracks) } label: {
+                                Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if album != nil && !isPlaylist {
                     Button { Task { await toggleLibrary() } } label: {
@@ -83,6 +104,7 @@ struct AlbumDetailView: View {
                 if let meta = metaLine(album) {
                     Text(meta).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                 }
+                DownloadStatusLine(tracks: album.tracks)
             }
             .padding(.horizontal, 24)
             .reveal(0)

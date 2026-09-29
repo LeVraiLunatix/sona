@@ -330,6 +330,7 @@ struct AppAccount: Codable, Identifiable, Hashable {
     var isAdmin: Bool
     var scrobbleToLastfm: Bool
     var createdAt: String?
+    var shareListening: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, username, status
@@ -338,6 +339,7 @@ struct AppAccount: Codable, Identifiable, Hashable {
         case isAdmin = "is_admin"
         case scrobbleToLastfm = "scrobble_to_lastfm"
         case createdAt = "created_at"
+        case shareListening = "share_listening"
     }
 
     var name: String { displayName ?? username }
@@ -385,9 +387,17 @@ struct UserPlaylist: Codable, Identifiable, Hashable {
     var importError: String?
     var updatedAt: String
     var entries: [PlaylistEntry]?
+    /// private / friends (visible des amis) / collaborative (modifiable par eux).
+    var visibility: String?
+    var isOwner: Bool?
+    var ownerName: String?
+    var canEdit: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, covers, origin, entries
+        case id, name, description, covers, origin, entries, visibility
+        case isOwner = "is_owner"
+        case ownerName = "owner_name"
+        case canEdit = "can_edit"
         case coverURL = "cover_url"
         case trackCount = "track_count"
         case durationSeconds = "duration_seconds"
@@ -400,6 +410,15 @@ struct UserPlaylist: Codable, Identifiable, Hashable {
     }
 
     var isImporting: Bool { importStatus == "importing" }
+    var mine: Bool { isOwner ?? true }
+    var editable: Bool { canEdit ?? true }
+    var visibilityLabel: String {
+        switch visibility {
+        case "friends": "Visible par tes amis"
+        case "collaborative": "À plusieurs"
+        default: "Privée"
+        }
+    }
     var importFailed: Bool { importStatus == "failed" }
     var tracks: [Track] { (entries ?? []).map(\.track) }
 
@@ -424,4 +443,119 @@ struct PlaylistEntry: Codable, Identifiable, Hashable {
     }
 
     var id: Int { entryId }
+}
+
+// MARK: - Accueil
+
+/// Mix « Faits pour toi » (Mix du jour, Découvertes, En boucle).
+struct Mix: Codable, Identifiable, Hashable {
+    var id: String
+    var title: String
+    var subtitle: String
+    var covers: [String]
+    var tracks: [Track]
+}
+
+// MARK: - Amis
+
+struct FriendNowPlaying: Codable, Hashable {
+    var track: Track
+    var startedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case track
+        case startedAt = "started_at"
+    }
+}
+
+struct FriendPlay: Codable, Hashable, Identifiable {
+    var playedAt: String
+    var title: String
+    var artist: String
+    var album: String?
+    var coverURL: String?
+    var source: String?
+    var sourceId: String?
+    var artistSourceId: String?
+    var albumSourceId: String?
+    var durationSeconds: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case title, artist, album, source
+        case playedAt = "played_at"
+        case coverURL = "cover_url"
+        case sourceId = "source_id"
+        case artistSourceId = "artist_source_id"
+        case albumSourceId = "album_source_id"
+        case durationSeconds = "duration_seconds"
+    }
+
+    var id: String { "\(playedAt)|\(title)" }
+
+    /// Relisible si la source est connue (écoutes faites dans l'app).
+    var track: Track? {
+        guard let source, let sourceId, !source.isEmpty else { return nil }
+        return Track(
+            source: source, sourceId: sourceId, title: title, artist: artist, album: album, year: nil,
+            durationSeconds: durationSeconds, coverURL: coverURL,
+            artistSourceId: artistSourceId, albumSourceId: albumSourceId
+        )
+    }
+}
+
+struct FriendRanked: Codable, Hashable, Identifiable {
+    var name: String
+    var subtitle: String?
+    var plays: Int
+    var coverURL: String?
+    var source: String?
+    var sourceId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, subtitle, plays, source
+        case coverURL = "cover_url"
+        case sourceId = "source_id"
+    }
+
+    var id: String { "\(name)|\(subtitle ?? "")" }
+}
+
+struct Friend: Codable, Hashable, Identifiable {
+    var accountId: Int
+    var username: String
+    var displayName: String?
+    var avatarURL: String?
+    var nowPlaying: FriendNowPlaying?
+    var lastPlay: FriendPlay?
+    var compatibility: Int?
+    // Profil détaillé seulement :
+    var sharedArtists: [String]?
+    var topArtists: [FriendRanked]?
+    var topTracks: [FriendRanked]?
+    var recent: [FriendPlay]?
+    var playlists: [UserPlaylist]?
+
+    enum CodingKeys: String, CodingKey {
+        case username, compatibility, recent, playlists
+        case accountId = "account_id"
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+        case nowPlaying = "now_playing"
+        case lastPlay = "last_play"
+        case sharedArtists = "shared_artists"
+        case topArtists = "top_artists"
+        case topTracks = "top_tracks"
+    }
+
+    var id: Int { accountId }
+    var name: String { displayName ?? username }
+}
+
+struct LovedImportStatus: Codable, Equatable {
+    var running: Bool
+    var total: Int
+    var done: Int
+    var added: Int
+    var missing: Int
+    var error: String?
 }

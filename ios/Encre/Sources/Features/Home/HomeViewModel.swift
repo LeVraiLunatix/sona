@@ -22,6 +22,8 @@ final class HomeViewModel: ObservableObject {
     /// Une station par univers (rap, pop, électro...) : de quoi lancer
     /// quelque chose d'un tap même avec un historique vide.
     @Published var radios: [RadioStation] = []
+    @Published var mixes: [Mix] = []
+    @Published var playlists: [UserPlaylist] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -33,6 +35,19 @@ final class HomeViewModel: ObservableObject {
     func load() async {
         isLoading = true
         errorMessage = nil
+        // Mixes et playlists à part : un calcul de mix lent (le premier du
+        // jour) ne retarde pas le reste de l'accueil.
+        Task {
+            if let fresh = try? await APIClient.shared.mixes() {
+                mixes = fresh
+                MixStore.shared.mixes = fresh
+            }
+        }
+        Task {
+            if let fresh = try? await APIClient.shared.playlists() {
+                playlists = Array(fresh.filter { !$0.isImporting }.prefix(12))
+            }
+        }
         if radios.isEmpty, let groups = try? await APIClient.shared.radioGroups() {
             radios = groups.compactMap(\.radios.first)
         }

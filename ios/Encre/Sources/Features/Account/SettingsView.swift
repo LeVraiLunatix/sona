@@ -5,6 +5,9 @@ struct SettingsView: View {
     @EnvironmentObject private var auth: AuthManager
     @ObservedObject private var config = APIConfig.shared
     @State private var scrobble = true
+    @State private var shareListening = true
+    @State private var lovedImport: LovedImportStatus?
+    @ObservedObject private var downloads = DownloadManager.shared
     @State private var pendingCount = 0
     @State private var errorMessage: String?
 
@@ -41,8 +44,50 @@ struct SettingsView: View {
                     }
                 } footer: {
                     if account.id != nil {
-                        Text("Chaque morceau écouté au moins à moitié est aussi ajouté à ton profil Last.fm (et donc visible sur Sonar).")
+                        Text("Chaque morceau écouté au moins à moitié est aussi ajouté à ton profil Last.fm (et donc visible sur Sonar). Un titre ajouté à ta bibliothèque devient un titre aimé ♥ sur Last.fm.")
                     }
+                }
+
+                if account.id != nil {
+                    Section {
+                        Toggle("Partager mon écoute avec mes amis", isOn: $shareListening)
+                            .onChange(of: shareListening) { _, value in
+                                guard value != (account.shareListening ?? true) else { return }
+                                Task { await setSharing(value) }
+                            }
+                        Button {
+                            Task { await startLovedImport() }
+                        } label: {
+                            HStack {
+                                Label("Importer mes titres aimés Last.fm", systemImage: "heart")
+                                Spacer()
+                                if lovedImport?.running == true { ProgressView() }
+                            }
+                        }
+                        .disabled(lovedImport?.running == true)
+                    } footer: {
+                        if let status = lovedImport {
+                            if let error = status.error {
+                                Text(error).foregroundStyle(Tone.danger)
+                            } else if status.running {
+                                Text("Import en cours… \(status.done) / \(status.total)")
+                            } else if status.total > 0 {
+                                Text(lovedSummary(status))
+                            }
+                        } else {
+                            Text("Tes amis voient ce que tu écoutes en direct et tes dernières écoutes.")
+                        }
+                    }
+                }
+
+                Section {
+                    Toggle("Télécharger en Wi-Fi uniquement", isOn: Binding(
+                        get: { downloads.wifiOnly }, set: { downloads.wifiOnly = $0 }
+                    ))
+                } header: {
+                    Text("Téléchargements")
+                } footer: {
+                    Text(downloadsSummary)
                 }
 
                 if account.isAdmin {
@@ -90,8 +135,57 @@ struct SettingsView: View {
         }
         .navigationTitle("Réglages")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { scrobble = auth.account?.scrobbleToLastfm ?? true }
+        .onAppear {
+            scrobble = auth.account?.scrobbleToLastfm ?? true
+            shareListening = auth.account?.shareListening ?? true
+        }
         .task { await loadPendingCount() }
+        .task {
+            // État d'un import déjà lancé, puis suivi tant qu'il tourne.
+            lovedImport = try? await APIClient.shared.lovedImportStatus()
+            if lovedImport?.total == 0 && lovedImport?.running == false { lovedImport = nil }
+            while lovedImport?.running == true {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                lovedImport = try? await APIClient.shared.lovedImportStatus()
+            }
+        }
+    }
+
+    private var downloadsSummary: String {
+        let count = downloads.items.count
+        let titles = count == 1 ? "1 titre" : "\(count) titres"
+        return "\(titles) sur l'iPhone · \(downloads.totalBytes.byteLabel)"
+    }
+
+    private func lovedSummary(_ status: LovedImportStatus) -> String {
+        let added = status.added == 1 ? "1 titre ajouté" : "\(status.added) titres ajoutés"
+        var text = "\(added) à ta bibliothèque"
+        if status.missing > 0 {
+            text += status.missing == 1 ? ", 1 introuvable" : ", \(status.missing) introuvables"
+        }
+        return text + "."
+    }
+
+    private func setSharing(_ value: Bool) async {
+        do {
+            auth.update(try await APIClient.shared.updateMe(shareListening: value))
+        } catch {
+            errorMessage = error.localizedDescription
+            shareListening = !value
+        }
+    }
+
+    private func startLovedImport() async {
+        do {
+            lovedImport = try await APIClient.shared.startLovedImport()
+            while lovedImport?.running == true {
+                try? await Task.sleep(for: .seconds(2))
+                lovedImport = try? await APIClient.shared.lovedImportStatus()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func setScrobbling(_ value: Bool) async {

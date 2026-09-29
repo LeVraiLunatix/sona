@@ -33,19 +33,38 @@ struct UserPlaylistView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if let playlist {
                     Menu {
-                        if let origin = playlist.originLabel, !playlist.isImporting {
-                            Button { Task { await reimport() } } label: {
-                                Label("Mettre à jour depuis \(origin)", systemImage: "arrow.triangle.2.circlepath")
+                        DownloadMenuItems(tracks: entries.map(\.track))
+                        Button { player.playNext(entries.map(\.track)) } label: {
+                            Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
+                        }
+                        .disabled(entries.isEmpty)
+                        if playlist.mine {
+                            Divider()
+                            Picker(selection: Binding(
+                                get: { playlist.visibility ?? "private" },
+                                set: { value in Task { await setVisibility(value) } }
+                            )) {
+                                Label("Privée", systemImage: "lock").tag("private")
+                                Label("Visible par tes amis", systemImage: "person.2").tag("friends")
+                                Label("À plusieurs (amis peuvent ajouter)", systemImage: "person.2.badge.plus").tag("collaborative")
+                            } label: {
+                                Label("Partage", systemImage: "person.2")
                             }
-                        }
-                        Button {
-                            newName = playlist.name
-                            renaming = true
-                        } label: {
-                            Label("Renommer", systemImage: "pencil")
-                        }
-                        Button(role: .destructive) { confirmingDelete = true } label: {
-                            Label("Supprimer la playlist", systemImage: "trash")
+                            .pickerStyle(.menu)
+                            if let origin = playlist.originLabel, !playlist.isImporting {
+                                Button { Task { await reimport() } } label: {
+                                    Label("Mettre à jour depuis \(origin)", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            Button {
+                                newName = playlist.name
+                                renaming = true
+                            } label: {
+                                Label("Renommer", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) { confirmingDelete = true } label: {
+                                Label("Supprimer la playlist", systemImage: "trash")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -111,17 +130,16 @@ struct UserPlaylistView: View {
                 }
                 .plainRow()
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        Task { await remove(entry) }
-                    } label: {
-                        Label("Retirer", systemImage: "minus.circle")
+                    if playlist.editable {
+                        Button(role: .destructive) {
+                            Task { await remove(entry) }
+                        } label: {
+                            Label("Retirer", systemImage: "minus.circle")
+                        }
                     }
                 }
             }
-            .onMove { source, destination in
-                entries.move(fromOffsets: source, toOffset: destination)
-                Task { await saveOrder() }
-            }
+            .onMove(perform: moveHandler(playlist))
 
             if !entries.isEmpty {
                 Text(footer(playlist))
@@ -151,9 +169,17 @@ struct UserPlaylistView: View {
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(Tone.primary)
                     .multilineTextAlignment(.center)
-                if let origin = playlist.originLabel {
+                if let owner = playlist.ownerName, !playlist.mine {
+                    Text("Par \(owner)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                } else if let origin = playlist.originLabel {
                     Text("Importée de \(origin)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                 }
+                if playlist.visibility != nil && playlist.visibility != "private" {
+                    Label(playlist.visibilityLabel, systemImage: playlist.visibility == "collaborative" ? "person.2.badge.plus" : "person.2")
+                        .font(Typo.caption)
+                        .foregroundStyle(Tone.tertiary)
+                }
+                DownloadStatusLine(tracks: entries.map(\.track))
             }
             .padding(.horizontal, 24)
 
@@ -231,6 +257,21 @@ struct UserPlaylistView: View {
             apply(updated)
         } else {
             await load()
+        }
+    }
+
+    /// Glisser-déposer seulement si l'on peut modifier la playlist.
+    private func moveHandler(_ playlist: UserPlaylist) -> ((IndexSet, Int) -> Void)? {
+        guard playlist.editable else { return nil }
+        return { source, destination in
+            entries.move(fromOffsets: source, toOffset: destination)
+            Task { await saveOrder() }
+        }
+    }
+
+    private func setVisibility(_ visibility: String) async {
+        if let updated = try? await APIClient.shared.setPlaylistVisibility(id: playlistId, visibility: visibility) {
+            playlist?.visibility = updated.visibility
         }
     }
 

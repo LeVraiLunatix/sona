@@ -32,7 +32,12 @@ struct AppGate: View {
             case .signedOut:
                 LoginView().transition(.opacity)
             case .unreachable(let message):
-                ServerUnreachableView(message: message).transition(.opacity)
+                if auth.offline {
+                    // Hors ligne : l'app quand même, pour les téléchargements.
+                    RootTabView(startTab: .library).transition(.opacity)
+                } else {
+                    ServerUnreachableView(message: message).transition(.opacity)
+                }
             case .pending(let account):
                 AccessPendingView(account: account, rejected: false).transition(.opacity)
             case .rejected(let account):

@@ -11,4 +11,10 @@ enum Route: Hashable {
     case artist(source: String, id: String)
     /// Playlist de l'utilisateur (créée dans l'app ou importée).
     case userPlaylist(id: Int)
+    /// Titres gardés sur l'iPhone.
+    case downloads
+    /// Mix « Faits pour toi » de l'accueil.
+    case mix(id: String)
+    /// Profil d'un ami.
+    case friend(accountId: Int)
 }

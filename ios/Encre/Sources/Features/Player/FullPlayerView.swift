@@ -75,11 +75,35 @@ struct FullPlayerView: View {
             }
             .buttonStyle(.pressable(scale: 0.85))
             Spacer()
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 38, height: 5)
+            VStack(spacing: 6) {
+                Capsule().fill(Color.white.opacity(0.35)).frame(width: 38, height: 5)
+                sleepBadge
+            }
             Spacer()
             actionsMenu
         }
         .padding(.top, 8)
+    }
+
+    /// Minuteur de sommeil en cours : compte à rebours (ou « fin du titre »).
+    @ViewBuilder
+    private var sleepBadge: some View {
+        if let timer = player.sleepTimer {
+            HStack(spacing: 4) {
+                Image(systemName: "moon.zzz.fill")
+                if timer == .endOfTrack {
+                    Text("Fin du titre")
+                } else if let deadline = player.sleepDeadline {
+                    // Borne haute jamais avant la basse : une plage inversée plante.
+                    let now = Date()
+                    Text(timerInterval: now...max(deadline, now), countsDown: true)
+                        .monospacedDigit()
+                }
+            }
+            .font(Typo.caption)
+            .foregroundStyle(Tone.secondary)
+            .transition(.opacity)
+        }
     }
 
     private var actionsMenu: some View {
@@ -88,6 +112,27 @@ struct FullPlayerView: View {
                 Button {
                     playlistPick = PlaylistPickRequest(tracks: [track])
                 } label: { Label("Ajouter à une playlist…", systemImage: "text.badge.plus") }
+                if DownloadManager.shared.isDownloaded(track) {
+                    Button(role: .destructive) { DownloadManager.shared.remove(track) } label: {
+                        Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
+                    }
+                } else {
+                    Button { DownloadManager.shared.download([track]) } label: {
+                        Label("Télécharger", systemImage: "arrow.down.circle")
+                    }
+                }
+                Menu {
+                    ForEach([15, 30, 45, 60], id: \.self) { minutes in
+                        Button("\(minutes) minutes") { player.setSleepTimer(.minutes(minutes)) }
+                    }
+                    Button("Fin du titre") { player.setSleepTimer(.endOfTrack) }
+                    if player.sleepTimer != nil {
+                        Button("Désactiver", role: .destructive) { player.setSleepTimer(nil) }
+                    }
+                } label: {
+                    Label(player.sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé", systemImage: "moon.zzz")
+                }
+                Divider()
                 if let artistId = track.artistSourceId {
                     Button {
                         onOpenRoute(.artist(source: track.source, id: artistId))

@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 enum AppTab: Hashable {
-    case home, library, stats, search
+    case home, library, friends, stats, search
 }
 
 /// Coquille de l'app : vraie `TabView` système (Liquid Glass natif,
@@ -14,10 +14,15 @@ enum AppTab: Hashable {
 /// zoom système, fermeture interactive en glissant vers le bas).
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
-    @State private var selectedTab: AppTab = .home
+    @State private var selectedTab: AppTab
+
+    init(startTab: AppTab = .home) {
+        _selectedTab = State(initialValue: startTab)
+    }
     @State private var homePath = NavigationPath()
     @State private var libraryPath = NavigationPath()
     @State private var statsPath = NavigationPath()
+    @State private var friendsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
     @State private var showingPlayer = false
@@ -32,6 +37,9 @@ struct RootTabView: View {
             }
             Tab("Bibliothèque", systemImage: "square.stack.fill", value: AppTab.library) {
                 tab(.library, path: $libraryPath) { LibraryView(path: $libraryPath) }
+            }
+            Tab("Amis", systemImage: "person.2.fill", value: AppTab.friends) {
+                tab(.friends, path: $friendsPath) { FriendsView(path: $friendsPath) }
             }
             Tab("Stats", systemImage: "chart.bar.fill", value: AppTab.stats) {
                 tab(.stats, path: $statsPath) { StatsView(path: $statsPath) }
@@ -76,6 +84,7 @@ struct RootTabView: View {
         case .home: homePath.append(route)
         case .library: libraryPath.append(route)
         case .stats: statsPath.append(route)
+        case .friends: friendsPath.append(route)
         case .search: searchPath.append(route)
         }
     }
@@ -102,6 +111,12 @@ struct RootTabView: View {
                             ArtistDetailView(source: source, id: id, path: path)
                         case .userPlaylist(let id):
                             UserPlaylistView(playlistId: id, path: path)
+                        case .downloads:
+                            DownloadsView(path: path)
+                        case .mix(let id):
+                            MixDetailView(mixId: id, path: path)
+                        case .friend(let accountId):
+                            FriendProfileView(accountId: accountId, path: path)
                         }
                     }
                     .zoomDestination(route)

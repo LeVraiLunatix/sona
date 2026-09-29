@@ -51,6 +51,97 @@ final class PlayerManager: ObservableObject {
         return Array(context[(index + 1)...])
     }
 
+    // MARK: Amis : en pause, plus « en train d'écouter »
+
+    /// Pause qui dure (5 s : pas pour un simple saut dans le titre) : les
+    /// amis ne voient plus le titre comme en cours d'écoute.
+    private func presencePaused() {
+        guard presenceShared else { return }
+        presenceStopTask?.cancel()
+        presenceStopTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard let self, !Task.isCancelled, !self.isPlaying else { return }
+            self.presenceShared = false
+            try? await APIClient.shared.stopNowPlaying()
+        }
+    }
+
+    private func presenceResumed() {
+        presenceStopTask?.cancel()
+        guard !presenceShared, let current else { return }
+        presenceShared = true
+        let position = positionSeconds
+        Task { try? await APIClient.shared.nowPlaying(current, position: position) }
+    }
+
+    // MARK: Lire ensuite / Lire après
+
+    /// Juste après le titre en cours.
+    func playNext(_ tracks: [Track]) {
+        guard let index = currentIndex else {
+            if let first = tracks.first { play(first, context: tracks) }
+            return
+        }
+        let fresh = tracks.filter { $0.id != current?.id }
+        context.removeAll { track in fresh.contains { $0.id == track.id } && track.id != current?.id }
+        let at = (context.firstIndex { $0.id == current?.id } ?? index) + 1
+        context.insert(contentsOf: fresh, at: at)
+        if let start = autoplayStart { autoplayStart = start + fresh.count }
+        nextPrepared = false
+    }
+
+    /// À la fin de « Poursuivre la lecture » (avant les titres ajoutés par
+    /// la lecture automatique).
+    func playLater(_ tracks: [Track]) {
+        guard currentIndex != nil else {
+            if let first = tracks.first { play(first, context: tracks) }
+            return
+        }
+        let fresh = tracks.filter { track in track.id != current?.id && !upNext.contains { $0.id == track.id } }
+        let at = min(autoplayStart ?? context.count, context.count)
+        context.insert(contentsOf: fresh, at: at)
+        if autoplayStart != nil { autoplayStart = at + fresh.count }
+    }
+
+    // MARK: Minuteur de sommeil
+
+    enum SleepTimer: Equatable {
+        case minutes(Int)
+        case endOfTrack
+    }
+
+    @Published private(set) var sleepTimer: SleepTimer?
+    /// Heure d'arrêt, pour le compte à rebours affiché.
+    @Published private(set) var sleepDeadline: Date?
+
+    func setSleepTimer(_ timer: SleepTimer?) {
+        sleepTask?.cancel()
+        sleepTask = nil
+        sleepTimer = timer
+        sleepDeadline = nil
+        guard case .minutes(let minutes) = timer else { return }
+        let deadline = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepDeadline = deadline
+        sleepTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(minutes * 60))
+            guard let self, !Task.isCancelled else { return }
+            await self.fadeOutAndPause()
+        }
+    }
+
+    /// Baisse le son en 5 s puis met en pause (l'arrêt net réveille).
+    private func fadeOutAndPause() async {
+        sleepTimer = nil
+        sleepDeadline = nil
+        guard let player else { return }
+        for step in stride(from: 10, through: 0, by: -1) {
+            player.volume = Float(step) / 10
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        player.pause()
+        player.volume = 1
+    }
+
     // MARK: File d'attente (façon Musique)
 
     enum RepeatMode { case off, all, one }
@@ -208,6 +299,10 @@ final class PlayerManager: ObservableObject {
     /// L'écoute en cours a déjà été enregistrée (dès la moitié du titre).
     private var scrobbled = false
     private var nowPlayingArtwork: MPMediaItemArtwork?
+    /// « En train d'écouter » annoncé aux amis pour le titre en cours.
+    private var presenceShared = false
+    private var presenceStopTask: Task<Void, Never>?
+    private var sleepTask: Task<Void, Never>?
 
     private init() {
         configureAudioSession()
@@ -402,16 +497,23 @@ final class PlayerManager: ObservableObject {
                 return
             }
             guard let self, !Task.isCancelled, self.current?.id == track.id else { return }
-            self.beginPlayback(track)
+            self.beginPlayback(track, preferLocal: false)
         }
     }
 
     /// Lecture proprement dite, une fois le fichier prêt côté serveur :
     /// servi depuis son cache disque, il démarre quasi instantanément.
-    private func beginPlayback(_ track: Track) {
+    /// Un titre téléchargé part du fichier sur l'iPhone (instantané, sans
+    /// réseau) ; `preferLocal: false` après un échec de ce fichier.
+    private func beginPlayback(_ track: Track, preferLocal: Bool = true) {
         do {
-            let (url, headers) = try APIClient.shared.streamRequest(source: track.source, id: track.sourceId)
-            let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+            let asset: AVURLAsset
+            if preferLocal, let local = DownloadManager.shared.localURL(for: track) {
+                asset = AVURLAsset(url: local)
+            } else {
+                let (url, headers) = try APIClient.shared.streamRequest(source: track.source, id: track.sourceId)
+                asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+            }
             let item = AVPlayerItem(asset: asset)
             let player = AVPlayer(playerItem: item)
             // Volume fixe au maximum : le vrai contrôle de volume, ce sont les
@@ -461,8 +563,10 @@ final class PlayerManager: ObservableObject {
                     case .playing:
                         self.isPlaying = true
                         self.isLoading = false
+                        self.presenceResumed()
                     case .paused:
                         self.isPlaying = false
+                        self.presencePaused()
                     case .waitingToPlayAtSpecifiedRate:
                         self.isLoading = true
                     @unknown default:
@@ -524,6 +628,8 @@ final class PlayerManager: ObservableObject {
             scrobbled = false
             nextPrepared = false
             updateNowPlayingInfo(for: track)
+            presenceShared = true
+            presenceStopTask?.cancel()
             Task { try? await APIClient.shared.nowPlaying(track) }
 
             // Sans ça, un flux qui ne se décide jamais (serveur qui télécharge
@@ -550,7 +656,7 @@ final class PlayerManager: ObservableObject {
     /// une petite machine). « Suivant » reste instantané.
     private func prepareNext() {
         prefetchTask?.cancel()
-        guard let next = upNext.first else { return }
+        guard let next = upNext.first, !DownloadManager.shared.isDownloaded(next) else { return }
         prefetchTask = Task {
             try? await APIClient.shared.prepareStream(source: next.source, id: next.sourceId)
         }
@@ -600,6 +706,13 @@ final class PlayerManager: ObservableObject {
     /// par opposition au bouton « suivant ».
     private func advance(by offset: Int, automatic: Bool = false) {
         guard let current, let index = context.firstIndex(where: { $0.id == current.id }) else {
+            isPlaying = false
+            return
+        }
+        if automatic && sleepTimer == .endOfTrack {
+            // Minuteur « fin du titre » : on s'arrête là.
+            sleepTimer = nil
+            player?.pause()
             isPlaying = false
             return
         }
