@@ -20,6 +20,7 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published var recaps: Bool { didSet { save("recaps", recaps) } }
     @Published var dailyChallenge: Bool { didSet { save("daily", dailyChallenge) } }
     @Published var friends: Bool { didSet { save("friends", friends) } }
+    @Published var releases: Bool { didSet { save("releases", releases) } }
 
     private let center = UNUserNotificationCenter.current()
     private var polling: Task<Void, Never>?
@@ -29,6 +30,7 @@ final class NotificationManager: NSObject, ObservableObject {
         recaps = defaults.object(forKey: "notifications.recaps") as? Bool ?? true
         dailyChallenge = defaults.object(forKey: "notifications.daily") as? Bool ?? true
         friends = defaults.object(forKey: "notifications.friends") as? Bool ?? true
+        releases = defaults.object(forKey: "notifications.releases") as? Bool ?? true
         super.init()
     }
 
@@ -43,7 +45,10 @@ final class NotificationManager: NSObject, ObservableObject {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshTaskIdentifier, using: nil) { task in
             Task { @MainActor in
                 NotificationManager.shared.scheduleRefresh()
-                let work = Task { await NotificationManager.shared.checkFriends() }
+                let work = Task {
+                    await NotificationManager.shared.checkFriends()
+                    await NotificationManager.shared.checkReleases()
+                }
                 task.expirationHandler = { work.cancel() }
                 await work.value
                 task.setTaskCompleted(success: true)
@@ -116,6 +121,7 @@ final class NotificationManager: NSObject, ObservableObject {
         polling = Task {
             while !Task.isCancelled {
                 await checkFriends()
+                await checkReleases()
                 try? await Task.sleep(for: .seconds(90))
             }
         }
@@ -163,6 +169,30 @@ final class NotificationManager: NSObject, ObservableObject {
         }
         if firstRun && seen.isEmpty { seen.insert("-") }
         UserDefaults.standard.set(Array(seen.suffix(200)), forKey: "notifications.seen")
+    }
+
+    /// Nouvelles sorties de tes artistes : vérifiées au plus toutes les 6 h,
+    /// une notification par sortie, une seule fois.
+    func checkReleases() async {
+        guard releases, APIConfig.shared.isConfigured else { return }
+        let defaults = UserDefaults.standard
+        if let last = defaults.object(forKey: "notifications.releasesCheckedAt") as? Date,
+           Date().timeIntervalSince(last) < 6 * 3600 { return }
+        guard let found = try? await APIClient.shared.releases() else { return }
+        defaults.set(Date(), forKey: "notifications.releasesCheckedAt")
+        var seen = Set(defaults.stringArray(forKey: "notifications.releasesSeen") ?? [])
+        let firstRun = defaults.object(forKey: "notifications.releasesSeen") == nil
+        for release in found.prefix(10) where !seen.contains(release.id) {
+            seen.insert(release.id)
+            guard !firstRun else { continue }  // premières sorties connues : pas de rafale
+            let content = UNMutableNotificationContent()
+            content.title = "\(release.artist) : nouvel\(release.kind == "Single" ? "" : "le") \(release.kind.lowercased()) 🔥"
+            content.body = "« \(release.title) » est sorti. Écoute-le maintenant."
+            content.sound = .default
+            content.userInfo = ["url": "encre://album?source=\(release.source)&id=\(release.sourceId)"]
+            try? await center.add(UNNotificationRequest(identifier: "release-\(release.id)", content: content, trigger: nil))
+        }
+        defaults.set(Array(seen.suffix(300)), forKey: "notifications.releasesSeen")
     }
 
     /// Prochaine vérification en arrière-plan (iOS choisit le moment).

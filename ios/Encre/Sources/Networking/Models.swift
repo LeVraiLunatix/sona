@@ -216,9 +216,12 @@ struct PlayPayload: Codable, Hashable {
     var durationSeconds: Int?
     var listenedSeconds: Int
     var playedAt: String
+    /// Lieu approximatif (carte des écoutes), arrondi à ~1 km.
+    var lat: Double? = nil
+    var lon: Double? = nil
 
     enum CodingKeys: String, CodingKey {
-        case title, artist, album, source
+        case title, artist, album, source, lat, lon
         case sourceId = "source_id"
         case artistSourceId = "artist_source_id"
         case albumSourceId = "album_source_id"
@@ -724,6 +727,8 @@ struct PartyQueueItem: Codable, Hashable, Identifiable {
     var id: Int
     var track: Track
     var by: String
+    var votes: Int?
+    var voted: Bool?
 }
 
 struct PartyReaction: Codable, Hashable, Identifiable {
@@ -820,6 +825,138 @@ struct BlindScore: Codable, Hashable, Identifiable {
     }
 
     var id: String { "\(name)|\(score)" }
+}
+
+// MARK: - Extras (sorties, souvenirs, moments, carte, défis)
+
+struct Release: Codable, Hashable, Identifiable {
+    var source: String
+    var sourceId: String
+    var title: String
+    var artist: String
+    var artistSourceId: String?
+    var coverURL: String?
+    var releaseDate: String
+    var kind: String
+    var trackCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case source, title, artist, kind
+        case sourceId = "source_id"
+        case artistSourceId = "artist_source_id"
+        case coverURL = "cover_url"
+        case releaseDate = "release_date"
+        case trackCount = "track_count"
+    }
+
+    var id: String { "\(source):\(sourceId)" }
+
+    /// « il y a 3 jours », « aujourd'hui »…
+    var ageLabel: String {
+        guard let date = ISO8601DateFormatter.day.date(from: releaseDate) else { return releaseDate }
+        let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+        switch days {
+        case ..<1: return "Aujourd'hui"
+        case 1: return "Hier"
+        default: return "Il y a \(days) jours"
+        }
+    }
+}
+
+extension ISO8601DateFormatter {
+    static let day: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter
+    }()
+}
+
+struct Memory: Codable, Hashable, Identifiable {
+    var yearsAgo: Int
+    var label: String
+    var dateLabel: String
+    var plays: Int
+    var tracks: [Track]
+
+    enum CodingKeys: String, CodingKey {
+        case label, plays, tracks
+        case yearsAgo = "years_ago"
+        case dateLabel = "date_label"
+    }
+
+    var id: Int { yearsAgo }
+}
+
+struct TrackMoment: Codable, Hashable, Identifiable {
+    var id: Int
+    var position: Double
+    var emoji: String
+    var text: String?
+    var name: String
+    var avatarURL: String?
+    var isMe: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, position, emoji, text, name
+        case avatarURL = "avatar_url"
+        case isMe = "is_me"
+    }
+}
+
+struct ListeningPlace: Codable, Hashable, Identifiable {
+    struct TopTrack: Codable, Hashable {
+        var title: String
+        var artist: String?
+        var plays: Int
+    }
+
+    var lat: Double
+    var lon: Double
+    var plays: Int
+    var topArtist: String?
+    var topTracks: [TopTrack]
+    var coverURL: String?
+    var track: Track?
+
+    enum CodingKeys: String, CodingKey {
+        case lat, lon, plays, track
+        case topArtist = "top_artist"
+        case topTracks = "top_tracks"
+        case coverURL = "cover_url"
+    }
+
+    var id: String { "\(lat),\(lon)" }
+}
+
+struct Challenges: Codable, Hashable {
+    struct Challenge: Codable, Hashable, Identifiable {
+        var id: String
+        var title: String
+        var icon: String
+        var value: Int
+        var goal: Int
+        var unit: String
+        var done: Bool
+    }
+
+    struct Badge: Codable, Hashable, Identifiable {
+        var id: String
+        var title: String
+        var description: String
+        var icon: String
+        var earned: Bool
+    }
+
+    var weekLabel: String
+    var endsInDays: Int
+    var challenges: [Challenge]
+    var badges: [Badge]
+
+    enum CodingKeys: String, CodingKey {
+        case challenges, badges
+        case weekLabel = "week_label"
+        case endsInDays = "ends_in_days"
+    }
 }
 
 // MARK: - TV / PS5

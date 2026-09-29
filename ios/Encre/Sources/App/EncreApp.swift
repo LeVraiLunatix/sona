@@ -63,6 +63,7 @@ struct AppGate: View {
                 SmartDownloads.shared.runIfDue()
             }
             if phase == .background {
+                PlayerManager.shared.saveSession(force: true)
                 SmartDownloads.shared.schedule()
                 NotificationManager.shared.scheduleRefresh()
             }

@@ -20,6 +20,11 @@ struct FullPlayerView: View {
     @State private var isStartingRadio = false
     @State private var playlistPick: PlaylistPickRequest?
     @State private var confirmingWrongVersion = false
+    @State private var showingSound = false
+    @State private var storyTrack: Track?
+    @State private var momentRequest: MomentRequest?
+    @State private var moments: [TrackMoment] = []
+    @ObservedObject private var gestures = HeadGestures.shared
     /// Paroles : commandes du bas masquées après quelques secondes sans
     /// toucher l'écran (comme Musique) ; un tap les ramène.
     @State private var controlsHidden = false
@@ -45,7 +50,11 @@ struct FullPlayerView: View {
                     topBar
                     Group {
                         switch panel {
-                        case .artwork: artworkPanel(track)
+                        case .artwork:
+                            artworkPanel(track)
+                                .overlay(alignment: .bottomLeading) {
+                                    MomentsOverlay(player: player, moments: moments).padding(.bottom, 8)
+                                }
                         case .lyrics:
                             compactPanel(track) {
                                 LyricsView(player: player, track: track)
@@ -73,6 +82,25 @@ struct FullPlayerView: View {
             palette = colors
         }
         .task(id: player.current?.id) { await refreshLikeState() }
+        .task(id: player.current?.id) { await loadMoments() }
+        .overlay(alignment: .top) {
+            if let gesture = gestures.lastGesture {
+                Label(gesture, systemImage: "airpods")
+                    .font(Typo.rowTitle)
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(Capsule().fill(.white))
+                    .padding(.top, 60)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .sheet(isPresented: $showingSound) { SoundSettingsSheet(player: player) }
+        .sheet(item: $storyTrack) { track in StoryShareSheet(track: track) }
+        .sheet(item: $momentRequest) { request in
+            AddMomentSheet(track: request.track, position: request.position) {
+                Task { await loadMoments() }
+            }
+        }
         .task(id: AutoHideKey(panel: panel, activity: activity, playing: player.isPlaying, scrubbing: scrubbing)) {
             guard panel == .lyrics, player.isPlaying, !scrubbing else {
                 if controlsHidden { withAnimation(Motion.smooth) { controlsHidden = false } }
@@ -181,7 +209,10 @@ struct FullPlayerView: View {
                 startRadio: { source, id in startArtistRadio(source: source, artistId: id) },
                 startDJRadio: { track in startDJRadio(track) },
                 toggleLike: { track in Task { await toggleLike(track) } },
-                reportWrongVersion: { _ in confirmingWrongVersion = true }
+                reportWrongVersion: { _ in confirmingWrongVersion = true },
+                openSound: { showingSound = true },
+                shareStory: { track in storyTrack = track },
+                addMoment: { track in momentRequest = MomentRequest(track: track, position: player.positionSeconds) }
             )
         )
         .equatable()
@@ -457,6 +488,11 @@ struct FullPlayerView: View {
         }
     }
 
+    private func loadMoments() async {
+        guard let track = player.current else { return }
+        moments = (try? await APIClient.shared.moments(for: track)) ?? []
+    }
+
     private func refreshLikeState() async {
         guard let track = player.current else { return }
         if let page = try? await APIClient.shared.library(kind: "track", limit: 200) {
@@ -715,6 +751,9 @@ struct PlayerActionsMenu: View, Equatable {
         var startDJRadio: (Track) -> Void
         var toggleLike: (Track) -> Void
         var reportWrongVersion: (Track) -> Void
+        var openSound: () -> Void
+        var shareStory: (Track) -> Void
+        var addMoment: (Track) -> Void
     }
 
     let track: Track?
@@ -743,6 +782,15 @@ struct PlayerActionsMenu: View, Equatable {
                     Button { downloads.download([track]) } label: {
                         Label("Télécharger", systemImage: "arrow.down.circle")
                     }
+                }
+                Button { actions.addMoment(track) } label: {
+                    Label("Réagir à ce moment", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                }
+                Button { actions.shareStory(track) } label: {
+                    Label("Partager en story", systemImage: "square.and.arrow.up.on.square")
+                }
+                Button { actions.openSound() } label: {
+                    Label("Son, égaliseur et AirPods", systemImage: "slider.vertical.3")
                 }
                 Menu {
                     ForEach([15, 30, 45, 60], id: \.self) { minutes in
@@ -795,4 +843,11 @@ struct PlayerActionsMenu: View, Equatable {
             .background(Circle().fill(Color.white.opacity(0.12)))
         }
     }
+}
+
+/// Réaction à poster à un instant du titre.
+struct MomentRequest: Identifiable {
+    let id = UUID()
+    let track: Track
+    let position: Double
 }

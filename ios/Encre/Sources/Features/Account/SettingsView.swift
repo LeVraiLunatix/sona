@@ -88,6 +88,7 @@ struct SettingsView: View {
                     Toggle("Récaps de la semaine et du mois", isOn: $notifications.recaps)
                     Toggle("Rappel du défi du jour", isOn: $notifications.dailyChallenge)
                     Toggle("Parties lancées par mes amis", isOn: $notifications.friends)
+                    Toggle("Nouvelles sorties de mes artistes", isOn: $notifications.releases)
                 } header: {
                     Text("Notifications")
                 } footer: {

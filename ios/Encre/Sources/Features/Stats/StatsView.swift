@@ -12,6 +12,8 @@ struct StatsView: View {
     @State private var chartsVisible = false
     @State private var openingTrackId: String?
     @State private var recap: RecapLaunch?
+    @State private var challenges: Challenges?
+    @State private var showingMap = false
 
     var body: some View {
         ScrollView {
@@ -23,6 +25,12 @@ struct StatsView: View {
                 recapCard
                     .padding(.horizontal, 20)
                     .reveal(1)
+
+                if let challenges {
+                    ChallengesSection(challenges: challenges)
+                        .padding(.horizontal, 20)
+                        .reveal(1)
+                }
 
                 periodControls
 
@@ -58,6 +66,9 @@ struct StatsView: View {
             ToolbarItem(placement: .topBarLeading) {
                 NavigationLink { RecentPlaysView() } label: { Image(systemName: "clock.arrow.circlepath") }
             }
+            ToolbarItem(placement: .topBarLeading) {
+                Button { showingMap = true } label: { Image(systemName: "map") }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     // La période affichée si elle est terminée, sinon la
@@ -77,6 +88,10 @@ struct StatsView: View {
             RecapView(period: launch.period, offset: launch.offset)
         }
         .task { await viewModel.load() }
+        .task { challenges = try? await APIClient.shared.challenges() }
+        .fullScreenCover(isPresented: $showingMap) {
+            ListeningMapView().environmentObject(player)
+        }
         .refreshable { await viewModel.load() }
         .onChange(of: viewModel.report) { _, _ in replayCharts() }
     }

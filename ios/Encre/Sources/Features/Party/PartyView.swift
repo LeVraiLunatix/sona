@@ -346,7 +346,7 @@ private struct PartyRoom: View {
 
     private var proposals: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Proposés").font(Typo.headline).foregroundStyle(Tone.primary)
+            Text("Proposés · votez pour vos préférés").font(Typo.headline).foregroundStyle(Tone.primary)
             ForEach(state.queue) { item in
                 HStack(spacing: 12) {
                     Artwork(url: item.track.coverURL, cornerRadius: 6).frame(width: 40, height: 40)
@@ -354,7 +354,19 @@ private struct PartyRoom: View {
                         Text(item.track.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
                         Text("par \(item.by)").font(Typo.caption).foregroundStyle(Tone.secondary)
                     }
+                    Spacer()
+                    // Soirée : les plus votées passent devant dans la file.
+                    Button { Task { await PartyManager.shared.vote(item.id) } } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: item.voted == true ? "arrow.up.circle.fill" : "arrow.up.circle")
+                            Text("\(item.votes ?? 0)").monospacedDigit()
+                        }
+                        .font(Typo.rowTitle)
+                        .foregroundStyle(item.voted == true ? Color.green : Tone.secondary)
+                    }
+                    .buttonStyle(.pressable(scale: 0.9))
                 }
+                .animation(Motion.snappy, value: item.votes)
             }
         }
     }

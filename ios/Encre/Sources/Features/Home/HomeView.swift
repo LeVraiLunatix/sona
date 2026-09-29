@@ -6,6 +6,9 @@ struct HomeView: View {
     @Binding var path: NavigationPath
     @State private var startingRadioId: String?
     @State private var radioError: String?
+    @State private var releases: [Release] = []
+    @State private var memories: [Memory] = []
+    @State private var showingSport = false
 
     var body: some View {
         ScrollView {
@@ -26,6 +29,20 @@ struct HomeView: View {
                         }
                     }
                 }
+
+                if !releases.isEmpty {
+                    section("Nouvelles sorties", index: 1) {
+                        ReleasesSection(releases: releases) { release in
+                            path.append(Route.album(source: release.source, id: release.sourceId))
+                        }
+                    }
+                }
+
+                if !memories.isEmpty {
+                    MemoriesCard(memories: memories).padding(.horizontal, 20).reveal(1)
+                }
+
+                sportCard.padding(.horizontal, 20).reveal(1)
 
                 if !viewModel.playlists.isEmpty {
                     section("Tes playlists", index: 1) {
@@ -123,7 +140,47 @@ struct HomeView: View {
             }
         }
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .task { await loadExtras() }
+        .refreshable {
+            await viewModel.load()
+            await loadExtras()
+        }
+        .fullScreenCover(isPresented: $showingSport) {
+            SportModeView().environmentObject(player)
+        }
+    }
+
+    private func loadExtras() async {
+        async let fresh = try? APIClient.shared.releases()
+        async let past = try? APIClient.shared.memories()
+        releases = await fresh ?? releases
+        memories = await past ?? memories
+    }
+
+    /// Mode sport : la musique au rythme de ta course.
+    private var sportCard: some View {
+        Button { showingSport = true } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "figure.run")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(Circle().fill(.white.opacity(0.18)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mode sport").font(Typo.headline).foregroundStyle(.white)
+                    Text("La musique suit ta foulée, au bon tempo").font(Typo.caption).foregroundStyle(.white.opacity(0.8))
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(.white)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(red: 0.1, green: 0.55, blue: 0.3), Color(red: 0.05, green: 0.25, blue: 0.2)],
+                                         startPoint: .leading, endPoint: .trailing))
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.98))
     }
 
     private func section<Content: View>(_ title: String, index: Int, @ViewBuilder content: () -> Content) -> some View {

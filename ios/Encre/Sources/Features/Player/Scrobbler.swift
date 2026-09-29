@@ -1,3 +1,4 @@
+import CoreLocation
 import Combine
 import Foundation
 
@@ -36,6 +37,18 @@ final class Scrobbler: ObservableObject {
         return listened >= min(duration / 2, 240)
     }
 
+    /// Lieu de l'écoute pour la carte : seulement si la localisation est
+    /// autorisée et l'option active, arrondi à ~1 km (jamais plus précis).
+    static var place: CLLocationCoordinate2D? {
+        guard UserDefaults.standard.object(forKey: "encre.mapPlays") as? Bool ?? true,
+              let location = LocationProvider.shared.location,
+              Date().timeIntervalSince(location.timestamp) < 3 * 3600 else { return nil }
+        return CLLocationCoordinate2D(
+            latitude: (location.coordinate.latitude * 100).rounded() / 100,
+            longitude: (location.coordinate.longitude * 100).rounded() / 100
+        )
+    }
+
     func record(_ track: Track, startedAt: Date, listened: Double, duration: Double) {
         guard Self.qualifies(listened: listened, duration: duration) else { return }
         let formatter = ISO8601DateFormatter()
@@ -50,7 +63,9 @@ final class Scrobbler: ObservableObject {
             coverURL: track.coverURL,
             durationSeconds: Int(duration.rounded()),
             listenedSeconds: Int(listened.rounded()),
-            playedAt: formatter.string(from: startedAt)
+            playedAt: formatter.string(from: startedAt),
+            lat: Self.place?.latitude,
+            lon: Self.place?.longitude
         ))
         // Garde-fou : jamais plus de 2 000 écoutes en attente sur l'appareil.
         if pending.count > 2000 { pending.removeFirst(pending.count - 2000) }

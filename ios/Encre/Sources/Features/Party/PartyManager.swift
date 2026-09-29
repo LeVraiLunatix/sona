@@ -22,6 +22,8 @@ final class PartyManager: ObservableObject {
     private var loop: Task<Void, Never>?
     private var lastReactionId = 0
     private var fetchedAt = Date()
+    /// Titre pendant lequel une proposition a déjà été reprise.
+    private var takenDuring: String?
     /// Dernier état envoyé par l'hôte.
     private var sent: (trackId: String?, paused: Bool, position: Double, at: Date)?
 
@@ -122,10 +124,18 @@ final class PartyManager: ObservableObject {
     }
 
     /// Hôte : les titres proposés passent dans sa file (après ceux déjà prévus).
+    /// Soirée : la proposition la plus votée passe juste après le titre en
+    /// cours, prise dans ses 25 dernières secondes (ou tout de suite si rien
+    /// d'autre n'est prévu) — le temps que les votes s'accumulent. Une seule
+    /// par titre.
     private func takeProposals(_ current: PartyState) async -> PartyState {
-        guard !current.queue.isEmpty else { return current }
-        player.playLater(current.queue.map(\.track))
-        return (try? await APIClient.shared.consumePartyQueue(code: current.code, ids: current.queue.map(\.id))) ?? current
+        guard let top = current.queue.first, let playing = player.current else { return current }
+        let remaining = player.durationSeconds - player.positionSeconds
+        let endingSoon = player.durationSeconds > 0 && remaining < 25
+        guard player.upNext.isEmpty || (endingSoon && takenDuring != playing.id) else { return current }
+        takenDuring = playing.id
+        player.playNext([top.track])
+        return (try? await APIClient.shared.consumePartyQueue(code: current.code, ids: [top.id])) ?? current
     }
 
     /// Invité : même titre, même position, même pause que l'hôte.
@@ -169,7 +179,16 @@ final class PartyManager: ObservableObject {
         }
     }
 
-    func react(_ emoji: String) async {
+    func vote(_ itemId: Int) async {
+        guard let code = state?.code else { return }
+        do {
+            state = try await APIClient.shared.voteInParty(code: code, itemId: itemId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+        func react(_ emoji: String) async {
         guard let code = state?.code else { return }
         if let fresh = try? await APIClient.shared.reactInParty(code: code, emoji: emoji) {
             collectReactions(fresh)

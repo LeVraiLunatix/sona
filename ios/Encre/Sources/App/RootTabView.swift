@@ -93,6 +93,11 @@ struct RootTabView: View {
             await Scrobbler.shared.flush()
         }
         .task { await NotificationManager.shared.start() }
+        .task {
+            // Le dernier titre, en pause, prêt à reprendre où on l'avait laissé.
+            player.restoreSession()
+            HeadGestures.shared.startIfEnabled()
+        }
     }
 
     /// Liens `encre://…` des widgets, de la Live Activity et des notifications.
@@ -111,6 +116,12 @@ struct RootTabView: View {
             recap = RecapLaunch(period: period, offset: -1)
         case "live":
             if let code { live = LiveLaunch(code: code) }
+        case "album":
+            if let source = query.first(where: { $0.name == "source" })?.value,
+               let id = query.first(where: { $0.name == "id" })?.value {
+                selectedTab = .home
+                homePath.append(Route.album(source: source, id: id))
+            }
         case "party":
             if let code {
                 Task {

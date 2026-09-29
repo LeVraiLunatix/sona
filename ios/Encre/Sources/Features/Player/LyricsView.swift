@@ -1,4 +1,6 @@
+import NaturalLanguage
 import SwiftUI
+import Translation
 
 /// Paroles du morceau en cours (LRCLIB côté serveur). Synchronisées : la
 /// ligne chantée en blanc plein, les autres estompées et floutées d'autant
@@ -14,6 +16,12 @@ struct LyricsView: View {
         case loading, loaded(Lyrics), unavailable(String)
     }
     @State private var state: LoadState = .loading
+    // Traduction en français (sur l'iPhone, hors ligne une fois la langue
+    // téléchargée) des paroles dans une autre langue.
+    @State private var foreign = false
+    @State private var translating = false
+    @State private var translations: [String: String] = [:]
+    @State private var translationConfig: TranslationSession.Configuration?
 
     var body: some View {
         Group {
@@ -29,7 +37,15 @@ struct LyricsView: View {
                         .frame(maxHeight: .infinity)
                 } else if lyrics.synced {
                     synced(lyrics.lines)
-                        .overlay(alignment: .topTrailing) { singButton }
+                        .overlay(alignment: .topTrailing) {
+                            HStack(spacing: 8) {
+                                if foreign { translateButton }
+                                singButton
+                            }
+                        }
+                        .translationTask(translationConfig) { session in
+                            await translate(lyrics.lines, with: session)
+                        }
                 } else {
                     plain(lyrics.lines)
                 }
@@ -51,7 +67,7 @@ struct LyricsView: View {
                         // Avant la première ligne (intro, ou lecture pas
                         // encore lancée) : tout net et estompé, rien de flou.
                         let blur = active.map { isActive ? 0 : min(3.5, Double(abs(index - $0)) * 0.9) } ?? 0
-                        Group {
+                        VStack(alignment: .leading, spacing: 0) {
                             if isActive && !line.text.isEmpty {
                                 KaraokeLine(
                                     words: KaraokeLine.timedWords(line, next: lines.dropFirst(index + 1).first?.time),
@@ -60,6 +76,12 @@ struct LyricsView: View {
                             } else {
                                 Text(line.text.isEmpty ? "♪" : line.text)
                                     .foregroundStyle(Color.white.opacity(index < (active ?? 0) ? 0.3 : 0.45))
+                            }
+                            if translating, let translated = translations[line.text], translated != line.text {
+                                Text(translated)
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(isActive ? 0.75 : 0.35))
+                                    .padding(.top, 4)
                             }
                         }
                             .font(.system(size: 28, weight: .bold))
@@ -87,12 +109,46 @@ struct LyricsView: View {
         }
     }
 
+    /// Traduction ligne par ligne sous les paroles.
+    private var translateButton: some View {
+        Button {
+            translating.toggle()
+            if translating && translations.isEmpty {
+                translationConfig = TranslationSession.Configuration(target: Locale.Language(identifier: "fr"))
+            }
+        } label: {
+            Label(translating ? "Traduit" : "Traduire", systemImage: "character.bubble")
+                .font(Typo.caption)
+                .foregroundStyle(translating ? .black : .white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(translating ? Color.white : Color.white.opacity(0.15)))
+        }
+        .buttonStyle(.pressable(scale: 0.95))
+        .padding(.top, 8)
+    }
+
+    private func translate(_ lines: [Lyrics.Line], with session: TranslationSession) async {
+        let texts = Array(Set(lines.map(\.text).filter { !$0.isEmpty }))
+        let requests = texts.enumerated().map { index, text in
+            TranslationSession.Request(sourceText: text, clientIdentifier: "\(index)")
+        }
+        guard let responses = try? await session.translations(from: requests) else { return }
+        var result: [String: String] = [:]
+        for response in responses {
+            if let id = response.clientIdentifier.flatMap(Int.init), texts.indices.contains(id) {
+                result[texts[id]] = response.targetText
+            }
+        }
+        withAnimation(Motion.smooth) { translations = result }
+    }
+
     /// Mode « chante » : voix du titre baissée.
     private var singButton: some View {
         Button {
             player.setSingAlong(!player.singAlong)
         } label: {
-            Label(player.singAlong ? "Voix coupée" : "Chante", systemImage: player.singAlong ? "mic.fill" : "mic")
+            Label(singLabel, systemImage: player.singAlong ? "mic.fill" : "mic")
                 .font(Typo.caption)
                 .foregroundStyle(player.singAlong ? .black : .white)
                 .padding(.horizontal, 12)
@@ -102,6 +158,15 @@ struct LyricsView: View {
         .buttonStyle(.pressable(scale: 0.95))
         .sensoryFeedback(.selection, trigger: player.singAlong)
         .padding(.top, 8)
+    }
+
+    private var singLabel: String {
+        switch player.singSource {
+        case .off: "Chante"
+        case .searching: "Recherche de l'instru…"
+        case .instrumental: "Instrumentale"
+        case .reduced: "Voix baissée"
+        }
     }
 
     private func plain(_ lines: [Lyrics.Line]) -> some View {
@@ -120,6 +185,12 @@ struct LyricsView: View {
         state = .loading
         do {
             if let lyrics = try await APIClient.shared.lyrics(for: track) {
+                translations = [:]
+                translating = false
+                translationConfig = nil
+                let recognizer = NLLanguageRecognizer()
+                recognizer.processString(lyrics.lines.map(\.text).joined(separator: "\n"))
+                foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
                 state = .loaded(lyrics)
             } else {
                 state = .unavailable("Pas de paroles connues pour ce morceau.")

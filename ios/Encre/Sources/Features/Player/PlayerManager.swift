@@ -72,6 +72,7 @@ final class PlayerManager: ObservableObject {
     }
 
     func resume() {
+        if startRestored() { return }
         guard let player else { return }
         try? AVAudioSession.sharedInstance().setActive(true)
         player.play()
@@ -643,10 +644,24 @@ final class PlayerManager: ObservableObject {
     private func handleRouteChange(_ notification: Notification) {
         guard let info = notification.userInfo,
               let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue),
-              reason == .oldDeviceUnavailable else { return }
-        player?.pause()
-        isPlaying = false
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+        switch reason {
+        case .oldDeviceUnavailable:
+            if isPlaying { pausedByRouteAt = Date() }
+            player?.pause()
+            isPlaying = false
+        case .newDeviceAvailable:
+            // Écouteurs remis : reprise si c'est eux qui avaient coupé la lecture.
+            let headphones: Set<AVAudioSession.Port> = [.headphones, .bluetoothA2DP, .bluetoothLE, .bluetoothHFP]
+            let onHeadphones = AVAudioSession.sharedInstance().currentRoute.outputs.contains { headphones.contains($0.portType) }
+            if onHeadphones, let pausedAt = pausedByRouteAt, Date().timeIntervalSince(pausedAt) < 15 * 60,
+               UserDefaults.standard.object(forKey: "encre.autoResume") as? Bool ?? true {
+                pausedByRouteAt = nil
+                resume()
+            }
+        default:
+            break
+        }
     }
 
     /// Play/pause/suivant/précédent depuis l'écran verrouillé, le Centre de
@@ -654,7 +669,9 @@ final class PlayerManager: ObservableObject {
     private func configureRemoteCommands() {
         let commands = MPRemoteCommandCenter.shared()
         commands.playCommand.addTarget { [weak self] _ in
-            guard let self, self.player != nil else { return .noSuchContent }
+            guard let self else { return .noSuchContent }
+            if self.startRestored() { return .success }
+            guard self.player != nil else { return .noSuchContent }
             self.player?.play()
             self.isPlaying = true
             return .success
@@ -759,6 +776,7 @@ final class PlayerManager: ObservableObject {
     /// radio.
     private func start(_ track: Track, context playbackContext: [Track]) {
         teardown()
+        if track.id != current?.id { restoredPosition = nil }
         current = track
         context = playbackContext.isEmpty ? [track] : playbackContext
         if refill != nil && upNext.count < 3 {
@@ -850,7 +868,8 @@ final class PlayerManager: ObservableObject {
                 player.volume = crossfadeEnabled ? 0 : 1
             }
             if crossfadeEnabled { fetchAnalysis(track) }
-            if singAlong, item.audioMix == nil { attachVocalTap(item) }
+            prepareItem(item)
+            if singAlong && prepared == nil { lookForInstrumental(track) }
             self.player = player
             if crossfadeEnabled && prepared == nil {
                 // Fondu entrant sur 1,5 s, jusqu'au volume égalisé du titre.
@@ -978,6 +997,7 @@ final class PlayerManager: ObservableObject {
                         self.prepareNext()
                     }
                     self.updateNowPlayingElapsedTime()
+                    self.saveSession()
                 }
             }
 
@@ -1035,6 +1055,7 @@ final class PlayerManager: ObservableObject {
             remoteToggle()
             return
         }
+        if startRestored() { return }
         if mixTask != nil { promoteMix() }
         guard let player else { return }
         if player.timeControlStatus == .playing {
@@ -1160,23 +1181,158 @@ final class PlayerManager: ObservableObject {
     var remotePlayback: ((Track, [Track]) -> Void)?
     var remoteToggle: (() -> Void)?
 
-    // MARK: Karaoké
+    // MARK: Karaoké, égaliseur, audio spatial
 
-    /// Mode « chante » : voix du titre baissée (voir `VocalRemover`).
+    /// Mode « chante » : la vraie instrumentale du titre quand elle existe
+    /// (YouTube, même durée : les paroles restent calées), sinon la voix
+    /// baissée par traitement du son (voir `AudioEffects`).
     @Published private(set) var singAlong = false
+    @Published private(set) var singSource: SingSource = .off
+    enum SingSource { case off, searching, instrumental, reduced }
+
+    /// Audio spatial (AirPods) : la stéréo spatialisée par iOS, avec suivi
+    /// des mouvements de la tête si activé dans le Centre de contrôle.
+    @Published var spatialAudio = UserDefaults.standard.object(forKey: "encre.spatial") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(spatialAudio, forKey: "encre.spatial")
+            if let item = player?.currentItem { applySpatial(item) }
+        }
+    }
 
     func setSingAlong(_ on: Bool) {
         singAlong = on
-        VocalRemover.amount = on ? 1 : 0
-        if on, let item = player?.currentItem, item.audioMix == nil { attachVocalTap(item) }
-    }
-
-    private func attachVocalTap(_ item: AVPlayerItem) {
-        Task { [weak item] in
-            guard let item, let mix = await VocalRemover.audioMix(for: item) else { return }
-            item.audioMix = mix
+        if on {
+            if let current { lookForInstrumental(current) }
+        } else {
+            AudioEffects.singAmount = 0
+            if singSource == .instrumental, let current { swapAudio(to: originalAsset(for: current)) }
+            singSource = .off
         }
     }
+
+    /// En attendant (ou à défaut de) l'instrumentale : voix baissée.
+    private func lookForInstrumental(_ track: Track) {
+        singSource = .searching
+        AudioEffects.singAmount = 1
+        if let item = player?.currentItem { prepareItem(item) }
+        Task { [weak self] in
+            let found = await APIClient.shared.instrumental(for: track)
+            guard let self, self.singAlong, self.current?.id == track.id else { return }
+            if let found, let request = try? APIClient.shared.streamRequest(source: found.source, id: found.id) {
+                AudioEffects.singAmount = 0
+                self.swapAudio(to: AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers]))
+                self.singSource = .instrumental
+            } else {
+                self.singSource = .reduced
+            }
+        }
+    }
+
+    private func originalAsset(for track: Track) -> AVURLAsset? {
+        if let local = DownloadManager.shared.localURL(for: track) { return AVURLAsset(url: local) }
+        guard let request = try? APIClient.shared.streamRequest(source: track.source, id: track.sourceId) else { return nil }
+        return AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers])
+    }
+
+    /// Change le son du titre en cours sans changer de titre (instrumentale
+    /// ↔ original) : même position, même état lecture/pause.
+    private func swapAudio(to asset: AVURLAsset?) {
+        guard let asset, let player else { return }
+        let position = player.currentTime()
+        let wasPlaying = player.timeControlStatus != .paused
+        let item = AVPlayerItem(asset: asset)
+        prepareItem(item)
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleTrackEnd() }
+        }
+        player.replaceCurrentItem(with: item)
+        player.seek(to: position, toleranceBefore: .zero, toleranceAfter: .zero)
+        if wasPlaying { player.play() }
+    }
+
+    /// Réglages audio d'un nouvel item : traitement (chante, égaliseur) et
+    /// audio spatial.
+    private func prepareItem(_ item: AVPlayerItem) {
+        applySpatial(item)
+        if (singAlong || AudioEffects.isEQActive), item.audioMix == nil {
+            Task { [weak item] in
+                guard let item, let mix = await AudioEffects.audioMix(for: item) else { return }
+                item.audioMix = mix
+            }
+        }
+    }
+
+    private func applySpatial(_ item: AVPlayerItem) {
+        item.allowedAudioSpatializationFormats = spatialAudio ? .monoStereoAndMultichannel : .multichannel
+    }
+
+    /// Égaliseur modifié : le traitement se branche si besoin sur le titre en cours.
+    func audioEffectsChanged() {
+        if let item = player?.currentItem { prepareItem(item) }
+    }
+
+    // MARK: Reprise de la lecture
+
+    private struct SavedSession: Codable {
+        var track: Track
+        var context: [Track]
+        var position: Double
+        var name: String?
+    }
+
+    private static let sessionKey = "encre.lastSession"
+    private var lastSessionSave = Date.distantPast
+    /// Position où reprendre le titre restauré, au premier appui sur lecture.
+    private var restoredPosition: Double?
+
+    /// Mémorise le titre, la position et la file (toutes les 10 s au plus).
+    func saveSession(force: Bool = false) {
+        guard let current, force || Date().timeIntervalSince(lastSessionSave) > 10 else { return }
+        lastSessionSave = Date()
+        let index = context.firstIndex(where: { $0.id == current.id }) ?? 0
+        let window = Array(context[max(0, index - 20)..<min(context.count, index + 150)])
+        let saved = SavedSession(track: current, context: window, position: positionSeconds, name: contextName)
+        if let data = try? JSONEncoder().encode(saved) {
+            UserDefaults.standard.set(data, forKey: Self.sessionKey)
+        }
+    }
+
+    /// Au lancement : le dernier titre, en pause, prêt à reprendre là où on
+    /// l'avait laissé (mini-lecteur visible tout de suite).
+    func restoreSession() {
+        guard current == nil,
+              let data = UserDefaults.standard.data(forKey: Self.sessionKey),
+              let saved = try? JSONDecoder().decode(SavedSession.self, from: data) else { return }
+        current = saved.track
+        context = saved.context.isEmpty ? [saved.track] : saved.context
+        contextName = saved.name
+        restoredPosition = saved.position
+        positionSeconds = saved.position
+        if let duration = saved.track.durationSeconds, duration > 0 {
+            durationSeconds = Double(duration)
+            progress = min(1, saved.position / Double(duration))
+        }
+        updateNowPlayingInfo(for: saved.track)
+        fetchArtwork(for: saved.track)
+    }
+
+    /// Lecture demandée sur le titre restauré : il démarre à sa position.
+    private func startRestored() -> Bool {
+        guard player == nil, let current, let position = restoredPosition else { return false }
+        restoredPosition = nil
+        pendingSeekSeconds = position > 3 ? position : nil
+        start(current, context: context)
+        return true
+    }
+
+    // MARK: AirPods
+
+    /// Écouteurs retirés pendant la lecture : quand ils reviennent (dans les
+    /// 15 minutes), la lecture reprend toute seule.
+    private var pausedByRouteAt: Date?
 
     /// Position exacte, lue à la demande (paroles mot à mot, à chaque image) :
     /// `positionSeconds` n'est publiée que deux fois par seconde.

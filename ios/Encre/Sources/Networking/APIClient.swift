@@ -531,6 +531,65 @@ final class APIClient {
         try await send(try request("/blindtest/leaderboard", query: [URLQueryItem(name: "mode", value: mode)]))
     }
 
+    // MARK: - Extras
+
+    func releases() async throws -> [Release] {
+        try await send(try request("/releases"))
+    }
+
+    func memories() async throws -> [Memory] {
+        try await send(try request("/memories", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
+    }
+
+    func sportTracks(bpm: Double, exclude: [String]) async throws -> [Track] {
+        try await send(try request("/sport", query: [
+            URLQueryItem(name: "bpm", value: String(Int(bpm.rounded()))),
+            URLQueryItem(name: "exclude", value: exclude.joined(separator: ",")),
+        ]))
+    }
+
+    /// Instrumentale YouTube du titre (à la même durée), ou nil.
+    func instrumental(for track: Track) async -> (source: String, id: String)? {
+        struct Found: Decodable { let source: String; let sourceId: String
+            enum CodingKeys: String, CodingKey { case source; case sourceId = "source_id" } }
+        var query = [
+            URLQueryItem(name: "title", value: track.title),
+            URLQueryItem(name: "artist", value: track.artist),
+        ]
+        if let duration = track.durationSeconds { query.append(URLQueryItem(name: "duration", value: "\(duration)")) }
+        guard let found: Found = try? await send(try request("/instrumental/\(track.source)/\(track.sourceId)", query: query))
+        else { return nil }
+        return (found.source, found.sourceId)
+    }
+
+    func moments(for track: Track) async throws -> [TrackMoment] {
+        try await send(try request("/moments/\(track.source)/\(track.sourceId)"))
+    }
+
+    func addMoment(for track: Track, position: Double, emoji: String, text: String?) async throws {
+        struct Body: Encodable { let position: Double; let emoji: String; let text: String? }
+        try await sendNoContent(try request(
+            "/moments/\(track.source)/\(track.sourceId)", method: "POST",
+            bodyData: try encode(Body(position: position, emoji: emoji, text: text))
+        ))
+    }
+
+    func deleteMoment(_ id: Int) async throws {
+        try await sendNoContent(try request("/moments/\(id)", method: "DELETE"))
+    }
+
+    func listeningPlaces() async throws -> [ListeningPlace] {
+        try await send(try request("/map"))
+    }
+
+    func challenges() async throws -> Challenges {
+        try await send(try request("/challenges", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
+    }
+
+    func voteInParty(code: String, itemId: Int) async throws -> PartyState {
+        try await send(try request("/party/\(code)/queue/\(itemId)/vote", method: "POST"))
+    }
+
     // MARK: - TV / PS5
 
     func tvScreens() async throws -> [TVScreen] {
