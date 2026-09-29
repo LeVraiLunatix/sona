@@ -200,6 +200,7 @@ struct FullPlayerView: View {
         PlayerActionsMenu(
             track: player.current,
             isLiked: isLiked,
+            isDownloaded: player.current.map { DownloadManager.shared.isDownloaded($0) } ?? false,
             isStartingRadio: isStartingRadio,
             sleepTimer: player.sleepTimer,
             actions: PlayerActionsMenu.Actions(
@@ -758,13 +759,16 @@ struct PlayerActionsMenu: View, Equatable {
 
     let track: Track?
     let isLiked: Bool
+    /// Valeur figée, pas un `@ObservedObject` : le gestionnaire de
+    /// téléchargements publie en continu pendant un téléchargement, et chaque
+    /// publication reconstruisait le menu ouvert (qui remontait en haut).
+    let isDownloaded: Bool
     let isStartingRadio: Bool
     let sleepTimer: PlayerManager.SleepTimer?
     let actions: Actions
-    @ObservedObject private var downloads = DownloadManager.shared
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.track?.id == rhs.track?.id && lhs.isLiked == rhs.isLiked
+        lhs.track?.id == rhs.track?.id && lhs.isLiked == rhs.isLiked && lhs.isDownloaded == rhs.isDownloaded
             && lhs.isStartingRadio == rhs.isStartingRadio && lhs.sleepTimer == rhs.sleepTimer
     }
 
@@ -774,20 +778,40 @@ struct PlayerActionsMenu: View, Equatable {
                 Button { actions.addToPlaylist(track) } label: {
                     Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
                 }
-                if downloads.isDownloaded(track) {
-                    Button(role: .destructive) { downloads.remove(track) } label: {
+                Button { actions.toggleLike(track) } label: {
+                    Label(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
+                          systemImage: isLiked ? "minus.circle" : "plus.circle")
+                }
+                if isDownloaded {
+                    Button(role: .destructive) { DownloadManager.shared.remove(track) } label: {
                         Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
                     }
                 } else {
-                    Button { downloads.download([track]) } label: {
+                    Button { DownloadManager.shared.download([track]) } label: {
                         Label("Télécharger", systemImage: "arrow.down.circle")
                     }
                 }
-                Button { actions.addMoment(track) } label: {
-                    Label("Réagir à ce moment", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                Menu {
+                    Button { actions.addMoment(track) } label: {
+                        Label("Réagir à ce moment", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                    }
+                    Button { actions.shareStory(track) } label: {
+                        Label("Partager en story", systemImage: "square.and.arrow.up.on.square")
+                    }
+                } label: {
+                    Label("Réagir et partager", systemImage: "square.and.arrow.up")
                 }
-                Button { actions.shareStory(track) } label: {
-                    Label("Partager en story", systemImage: "square.and.arrow.up.on.square")
+                Menu {
+                    Button { actions.startDJRadio(track) } label: {
+                        Label("Radio DJ à partir de ce titre", systemImage: "dial.medium")
+                    }
+                    if let artistId = track.artistSourceId {
+                        Button {
+                            actions.startRadio(track.source, artistId)
+                        } label: { Label("Radio de l'artiste", systemImage: "dot.radiowaves.left.and.right") }
+                    }
+                } label: {
+                    Label("Radios", systemImage: "dot.radiowaves.left.and.right")
                 }
                 Button { actions.openSound() } label: {
                     Label("Son, égaliseur et AirPods", systemImage: "slider.vertical.3")
@@ -804,25 +828,15 @@ struct PlayerActionsMenu: View, Equatable {
                     Label(sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé", systemImage: "moon.zzz")
                 }
                 Divider()
-                Button { actions.startDJRadio(track) } label: {
-                    Label("Radio DJ à partir de ce titre", systemImage: "dial.medium")
-                }
                 if let artistId = track.artistSourceId {
                     Button {
                         actions.openRoute(.artist(source: track.source, id: artistId))
                     } label: { Label("Voir l'artiste", systemImage: "person.crop.circle") }
-                    Button {
-                        actions.startRadio(track.source, artistId)
-                    } label: { Label("Radio de l'artiste", systemImage: "dot.radiowaves.left.and.right") }
                 }
                 if let albumId = track.albumSourceId {
                     Button {
                         actions.openRoute(.album(source: track.source, id: albumId))
                     } label: { Label("Voir l'album", systemImage: "square.stack") }
-                }
-                Button { actions.toggleLike(track) } label: {
-                    Label(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
-                          systemImage: isLiked ? "minus.circle" : "plus.circle")
                 }
                 Divider()
                 Button { actions.reportWrongVersion(track) } label: {
