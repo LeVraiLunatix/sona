@@ -14,6 +14,7 @@ enum AppTab: Hashable {
 /// zoom système, fermeture interactive en glissant vers le bas).
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
+    @ObservedObject private var remote = RemoteFlag.shared
     @State private var selectedTab: AppTab
 
     init(startTab: AppTab = .home) {
@@ -55,9 +56,16 @@ struct RootTabView: View {
                 Label("Rechercher", systemImage: "magnifyingglass")
             }
         }
-        .tabViewBottomAccessory(isEnabled: player.current != nil) {
-            MiniPlayerView(player: player) { showingPlayer = true }
-                .matchedTransitionSource(id: "player", in: playerNamespace)
+        .tabViewBottomAccessory(isEnabled: player.current != nil || remote.isRemote) {
+            Group {
+                if remote.isRemote {
+                    // Musique sur un autre appareil : mini-télécommande.
+                    RemoteMiniPlayer { showingPlayer = true }
+                } else {
+                    MiniPlayerView(player: player) { showingPlayer = true }
+                }
+            }
+            .matchedTransitionSource(id: "player", in: playerNamespace)
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(.white)
@@ -141,7 +149,7 @@ struct RootTabView: View {
                 showingParty = true
             }
         case "player":
-            if player.current != nil { showingPlayer = true }
+            if player.current != nil || remote.isRemote { showingPlayer = true }
         case "djradio":
             if let track = player.current {
                 Task { try? await player.playDJRadio(from: track) }

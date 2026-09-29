@@ -144,6 +144,24 @@ struct TVCastBanner: View {
 
 /// Choix de l'écran, association par code, télécommande.
 struct TVCastSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List { TVCastSections() }
+                .navigationTitle("Écouter sur la TV")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } }
+                }
+        }
+    }
+}
+
+/// Écrans (PS5, TV) : lecture en cours et télécommande, écrans associés,
+/// association d'un nouvel écran. Utilisé dans « Écouter sur » (le menu
+/// de sortie du lecteur) et dans `TVCastSheet`.
+struct TVCastSections: View {
     @ObservedObject private var cast = CastManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var code = ""
@@ -151,68 +169,62 @@ struct TVCastSheet: View {
     @State private var showingPairing = false
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let active = cast.active {
-                    Section("En cours sur \(active.name)") {
-                        HStack(spacing: 28) {
-                            Spacer()
-                            remote("backward.fill") { Task { await cast.control("previous") } }
-                            remote(cast.paused ? "play.fill" : "pause.fill", size: 30) { Task { await cast.togglePause() } }
-                            remote("forward.fill") { Task { await cast.control("next") } }
-                            Spacer()
+        Group {
+            if let active = cast.active {
+                Section("En cours sur \(active.name)") {
+                    HStack(spacing: 28) {
+                        Spacer()
+                        remote("backward.fill") { Task { await cast.control("previous") } }
+                        remote(cast.paused ? "play.fill" : "pause.fill", size: 30) { Task { await cast.togglePause() } }
+                        remote("forward.fill") { Task { await cast.control("next") } }
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                    Button(role: .destructive) { Task { await cast.stop() } } label: {
+                        Label("Revenir sur l'iPhone", systemImage: "iphone")
+                    }
+                }
+            }
+
+            Section {
+                ForEach(cast.screens) { screen in
+                    Button {
+                        Task {
+                            await cast.start(on: screen)
+                            if cast.errorMessage == nil { dismiss() }
                         }
-                        .padding(.vertical, 8)
-                        Button(role: .destructive) { Task { await cast.stop() } } label: {
-                            Label("Revenir sur l'iPhone", systemImage: "iphone")
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: screen.name.localizedCaseInsensitiveContains("playstation") || screen.name.contains("PS")
+                                  ? "playstation.logo" : "tv")
+                                .font(.system(size: 18, weight: .semibold))
+                                .frame(width: 42, height: 42)
+                                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Tone.surfaceStrong))
+                            Text(screen.name)
+                            Spacer()
+                            if cast.active == screen { Image(systemName: "checkmark").foregroundStyle(.green) }
+                        }
+                        .foregroundStyle(Tone.primary)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) { Task { await cast.remove(screen) } } label: {
+                            Label("Oublier", systemImage: "trash")
                         }
                     }
                 }
-
-                Section {
-                    ForEach(cast.screens) { screen in
-                        Button {
-                            Task {
-                                await cast.start(on: screen)
-                                if cast.errorMessage == nil { dismiss() }
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: screen.name.localizedCaseInsensitiveContains("playstation") || screen.name.contains("PS")
-                                      ? "playstation.logo" : "tv")
-                                    .frame(width: 28)
-                                Text(screen.name)
-                                Spacer()
-                                if cast.active == screen { Image(systemName: "checkmark").foregroundStyle(.green) }
-                            }
-                            .foregroundStyle(Tone.primary)
-                        }
-                        .swipeActions {
-                            Button(role: .destructive) { Task { await cast.remove(screen) } } label: {
-                                Label("Oublier", systemImage: "trash")
-                            }
-                        }
-                    }
-                    Button { showingPairing = true } label: {
-                        Label("Associer une PS5 ou une TV", systemImage: "plus.circle")
-                    }
-                } header: {
-                    Text("Écrans")
-                } footer: {
-                    Text("Le son passe par l'appli YouTube de l'écran (avec ses pubs, sans YouTube Premium).")
+                Button { showingPairing = true } label: {
+                    Label("Associer une PS5 ou une TV", systemImage: "plus.circle")
                 }
-
                 if let error = cast.errorMessage {
                     Text(error).font(Typo.rowSubtitle).foregroundStyle(Tone.danger)
                 }
+            } header: {
+                Text("PS5 et TV")
+            } footer: {
+                Text("Le son passe par l'appli YouTube de l'écran (avec ses pubs, sans YouTube Premium).")
             }
-            .navigationTitle("Écouter sur la TV")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } }
-            }
-            .sheet(isPresented: $showingPairing) { pairingView }
         }
+        .sheet(isPresented: $showingPairing) { pairingView }
         .task { await cast.loadScreens() }
     }
 

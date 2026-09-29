@@ -32,6 +32,8 @@ struct FullPlayerView: View {
     @State private var activity = 0
     @State private var scrubbing = false
     @AppStorage("encre.visualizer") private var visualizer = false
+    /// Musique sur un autre appareil (PC…) : le lecteur devient sa télécommande.
+    @ObservedObject private var remote = RemoteFlag.shared
     @Namespace private var hero
 
     private struct AutoHideKey: Equatable {
@@ -42,6 +44,15 @@ struct FullPlayerView: View {
     }
 
     var body: some View {
+        if remote.isRemote {
+            RemotePlayerView { dismiss() }
+                .transition(.opacity)
+        } else {
+            localPlayer
+        }
+    }
+
+    private var localPlayer: some View {
         ZStack {
             LivingBackground(colors: palette, animated: player.isPlaying)
                 .id(palette)
@@ -134,6 +145,8 @@ struct FullPlayerView: View {
         .onChange(of: player.current == nil) { _, isEmpty in
             if isEmpty { dismiss() }
         }
+        // Retour de la télécommande sans titre sur l'iPhone : rien à montrer.
+        .onAppear { if player.current == nil { dismiss() } }
     }
 
     private func syncVisualizer() {
@@ -437,14 +450,11 @@ struct FullPlayerView: View {
                 Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
             }
 
-            HStack {
+            // Paroles · où sort la musique (AirPods, AirPlay, PS5, PC) · file.
+            HStack(alignment: .top) {
                 panelButton(.lyrics, icon: "quote.bubble")
                 Spacer()
-                AirPlayButton()
-                Spacer()
-                TVCastButton()
-                Spacer()
-                ConnectButton()
+                OutputButton()
                 Spacer()
                 panelButton(.queue, icon: "list.bullet")
             }

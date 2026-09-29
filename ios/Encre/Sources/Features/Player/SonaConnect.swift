@@ -39,6 +39,14 @@ final class ConnectManager: ObservableObject {
         return devices.first { $0.id == activeDeviceId && $0.playing }
     }
 
+    /// L'appareil à piloter depuis le lecteur : celui de la dernière lecture
+    /// du compte, s'il est connecté — qu'il joue ou soit en pause —, tant
+    /// que rien ne joue sur cet iPhone.
+    var remoteTarget: ConnectDevice? {
+        guard let session, session.deviceId != deviceId, !PlayerManager.shared.isPlaying else { return nil }
+        return devices.first { $0.id == session.deviceId && !$0.isMe }
+    }
+
     /// Position de la lecture distante (elle avance entre deux relevés).
     var remotePosition: Double {
         guard let session else { return 0 }
@@ -52,7 +60,9 @@ final class ConnectManager: ObservableObject {
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] playing in
-                guard let self, playing, Date() > self.remoteStartUntil else { return }
+                guard let self else { return }
+                RemoteFlag.shared.update(!playing && self.remoteTarget != nil)
+                guard playing, Date() > self.remoteStartUntil else { return }
                 self.claimPending = true
                 self.syncSoon()
             }
@@ -61,7 +71,7 @@ final class ConnectManager: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.sync()
-                let busy = PlayerManager.shared.isPlaying || self.remoteDevice != nil
+                let busy = PlayerManager.shared.isPlaying || self.remoteTarget != nil
                 let active = UIApplication.shared.applicationState == .active
                 try? await Task.sleep(for: .seconds(busy ? (active ? 2.5 : 5) : (active ? 5 : 20)))
             }
@@ -87,6 +97,7 @@ final class ConnectManager: ObservableObject {
         session = response.session
         activeDeviceId = response.activeDeviceId
         for command in response.commands { run(command) }
+        RemoteFlag.shared.update(remoteTarget != nil)
     }
 
     private func run(_ command: ConnectCommand) {
@@ -157,7 +168,14 @@ final class ConnectManager: ObservableObject {
 
     /// Télécommande de l'appareil qui joue ailleurs.
     func remote(_ action: String, position: Double? = nil, volume: Double? = nil) {
-        guard let target = remoteDevice else { return }
+        guard let target = remoteTarget else { return }
+        // Réponse immédiate à l'écran, confirmée au relevé suivant.
+        if action == "toggle", var current = session {
+            current.paused.toggle()
+            current.position = remotePosition
+            session = current
+            receivedAt = Date()
+        }
         Task {
             try? await APIClient.shared.connectCommand(
                 from: deviceId, to: target.id, action: action, position: position, volume: volume
@@ -167,81 +185,70 @@ final class ConnectManager: ObservableObject {
     }
 }
 
-// MARK: - Interface
+/// « Un autre appareil est à piloter » : un simple booléen, publié
+/// seulement quand il change — la barre d'onglets l'observe sans se
+/// redessiner à chaque relevé de Sona Connect.
+@MainActor
+final class RemoteFlag: ObservableObject {
+    static let shared = RemoteFlag()
+    @Published private(set) var isRemote = false
 
-/// Bouton du lecteur plein écran : tes appareils.
-struct ConnectButton: View {
-    @ObservedObject private var connect = ConnectManager.shared
-    @State private var showing = false
-
-    var body: some View {
-        Button { showing = true } label: {
-            Image(systemName: connect.otherDevices.isEmpty ? "hifispeaker.and.appletv" : "hifispeaker.and.appletv.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(connect.otherDevices.isEmpty ? Tone.secondary : Color.accentColor)
-                .frame(width: 44, height: 36)
-        }
-        .buttonStyle(.pressable(scale: 0.85))
-        .accessibilityLabel("Sona Connect")
-        .sheet(isPresented: $showing) {
-            ConnectSheet().presentationDetents([.medium, .large])
-        }
+    func update(_ value: Bool) {
+        if value != isRemote { isRemote = value }
     }
 }
 
-struct ConnectSheet: View {
+// MARK: - Interface
+
+/// Tes autres appareils Sona (PC, autre iPhone) : « Écouter dessus ».
+/// Dans « Écouter sur » (menu de sortie du lecteur) et `ConnectSheet`.
+struct ConnectDevicesSection: View {
+    var includeSelf = false
     @ObservedObject private var connect = ConnectManager.shared
-    @ObservedObject private var player = PlayerManager.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let remote = connect.remoteDevice, let session = connect.session {
-                    Section("En lecture sur \(remote.name)") {
-                        RemoteControls(session: session)
+        let devices = connect.devices.filter { includeSelf || !$0.isMe }
+        Section {
+            ForEach(devices) { device in
+                Button {
+                    Task {
+                        await connect.listen(on: device)
+                        dismiss()
                     }
+                } label: {
+                    row(device)
                 }
-                Section {
-                    ForEach(connect.devices) { device in
-                        Button {
-                            Task {
-                                await connect.listen(on: device)
-                                dismiss()
-                            }
-                        } label: {
-                            deviceRow(device)
-                        }
-                        .disabled(device.isMe && connect.remoteDevice == nil && connect.session?.deviceId == connect.deviceId)
-                    }
-                } header: {
-                    Text("Écouter sur")
-                } footer: {
-                    Text(connect.otherDevices.isEmpty
-                         ? "Ouvre Sona sur ton ordinateur (soonaa.vercel.app) : il apparaîtra ici."
-                         : "La musique continue sur l'appareil choisi, à la même seconde.")
-                }
+                .disabled(device.isMe && connect.remoteTarget == nil)
             }
-            .navigationTitle("Sona Connect")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
-            .task {
-                while !Task.isCancelled {
-                    await connect.sync()
-                    try? await Task.sleep(for: .seconds(2))
-                }
+            if devices.isEmpty {
+                Label("Aucun autre appareil connecté", systemImage: "laptopcomputer.slash")
+                    .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+            }
+        } header: {
+            Text("Sona Connect")
+        } footer: {
+            Text(connect.otherDevices.isEmpty
+                 ? "Ouvre Sona sur ton ordinateur (soonaa.vercel.app) : il apparaîtra ici."
+                 : "La musique continue sur l'appareil choisi, à la même seconde.")
+        }
+        .task {
+            while !Task.isCancelled {
+                await connect.sync()
+                try? await Task.sleep(for: .seconds(2))
             }
         }
     }
 
-    private func deviceRow(_ device: ConnectDevice) -> some View {
-        HStack(spacing: 14) {
+    private func row(_ device: ConnectDevice) -> some View {
+        let isTarget = connect.remoteTarget?.id == device.id
+        return HStack(spacing: 14) {
             Image(systemName: device.kind == "iphone" ? "iphone" : "laptopcomputer")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(device.playing ? .white : Tone.secondary)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(device.playing || isTarget ? .white : Tone.secondary)
                 .frame(width: 42, height: 42)
                 .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(device.playing ? Color.accentColor : Tone.surfaceStrong))
+                    .fill(device.playing || isTarget ? Color.accentColor : Tone.surfaceStrong))
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.isMe ? "Cet iPhone" : device.name).font(Typo.rowTitle).foregroundStyle(Tone.primary)
                 if device.playing, let track = device.track {
@@ -251,11 +258,14 @@ struct ConnectSheet: View {
                     }
                     .font(Typo.caption).foregroundStyle(Color.accentColor)
                 } else {
-                    Text(device.isMe ? device.name : "Connecté").font(Typo.caption).foregroundStyle(Tone.secondary)
+                    Text(isTarget ? "En pause · piloté depuis cet iPhone" : "Connecté")
+                        .font(Typo.caption).foregroundStyle(Tone.secondary)
                 }
             }
             Spacer()
-            if !device.playing {
+            if isTarget {
+                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+            } else if !device.playing {
                 Text(device.isMe ? "Écouter ici" : "Écouter dessus")
                     .font(Typo.caption).foregroundStyle(Color.accentColor)
             }
@@ -263,47 +273,205 @@ struct ConnectSheet: View {
     }
 }
 
-/// Télécommande de la lecture sur un autre appareil.
-private struct RemoteControls: View {
-    let session: ConnectSession
-    @ObservedObject private var connect = ConnectManager.shared
-    @State private var volume: Double?
+struct ConnectSheet: View {
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 12) {
-                Artwork(url: session.track.coverURL, cornerRadius: 8).frame(width: 54, height: 54)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.track.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
-                    Text(session.track.artist).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+        NavigationStack {
+            List { ConnectDevicesSection(includeSelf: true) }
+                .navigationTitle("Écouter sur")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
+        }
+    }
+}
+
+// MARK: - Télécommande dans le lecteur
+
+/// Lecteur plein écran quand la musique joue (ou est en pause) sur un autre
+/// appareil : pochette, titre, progression, commandes et volume de cet
+/// appareil — comme si elle jouait ici.
+struct RemotePlayerView: View {
+    var onClose: () -> Void
+    @ObservedObject private var connect = ConnectManager.shared
+    @State private var palette: [Color] = ArtworkPalette.fallback
+    @State private var volume: Double?
+    @State private var seeking: Double?
+
+    var body: some View {
+        ZStack {
+            LivingBackground(colors: palette, animated: !(connect.session?.paused ?? true))
+                .id(palette)
+            if let session = connect.session, let device = connect.remoteTarget {
+                VStack(spacing: 0) {
+                    HStack {
+                        Button(action: onClose) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Tone.primary)
+                                .frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(.pressable(scale: 0.85))
+                        Spacer()
+                        Label("Lecture sur \(device.name)", systemImage: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+                            .font(Typo.caption).foregroundStyle(Tone.primary)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Capsule().fill(Color.white.opacity(0.15)))
+                        Spacer()
+                        Color.clear.frame(width: 40, height: 40)
+                    }
+                    .padding(.top, 8)
+
+                    Spacer(minLength: 16)
+                    Artwork(url: session.track.coverURL, cornerRadius: 14)
+                        .aspectRatio(1, contentMode: .fit)
+                        .scaleEffect(session.paused ? 0.82 : 1)
+                        .shadow(color: .black.opacity(0.4), radius: 26, y: 16)
+                        .animation(Motion.bouncy, value: session.paused)
+                        .id(session.track.id)
+                    Spacer(minLength: 24)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(session.track.title).font(.system(size: 22, weight: .bold)).foregroundStyle(Tone.primary).lineLimit(1)
+                        Text(session.track.artist).font(.system(size: 19)).foregroundStyle(Tone.secondary).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 18)
+
+                    progress(session)
+
+                    HStack {
+                        Spacer()
+                        control("backward.fill", 30) { connect.remote("previous") }
+                        Spacer()
+                        control(session.paused ? "play.fill" : "pause.fill", 46) { connect.remote("toggle") }
+                        Spacer()
+                        control("forward.fill", 30) { connect.remote("next") }
+                        Spacer()
+                    }
+                    .padding(.vertical, 20)
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+                        Slider(value: Binding(
+                            get: { volume ?? device.volume ?? 1 },
+                            set: { volume = $0 }
+                        ), in: 0...1) { editing in
+                            if !editing, let volume { connect.remote("volume", volume: volume) }
+                        }
+                        .tint(.white)
+                        Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+                    }
+
+                    HStack {
+                        Button {
+                            connect.resumeHere()
+                        } label: {
+                            Label("Écouter sur cet iPhone", systemImage: "iphone")
+                                .font(Typo.rowTitle).foregroundStyle(.black)
+                                .padding(.horizontal, 16).frame(height: 38)
+                                .background(Capsule().fill(.white))
+                        }
+                        .buttonStyle(.pressable(scale: 0.95))
+                        Spacer()
+                        OutputButton()
+                    }
+                    .padding(.top, 18)
                 }
-                Spacer()
-            }
-            HStack(spacing: 36) {
-                button("backward.fill", "previous")
-                button("pause.fill", "toggle", size: 30)
-                button("forward.fill", "next")
-            }
-            HStack(spacing: 12) {
-                Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
-                Slider(value: Binding(
-                    get: { volume ?? connect.remoteDevice?.volume ?? 1 },
-                    set: { volume = $0 }
-                ), in: 0...1) { editing in
-                    if !editing, let volume { connect.remote("volume", volume: volume) }
+                .padding(.horizontal, 26)
+                .padding(.bottom, 8)
+                .task(id: session.track.coverURL) {
+                    palette = await ArtworkPalette.colors(for: session.track.coverURL)
                 }
-                .tint(.white)
-                Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
             }
         }
-        .padding(.vertical, 6)
+        .animation(.easeInOut(duration: 0.9), value: palette)
     }
 
-    private func button(_ icon: String, _ action: String, size: CGFloat = 22) -> some View {
-        Button { connect.remote(action) } label: {
-            Image(systemName: icon).font(.system(size: size, weight: .semibold)).foregroundStyle(Tone.primary)
+    private func progress(_ session: ConnectSession) -> some View {
+        let duration = Double(session.track.durationSeconds ?? 0)
+        return TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            let position = seeking ?? min(connect.remotePosition, duration)
+            VStack(spacing: 6) {
+                Slider(value: Binding(
+                    get: { duration > 0 ? position / duration : 0 },
+                    set: { seeking = $0 * duration }
+                )) { editing in
+                    if !editing, let seeking {
+                        connect.remote("seek", position: seeking)
+                        self.seeking = nil
+                    }
+                }
+                .tint(.white)
+                .disabled(duration <= 0)
+                HStack {
+                    Text(Self.time(position))
+                    Spacer()
+                    Text("-" + Self.time(max(0, duration - position)))
+                }
+                .font(Typo.caption).monospacedDigit().foregroundStyle(Tone.tertiary)
+            }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func control(_ icon: String, _ size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: size))
+                .contentTransition(.symbolEffect(.replace.downUp))
+                .foregroundStyle(Tone.primary)
+                .frame(width: 80, height: 80)
+        }
+        .buttonStyle(.pressable(scale: 0.82))
+        .sensoryFeedback(.impact(weight: .light), trigger: icon)
+    }
+
+    static func time(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds))
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// Mini-lecteur quand la musique est sur un autre appareil.
+struct RemoteMiniPlayer: View {
+    var onExpand: () -> Void
+    @ObservedObject private var connect = ConnectManager.shared
+
+    var body: some View {
+        if let session = connect.session, let device = connect.remoteTarget {
+            HStack(spacing: 12) {
+                Artwork(url: session.track.coverURL, cornerRadius: 7).frame(width: 34, height: 34)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(session.track.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                    Label("Sur \(device.name)", systemImage: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Button {
+                    connect.remote("toggle")
+                } label: {
+                    Image(systemName: session.paused ? "play.fill" : "pause.fill")
+                        .contentTransition(.symbolEffect(.replace.downUp))
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(Tone.primary)
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.pressable(scale: 0.85))
+                Button {
+                    connect.remote("next")
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Tone.primary)
+                        .frame(width: 36, height: 40)
+                }
+                .buttonStyle(.pressable(scale: 0.85))
+            }
+            .padding(.horizontal, 8)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onExpand)
+        }
     }
 }
 

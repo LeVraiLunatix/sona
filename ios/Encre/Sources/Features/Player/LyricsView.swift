@@ -37,12 +37,17 @@ struct LyricsView: View {
                         .frame(maxHeight: .infinity)
                 } else if lyrics.synced {
                     synced(lyrics.lines)
-                        .overlay(alignment: .topTrailing) {
+                        // En bas à droite, juste au-dessus de la barre de
+                        // lecture : ne cache pas les paroles, et reste là
+                        // quand les commandes se masquent.
+                        .overlay(alignment: .bottomTrailing) {
                             HStack(spacing: 8) {
                                 if foreign { translateButton }
                                 singButton
                             }
                             .padding(.trailing, Self.sideInset)
+                            .padding(.bottom, 10)
+                            .shadow(color: .black.opacity(0.35), radius: 10, y: 3)
                         }
                         .translationTask(translationConfig) { session in
                             await translate(lyrics.lines, with: session)
