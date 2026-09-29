@@ -17,6 +17,17 @@ NIGHT_HOURS = {22, 23, 0, 1, 2, 3, 4}
 MORNING_HOURS = {5, 6, 7, 8, 9}
 
 
+def available_message(period: str) -> str:
+    """Quand sort le récap de la période en cours."""
+    if period == "week":
+        return "Le récap de la semaine sera disponible lundi, une fois la semaine terminée."
+    if period == "year":
+        return "Le récap de l'année sera disponible le 1er janvier."
+    today = datetime.now(timezone.utc).date()
+    following = MONTHS_FR[today.month % 12]
+    return f"Le récap du mois sera disponible le 1er {following}, une fois le mois terminé."
+
+
 def personality(plays: list[Play], new_artists: int, tz) -> dict:
     """Un profil parmi quelques-uns, d'après la façon d'écouter."""
     total = len(plays)

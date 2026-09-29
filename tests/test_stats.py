@@ -173,7 +173,10 @@ def test_lastfm_error_is_reported():
 
 
 def test_recap_story_for_the_month(client):
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    # Le récap porte sur le mois dernier : écoutes au milieu de ce mois-là.
+    today = datetime.now(ZoneInfo("Europe/Paris"))
+    last_month = (today.replace(day=1) - timedelta(days=1)).replace(day=15, hour=12)
+    now = last_month.astimezone(timezone.utc).replace(microsecond=0)
     plays = [
         {"title": "Room", "artist": "Ziak", "source": "deezer", "source_id": "1", "duration_seconds": 180,
          "played_at": (now - timedelta(minutes=2 * i)).isoformat()}
@@ -182,11 +185,16 @@ def test_recap_story_for_the_month(client):
           "played_at": (now - timedelta(minutes=30)).isoformat()}]
     client.post("/plays", headers=AUTH, json={"plays": plays})
 
-    recap = client.get("/stats/recap", headers=AUTH, params={"tz": "Europe/Paris"}).json()
+    # Mois en cours : pas encore de récap.
+    early = client.get("/stats/recap", headers=AUTH, params={"tz": "Europe/Paris"})
+    assert early.status_code == 409 and "1er" in early.json()["detail"]
+
+    recap = client.get("/stats/recap", headers=AUTH, params={"tz": "Europe/Paris", "offset": -1}).json()
     assert recap["period"] == "month" and recap["plays"] == 13
     assert recap["top_artists"][0]["name"] == "Ziak"
     assert recap["favourite_track"]["title"] == "Room" and recap["favourite_track"]["source_id"] == "1"
     assert recap["first_track"]["title"] in ("Room", "Autre")
     assert recap["personality"]["title"] == "Le fan absolu"
     assert recap["biggest_day"]["minutes"] >= 36
-    assert client.get("/stats/recap", headers=AUTH, params={"period": "day"}).status_code == 400
+    assert client.get("/stats/recap", headers=AUTH, params={"period": "day", "offset": -1}).status_code == 400
+    assert "lundi" in client.get("/stats/recap", headers=AUTH, params={"period": "week"}).json()["detail"]

@@ -60,10 +60,13 @@ struct StatsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    // La période affichée, en story (jour et « tout » : le mois).
+                    // La période affichée si elle est terminée, sinon la
+                    // précédente (jour et « tout » : le mois dernier).
                     switch viewModel.period {
-                    case .week, .month, .year: recap = RecapLaunch(period: viewModel.period.rawValue, offset: viewModel.offset)
-                    default: recap = RecapLaunch(period: "month", offset: 0)
+                    case .week, .month, .year:
+                        recap = RecapLaunch(period: viewModel.period.rawValue, offset: min(viewModel.offset, -1))
+                    default:
+                        recap = RecapLaunch(period: "month", offset: -1)
                     }
                 } label: {
                     Image(systemName: "sparkles")
@@ -80,37 +83,59 @@ struct StatsView: View {
 
     // MARK: - Récap
 
-    /// Début de mois : le récap du mois écoulé ; sinon celui du mois en cours.
+    /// Comme un vrai Wrapped : le récap d'une semaine sort le lundi suivant,
+    /// celui d'un mois le 1er du mois suivant. On propose donc toujours les
+    /// dernières périodes terminées, et la date du prochain.
     private var recapCard: some View {
-        let day = Calendar.current.component(.day, from: Date())
-        let lastMonth = day <= 7
-        let reference = Calendar.current.date(byAdding: .month, value: lastMonth ? -1 : 0, to: Date()) ?? Date()
-        let month = reference.formatted(.dateTime.month(.wide))
-        return Button {
-            recap = RecapLaunch(period: "month", offset: lastMonth ? -1 : 0)
-        } label: {
-            HStack(spacing: 14) {
+        let calendar = Calendar(identifier: .iso8601)
+        let now = Date()
+        let lastMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
+        let monthName = lastMonth.formatted(.dateTime.month(.wide))
+        let lastWeekStart = calendar.date(byAdding: .weekOfYear, value: -1,
+                                          to: calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now) ?? now
+        let lastWeekEnd = calendar.date(byAdding: .day, value: 6, to: lastWeekStart) ?? now
+        let nextMonday = calendar.date(byAdding: .weekOfYear, value: 1,
+                                       to: calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now) ?? now
+        let nextMonth = calendar.date(byAdding: .month, value: 1,
+                                      to: calendar.dateInterval(of: .month, for: now)?.start ?? now) ?? now
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                recapTile(
+                    title: "Ta semaine",
+                    subtitle: "Du \(lastWeekStart.formatted(.dateTime.day().month())) au \(lastWeekEnd.formatted(.dateTime.day().month()))",
+                    colors: [Color(red: 0.2, green: 0.5, blue: 0.95), Color(red: 0.35, green: 0.2, blue: 0.85)]
+                ) { recap = RecapLaunch(period: "week", offset: -1) }
+                recapTile(
+                    title: "Ton \(monthName)",
+                    subtitle: "Le récap du mois",
+                    colors: [Color(red: 0.55, green: 0.2, blue: 0.95), Color(red: 0.95, green: 0.3, blue: 0.5)]
+                ) { recap = RecapLaunch(period: "month", offset: -1) }
+            }
+            Text("Prochains récaps : \(nextMonday.formatted(.dateTime.weekday(.wide).day().month())) pour la semaine, le \(nextMonth.formatted(.dateTime.day().month(.wide))) pour le mois.")
+                .font(Typo.caption)
+                .foregroundStyle(Tone.tertiary)
+        }
+    }
+
+    private func recapTile(title: String, subtitle: String, colors: [Color], action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.white)
                     .symbolEffect(.pulse, options: .repeating)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(lastMonth ? "Ton récap de \(month) est prêt" : "Ton récap de \(month) (en cours)")
-                        .font(Typo.headline).foregroundStyle(.white)
-                    Text("Tes tops, ton profil d'écoute, ta place parmi tes amis")
-                        .font(Typo.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: "play.fill").foregroundStyle(.white)
+                Spacer(minLength: 0)
+                Text(title).font(Typo.headline).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
+                Text(subtitle).font(Typo.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
             }
-            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+            .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.55, green: 0.2, blue: 0.95), Color(red: 0.95, green: 0.3, blue: 0.5)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
             )
         }
-        .buttonStyle(.pressable(scale: 0.98))
+        .buttonStyle(.pressable(scale: 0.97))
     }
 
     // MARK: - Période

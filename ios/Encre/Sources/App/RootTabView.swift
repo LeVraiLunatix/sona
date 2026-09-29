@@ -99,8 +99,7 @@ struct RootTabView: View {
         case "blindtest":
             showingBlindTest = true
         case "recap":
-            let lastMonth = Calendar.current.component(.day, from: Date()) <= 7
-            recap = RecapLaunch(period: "month", offset: lastMonth ? -1 : 0)
+            recap = RecapLaunch(period: "month", offset: -1)  // dernier mois terminé
         case "party":
             showingParty = true
         case "player":

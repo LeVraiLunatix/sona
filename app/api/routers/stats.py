@@ -316,6 +316,9 @@ async def get_recap(
     """Récap en story (voir services/recap.py)."""
     if period not in ("week", "month", "year"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Période inconnue : {period}")
+    if offset >= 0:
+        # Comme un vrai Wrapped : le récap d'une période sort quand elle est finie.
+        raise HTTPException(status.HTTP_409_CONFLICT, recap_service.available_message(period))
     recap = await recap_service.compute(deps, deps.user_id, period, offset, tz)
     for key in ("top_artists", "top_tracks", "top_albums", "discoveries"):
         recap[key] = [asdict(item) for item in recap[key]]
