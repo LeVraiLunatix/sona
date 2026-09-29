@@ -11,6 +11,7 @@ struct StatsView: View {
     @Binding var path: NavigationPath
     @State private var chartsVisible = false
     @State private var openingTrackId: String?
+    @State private var recap: RecapLaunch?
 
     var body: some View {
         ScrollView {
@@ -18,6 +19,10 @@ struct StatsView: View {
                 LiveStatsSection()
                     .padding(.horizontal, 20)
                     .reveal(0)
+
+                recapCard
+                    .padding(.horizontal, 20)
+                    .reveal(1)
 
                 periodControls
 
@@ -53,10 +58,59 @@ struct StatsView: View {
             ToolbarItem(placement: .topBarLeading) {
                 NavigationLink { RecentPlaysView() } label: { Image(systemName: "clock.arrow.circlepath") }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    // La période affichée, en story (jour et « tout » : le mois).
+                    switch viewModel.period {
+                    case .week, .month, .year: recap = RecapLaunch(period: viewModel.period.rawValue, offset: viewModel.offset)
+                    default: recap = RecapLaunch(period: "month", offset: 0)
+                    }
+                } label: {
+                    Image(systemName: "sparkles")
+                }
+            }
+        }
+        .fullScreenCover(item: $recap) { launch in
+            RecapView(period: launch.period, offset: launch.offset)
         }
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
         .onChange(of: viewModel.report) { _, _ in replayCharts() }
+    }
+
+    // MARK: - Récap
+
+    /// Début de mois : le récap du mois écoulé ; sinon celui du mois en cours.
+    private var recapCard: some View {
+        let day = Calendar.current.component(.day, from: Date())
+        let lastMonth = day <= 7
+        let reference = Calendar.current.date(byAdding: .month, value: lastMonth ? -1 : 0, to: Date()) ?? Date()
+        let month = reference.formatted(.dateTime.month(.wide))
+        return Button {
+            recap = RecapLaunch(period: "month", offset: lastMonth ? -1 : 0)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                    .symbolEffect(.pulse, options: .repeating)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(lastMonth ? "Ton récap de \(month) est prêt" : "Ton récap de \(month) (en cours)")
+                        .font(Typo.headline).foregroundStyle(.white)
+                    Text("Tes tops, ton profil d'écoute, ta place parmi tes amis")
+                        .font(Typo.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "play.fill").foregroundStyle(.white)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(red: 0.55, green: 0.2, blue: 0.95), Color(red: 0.95, green: 0.3, blue: 0.5)],
+                                         startPoint: .leading, endPoint: .trailing))
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.98))
     }
 
     // MARK: - Période
@@ -467,4 +521,11 @@ struct ArtistPicture: View {
             url = picture
         }
     }
+}
+
+/// Ouverture du récap en story.
+struct RecapLaunch: Identifiable {
+    let period: String
+    let offset: Int
+    var id: String { "\(period)\(offset)" }
 }

@@ -266,6 +266,64 @@ struct RankedStat: Codable, Identifiable, Hashable {
     var id: String { "\(name)|\(subtitle ?? "")" }
 }
 
+/// Récap en story (serveur : `app/services/recap.py`).
+struct Recap: Codable, Hashable {
+    struct Personality: Codable, Hashable {
+        var title: String
+        var emoji: String
+        var description: String
+        var traits: [String: Double]
+    }
+
+    struct Day: Codable, Hashable {
+        var label: String
+        var minutes: Int
+    }
+
+    struct Rank: Codable, Hashable {
+        var rank: Int
+        var total: Int
+    }
+
+    var period: String
+    var offset: Int
+    var label: String
+    var plays: Int
+    var minutes: Int
+    var previousMinutes: Int
+    var artists: Int
+    var tracks: Int
+    var topArtists: [RankedStat]
+    var topTracks: [RankedStat]
+    var topAlbums: [RankedStat]
+    var discoveries: [RankedStat]
+    var discoveredCount: Int
+    var topHour: Int?
+    var topWeekday: String?
+    var streakDays: Int
+    var biggestDay: Day?
+    var firstTrack: Track?
+    var favouriteTrack: Track?
+    var personality: Personality?
+    var friendsRank: Rank?
+
+    enum CodingKeys: String, CodingKey {
+        case period, offset, label, plays, minutes, artists, tracks, discoveries, personality
+        case previousMinutes = "previous_minutes"
+        case topArtists = "top_artists"
+        case topTracks = "top_tracks"
+        case topAlbums = "top_albums"
+        case discoveredCount = "discovered_count"
+        case topHour = "top_hour"
+        case topWeekday = "top_weekday"
+        case streakDays = "streak_days"
+        case biggestDay = "biggest_day"
+        case firstTrack = "first_track"
+        case favouriteTrack = "favourite_track"
+        case friendsRank = "friends_rank"
+    }
+}
+
 struct StatBucket: Codable, Hashable {
     var label: String
     var plays: Int

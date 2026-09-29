@@ -15,6 +15,7 @@ from app.providers.lastfm import ImportStatus, LastfmClient, import_history
 from app.providers.base import TrackInfo
 from app.providers.lastfm_auth import LastfmAuthError
 from app.services import presence
+from app.services import recap as recap_service
 from app.services import stats as stats_service
 
 logger = logging.getLogger(__name__)
@@ -303,6 +304,22 @@ async def get_stats(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Période inconnue : {period}")
     report = await stats_service.compute(deps.repo, deps.user_id, period, offset, tz)
     return StatsOut(**asdict(report))
+
+
+@router.get("/stats/recap")
+async def get_recap(
+    period: str = Query("month", description="week | month | year"),
+    offset: int = Query(0, le=0, ge=-600),
+    tz: str | None = Query(None),
+    deps: ApiDeps = Depends(require_token),
+) -> dict:
+    """Récap en story (voir services/recap.py)."""
+    if period not in ("week", "month", "year"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Période inconnue : {period}")
+    recap = await recap_service.compute(deps, deps.user_id, period, offset, tz)
+    for key in ("top_artists", "top_tracks", "top_albums", "discoveries"):
+        recap[key] = [asdict(item) for item in recap[key]]
+    return recap
 
 
 def _lastfm_username(deps: ApiDeps) -> str | None:

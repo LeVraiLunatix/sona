@@ -298,6 +298,14 @@ final class APIClient {
         ]))
     }
 
+    func recap(period: String, offset: Int) async throws -> Recap {
+        try await send(try request("/stats/recap", query: [
+            URLQueryItem(name: "period", value: period),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+            URLQueryItem(name: "tz", value: TimeZone.current.identifier),
+        ]))
+    }
+
     func lastfmImportStatus() async throws -> LastfmImportStatus {
         try await send(try request("/stats/import/lastfm"))
     }

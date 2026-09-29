@@ -4,7 +4,7 @@ enregistrement des écoutes et import Last.fm (faux transport, sans réseau)."""
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -170,3 +170,23 @@ def test_lastfm_error_is_reported():
     status = ImportStatus()
     asyncio.run(import_history(client, MemoryRepo(), 1, "inconnu", status))
     assert status.error == "Last.fm : User not found" and not status.running
+
+
+def test_recap_story_for_the_month(client):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    plays = [
+        {"title": "Room", "artist": "Ziak", "source": "deezer", "source_id": "1", "duration_seconds": 180,
+         "played_at": (now - timedelta(minutes=2 * i)).isoformat()}
+        for i in range(12)
+    ] + [{"title": "Autre", "artist": "Gazo", "duration_seconds": 200,
+          "played_at": (now - timedelta(minutes=30)).isoformat()}]
+    client.post("/plays", headers=AUTH, json={"plays": plays})
+
+    recap = client.get("/stats/recap", headers=AUTH, params={"tz": "Europe/Paris"}).json()
+    assert recap["period"] == "month" and recap["plays"] == 13
+    assert recap["top_artists"][0]["name"] == "Ziak"
+    assert recap["favourite_track"]["title"] == "Room" and recap["favourite_track"]["source_id"] == "1"
+    assert recap["first_track"]["title"] in ("Room", "Autre")
+    assert recap["personality"]["title"] == "Le fan absolu"
+    assert recap["biggest_day"]["minutes"] >= 36
+    assert client.get("/stats/recap", headers=AUTH, params={"period": "day"}).status_code == 400
