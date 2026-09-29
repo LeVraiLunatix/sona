@@ -141,6 +141,15 @@ struct UserPlaylistView: View {
             }
             .onMove(perform: moveHandler(playlist))
 
+            if !playlist.importFailed, !playlist.isImporting, let note = playlist.importError {
+                // Import terminé mais partiel : la raison, telle que le serveur l'a vue.
+                Label(note, systemImage: "exclamationmark.triangle")
+                    .font(Typo.rowSubtitle)
+                    .foregroundStyle(Tone.secondary)
+                    .padding(.top, 10)
+                    .plainRow()
+            }
+
             if !entries.isEmpty {
                 Text(footer(playlist))
                     .font(Typo.rowSubtitle)

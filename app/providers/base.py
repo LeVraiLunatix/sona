@@ -91,3 +91,5 @@ class ExternalPlaylist:
     description: str | None
     cover_url: str | None
     tracks: list[TrackInfo] = field(default_factory=list)
+    # Avertissement à montrer dans l'app (import partiel, par exemple).
+    note: str | None = None

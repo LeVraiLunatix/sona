@@ -265,7 +265,8 @@ async def run_import(deps, playlist_id: int, link: PlaylistLink, *, replace: boo
             await repo.playlist_clear_tracks(playlist_id)
         await repo.playlist_add_tracks(playlist_id, kept)
         await repo.playlist_update(
-            playlist_id, import_status="done", import_done=total, import_missing=total - len(kept)
+            playlist_id, import_status="done", import_done=total, import_missing=total - len(kept),
+            import_error=playlist.note,
         )
         logger.info(
             "Playlist importée (%s) : « %s », %d/%d morceaux", link.source, playlist.name, len(kept), total

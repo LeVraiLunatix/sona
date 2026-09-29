@@ -11,12 +11,14 @@ class Track(BaseModel):
     source_id: str
     title: str
     artist: str
-    album: str | None
-    year: str | None
-    duration_seconds: int | None
-    cover_url: str | None
-    artist_source_id: str | None
-    album_source_id: str | None
+    # Facultatifs : l'app omet les champs vides quand elle renvoie un titre
+    # (ajout à une playlist) — sans valeur par défaut, « Field required ».
+    album: str | None = None
+    year: str | None = None
+    duration_seconds: int | None = None
+    cover_url: str | None = None
+    artist_source_id: str | None = None
+    album_source_id: str | None = None
 
     @classmethod
     def from_info(cls, t: TrackInfo) -> "Track":

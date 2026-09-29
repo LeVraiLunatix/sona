@@ -291,7 +291,7 @@ def test_run_import_matches_on_deezer_and_keeps_order(monkeypatch):
     # Deezer si trouvé, sinon la source d'origine ; rien si l'origine est illisible.
     assert [t.uid for t in deps.repo.tracks] == ["deezer:1", "spotify:S2", "deezer:2"]
     final = deps.repo.updates[-1]
-    assert final == {"import_status": "done", "import_done": 4, "import_missing": 1}
+    assert final == {"import_status": "done", "import_done": 4, "import_missing": 1, "import_error": None}
     assert deps.repo.updates[0]["name"] == "Import"
 
 
@@ -384,6 +384,8 @@ def test_apple_playlist_falls_back_to_the_page_without_token():
     client = AppleMusicClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     playlist = asyncio.run(client.get_playlist(PLAYLIST_URL))
     assert len(playlist.tracks) == 300
+    # Import partiel : la raison s'affichera dans l'app.
+    assert playlist.note.startswith("Apple Music n'a donné que les 300 premiers titres")
 
 
 def test_reimport_replaces_tracks_and_keeps_name(client):
@@ -420,3 +422,11 @@ def test_reimport_replaces_tracks_and_keeps_name(client):
 
     manual = client.post("/me/playlists", headers=AUTH, json={"name": "Perso"}).json()["id"]
     assert client.post(f"/me/playlists/{manual}/reimport", headers=AUTH).status_code == 400
+
+
+def test_adding_a_track_without_optional_fields(client):
+    pid = client.post("/me/playlists", headers=AUTH, json={"name": "A"}).json()["id"]
+    minimal = {"source": "deezer", "source_id": "9", "title": "Titre", "artist": "Artiste"}
+    added = client.post(f"/me/playlists/{pid}/tracks", headers=AUTH, json={"tracks": [minimal]})
+    assert added.status_code == 200, added.text
+    assert added.json()["entries"][0]["track"]["album"] is None

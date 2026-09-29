@@ -345,9 +345,12 @@ class AppleMusicClient:
         # par l'API du lecteur web ; la page reste le repli si elle change.
         try:
             full = await self._playlist_tracks_via_web_api(url, page)
-        except AppleMusicError as exc:
-            logger.info("Playlist Apple Music via l'API du lecteur web impossible (%s) : page seule", exc)
+        except (AppleMusicError, httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            logger.warning("Playlist Apple Music via l'API du lecteur web impossible (%s) : page seule", exc)
             full = []
+            if len(playlist.tracks) >= 300:
+                # La page s'arrête à 300 titres : la suite n'a pas pu être lue.
+                playlist.note = f"Apple Music n'a donné que les {len(playlist.tracks)} premiers titres ({exc})."
         if len(full) >= len(playlist.tracks):
             playlist.tracks = full
         if not playlist.tracks and ids:
