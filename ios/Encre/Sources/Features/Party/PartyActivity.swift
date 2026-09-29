@@ -10,6 +10,8 @@ enum PartyActivity {
     private static var activity: Activity<PartyActivityAttributes>?
     private static var lastState: PartyActivityAttributes.ContentState?
 
+    static var isActive: Bool { activity != nil }
+
     static func sync(_ party: PartyState?, reaction: String?) {
         guard let party else {
             end()
@@ -41,6 +43,8 @@ enum PartyActivity {
         let attributes = PartyActivityAttributes(
             code: party.code, hostName: party.hostName ?? "l'hôte", isHost: party.isHost
         )
+        // Une seule Live Activity à la fois : celle de la session remplace les paroles.
+        LyricsActivity.shared.end()
         activity = try? Activity.request(attributes: attributes, content: ActivityContent(state: content, staleDate: nil))
         lastState = content
     }

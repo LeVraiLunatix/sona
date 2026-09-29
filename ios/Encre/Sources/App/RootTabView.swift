@@ -88,6 +88,11 @@ struct RootTabView: View {
             BlindLiveView(joinCode: launch.code)
         }
         .onOpenURL { url in open(url) }
+        // Raccourcis Siri qui ouvrent l'app (défi du jour, récap…).
+        .onReceive(AppRouter.shared.$pendingURL.compactMap { $0 }.receive(on: DispatchQueue.main)) { url in
+            AppRouter.shared.pendingURL = nil
+            open(url)
+        }
         .task {
             // Écoutes restées en attente (hors connexion au dernier usage).
             await Scrobbler.shared.flush()
@@ -188,6 +193,8 @@ struct RootTabView: View {
                             FriendProfileView(accountId: accountId, path: path)
                         case .concerts:
                             ConcertsView()
+                        case .smart(let id, let title):
+                            SmartPlaylistView(id: id, title: title)
                         }
                     }
                     .zoomDestination(route)

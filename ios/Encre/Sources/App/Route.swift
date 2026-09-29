@@ -19,4 +19,6 @@ enum Route: Hashable {
     case friend(accountId: Int)
     /// Concerts à venir des artistes les plus écoutés.
     case concerts
+    /// Playlist intelligente (en boucle, oubliés, découvertes…).
+    case smart(id: String, title: String)
 }

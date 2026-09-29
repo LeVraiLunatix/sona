@@ -1014,6 +1014,7 @@ final class PlayerManager: ObservableObject {
             scrobbled = false
             nextPrepared = false
             updateNowPlayingInfo(for: track)
+            if !followsParty { DJVoice.shared.trackStarted(track) }
             presenceShared = true
             presenceStopTask?.cancel()
             Task { try? await APIClient.shared.nowPlaying(track) }
@@ -1257,7 +1258,7 @@ final class PlayerManager: ObservableObject {
     /// audio spatial.
     private func prepareItem(_ item: AVPlayerItem) {
         applySpatial(item)
-        if (singAlong || AudioEffects.isEQActive), item.audioMix == nil {
+        if (singAlong || AudioEffects.isEQActive || AudioEffects.visualizerOn), item.audioMix == nil {
             Task { [weak item] in
                 guard let item, let mix = await AudioEffects.audioMix(for: item) else { return }
                 item.audioMix = mix
@@ -1267,6 +1268,19 @@ final class PlayerManager: ObservableObject {
 
     private func applySpatial(_ item: AVPlayerItem) {
         item.allowedAudioSpatializationFormats = spatialAudio ? .monoStereoAndMultichannel : .multichannel
+    }
+
+    /// DJ vocal : le son baisse le temps de l'annonce, puis remonte.
+    func setDucked(_ ducked: Bool) {
+        guard let player, let current, !isMixing, !isFadingIn else { return }
+        let from = player.volume
+        let to = gain(for: current) * (ducked ? 0.3 : 1)
+        Task { [weak player] in
+            for step in 1...8 {
+                try? await Task.sleep(for: .milliseconds(40))
+                player?.volume = from + (to - from) * Float(step) / 8
+            }
+        }
     }
 
     /// Égaliseur modifié : le traitement se branche si besoin sur le titre en cours.

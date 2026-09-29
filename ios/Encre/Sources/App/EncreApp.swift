@@ -54,7 +54,10 @@ struct AppGate: View {
         }
         .animation(Motion.smooth, value: auth.state)
         .environmentObject(auth)
-        .task { await auth.refresh() }
+        .task {
+            LyricsActivity.shared.bind(PlayerManager.shared)
+            await auth.refresh()
+        }
         .onChange(of: scenePhase) { _, phase in
             // Au retour dans l'app : un accès accordé (ou révoqué) entre-temps
             // est pris en compte sans relancer l'app.

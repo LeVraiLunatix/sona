@@ -177,7 +177,7 @@ async def friend_blend(account_id: int, deps: ApiDeps = Depends(require_token)) 
         "compatibility": compatibility(_taste(mine), _taste(theirs)),
         "shared_tracks": shared,
         "shared_artists": shared_artists,
-        "tracks": tracks,
+        "tracks": [Track(**t) for t in tracks],
     }
 
 

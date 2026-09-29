@@ -8,6 +8,7 @@ struct FriendProfileView: View {
     @EnvironmentObject private var player: PlayerManager
     @State private var friend: Friend?
     @State private var errorMessage: String?
+    @State private var blend: Blend?
 
     var body: some View {
         ScrollView {
@@ -16,6 +17,7 @@ struct FriendProfileView: View {
                     header(friend)
                     if let playing = friend.nowPlaying { nowPlaying(playing, friend: friend) }
                     taste(friend)
+                    if let blend, !blend.tracks.isEmpty { blendCard(blend) }
                     if let playlists = friend.playlists, !playlists.isEmpty { playlistSection(playlists) }
                     if let artists = friend.topArtists, !artists.isEmpty { ranked("Ses artistes du mois", artists, isArtist: true) }
                     if let tracks = friend.topTracks, !tracks.isEmpty { ranked("Ses titres du mois", tracks, isArtist: false) }
@@ -33,6 +35,7 @@ struct FriendProfileView: View {
         .background(Tone.background)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
+        .task { blend = try? await APIClient.shared.blend(with: accountId) }
         .task {
             while !Task.isCancelled {
                 await load()
@@ -93,6 +96,75 @@ struct FriendProfileView: View {
             }
         }
         .padding(.horizontal, 20)
+    }
+
+    /// Blend : la playlist du jour qui mélange vos deux goûts.
+    private func blendCard(_ blend: Blend) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: -12) {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+                    .frame(width: 46, height: 46)
+                    .background(Circle().fill(Color.white.opacity(0.25)))
+                Artwork(url: blend.friendAvatarURL, cornerRadius: 23, symbol: "person.fill")
+                    .frame(width: 46, height: 46)
+                    .overlay(Circle().stroke(Color.black.opacity(0.2), lineWidth: 2))
+                Spacer()
+                Text("BLEND").font(Typo.caption).tracking(2).foregroundStyle(.white.opacity(0.8))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(blend.title).font(.system(size: 22, weight: .heavy)).foregroundStyle(.white).lineLimit(1)
+                Text(blendSubtitle(blend)).font(Typo.rowSubtitle).foregroundStyle(.white.opacity(0.8)).lineLimit(2)
+            }
+            VStack(spacing: 6) {
+                ForEach(blend.tracks.prefix(3)) { track in
+                    HStack(spacing: 10) {
+                        Artwork(url: track.coverURL, cornerRadius: 5).frame(width: 34, height: 34)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(track.title).font(Typo.rowTitle).foregroundStyle(.white).lineLimit(1)
+                            Text(track.artist).font(Typo.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                Button {
+                    if let first = blend.tracks.first { player.play(first, context: blend.tracks, name: blend.title) }
+                } label: {
+                    Label("Écouter", systemImage: "play.fill")
+                        .font(Typo.headline).foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).frame(height: 46)
+                        .background(Capsule().fill(.white))
+                }
+                .buttonStyle(.pressable(scale: 0.97))
+                Button {
+                    let shuffled = blend.tracks.shuffled()
+                    if let first = shuffled.first { player.play(first, context: shuffled, name: blend.title) }
+                } label: {
+                    Image(systemName: "shuffle")
+                        .font(Typo.headline).foregroundStyle(.white)
+                        .frame(width: 54, height: 46)
+                        .background(Capsule().fill(Color.white.opacity(0.2)))
+                }
+                .buttonStyle(.pressable(scale: 0.95))
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(LinearGradient(colors: [Color(red: 0.95, green: 0.35, blue: 0.55), Color(red: 0.45, green: 0.2, blue: 0.95)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+        )
+        .padding(.horizontal, 20)
+    }
+
+    private func blendSubtitle(_ blend: Blend) -> String {
+        var parts = ["\(blend.tracks.count) titres, renouvelés chaque jour"]
+        if blend.sharedTracks > 0 {
+            parts.append("\(blend.sharedTracks) que vous écoutez tous les deux")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func verdict(_ score: Int) -> String {

@@ -586,6 +586,18 @@ final class APIClient {
         try await send(try request("/challenges", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
     }
 
+    func smartPlaylists() async throws -> [SmartPlaylist] {
+        try await send(try request("/smart", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
+    }
+
+    func smartPlaylist(_ id: String) async throws -> [Track] {
+        try await send(try request("/smart/\(id)", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
+    }
+
+    func blend(with friendId: Int) async throws -> Blend {
+        try await send(try request("/friends/\(friendId)/blend"))
+    }
+
     func voteInParty(code: String, itemId: Int) async throws -> PartyState {
         try await send(try request("/party/\(code)/queue/\(itemId)/vote", method: "POST"))
     }

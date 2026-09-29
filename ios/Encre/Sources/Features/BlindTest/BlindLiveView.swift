@@ -23,6 +23,8 @@ struct BlindLiveView: View {
     @State private var confirmingLeave = false
     @State private var isStarting = false
     @State private var pendingChoice: Int?
+    /// Paroles : question dont la fin de ligne a déjà été rejouée.
+    @State private var revealedIndex: Int?
 
     var body: some View {
         NavigationStack {
@@ -178,7 +180,7 @@ struct BlindLiveView: View {
                 .background(Circle().fill(Tone.surfaceStrong))
             VStack(alignment: .leading, spacing: 2) {
                 Text(state.label ?? themeName(state.mode)).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(1)
-                Text("\(state.count) extraits · \(state.guess == "artist" ? "trouver l'artiste" : "trouver le titre")")
+                Text("\(state.count) extraits · \(guessLabel(state.guess))")
                     .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
             }
             Spacer()
@@ -221,8 +223,17 @@ struct BlindLiveView: View {
             )) {
                 Text("Le titre").tag("title")
                 Text("L'artiste").tag("artist")
+                Text("Paroles").tag("lyrics")
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    private func guessLabel(_ guess: String) -> String {
+        switch guess {
+        case "artist": "trouver l'artiste"
+        case "lyrics": "compléter les paroles"
+        default: "trouver le titre"
         }
     }
 
@@ -259,7 +270,22 @@ struct BlindLiveView: View {
                 let now = context.date.timeIntervalSince1970 + clockOffset
                 timerRing(state: state, question: question, now: now, reveal: reveal)
             }
-            .frame(width: 170, height: 170)
+            .frame(width: question.isLyrics ? 110 : 170, height: question.isLyrics ? 110 : 170)
+
+            if question.isLyrics {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array((question.before ?? []).enumerated()), id: \.offset) { _, line in
+                        Text(line).font(.system(size: 16, weight: .semibold)).foregroundStyle(Tone.tertiary)
+                    }
+                    Text(question.prompt ?? "…")
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundStyle(Tone.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Tone.surface))
+            }
 
             if reveal, let track = question.track {
                 VStack(spacing: 2) {
@@ -276,8 +302,10 @@ struct BlindLiveView: View {
                             if choice.title.isEmpty {
                                 Text(choice.artist).font(Typo.headline).lineLimit(1)
                             } else {
-                                Text(choice.title).font(Typo.headline).lineLimit(1)
-                                Text(choice.artist).font(Typo.rowSubtitle).opacity(0.75).lineLimit(1)
+                                Text(choice.title).font(Typo.headline).lineLimit(question.isLyrics ? 2 : 1)
+                                if !choice.artist.isEmpty {
+                                    Text(choice.artist).font(Typo.rowSubtitle).opacity(0.75).lineLimit(1)
+                                }
                             }
                         }
                         .foregroundStyle(choiceForeground(index, question))
@@ -504,27 +532,70 @@ struct BlindLiveView: View {
 
     /// Charge l'extrait dès qu'il est connu et le lance à l'heure prévue.
     private func syncAudio(_ state: LiveState) {
+        if state.phase == "reveal", let question = state.question, question.isLyrics {
+            revealLyrics(question)
+            return
+        }
         guard state.phase == "question", let question = state.question, let startsAt = state.startsAt else {
             if state.phase == "lobby" || state.phase == "finished" { audio.pause() }
             return
         }
-        guard loadedIndex != question.index, let url = URL(string: question.previewURL) else { return }
+        guard loadedIndex != question.index else { return }
+        let item: AVPlayerItem
+        if question.isLyrics, let stream = question.stream,
+           let request = try? APIClient.shared.streamRequest(source: stream.source, id: stream.sourceId) {
+            // Paroles : le titre complet, de `clipStart` jusqu'à la ligne.
+            Task { try? await APIClient.shared.prepareStream(source: stream.source, id: stream.sourceId) }
+            item = AVPlayerItem(asset: AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers]))
+        } else if let url = URL(string: question.previewURL) {
+            item = AVPlayerItem(url: url)
+        } else {
+            return
+        }
         loadedIndex = question.index
         try? AVAudioSession.sharedInstance().setActive(true)
         audio.pause()
-        audio.replaceCurrentItem(with: AVPlayerItem(url: url))
+        audio.replaceCurrentItem(with: item)
         playTask?.cancel()
         let offset = clockOffset
+        let clipStart = question.isLyrics ? max(0, question.clipStart ?? 0) : 0
+        let lineTime = question.isLyrics ? question.lineTime : nil
         playTask = Task {
             let delay = startsAt - (Date().timeIntervalSince1970 + offset)
             if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
             guard !Task.isCancelled else { return }
             // En retard (rejoint en cours) : on se cale sur les autres.
             let late = max(0, -delay)
-            if late > 0.3 {
-                _ = await audio.seek(to: CMTime(seconds: late, preferredTimescale: 600))
+            if late > 0.3 || clipStart > 0 {
+                _ = await audio.seek(to: CMTime(seconds: clipStart + late, preferredTimescale: 600),
+                                     toleranceBefore: .zero, toleranceAfter: .zero)
             }
             audio.play()
+            guard let lineTime else { return }
+            // Arrêt pile sur la ligne à compléter.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(80))
+                if audio.currentTime().seconds >= lineTime - 0.05 { break }
+            }
+            guard !Task.isCancelled else { return }
+            audio.pause()
+        }
+    }
+
+    /// Correction d'une question de paroles : la vraie fin de la ligne.
+    private func revealLyrics(_ question: LiveQuestion) {
+        guard revealedIndex != question.index, let lineTime = question.lineTime else { return }
+        revealedIndex = question.index
+        playTask?.cancel()
+        let end = question.revealEnd ?? lineTime + 4
+        playTask = Task {
+            _ = await audio.seek(to: CMTime(seconds: max(0, lineTime - 0.3), preferredTimescale: 600),
+                                 toleranceBefore: .zero, toleranceAfter: .zero)
+            guard !Task.isCancelled else { return }
+            audio.play()
+            try? await Task.sleep(for: .seconds(min(5, max(1.5, end - lineTime + 0.5))))
+            guard !Task.isCancelled else { return }
+            audio.pause()
         }
     }
 

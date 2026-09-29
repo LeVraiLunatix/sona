@@ -6,6 +6,8 @@ import SwiftUI
 /// Défi du jour identique pour tout le monde, avec classement ; parties
 /// libres à la carte : tes titres, le top, un artiste, une radio ou une de
 /// tes playlists, 5 à 20 extraits, titre ou artiste à trouver, mode expert.
+/// « Complète les paroles » : le titre joue jusqu'à une ligne, à toi de
+/// trouver comment elle finit.
 struct BlindTestView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -38,6 +40,8 @@ struct BlindTestView: View {
     @State private var playingGuess = "title"
     @State private var playingExpert = false
     @State private var audioCut: Task<Void, Never>?
+    /// Paroles : l'extrait joue encore, le chrono n'a pas démarré.
+    @State private var listening = false
     // En direct entre amis
     @State private var live: LiveLaunch?
     @State private var liveRooms: [LiveSummary] = []
@@ -195,6 +199,7 @@ struct BlindTestView: View {
             Picker("À trouver", selection: $guess) {
                 Text("Trouver le titre").tag("title")
                 Text("Trouver l'artiste").tag("artist")
+                Text("Paroles").tag("lyrics")
             }
             .pickerStyle(.segmented)
             Toggle(isOn: $expert) {
@@ -296,7 +301,7 @@ struct BlindTestView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(index + 1) / \(round.questions.count)").font(Typo.caption).foregroundStyle(Tone.secondary)
-                        Text(playingGuess == "artist" ? "Quel artiste ?" : "Quel titre ?")
+                        Text(q.isLyrics ? "Complète les paroles" : (playingGuess == "artist" ? "Quel artiste ?" : "Quel titre ?"))
                             .font(Typo.caption).foregroundStyle(Tone.tertiary)
                     }
                     if playingExpert {
@@ -313,6 +318,9 @@ struct BlindTestView: View {
                         .contentTransition(.numericText(value: Double(score)))
                 }
 
+                if q.isLyrics {
+                    lyricsCard(q)
+                } else {
                 ZStack {
                     Circle().stroke(Color.white.opacity(0.12), lineWidth: 10)
                     Circle()
@@ -334,6 +342,7 @@ struct BlindTestView: View {
                 }
                 .frame(width: 180, height: 180)
                 .animation(Motion.bouncy, value: picked)
+                }
 
                 if picked != nil {
                     VStack(spacing: 2) {
@@ -355,8 +364,10 @@ struct BlindTestView: View {
                                 if choice.title.isEmpty {
                                     Text(choice.artist).font(Typo.headline).lineLimit(1)
                                 } else {
-                                    Text(choice.title).font(Typo.headline).lineLimit(1)
-                                    Text(choice.artist).font(Typo.rowSubtitle).opacity(0.75).lineLimit(1)
+                                    Text(choice.title).font(Typo.headline).lineLimit(q.isLyrics ? 2 : 1)
+                                    if !choice.artist.isEmpty {
+                                        Text(choice.artist).font(Typo.rowSubtitle).opacity(0.75).lineLimit(1)
+                                    }
                                 }
                             }
                             .foregroundStyle(choiceForeground(choiceIndex, q))
@@ -377,6 +388,44 @@ struct BlindTestView: View {
                 return new == q.answer ? .success : .error
             }
         }
+    }
+
+    /// Paroles : les lignes d'avant, puis celle à compléter ; chrono en
+    /// barre une fois l'extrait arrivé à la ligne.
+    private func lyricsCard(_ q: BlindQuestion) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array((q.before ?? []).enumerated()), id: \.offset) { _, line in
+                Text(line).font(.system(size: 17, weight: .semibold)).foregroundStyle(Tone.tertiary)
+            }
+            Text(q.prompt ?? "…")
+                .font(.system(size: 24, weight: .heavy))
+                .foregroundStyle(Tone.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            if picked != nil {
+                HStack(spacing: 10) {
+                    Artwork(url: q.coverURL ?? q.track.coverURL, cornerRadius: 6).frame(width: 40, height: 40)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(q.track.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                        Text(q.track.artist).font(Typo.caption).foregroundStyle(Tone.secondary).lineLimit(1)
+                    }
+                }
+                .transition(.opacity)
+            } else if listening {
+                HStack(spacing: 8) {
+                    EqualizerBars(isAnimating: true).frame(width: 22, height: 18)
+                    Text("Écoute bien…").font(Typo.caption).foregroundStyle(Tone.secondary)
+                }
+            } else {
+                ProgressView(value: remaining, total: Self.questionSeconds)
+                    .tint(timerColor)
+                    .animation(.linear(duration: 0.1), value: remaining)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Tone.surface))
+        .animation(Motion.smooth, value: listening)
+        .animation(Motion.smooth, value: picked)
     }
 
     private var timerColor: Color {
@@ -457,11 +506,24 @@ struct BlindTestView: View {
                 )
                 playingGuess = fresh.guess ?? playingGuess
                 guard fresh.questions.count >= 3 else {
-                    errorMessage = newMode == "solo" || daily
+                    errorMessage = playingGuess == "lyrics"
+                        ? "Pas assez de titres avec paroles synchronisées pour ce thème : essaie-en un autre."
+                        : newMode == "solo" || daily
                         ? "Pas assez de titres avec extrait pour l'instant : écoute encore un peu de musique !"
                         : "Pas assez de titres avec extrait pour ce thème : essaie-en un autre."
                     phase = .menu
                     return
+                }
+                if let first = fresh.questions.first, first.isLyrics {
+                    // Le titre complet doit être prêt côté serveur : le premier
+                    // tout de suite, les suivants pendant la partie.
+                    try? await APIClient.shared.prepareStream(source: first.track.source, id: first.track.sourceId)
+                    let rest = fresh.questions.dropFirst().map(\.track)
+                    Task {
+                        for track in rest {
+                            try? await APIClient.shared.prepareStream(source: track.source, id: track.sourceId)
+                        }
+                    }
                 }
                 round = fresh
                 dailyPlayed = fresh.alreadyPlayed
@@ -486,6 +548,13 @@ struct BlindTestView: View {
         lastGain = 0
         remaining = Self.questionSeconds
         let q = round.questions[index]
+        audioCut?.cancel()
+        timer?.cancel()
+        if q.isLyrics {
+            playLyricsClip(q)
+            return
+        }
+        listening = false
         if let url = URL(string: q.previewURL) {
             try? AVAudioSession.sharedInstance().setActive(true)
             let item = AVPlayerItem(url: url)
@@ -495,7 +564,6 @@ struct BlindTestView: View {
             audio?.seek(to: CMTime(seconds: Double.random(in: 0...8), preferredTimescale: 600))
             audio?.play()
         }
-        audioCut?.cancel()
         if playingExpert {
             audioCut = Task {
                 try? await Task.sleep(for: .seconds(Self.expertListenSeconds))
@@ -503,6 +571,40 @@ struct BlindTestView: View {
                 audio?.pause()
             }
         }
+        startTimer(q)
+    }
+
+    /// Paroles : le titre complet joue ~10 s avant la ligne, s'arrête pile
+    /// dessus, et le chrono démarre.
+    private func playLyricsClip(_ q: BlindQuestion) {
+        listening = true
+        let lineTime = q.lineTime ?? 0
+        if let request = try? APIClient.shared.streamRequest(source: q.track.source, id: q.track.sourceId) {
+            try? AVAudioSession.sharedInstance().setActive(true)
+            let asset = AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers])
+            if audio == nil { audio = AVPlayer() }
+            audio?.replaceCurrentItem(with: AVPlayerItem(asset: asset))
+            audio?.seek(to: CMTime(seconds: max(0, q.clipStart ?? 0), preferredTimescale: 600),
+                        toleranceBefore: .zero, toleranceAfter: .zero)
+            audio?.play()
+        }
+        audioCut = Task {
+            let started = Date()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(80))
+                let position = audio?.currentTime().seconds ?? 0
+                // Garde-fou : un titre qui ne charge pas ne bloque pas la partie.
+                if position >= lineTime - 0.05 || Date().timeIntervalSince(started) > 25 { break }
+            }
+            guard !Task.isCancelled else { return }
+            listening = false
+            guard picked == nil else { return }
+            audio?.pause()
+            startTimer(q)
+        }
+    }
+
+    private func startTimer(_ q: BlindQuestion) {
         timer?.cancel()
         timer = Task {
             let start = Date()
@@ -533,8 +635,18 @@ struct BlindTestView: View {
                 streak = 0
             }
         }
+        var pause = 1.6
+        if q.isLyrics, let lineTime = q.lineTime {
+            // La vraie fin de la ligne, chantée.
+            audioCut?.cancel()
+            listening = false
+            audio?.seek(to: CMTime(seconds: max(0, lineTime - 0.3), preferredTimescale: 600),
+                        toleranceBefore: .zero, toleranceAfter: .zero)
+            audio?.play()
+            pause = min(6, max(2.5, (q.revealEnd ?? lineTime + 3) - lineTime + 0.6))
+        }
         Task {
-            try? await Task.sleep(for: .seconds(1.6))
+            try? await Task.sleep(for: .seconds(pause))
             index += 1
             if let round, index < round.questions.count {
                 withAnimation(Motion.smooth) { ask() }

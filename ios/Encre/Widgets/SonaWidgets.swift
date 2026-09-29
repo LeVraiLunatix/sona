@@ -3,7 +3,7 @@ import SwiftUI
 import WidgetKit
 
 /// Widgets de Sona : raccourcis (écran d'accueil), accès rapide (écran
-/// verrouillé) et Live Activity de l'écoute ensemble.
+/// verrouillé), Live Activities de l'écoute ensemble et des paroles.
 ///
 /// Les widgets n'affichent pas le titre en cours : il faudrait partager des
 /// données avec l'app (« App Group »), ce que l'installation sans compte
@@ -15,6 +15,7 @@ struct SonaWidgetBundle: WidgetBundle {
         ShortcutsWidget()
         LockScreenWidget()
         PartyLiveActivity()
+        LyricsLiveActivity()
     }
 }
 
@@ -244,5 +245,93 @@ private struct PartyProgress: View {
         } else if state.paused {
             Label("En pause", systemImage: "pause.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
         }
+    }
+}
+
+// MARK: - Live Activity : paroles
+
+private let lyricsAccent = Color(red: 0.7, green: 0.55, blue: 1)
+
+struct LyricsLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: LyricsActivityAttributes.self) { context in
+            LyricsLockScreenView(state: context.state)
+                .activityBackgroundTint(Color(red: 0.08, green: 0.04, blue: 0.2))
+                .activitySystemActionForegroundColor(.white)
+                .widgetURL(URL(string: "encre://player"))
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    LogoShape().fill(lyricsAccent).frame(width: 22, height: 22).padding(.leading, 4)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Image(systemName: context.state.paused ? "pause.fill" : "quote.bubble.fill")
+                        .foregroundStyle(lyricsAccent).padding(.trailing, 4)
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    Text("\(context.state.title) · \(context.state.artist)")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    VStack(spacing: 4) {
+                        Text(context.state.line ?? context.state.title)
+                            .font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
+                            .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8)
+                        if let next = context.state.nextLine {
+                            Text(next).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .contentTransition(.opacity)
+                }
+            } compactLeading: {
+                Image(systemName: "quote.bubble.fill").foregroundStyle(lyricsAccent)
+            } compactTrailing: {
+                Text(context.state.line ?? context.state.title)
+                    .font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    .frame(maxWidth: 110)
+            } minimal: {
+                Image(systemName: "quote.bubble.fill").foregroundStyle(lyricsAccent)
+            }
+            .widgetURL(URL(string: "encre://player"))
+        }
+    }
+}
+
+private struct LyricsLockScreenView: View {
+    let state: LyricsActivityAttributes.ContentState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                LogoShape().fill(.white).frame(width: 18, height: 18)
+                Text("\(state.title) · \(state.artist)")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                Spacer()
+                if state.paused {
+                    Image(systemName: "pause.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(state.line ?? "Paroles indisponibles pour ce titre")
+                    .font(.system(size: state.line == nil ? 15 : 21, weight: .heavy))
+                    .foregroundStyle(state.line == nil ? .white.opacity(0.6) : .white)
+                    .lineLimit(2).minimumScaleFactor(0.75)
+                if let next = state.nextLine {
+                    Text(next).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white.opacity(0.4)).lineLimit(1)
+                }
+            }
+            .contentTransition(.opacity)
+            if let start = state.startedAt, let duration = state.duration, duration > 0, !state.paused,
+               start.addingTimeInterval(duration) > .now {
+                ProgressView(timerInterval: start...start.addingTimeInterval(duration), countsDown: false) {
+                    EmptyView()
+                } currentValueLabel: {
+                    EmptyView()
+                }
+                .tint(.white)
+            }
+        }
+        .padding(16)
     }
 }

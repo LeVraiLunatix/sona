@@ -99,6 +99,9 @@ struct SoundSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var gains: [Float] = AudioEffects.eqGains
     @AppStorage("encre.autoResume") private var autoResume = true
+    @AppStorage("encre.visualizer") private var visualizer = false
+    @AppStorage("encre.djVoice") private var djVoice = false
+    @AppStorage("encre.lyricsActivity") private var lyricsActivity = false
 
     var body: some View {
         NavigationStack {
@@ -169,6 +172,42 @@ struct SoundSettingsSheet: View {
                     Text(gestures.available
                          ? "Audio spatial : active aussi « Spatialiser la stéréo » et le suivi de la tête dans le Centre de contrôle (appui long sur le volume)."
                          : "Gestes de la tête : mets tes AirPods (Pro, 3e génération ou plus, Max) pour les activer.")
+                }
+
+                Section {
+                    Toggle(isOn: $djVoice) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("DJ vocal", systemImage: "mic.and.signal.meter")
+                            Text("Une voix annonce chaque titre, comme à la radio.")
+                                .font(Typo.caption).foregroundStyle(Tone.secondary)
+                        }
+                    }
+                    Toggle(isOn: $visualizer) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Visualiseur", systemImage: "waveform")
+                            Text("Des barres qui dansent sur le son, sous la pochette.")
+                                .font(Typo.caption).foregroundStyle(Tone.secondary)
+                        }
+                    }
+                    Toggle(isOn: $lyricsActivity) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Paroles sur l'écran verrouillé", systemImage: "quote.bubble")
+                            Text("La ligne chantée en direct sur l'écran verrouillé et dans la Dynamic Island.")
+                                .font(Typo.caption).foregroundStyle(Tone.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Ambiance")
+                }
+                .onChange(of: visualizer) { _, on in
+                    AudioEffects.visualizerOn = on
+                    player.audioEffectsChanged()
+                }
+                .onChange(of: djVoice) { _, on in
+                    if !on { DJVoice.shared.stop() }
+                }
+                .onChange(of: lyricsActivity) { _, _ in
+                    LyricsActivity.shared.settingChanged()
                 }
             }
             .navigationTitle("Son")

@@ -30,6 +30,7 @@ struct FullPlayerView: View {
     @State private var controlsHidden = false
     @State private var activity = 0
     @State private var scrubbing = false
+    @AppStorage("encre.visualizer") private var visualizer = false
     @Namespace private var hero
 
     private struct AutoHideKey: Equatable {
@@ -241,6 +242,12 @@ struct FullPlayerView: View {
             }
             .aspectRatio(1, contentMode: .fit)
             .animation(Motion.smooth, value: track.id)
+            if visualizer {
+                VisualizerBars(isPlaying: player.isPlaying)
+                    .frame(height: 44)
+                    .padding(.top, 22)
+                    .transition(.opacity)
+            }
             Spacer(minLength: 24)
             titleRow(track, compact: false)
                 .padding(.bottom, 18)

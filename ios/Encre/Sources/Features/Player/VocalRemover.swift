@@ -30,6 +30,28 @@ enum AudioEffects {
 
     static var isEQActive: Bool { eqGains.contains { abs($0) > 0.05 } }
 
+    // MARK: Visualiseur
+
+    /// Visualiseur du lecteur : le fil audio mesure alors le niveau de
+    /// `levelBands` bandes de fréquence (des basses aux aigus), lu par
+    /// `VisualizerBars` à chaque image.
+    static var visualizerOn = UserDefaults.standard.bool(forKey: "encre.visualizer") {
+        didSet { UserDefaults.standard.set(visualizerOn, forKey: "encre.visualizer") }
+    }
+    static let levelBands = 8
+    /// Fréquences de coupure entre deux bandes voisines.
+    static let levelSplits: [Float] = [90, 220, 500, 1100, 2400, 5000, 10000]
+    /// Niveaux (0…1) écrits par le fil audio, lus par l'interface : un
+    /// tampon fixe plutôt qu'un tableau Swift, qu'on ne peut pas partager
+    /// entre deux fils sans risque.
+    static let levels: UnsafeMutablePointer<Float> = {
+        let pointer = UnsafeMutablePointer<Float>.allocate(capacity: levelBands)
+        pointer.initialize(repeating: 0, count: levelBands)
+        return pointer
+    }()
+
+    static func level(_ band: Int) -> Float { levels[band] }
+
     /// Mixage à poser sur l'item (`item.audioMix`), ou nil si l'item n'a
     /// pas encore de piste audio.
     static func audioMix(for item: AVPlayerItem) async -> AVAudioMix? {
@@ -131,6 +153,8 @@ private final class TapState {
     var memory: [Float] = Array(repeating: 0, count: 5 * 4 * 2)
     var eqOn = false
     var preamp: Float = 1
+    // Visualiseur : passe-bas en cascade sur le mono.
+    var splits: [Float] = Array(repeating: 0, count: AudioEffects.levelSplits.count)
 
     func refreshEQ() {
         let version = AudioEffects.eqVersion
@@ -176,7 +200,8 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, 
     state.refreshEQ()
     let target = AudioEffects.singAmount
     let singing = target > 0 || state.applied > 0
-    guard singing || state.eqOn else { return }
+    let measuring = AudioEffects.visualizerOn
+    guard singing || state.eqOn || measuring else { return }
 
     let list = UnsafeMutableAudioBufferListPointer(buffers)
     guard list.count >= 2,
@@ -238,5 +263,39 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, 
                 state.memory[base + 2] = y1; state.memory[base + 3] = y2
             }
         }
+    }
+
+    if measuring { measureLevels(state, left: left, right: right, count: count) }
+}
+
+/// Énergie par bande (différence de passe-bas successifs), ramenée à 0…1
+/// en échelle de décibels ; montée immédiate, descente douce.
+private func measureLevels(_ state: TapState, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, count: Int) {
+    let splits = AudioEffects.levelSplits
+    let bands = AudioEffects.levelBands
+    let alphas = splits.map { 1 - expf(-2 * .pi * $0 / state.sampleRate) }
+    var energy = [Float](repeating: 0, count: bands)
+    var memory = state.splits
+    for i in 0..<count {
+        let mono = (left[i] + right[i]) * 0.5
+        var previous: Float = 0
+        for k in 0..<splits.count {
+            memory[k] += alphas[k] * (mono - memory[k])
+            let band = memory[k] - previous
+            energy[k] += band * band
+            previous = memory[k]
+        }
+        let top = mono - previous
+        energy[bands - 1] += top * top
+    }
+    state.splits = memory
+    let frames = Float(max(1, count))
+    for band in 0..<bands {
+        let rms = sqrtf(energy[band] / frames)
+        // −54 dB → 0, −6 dB → 1 (les aigus, plus faibles, un peu remontés).
+        let db = 20 * log10f(max(rms, 1e-6)) + Float(band) * 1.5
+        let value = min(1, max(0, (db + 54) / 48))
+        let old = AudioEffects.levels[band]
+        AudioEffects.levels[band] = value > old ? value : old * 0.82 + value * 0.18
     }
 }

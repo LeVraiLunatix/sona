@@ -789,11 +789,24 @@ struct BlindQuestion: Codable, Hashable {
     var answer: Int
     var choices: [BlindChoice]
     var track: Track
+    /// « Complète les paroles » : `kind == "lyrics"`, extrait du titre
+    /// complet de `clipStart` à `lineTime`, puis la fin de la ligne à trouver.
+    var kind: String?
+    var before: [String]?
+    var prompt: String?
+    var clipStart: Double?
+    var lineTime: Double?
+    var revealEnd: Double?
+
+    var isLyrics: Bool { kind == "lyrics" }
 
     enum CodingKeys: String, CodingKey {
-        case answer, choices, track
+        case answer, choices, track, kind, before, prompt
         case previewURL = "preview_url"
         case coverURL = "cover_url"
+        case clipStart = "clip_start"
+        case lineTime = "line_time"
+        case revealEnd = "reveal_end"
     }
 }
 
@@ -999,6 +1012,16 @@ struct LivePlayer: Codable, Hashable, Identifiable {
 }
 
 struct LiveQuestion: Codable, Hashable {
+    struct Stream: Codable, Hashable {
+        var source: String
+        var sourceId: String
+
+        enum CodingKeys: String, CodingKey {
+            case source
+            case sourceId = "source_id"
+        }
+    }
+
     var index: Int
     var previewURL: String
     var choices: [BlindChoice]
@@ -1007,12 +1030,26 @@ struct LiveQuestion: Codable, Hashable {
     var coverURL: String?
     var myChoice: Int?
     var answered: Int
+    /// « Complète les paroles » (voir `BlindQuestion`) : le titre complet
+    /// joue via `stream`, de `clipStart` à `lineTime`.
+    var kind: String?
+    var before: [String]?
+    var prompt: String?
+    var clipStart: Double?
+    var lineTime: Double?
+    var revealEnd: Double?
+    var stream: Stream?
+
+    var isLyrics: Bool { kind == "lyrics" }
 
     enum CodingKeys: String, CodingKey {
-        case index, choices, answer, track, answered
+        case index, choices, answer, track, answered, kind, before, prompt, stream
         case previewURL = "preview_url"
         case coverURL = "cover_url"
         case myChoice = "my_choice"
+        case clipStart = "clip_start"
+        case lineTime = "line_time"
+        case revealEnd = "reveal_end"
     }
 }
 
@@ -1112,4 +1149,33 @@ struct TrackAnalysis: Codable, Hashable {
         case loudness, start, end, duration
         case mixOut = "mix_out"
     }
+}
+
+// MARK: - Blend et playlists intelligentes
+
+struct Blend: Codable, Hashable {
+    var title: String
+    var friendName: String
+    var friendAvatarURL: String?
+    var compatibility: Int?
+    var sharedTracks: Int
+    var sharedArtists: [String]
+    var tracks: [Track]
+
+    enum CodingKeys: String, CodingKey {
+        case title, compatibility, tracks
+        case friendName = "friend_name"
+        case friendAvatarURL = "friend_avatar_url"
+        case sharedTracks = "shared_tracks"
+        case sharedArtists = "shared_artists"
+    }
+}
+
+struct SmartPlaylist: Codable, Hashable, Identifiable {
+    var id: String
+    var title: String
+    var subtitle: String
+    var icon: String
+    var count: Int
+    var covers: [String]
 }

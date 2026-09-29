@@ -99,6 +99,8 @@ struct LibraryView: View {
             DownloadsRow { path.append(Route.downloads) }
                 .padding(.horizontal, 20)
 
+            SmartPlaylistsRow(path: $path)
+
             if viewModel.isLoading && viewModel.playlists.isEmpty {
                 ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 40)
             } else if viewModel.playlists.isEmpty {
