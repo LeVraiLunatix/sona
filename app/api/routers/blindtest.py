@@ -14,7 +14,6 @@ from app.services import blindtest
 
 router = APIRouter(prefix="/blindtest", tags=["blind test"])
 
-MODES = ("solo", "daily")
 
 
 class ScoreIn(BaseModel):
@@ -35,21 +34,36 @@ async def _players(deps: ApiDeps, everyone: bool) -> list[int]:
 
 
 @router.get("/round")
-async def get_round(mode: str = Query("solo"), deps: ApiDeps = Depends(require_token)) -> dict:
-    if mode not in MODES:
+async def get_round(
+    mode: str = Query("solo", description="daily | solo | chart | artist | radio | playlist"),
+    ref: str | None = Query(None, description="Artiste, radio ou playlist, selon le mode"),
+    count: int = Query(blindtest.DEFAULT_QUESTIONS, ge=3, le=30),
+    guess: str = Query("title", description="title | artist"),
+    deps: ApiDeps = Depends(require_token),
+) -> dict:
+    if mode not in blindtest.MODES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Mode inconnu : {mode}")
+    if guess not in blindtest.GUESSES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Question inconnue : {guess}")
     day = _today()
     if mode == "daily":
+        # Toujours les mêmes règles pour le classement du jour.
         played = await deps.repo.blindtest_daily_played(deps.user_id, day)
-        questions = await blindtest.build_round(deps, await _players(deps, everyone=True), f"daily-{day}")
-        return {"mode": mode, "day": day, "already_played": played, "questions": questions}
-    questions = await blindtest.build_round(deps, await _players(deps, everyone=False), secrets.randbits(32))
-    return {"mode": mode, "day": day, "already_played": False, "questions": questions}
+        pool = await blindtest.pool_for_mode(deps, mode, await _players(deps, everyone=True), None)
+        questions = await blindtest.build_round(deps, pool, f"daily-{day}")
+        return {"mode": mode, "day": day, "guess": "title", "already_played": played, "questions": questions}
+    if mode == "playlist" and ref:
+        playlist = await deps.repo.playlist_by_id(int(ref)) if ref.isdigit() else None
+        if playlist is None or (playlist.user_id != deps.user_id and playlist.visibility == "private"):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Playlist introuvable.")
+    pool = await blindtest.pool_for_mode(deps, mode, await _players(deps, everyone=False), ref)
+    questions = await blindtest.build_round(deps, pool, secrets.randbits(32), count, guess)
+    return {"mode": mode, "day": day, "guess": guess, "already_played": False, "questions": questions}
 
 
 @router.post("/score")
 async def post_score(payload: ScoreIn, deps: ApiDeps = Depends(require_token)) -> dict:
-    if payload.mode not in MODES:
+    if payload.mode not in blindtest.MODES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Mode inconnu : {payload.mode}")
     day = _today()
     if payload.mode == "daily" and await deps.repo.blindtest_daily_played(deps.user_id, day):

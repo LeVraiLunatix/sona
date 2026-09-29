@@ -187,3 +187,54 @@ def test_concerts_for_top_artists(client, monkeypatch):
     before = len(calls)
     client.get("/concerts", headers=me)
     assert len(calls) == before
+
+
+class ArtistDeezer(FakeDeezer):
+    """Un artiste (10 titres) et trois artistes proches."""
+
+    def __init__(self):
+        super().__init__()
+        self.artist_tracks = {
+            "ziak": [TrackInfo("deezer", f"z{i}", f"Ziak {i}", "Ziak", None, None, 180, None,
+                               preview_url=f"https://p/z{i}.mp3") for i in range(10)],
+        }
+        for name in ("gazo", "sch", "kerchak"):
+            self.artist_tracks[name] = [TrackInfo("deezer", f"{name}{i}", f"{name} {i}", name.upper(), None, None, 180,
+                                                  None, preview_url=f"https://p/{name}{i}.mp3") for i in range(3)]
+
+    async def get_artist_top_tracks(self, artist_id, limit=25):
+        return self.artist_tracks[artist_id][:limit]
+
+    async def get_related_artists(self, artist_id, limit=20):
+        from app.providers.base import ArtistInfo
+
+        return [ArtistInfo("deezer", n, n.upper(), None) for n in ("gazo", "sch", "kerchak")]
+
+
+def test_blindtest_artist_mode_title_and_artist_guesses(client):
+    client.deps.deezer = ArtistDeezer()
+    me = login(client, "alice")
+
+    by_title = client.get("/blindtest/round", headers=me, params={"mode": "artist", "ref": "ziak", "count": 5}).json()
+    assert by_title["guess"] == "title"
+    assert len(by_title["questions"]) == 5
+    for q in by_title["questions"]:
+        titles = [c["title"] for c in q["choices"]]
+        assert len(set(titles)) == 4 and q["choices"][q["answer"]]["title"] == q["track"]["title"]
+
+    by_artist = client.get("/blindtest/round", headers=me,
+                           params={"mode": "artist", "ref": "ziak", "guess": "artist", "count": 4}).json()
+    questions = by_artist["questions"]
+    assert len(questions) == 4  # un artiste différent par question
+    for q in questions:
+        artists = [c["artist"] for c in q["choices"]]
+        assert len(set(artists)) == 4
+        assert artists[q["answer"]] == q["track"]["artist"]
+
+
+def test_blindtest_chart_and_bad_mode(client):
+    client.deps.deezer = FakeDeezer()
+    me = login(client, "alice")
+    assert len(client.get("/blindtest/round", headers=me, params={"mode": "chart", "count": 8}).json()["questions"]) == 8
+    assert client.get("/blindtest/round", headers=me, params={"mode": "nope"}).status_code == 400
+    assert client.get("/blindtest/round", headers=me, params={"mode": "playlist", "ref": "999"}).status_code == 404

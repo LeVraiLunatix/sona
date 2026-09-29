@@ -221,3 +221,17 @@ CREATE TABLE IF NOT EXISTS blindtest_scores (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_blindtest_day ON blindtest_scores (mode, day, score DESC);
+
+-- Analyse audio d'un titre en cache (AutoMix) : sonie intégrée (LUFS),
+-- début réel, moment de l'outro, fin réelle — en secondes.
+CREATE TABLE IF NOT EXISTS track_analysis (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    loudness REAL NOT NULL,
+    start REAL NOT NULL,
+    mix_out REAL NOT NULL,
+    end_time REAL NOT NULL,
+    duration REAL NOT NULL,
+    analyzed_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id)
+);

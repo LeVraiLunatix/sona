@@ -20,7 +20,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import live_stream
+from app.services import audio_analysis, live_stream
 from app.services.resolver import ResolutionError, iter_audio_sources
 
 logger = logging.getLogger(__name__)
@@ -212,8 +212,46 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
             _failures[key] = (time.monotonic(), exc.status_code, str(exc.detail))
             raise
         _failures.pop(key, None)
+        # Analyse pour l'AutoMix, en arrière-plan (priorité basse).
+        _spawn_analysis(deps, source, source_id, dest)
 
     return str(dest), _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream")
+
+
+_analysis_tasks: set[asyncio.Task] = set()
+_analysis_slots = asyncio.Semaphore(1)
+
+
+def _spawn_analysis(deps: ApiDeps, source: str, source_id: str, path: Path) -> None:
+    async def run() -> None:
+        async with _analysis_slots:
+            if await deps.repo.analysis_get(source, source_id):
+                return
+            result = await asyncio.to_thread(audio_analysis.analyze, path, deps.settings.ffmpeg_path)
+        if result is not None:
+            await deps.repo.analysis_set(
+                source, source_id, result.loudness, result.start, result.mix_out, result.end, result.duration
+            )
+
+    task = asyncio.create_task(run())
+    _analysis_tasks.add(task)
+    task.add_done_callback(_analysis_tasks.discard)
+
+
+@router.get("/analysis/{source}/{source_id}")
+async def track_analysis(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Analyse audio d'un titre pour l'AutoMix (sonie, début, outro, fin),
+    calculée à la mise en cache. 404 tant que le titre n'a pas été préparé."""
+    found = await deps.repo.analysis_get(source, source_id)
+    if found is None:
+        cached = await deps.repo.stream_cache_get(source, source_id, "auto", "best")
+        if cached is not None and Path(cached[0]).is_file():
+            _spawn_analysis(deps, source, source_id, Path(cached[0]))
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Analyse pas encore prête.")
+    return {
+        "loudness": found["loudness"], "start": found["start"], "mix_out": found["mix_out"],
+        "end": found["end_time"], "duration": found["duration"],
+    }
 
 
 @router.post("/stream/{source}/{source_id}/prepare")
@@ -363,6 +401,7 @@ async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(req
     # Fichier mis en cache avant qu'on note les sources : pas d'identifiant à
     # écarter, mais le supprimer suffit souvent (le classement favorise
     # maintenant l'audio officiel).
+    await deps.repo.analysis_delete(source, source_id)
     for path in await deps.repo.stream_cache_delete(source, source_id):
         try:
             Path(path).unlink(missing_ok=True)

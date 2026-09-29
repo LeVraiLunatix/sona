@@ -1142,3 +1142,31 @@ class Repository:
             (*params, limit),
         )
         return [dict(r) for r in await cursor.fetchall()]
+
+    # -- Analyse audio (AutoMix) ----------------------------------------
+
+    async def analysis_get(self, source: str, source_id: str) -> dict | None:
+        cursor = await self._db.conn.execute(
+            """SELECT loudness, start, mix_out, end_time, duration FROM track_analysis
+               WHERE source=? AND source_id=?""",
+            (source, source_id),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def analysis_set(
+        self, source: str, source_id: str, loudness: float, start: float, mix_out: float, end: float, duration: float
+    ) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO track_analysis (source, source_id, loudness, start, mix_out, end_time, duration, analyzed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(source, source_id) DO UPDATE SET loudness=excluded.loudness, start=excluded.start,
+               mix_out=excluded.mix_out, end_time=excluded.end_time, duration=excluded.duration,
+               analyzed_at=excluded.analyzed_at""",
+            (source, source_id, loudness, start, mix_out, end, duration, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def analysis_delete(self, source: str, source_id: str) -> None:
+        await self._db.conn.execute("DELETE FROM track_analysis WHERE source=? AND source_id=?", (source, source_id))
+        await self._db.conn.commit()
