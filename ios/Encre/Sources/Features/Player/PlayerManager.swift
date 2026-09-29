@@ -820,6 +820,7 @@ final class PlayerManager: ObservableObject {
                 player.volume = crossfadeEnabled ? 0 : 1
             }
             if crossfadeEnabled { fetchAnalysis(track) }
+            if singAlong, item.audioMix == nil { attachVocalTap(item) }
             self.player = player
             if crossfadeEnabled && prepared == nil {
                 // Fondu entrant sur 1,5 s, jusqu'au volume égalisé du titre.
@@ -1116,6 +1117,31 @@ final class PlayerManager: ObservableObject {
     private static func withoutDuplicates(_ tracks: [Track], excluding known: Set<String>) -> [Track] {
         var seen = known
         return tracks.filter { seen.insert($0.id).inserted }
+    }
+
+    // MARK: Karaoké
+
+    /// Mode « chante » : voix du titre baissée (voir `VocalRemover`).
+    @Published private(set) var singAlong = false
+
+    func setSingAlong(_ on: Bool) {
+        singAlong = on
+        VocalRemover.amount = on ? 1 : 0
+        if on, let item = player?.currentItem, item.audioMix == nil { attachVocalTap(item) }
+    }
+
+    private func attachVocalTap(_ item: AVPlayerItem) {
+        Task { [weak item] in
+            guard let item, let mix = await VocalRemover.audioMix(for: item) else { return }
+            item.audioMix = mix
+        }
+    }
+
+    /// Position exacte, lue à la demande (paroles mot à mot, à chaque image) :
+    /// `positionSeconds` n'est publiée que deux fois par seconde.
+    var exactPositionSeconds: Double {
+        guard let seconds = player?.currentTime().seconds, seconds.isFinite else { return positionSeconds }
+        return seconds
     }
 
     /// Saut à une position absolue — une ligne de paroles synchronisées

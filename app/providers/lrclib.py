@@ -25,6 +25,8 @@ DURATION_TOLERANCE = 3
 CACHE_SIZE = 256
 
 _LRC_LINE_RE = re.compile(r"\[(\d+):(\d+(?:[.:]\d+)?)\]")
+# LRC « enrichi » : un horodatage par mot, `<00:12.34>mot`.
+_WORD_STAMP_RE = re.compile(r"<(\d+):(\d+(?:[.:]\d+)?)>")
 # « (feat. X) », « [Remastered 2011] », « - Radio Edit »... : absents des
 # titres LRCLIB la plupart du temps, ils font échouer la correspondance exacte.
 _TITLE_NOISE_RE = re.compile(
@@ -42,9 +44,18 @@ class LyricsError(Exception):
 
 
 @dataclass(slots=True)
+class LyricsWord:
+    time: float
+    text: str
+
+
+@dataclass(slots=True)
 class LyricsLine:
     time: float | None  # secondes depuis le début ; None pour des paroles non synchronisées
     text: str
+    # Mot par mot, quand la source le donne (LRC enrichi) ; sinon l'app
+    # répartit elle-même la ligne.
+    words: list[LyricsWord] | None = None
 
 
 @dataclass(slots=True)
@@ -64,6 +75,26 @@ def main_artist(artist: str) -> str:
     return _ARTIST_SEP_RE.split(artist, maxsplit=1)[0].strip() or artist
 
 
+def _stamp(minutes: str, seconds: str) -> float:
+    return int(minutes) * 60 + float(seconds.replace(":", "."))
+
+
+def parse_words(lyric: str) -> tuple[str, list[LyricsWord] | None]:
+    """`<00:01.00>Je <00:01.40>suis` → texte propre et mots horodatés."""
+    stamps = list(_WORD_STAMP_RE.finditer(lyric))
+    if not stamps:
+        return lyric, None
+    words: list[LyricsWord] = []
+    for i, m in enumerate(stamps):
+        end = stamps[i + 1].start() if i + 1 < len(stamps) else len(lyric)
+        chunk = lyric[m.end():end]
+        if chunk.strip():
+            words.append(LyricsWord(_stamp(m.group(1), m.group(2)), chunk))
+    clean = _WORD_STAMP_RE.sub("", lyric)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return clean, (words or None)
+
+
 def parse_lrc(text: str) -> list[LyricsLine]:
     """Une ligne LRC peut porter plusieurs horodatages (refrain répété) :
     une entrée par horodatage, le tout trié par temps. Les balises de
@@ -74,10 +105,15 @@ def parse_lrc(text: str) -> list[LyricsLine]:
         stamps = list(_LRC_LINE_RE.finditer(raw))
         if not stamps:
             continue
-        lyric = raw[stamps[-1].end():].strip()
+        lyric, words = parse_words(raw[stamps[-1].end():].strip())
         for m in stamps:
-            seconds = m.group(2).replace(":", ".")
-            lines.append(LyricsLine(time=int(m.group(1)) * 60 + float(seconds), text=lyric))
+            start = _stamp(m.group(1), m.group(2))
+            # Refrain répété : mêmes mots décalés à la nouvelle position.
+            shifted = None
+            if words:
+                delta = start - _stamp(stamps[0].group(1), stamps[0].group(2))
+                shifted = [LyricsWord(w.time + delta, w.text) for w in words]
+            lines.append(LyricsLine(time=start, text=lyric, words=shifted))
     lines.sort(key=lambda line: line.time or 0.0)
     return lines
 

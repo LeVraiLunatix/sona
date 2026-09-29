@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.auth import require_token
-from app.api.schemas import LyricsLineOut, LyricsOut
+from app.api.schemas import LyricsLineOut, LyricsOut, LyricsWordOut
 from app.api.state import ApiDeps
 from app.providers.lrclib import LyricsError
 
@@ -34,5 +34,11 @@ async def get_lyrics(
     return LyricsOut(
         synced=lyrics.synced,
         instrumental=lyrics.instrumental,
-        lines=[LyricsLineOut(time=line.time, text=line.text) for line in lyrics.lines],
+        lines=[
+            LyricsLineOut(
+                time=line.time, text=line.text,
+                words=[LyricsWordOut(time=w.time, text=w.text) for w in line.words] if line.words else None,
+            )
+            for line in lyrics.lines
+        ],
     )

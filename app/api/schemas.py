@@ -105,9 +105,15 @@ class RadioGroup(BaseModel):
     radios: list[RadioStation]
 
 
+class LyricsWordOut(BaseModel):
+    time: float
+    text: str
+
+
 class LyricsLineOut(BaseModel):
     time: float | None
     text: str
+    words: list[LyricsWordOut] | None = None
 
 
 class LyricsOut(BaseModel):

@@ -127,7 +127,7 @@ def test_lyrics_endpoint(client):
         "title": "Titre", "artist": "Artiste", "album": "Album", "duration": 200,
     })
     assert got.status_code == 200
-    assert got.json() == {"synced": True, "instrumental": False, "lines": [{"time": 1.5, "text": "Salut"}]}
+    assert got.json() == {"synced": True, "instrumental": False, "lines": [{"time": 1.5, "text": "Salut", "words": None}]}
 
 
 def test_lyrics_endpoint_not_found_and_upstream_error(client):
@@ -142,3 +142,11 @@ def test_lyrics_endpoint_not_found_and_upstream_error(client):
     client.app_state.deps.lrclib.get_lyrics = broken
     assert client.get("/lyrics", headers=AUTH, params={"title": "T", "artist": "A"}).status_code == 502
     assert client.get("/lyrics", params={"title": "T", "artist": "A"}).status_code == 401
+
+
+def test_parse_enhanced_lrc_word_timings():
+    lines = parse_lrc("[00:10.00]<00:10.00>Je <00:10.50>suis <00:11.20>là\n[00:05.00][00:30.00]Refrain simple")
+    assert [line.text for line in lines] == ["Refrain simple", "Je suis là", "Refrain simple"]
+    enhanced = lines[1]
+    assert [(w.time, w.text.strip()) for w in enhanced.words] == [(10.0, "Je"), (10.5, "suis"), (11.2, "là")]
+    assert lines[0].words is None
