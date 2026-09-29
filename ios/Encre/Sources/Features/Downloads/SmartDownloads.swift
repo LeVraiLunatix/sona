@@ -68,10 +68,12 @@ final class SmartDownloads {
     /// À l'ouverture de l'app : si c'est en Wi-Fi et que le dernier passage
     /// date de plus de 6 h.
     func runIfDue() {
-        guard enabled, onUnmeteredNetwork, running == nil else { return }
+        guard enabled, running == nil else { return }
         if let lastRun, Date().timeIntervalSince(lastRun) < 6 * 3600 { return }
         running = Task {
-            await run()
+            // Au lancement, iOS met un instant à dire si on est en Wi-Fi.
+            try? await Task.sleep(for: .seconds(3))
+            if onUnmeteredNetwork { await run() }
             running = nil
         }
     }
