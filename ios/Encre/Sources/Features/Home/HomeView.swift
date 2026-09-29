@@ -62,6 +62,8 @@ struct HomeView: View {
                     }
                 }
 
+                ConcertsTeaser { path.append(Route.concerts) }
+
                 if let radioError {
                     Text(radioError).font(Typo.rowSubtitle).foregroundStyle(Tone.danger).padding(.horizontal, 20)
                 }

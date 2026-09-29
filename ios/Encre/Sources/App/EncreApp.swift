@@ -7,6 +7,9 @@ struct EncreApp: App {
         // un cache HTTP généreux (mémoire + disque) rend les listes fluides
         // et les allers-retours instantanés.
         URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
+        // Téléchargements intelligents de la nuit : à déclarer avant la fin
+        // du lancement, sinon iOS refuse la tâche.
+        SmartDownloads.registerBackgroundTask()
     }
 
     var body: some Scene {
@@ -52,7 +55,11 @@ struct AppGate: View {
         .onChange(of: scenePhase) { _, phase in
             // Au retour dans l'app : un accès accordé (ou révoqué) entre-temps
             // est pris en compte sans relancer l'app.
-            if phase == .active { Task { await auth.refresh() } }
+            if phase == .active {
+                Task { await auth.refresh() }
+                SmartDownloads.shared.runIfDue()
+            }
+            if phase == .background { SmartDownloads.shared.schedule() }
         }
     }
 }

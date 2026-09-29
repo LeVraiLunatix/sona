@@ -17,4 +17,6 @@ enum Route: Hashable {
     case mix(id: String)
     /// Profil d'un ami.
     case friend(accountId: Int)
+    /// Concerts à venir des artistes les plus écoutés.
+    case concerts
 }

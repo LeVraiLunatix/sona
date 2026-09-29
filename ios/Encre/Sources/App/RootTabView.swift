@@ -117,6 +117,8 @@ struct RootTabView: View {
                             MixDetailView(mixId: id, path: path)
                         case .friend(let accountId):
                             FriendProfileView(accountId: accountId, path: path)
+                        case .concerts:
+                            ConcertsView()
                         }
                     }
                     .zoomDestination(route)

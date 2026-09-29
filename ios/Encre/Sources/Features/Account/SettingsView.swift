@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject private var config = APIConfig.shared
     @State private var scrobble = true
     @State private var shareListening = true
+    @State private var smartDownloads = SmartDownloads.shared.enabled
     @State private var lovedImport: LovedImportStatus?
     @ObservedObject private var downloads = DownloadManager.shared
     @State private var pendingCount = 0
@@ -86,10 +87,15 @@ struct SettingsView: View {
                     Toggle("Télécharger en Wi-Fi uniquement", isOn: Binding(
                         get: { downloads.wifiOnly }, set: { downloads.wifiOnly = $0 }
                     ))
+                    Toggle("Téléchargements intelligents", isOn: $smartDownloads)
+                        .onChange(of: smartDownloads) { _, value in
+                            SmartDownloads.shared.enabled = value
+                            if value { SmartDownloads.shared.schedule() }
+                        }
                 } header: {
                     Text("Téléchargements")
                 } footer: {
-                    Text(downloadsSummary)
+                    Text(downloadsSummary + "\nIntelligents : la nuit (Wi-Fi, en charge) et à l'ouverture en Wi-Fi, ton Mix du jour, « En boucle » et tes playlists hors ligne sont téléchargés d'avance.")
                 }
 
                 if account.isAdmin {

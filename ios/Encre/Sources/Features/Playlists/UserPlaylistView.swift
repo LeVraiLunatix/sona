@@ -34,6 +34,15 @@ struct UserPlaylistView: View {
                 if let playlist {
                     Menu {
                         DownloadMenuItems(tracks: entries.map(\.track))
+                        Toggle(isOn: Binding(
+                            get: { DownloadManager.shared.offlinePlaylistIds.contains(playlist.id) },
+                            set: { value in
+                                DownloadManager.shared.setOffline(playlistId: playlist.id, value)
+                                if value { DownloadManager.shared.download(entries.map(\.track)) }
+                            }
+                        )) {
+                            Label("Garder hors ligne", systemImage: "arrow.down.circle.dotted")
+                        }
                         Button { player.playNext(entries.map(\.track)) } label: {
                             Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
                         }

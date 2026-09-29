@@ -38,6 +38,17 @@ final class DownloadManager: ObservableObject {
         }
     }
 
+    /// Titres téléchargés automatiquement (téléchargements intelligents) :
+    /// ceux-là peuvent repartir tout seuls quand ils ne servent plus.
+    private(set) var autoIds: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "encre.downloads.auto") ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: "encre.downloads.auto") }
+    }
+    /// Playlists gardées à jour hors ligne (leurs nouveaux titres sont
+    /// téléchargés automatiquement).
+    @Published private(set) var offlinePlaylistIds: Set<Int> =
+        Set(UserDefaults.standard.array(forKey: "encre.downloads.offlinePlaylists") as? [Int] ?? [])
+
     private var worker: Task<Void, Never>?
     private let directory: URL
     private let indexURL: URL
@@ -119,7 +130,14 @@ final class DownloadManager: ObservableObject {
 
     // MARK: - Actions
 
-    func download(_ tracks: [Track]) {
+    /// `auto` : téléchargement intelligent (peut être retiré automatiquement
+    /// plus tard) ; un téléchargement demandé à la main ne l'est jamais.
+    func download(_ tracks: [Track], auto: Bool = false) {
+        if auto {
+            autoIds.formUnion(tracks.filter { !isDownloaded($0) }.map(\.id))
+        } else {
+            autoIds.subtract(tracks.map(\.id))
+        }
         for track in tracks where !isDownloaded(track) && !queue.contains(where: { $0.id == track.id }) && activeId != track.id {
             failures[track.id] = nil
             queue.append(track)
@@ -140,6 +158,28 @@ final class DownloadManager: ObservableObject {
 
     func remove(_ tracks: [Track]) {
         for track in tracks { remove(track) }
+    }
+
+    func setOffline(playlistId: Int, _ enabled: Bool) {
+        if enabled { offlinePlaylistIds.insert(playlistId) } else { offlinePlaylistIds.remove(playlistId) }
+        UserDefaults.standard.set(Array(offlinePlaylistIds), forKey: "encre.downloads.offlinePlaylists")
+    }
+
+    /// Retire les titres téléchargés automatiquement qui ne sont plus voulus
+    /// (plus dans les mixes ni dans une playlist hors ligne) depuis quelques jours.
+    func pruneAuto(keeping wanted: Set<String>, olderThan age: TimeInterval = 3 * 86_400) {
+        let now = Date()
+        let stale = items.filter { autoIds.contains($0.id) && !wanted.contains($0.id) && now.timeIntervalSince($0.addedAt) > age }
+        for item in stale { remove(item.track) }
+        autoIds.subtract(stale.map(\.id))
+    }
+
+    /// Attend la fin de la file (tâche de fond : iOS nous laisse un temps limité).
+    func waitUntilIdle() async {
+        while !queue.isEmpty || activeId != nil {
+            try? await Task.sleep(for: .seconds(2))
+            if Task.isCancelled { return }
+        }
     }
 
     func cancelAll() {
