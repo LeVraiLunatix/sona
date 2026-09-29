@@ -42,6 +42,7 @@ struct LyricsView: View {
                                 if foreign { translateButton }
                                 singButton
                             }
+                            .padding(.trailing, Self.sideInset)
                         }
                         .translationTask(translationConfig) { session in
                             await translate(lyrics.lines, with: session)
@@ -53,6 +54,9 @@ struct LyricsView: View {
         }
         .task(id: track.id) { await load() }
     }
+
+    /// Marge du lecteur plein écran (voir `FullPlayerView`).
+    private static let sideInset: CGFloat = 26
 
     private func synced(_ lines: [Lyrics.Line]) -> some View {
         // Légère avance : la ligne s'allume quand elle est chantée, pas un
@@ -96,8 +100,13 @@ struct LyricsView: View {
                     }
                 }
                 .padding(.vertical, 120)
+                // La marge est à l'intérieur de la zone qui défile : le flou
+                // des lignes déborde dans la marge au lieu d'être coupé net
+                // au bord (la zone s'étend jusqu'aux bords de l'écran).
+                .padding(.horizontal, Self.sideInset)
                 .animation(Motion.smooth, value: active)
             }
+            .padding(.horizontal, -Self.sideInset)
             .mask { EdgeFade() }
             .onAppear {
                 if let active { proxy.scrollTo(active, anchor: UnitPoint(x: 0.5, y: 0.35)) }
