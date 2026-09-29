@@ -586,6 +586,27 @@ final class APIClient {
         try await send(try request("/challenges", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
     }
 
+    /// Annonce du DJ vocal : texte + MP3 d'une voix neuronale (nil si
+    /// indisponible côté serveur).
+    func djIntro(for track: Track, after previous: Track?, voice: String) async throws -> (text: String, audio: Data?) {
+        struct Intro: Decodable { let text: String; let audio: String? }
+        var query = [
+            URLQueryItem(name: "title", value: track.title),
+            URLQueryItem(name: "artist", value: track.artist),
+            URLQueryItem(name: "voice", value: voice),
+            URLQueryItem(name: "tz", value: TimeZone.current.identifier),
+        ]
+        if let previous {
+            query.append(URLQueryItem(name: "prev_title", value: previous.title))
+            query.append(URLQueryItem(name: "prev_artist", value: previous.artist))
+        }
+        if let year = track.year.flatMap({ Int($0.prefix(4)) }) {
+            query.append(URLQueryItem(name: "year", value: String(year)))
+        }
+        let intro: Intro = try await send(try request("/dj/intro", query: query))
+        return (intro.text, intro.audio.flatMap { Data(base64Encoded: $0) })
+    }
+
     func smartPlaylists() async throws -> [SmartPlaylist] {
         try await send(try request("/smart", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
     }

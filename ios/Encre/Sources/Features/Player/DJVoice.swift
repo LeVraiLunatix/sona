@@ -1,9 +1,11 @@
 import AVFoundation
 import Foundation
 
-/// DJ vocal : entre deux titres, une voix annonce ce qui arrive (« On
-/// enchaîne avec… »), comme à la radio. La musique baisse le temps de
-/// l'annonce. Réglage dans Son (⋯ du lecteur).
+/// DJ vocal : entre deux titres, une voix annonce ce qui arrive, comme à la
+/// radio — la musique baisse le temps de l'annonce. Le texte est écrit par
+/// le serveur à partir de tes écoutes (découverte, titre en boucle…) et lu
+/// par une voix neuronale (naturelle) ; à défaut, par la plus belle voix
+/// française de l'iPhone. Réglages dans Son (⋯ du lecteur).
 @MainActor
 final class DJVoice: NSObject {
     static let shared = DJVoice()
@@ -13,10 +15,22 @@ final class DJVoice: NSObject {
         set { UserDefaults.standard.set(newValue, forKey: "encre.djVoice") }
     }
 
+    /// Voix neuronale choisie (voir `app/services/dj_voice.py`).
+    static var voice: String {
+        UserDefaults.standard.string(forKey: "encre.djVoiceName") ?? "remy"
+    }
+
+    static let voices: [(id: String, name: String)] = [
+        ("remy", "Rémy"),
+        ("vivienne", "Vivienne"),
+        ("henri", "Henri"),
+        ("denise", "Denise"),
+    ]
+
     private let synthesizer = AVSpeechSynthesizer()
+    private var audioPlayer: AVAudioPlayer?
     private var lastTrackID: String?
     private var previous: Track?
-    private var announced = 0
     private var pending: Task<Void, Never>?
 
     private override init() {
@@ -24,9 +38,9 @@ final class DJVoice: NSObject {
         synthesizer.delegate = self
     }
 
-    /// Un titre démarre : annonce quelques secondes après, une fois le
-    /// fondu d'entrée passé. Pas deux fois pour le même titre (relance
-    /// après une erreur, retour d'une instrumentale…).
+    /// Un titre démarre : l'annonce est préparée tout de suite, lue une fois
+    /// le fondu d'entrée passé (par-dessus l'intro, comme à la radio). Pas
+    /// deux fois pour le même titre (relance après une erreur…).
     func trackStarted(_ track: Track) {
         guard track.id != lastTrackID else { return }
         lastTrackID = track.id
@@ -35,70 +49,92 @@ final class DJVoice: NSObject {
         pending?.cancel()
         guard Self.enabled, before != nil else { return }
         pending = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.5))
+            let started = Date()
+            let intro = try? await APIClient.shared.djIntro(for: track, after: before, voice: Self.voice)
+            let wait = 2.5 - Date().timeIntervalSince(started)
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             guard let self, !Task.isCancelled else { return }
             let player = PlayerManager.shared
-            guard player.current?.id == track.id, player.isPlaying else { return }
-            self.speak(self.line(for: track, after: before))
+            // Trop tard (plus de 12 s de titre) ou titre changé : on se tait.
+            guard player.current?.id == track.id, player.isPlaying, player.positionSeconds < 12 else { return }
+            if let audio = intro?.audio, self.play(audio) { return }
+            self.speak(intro?.text ?? "On enchaîne avec \(track.title), de \(track.artist).")
+        }
+    }
+
+    /// « Essayer la voix » : annonce du titre en cours, tout de suite.
+    func preview() {
+        guard let track = PlayerManager.shared.current else { return }
+        stop()
+        pending = Task { [weak self] in
+            let intro = try? await APIClient.shared.djIntro(for: track, after: nil, voice: Self.voice)
+            guard let self, !Task.isCancelled else { return }
+            if let audio = intro?.audio, self.play(audio) { return }
+            self.speak(intro?.text ?? "Tu écoutes \(track.title), de \(track.artist).")
         }
     }
 
     func stop() {
         pending?.cancel()
+        audioPlayer?.stop()
+        audioPlayer = nil
         if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .word) }
+        PlayerManager.shared.setDucked(false)
     }
 
-    private func line(for track: Track, after before: Track?) -> String {
-        announced += 1
-        let title = track.title
-        let artist = track.artist
-        let hour = Calendar.current.component(.hour, from: Date())
-        if announced % 6 == 0 {
-            return "Tu écoutes Sona. Prochain titre : \(title), de \(artist)."
+    /// Voix neuronale (MP3 du serveur).
+    private func play(_ data: Data) -> Bool {
+        guard let player = try? AVAudioPlayer(data: data) else { return false }
+        player.delegate = self
+        player.volume = 1
+        audioPlayer = player
+        PlayerManager.shared.setDucked(true)
+        guard player.play() else {
+            PlayerManager.shared.setDucked(false)
+            return false
         }
-        if hour >= 23 || hour < 5, announced % 3 == 0 {
-            return "Il se fait tard… \(title), de \(artist)."
-        }
-        if let before, before.artist.caseInsensitiveCompare(artist) == .orderedSame {
-            return "Encore \(artist), avec \(title)."
-        }
-        if let before, announced % 4 == 0 {
-            return "C'était \(before.title). Maintenant, \(title), de \(artist)."
-        }
-        let lines = [
-            "On enchaîne avec \(title), de \(artist).",
-            "Voici \(artist), avec \(title).",
-            "Tu écoutes \(title), de \(artist).",
-            "Place à \(artist) : \(title).",
-        ]
-        return lines[announced % lines.count]
+        return true
     }
 
+    /// Voix de l'iPhone, en secours.
     private func speak(_ text: String) {
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = Self.bestVoice
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.02
-        utterance.pitchMultiplier = 0.95
-        utterance.preUtteranceDelay = 0.2
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.pitchMultiplier = 1
+        utterance.preUtteranceDelay = 0.1
+        utterance.postUtteranceDelay = 0.1
         PlayerManager.shared.setDucked(true)
         synthesizer.speak(utterance)
     }
 
-    /// La plus belle voix française installée (« améliorée » ou « premium »
-    /// si l'iPhone en a téléchargé une : Réglages → Accessibilité →
-    /// Contenu énoncé → Voix).
+    /// La plus belle voix française installée (« premium » ou « améliorée »
+    /// si téléchargée : Réglages → Accessibilité → Contenu énoncé → Voix).
     private static let bestVoice: AVSpeechSynthesisVoice? = {
-        let french = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("fr") }
+        let french = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "fr-FR" }
         return french.max { $0.quality.rawValue < $1.quality.rawValue } ?? AVSpeechSynthesisVoice(language: "fr-FR")
     }()
+
+    private func finished() {
+        audioPlayer = nil
+        PlayerManager.shared.setDucked(false)
+    }
 }
 
-extension DJVoice: AVSpeechSynthesizerDelegate {
+extension DJVoice: AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in PlayerManager.shared.setDucked(false) }
+        Task { @MainActor in self.finished() }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in PlayerManager.shared.setDucked(false) }
+        Task { @MainActor in self.finished() }
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in self.finished() }
+    }
+
+    nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        Task { @MainActor in self.finished() }
     }
 }

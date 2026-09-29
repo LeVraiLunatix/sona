@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Lecteur plein écran, dans l'esprit de Musique : fond vivant aux
 /// couleurs de la pochette, pochette qui se rétracte en pause, barre de
@@ -84,6 +85,11 @@ struct FullPlayerView: View {
         }
         .task(id: player.current?.id) { await refreshLikeState() }
         .task(id: player.current?.id) { await loadMoments() }
+        // Visualiseur : le traitement du son mesure les niveaux seulement
+        // quand il est affiché ; branché sur le titre en cours au besoin.
+        .onAppear { syncVisualizer() }
+        .onChange(of: visualizer) { _, _ in syncVisualizer() }
+        .onChange(of: player.current?.id) { _, _ in syncVisualizer() }
         .overlay(alignment: .top) {
             if let gesture = gestures.lastGesture {
                 Label(gesture, systemImage: "airpods")
@@ -128,6 +134,11 @@ struct FullPlayerView: View {
         .onChange(of: player.current == nil) { _, isEmpty in
             if isEmpty { dismiss() }
         }
+    }
+
+    private func syncVisualizer() {
+        AudioEffects.visualizerOn = visualizer
+        if visualizer { player.audioEffectsChanged() }
     }
 
     private func revealControls() {
@@ -218,6 +229,7 @@ struct FullPlayerView: View {
             )
         )
         .equatable()
+        .frame(width: 40, height: 40)
     }
 
     // MARK: - Panneaux
@@ -750,7 +762,11 @@ private extension View {
 }
 
 /// Contenu du menu « ⋯ » du lecteur plein écran (voir `actionsMenu`).
-struct PlayerActionsMenu: View, Equatable {
+/// Menu « ⋯ » du lecteur : un vrai menu UIKit (`UIButton` + `UIMenu`),
+/// reconstruit seulement quand son contenu change (titre, bibliothèque,
+/// téléchargement, minuteur). Le menu SwiftUI se reconstruisait à chaque
+/// avancée de la lecture : ouvert, il scintillait et remontait en haut.
+struct PlayerActionsMenu: UIViewRepresentable, Equatable {
     struct Actions {
         var addToPlaylist: (Track) -> Void
         var setSleepTimer: (PlayerManager.SleepTimer?) -> Void
@@ -766,103 +782,115 @@ struct PlayerActionsMenu: View, Equatable {
 
     let track: Track?
     let isLiked: Bool
-    /// Valeur figée, pas un `@ObservedObject` : le gestionnaire de
-    /// téléchargements publie en continu pendant un téléchargement, et chaque
-    /// publication reconstruisait le menu ouvert (qui remontait en haut).
     let isDownloaded: Bool
     let isStartingRadio: Bool
     let sleepTimer: PlayerManager.SleepTimer?
     let actions: Actions
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.track?.id == rhs.track?.id && lhs.isLiked == rhs.isLiked && lhs.isDownloaded == rhs.isDownloaded
-            && lhs.isStartingRadio == rhs.isStartingRadio && lhs.sleepTimer == rhs.sleepTimer
+        lhs.signature == rhs.signature && lhs.isStartingRadio == rhs.isStartingRadio
     }
 
-    var body: some View {
-        Menu {
-            if let track {
-                Button { actions.addToPlaylist(track) } label: {
-                    Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
-                }
-                Button { actions.toggleLike(track) } label: {
-                    Label(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
-                          systemImage: isLiked ? "minus.circle" : "plus.circle")
-                }
-                if isDownloaded {
-                    Button(role: .destructive) { DownloadManager.shared.remove(track) } label: {
-                        Label("Supprimer le téléchargement", systemImage: "arrow.down.circle.dotted")
-                    }
-                } else {
-                    Button { DownloadManager.shared.download([track]) } label: {
-                        Label("Télécharger", systemImage: "arrow.down.circle")
-                    }
-                }
-                Menu {
-                    Button { actions.addMoment(track) } label: {
-                        Label("Réagir à ce moment", systemImage: "bubble.left.and.exclamationmark.bubble.right")
-                    }
-                    Button { actions.shareStory(track) } label: {
-                        Label("Partager en story", systemImage: "square.and.arrow.up.on.square")
-                    }
-                } label: {
-                    Label("Réagir et partager", systemImage: "square.and.arrow.up")
-                }
-                Menu {
-                    Button { actions.startDJRadio(track) } label: {
-                        Label("Radio DJ à partir de ce titre", systemImage: "dial.medium")
-                    }
-                    if let artistId = track.artistSourceId {
-                        Button {
-                            actions.startRadio(track.source, artistId)
-                        } label: { Label("Radio de l'artiste", systemImage: "dot.radiowaves.left.and.right") }
-                    }
-                } label: {
-                    Label("Radios", systemImage: "dot.radiowaves.left.and.right")
-                }
-                Button { actions.openSound() } label: {
-                    Label("Son, égaliseur et AirPods", systemImage: "slider.vertical.3")
-                }
-                Menu {
-                    ForEach([15, 30, 45, 60], id: \.self) { minutes in
-                        Button("\(minutes) minutes") { actions.setSleepTimer(.minutes(minutes)) }
-                    }
-                    Button("Fin du titre") { actions.setSleepTimer(.endOfTrack) }
-                    if sleepTimer != nil {
-                        Button("Désactiver", role: .destructive) { actions.setSleepTimer(nil) }
-                    }
-                } label: {
-                    Label(sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé", systemImage: "moon.zzz")
-                }
-                Divider()
-                if let artistId = track.artistSourceId {
-                    Button {
-                        actions.openRoute(.artist(source: track.source, id: artistId))
-                    } label: { Label("Voir l'artiste", systemImage: "person.crop.circle") }
-                }
-                if let albumId = track.albumSourceId {
-                    Button {
-                        actions.openRoute(.album(source: track.source, id: albumId))
-                    } label: { Label("Voir l'album", systemImage: "square.stack") }
-                }
-                Divider()
-                Button { actions.reportWrongVersion(track) } label: {
-                    Label("Mauvaise version ?", systemImage: "exclamationmark.bubble")
-                }
-            }
-        } label: {
-            Group {
-                if isStartingRadio {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "ellipsis")
-                }
-            }
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(Tone.primary)
-            .frame(width: 40, height: 40)
-            .background(Circle().fill(Color.white.opacity(0.12)))
+    /// Tout ce qui change le contenu du menu.
+    private var signature: String {
+        "\(track?.id ?? "")|\(isLiked)|\(isDownloaded)|\(String(describing: sleepTimer))"
+    }
+
+    final class Coordinator {
+        var signature: String?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIButton {
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(
+            systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+        )
+        configuration.baseForegroundColor = .white
+        configuration.background.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        configuration.cornerStyle = .capsule
+        let button = UIButton(configuration: configuration)
+        button.showsMenuAsPrimaryAction = true
+        button.accessibilityLabel = "Plus d'options"
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        if button.configuration?.showsActivityIndicator != isStartingRadio {
+            button.configuration?.showsActivityIndicator = isStartingRadio
         }
+        guard context.coordinator.signature != signature else { return }
+        context.coordinator.signature = signature
+        button.menu = menu()
+    }
+
+    private func item(
+        _ title: String, _ image: String, attributes: UIMenuElement.Attributes = [],
+        _ handler: @escaping @MainActor () -> Void
+    ) -> UIAction {
+        UIAction(title: title, image: UIImage(systemName: image), attributes: attributes) { _ in
+            MainActor.assumeIsolated { handler() }
+        }
+    }
+
+    private func menu() -> UIMenu {
+        guard let track else { return UIMenu(children: []) }
+        let actions = actions
+        var main: [UIMenuElement] = [
+            item("Ajouter à une playlist…", "text.badge.plus") { actions.addToPlaylist(track) },
+            item(isLiked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque",
+                 isLiked ? "minus.circle" : "plus.circle") { actions.toggleLike(track) },
+        ]
+        if isDownloaded {
+            main.append(item("Supprimer le téléchargement", "arrow.down.circle.dotted", attributes: .destructive) {
+                DownloadManager.shared.remove(track)
+            })
+        } else {
+            main.append(item("Télécharger", "arrow.down.circle") { DownloadManager.shared.download([track]) })
+        }
+        main.append(UIMenu(title: "Réagir et partager", image: UIImage(systemName: "square.and.arrow.up"), children: [
+            item("Réagir à ce moment", "bubble.left.and.exclamationmark.bubble.right") { actions.addMoment(track) },
+            item("Partager en story", "square.and.arrow.up.on.square") { actions.shareStory(track) },
+        ]))
+        var radios: [UIMenuElement] = [
+            item("Radio DJ à partir de ce titre", "dial.medium") { actions.startDJRadio(track) },
+        ]
+        if let artistId = track.artistSourceId {
+            radios.append(item("Radio de l'artiste", "dot.radiowaves.left.and.right") {
+                actions.startRadio(track.source, artistId)
+            })
+        }
+        main.append(UIMenu(title: "Radios", image: UIImage(systemName: "dot.radiowaves.left.and.right"), children: radios))
+        main.append(item("Son, égaliseur et AirPods", "slider.vertical.3") { actions.openSound() })
+        var sleep: [UIMenuElement] = [15, 30, 45, 60].map { minutes in
+            item("\(minutes) minutes", "timer") { actions.setSleepTimer(.minutes(minutes)) }
+        }
+        sleep.append(item("Fin du titre", "music.note") { actions.setSleepTimer(.endOfTrack) })
+        if sleepTimer != nil {
+            sleep.append(item("Désactiver", "xmark.circle", attributes: .destructive) { actions.setSleepTimer(nil) })
+        }
+        main.append(UIMenu(title: sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé",
+                           image: UIImage(systemName: "moon.zzz"), children: sleep))
+
+        var navigation: [UIMenuElement] = []
+        if let artistId = track.artistSourceId {
+            navigation.append(item("Voir l'artiste", "person.crop.circle") {
+                actions.openRoute(.artist(source: track.source, id: artistId))
+            })
+        }
+        if let albumId = track.albumSourceId {
+            navigation.append(item("Voir l'album", "square.stack") {
+                actions.openRoute(.album(source: track.source, id: albumId))
+            })
+        }
+        return UIMenu(children: [
+            UIMenu(options: .displayInline, children: main),
+            UIMenu(options: .displayInline, children: navigation),
+            UIMenu(options: .displayInline, children: [
+                item("Mauvaise version ?", "exclamationmark.bubble") { actions.reportWrongVersion(track) },
+            ]),
+        ])
     }
 }
 

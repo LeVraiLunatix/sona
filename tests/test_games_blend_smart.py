@@ -97,3 +97,32 @@ def test_web_page_calls_existing_routes(client):
     for path in paths:
         method = client.post if path in {"/plays", "/plays/now"} else client.get
         assert method(path, headers=me).status_code != 404, path
+
+
+def test_dj_intro_script_and_fallback(client, monkeypatch):
+    """Annonce écrite à partir des écoutes ; sans voix neuronale, le texte
+    seul (l'app le lit avec une voix de l'iPhone)."""
+    from app.services import dj_voice
+
+    async def no_voice(self, text, voice="remy"):
+        return None
+
+    monkeypatch.setattr(dj_voice.Synthesizer, "speak", no_voice)
+    me = login(client, "alice")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    client.post("/plays", headers=me, json={"plays": plays(["Tube"] * 9, now, artist="Star")})
+    got = client.get("/dj/intro", headers=me, params={"title": "Tube", "artist": "Star"}).json()
+    assert got["audio"] is None and "Tube" in got["text"]
+    fresh = client.get("/dj/intro", headers=me, params={"title": "Inconnu (feat. X)", "artist": "Nouveau"}).json()
+    assert "Nouveau" in fresh["text"] and "feat" not in fresh["text"]
+
+
+def test_dj_voice_uses_cache(tmp_path):
+    import asyncio
+
+    from app.services import dj_voice
+
+    synth = dj_voice.Synthesizer(tmp_path)
+    path = synth._path("Bonjour", dj_voice.VOICES["remy"])
+    path.write_bytes(b"mp3")
+    assert asyncio.run(synth.speak("Bonjour", "remy")) == b"mp3"

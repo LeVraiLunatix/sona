@@ -11,9 +11,53 @@ from app.api.auth import require_token
 from app.api.schemas import Track
 from app.api.state import ApiDeps
 from app.providers.base import TrackInfo
-from app.services import challenges, instrumental, listening_map, memories, releases, smart_playlists, sport
+from app.services import challenges, dj_voice, instrumental, listening_map, memories, releases, smart_playlists, sport
+from app.services import stats as stats_service
 
 router = APIRouter(tags=["extras"])
+
+_synthesizers: dict[str, dj_voice.Synthesizer] = {}
+
+
+@router.get("/dj/intro")
+async def dj_intro(
+    title: str = Query(..., min_length=1),
+    artist: str = Query(..., min_length=1),
+    prev_title: str | None = Query(None),
+    prev_artist: str | None = Query(None),
+    year: int | None = Query(None),
+    voice: str = Query(dj_voice.DEFAULT_VOICE),
+    tz: str | None = Query(None),
+    deps: ApiDeps = Depends(require_token),
+) -> dict:
+    """Annonce du DJ vocal pour le titre qui démarre : le texte, et sa
+    lecture en MP3 (base64) par une voix neuronale — `audio` vaut null si
+    la voix est injoignable (l'app lit alors le texte elle-même)."""
+    import base64
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    recent = await deps.repo.plays_between(
+        deps.user_id, stats_service.to_utc_iso(now - timedelta(days=60)), None
+    )
+    first_seen = await deps.repo.plays_first_by_artist(deps.user_id)
+    key_title, key_artist = title.casefold(), artist.casefold()
+    ctx = dj_voice.Context(
+        title=title, artist=artist, previous_title=prev_title, previous_artist=prev_artist,
+        track_plays=sum(1 for p in recent if p.title.casefold() == key_title and p.artist.casefold() == key_artist),
+        artist_plays=sum(1 for p in recent if p.artist.casefold() == key_artist),
+        new_artist=key_artist not in first_seen,
+        hour=now.astimezone(stats_service.resolve_tz(tz)).hour,
+        year=year,
+    )
+    # Même annonce pour un même titre dans la journée : le cache de voix sert.
+    rng = random.Random(f"{deps.user_id}|{key_title}|{key_artist}|{now.date()}|{prev_title}")
+    text = dj_voice.script(ctx, rng)
+    cache = deps.settings.database_path.parent / "dj_cache"
+    synthesizer = _synthesizers.setdefault(str(cache), dj_voice.Synthesizer(cache))
+    audio = await synthesizer.speak(text, voice)
+    return {"text": text, "audio": base64.b64encode(audio).decode() if audio else None}
 
 
 @router.get("/smart")

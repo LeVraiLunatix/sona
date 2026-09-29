@@ -8,8 +8,12 @@ struct VisualizerBars: View {
     var color: Color = .white
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !isPlaying)) { _ in
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: !isPlaying)) { timeline in
+            // L'heure de l'image, lue dans le dessin : sans elle, le Canvas
+            // ne se redessine pas (rien d'autre ne change à ses yeux).
+            let frame = timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
+                _ = frame
                 let bands = AudioEffects.levelBands
                 // Basses au centre, aigus vers les bords.
                 let order = Array((0..<bands).reversed()) + Array(0..<bands)
