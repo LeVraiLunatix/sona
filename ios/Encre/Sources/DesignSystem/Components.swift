@@ -63,6 +63,11 @@ struct TrackRow: View {
         }
         .buttonStyle(.pressable(scale: 0.98))
         .contextMenu {
+            if PartyManager.shared.isGuest {
+                Button { Task { await PartyManager.shared.propose(track) } } label: {
+                    Label("Proposer à la session", systemImage: "person.2.wave.2")
+                }
+            }
             Button { PlayerManager.shared.playNext([track]) } label: {
                 Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
             }

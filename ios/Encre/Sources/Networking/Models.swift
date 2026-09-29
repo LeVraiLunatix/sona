@@ -16,9 +16,11 @@ struct Track: Codable, Identifiable, Hashable {
     var coverURL: String?
     var artistSourceId: String?
     var albumSourceId: String?
+    /// Tempo (Deezer, fiche complète) : sert à l'AutoMix.
+    var bpm: Double? = nil
 
     enum CodingKeys: String, CodingKey {
-        case source, title, artist, album, year
+        case source, title, artist, album, year, bpm
         case sourceId = "source_id"
         case durationSeconds = "duration_seconds"
         case coverURL = "cover_url"
@@ -632,5 +634,152 @@ struct DeviceTrack: Codable {
         case title, artist, album
         case durationSeconds = "duration_seconds"
         case appleId = "apple_id"
+    }
+}
+
+
+// MARK: - Écoute ensemble
+
+struct PartyMember: Codable, Hashable {
+    var name: String
+    var avatarURL: String?
+    var isHost: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case avatarURL = "avatar_url"
+        case isHost = "is_host"
+    }
+}
+
+struct PartyQueueItem: Codable, Hashable, Identifiable {
+    var id: Int
+    var track: Track
+    var by: String
+}
+
+struct PartyReaction: Codable, Hashable, Identifiable {
+    var id: Int
+    var emoji: String
+    var by: String
+    var age: Double
+}
+
+struct PartyState: Codable, Equatable {
+    var code: String
+    var isHost: Bool
+    var hostName: String?
+    var members: [PartyMember]
+    var track: Track?
+    var paused: Bool
+    var position: Double
+    var serverTime: Double
+    var queue: [PartyQueueItem]
+    var reactions: [PartyReaction]
+    var version: Int
+
+    enum CodingKeys: String, CodingKey {
+        case code, members, track, paused, position, queue, reactions, version
+        case isHost = "is_host"
+        case hostName = "host_name"
+        case serverTime = "server_time"
+    }
+}
+
+struct PartySummary: Codable, Hashable, Identifiable {
+    var code: String
+    var hostName: String?
+    var hostAvatarURL: String?
+    var members: Int
+    var track: Track?
+    var joined: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case code, members, track, joined
+        case hostName = "host_name"
+        case hostAvatarURL = "host_avatar_url"
+    }
+
+    var id: String { code }
+}
+
+// MARK: - Blind test
+
+struct BlindChoice: Codable, Hashable {
+    var title: String
+    var artist: String
+}
+
+struct BlindQuestion: Codable, Hashable {
+    var previewURL: String
+    var coverURL: String?
+    var answer: Int
+    var choices: [BlindChoice]
+    var track: Track
+
+    enum CodingKeys: String, CodingKey {
+        case answer, choices, track
+        case previewURL = "preview_url"
+        case coverURL = "cover_url"
+    }
+}
+
+struct BlindRound: Codable {
+    var mode: String
+    var day: String
+    var alreadyPlayed: Bool
+    var questions: [BlindQuestion]
+
+    enum CodingKeys: String, CodingKey {
+        case mode, day, questions
+        case alreadyPlayed = "already_played"
+    }
+}
+
+struct BlindScore: Codable, Hashable, Identifiable {
+    var name: String
+    var avatarURL: String?
+    var isMe: Bool
+    var score: Int
+    var correct: Int
+    var total: Int
+
+    enum CodingKeys: String, CodingKey {
+        case name, score, correct, total
+        case avatarURL = "avatar_url"
+        case isMe = "is_me"
+    }
+
+    var id: String { "\(name)|\(score)" }
+}
+
+// MARK: - Concerts
+
+struct Concert: Codable, Hashable, Identifiable {
+    var id: String
+    var artist: String
+    var artistPictureURL: String?
+    var datetime: String
+    var venue: String?
+    var city: String?
+    var region: String?
+    var country: String?
+    var latitude: Double?
+    var longitude: Double?
+    var url: String?
+    var artistRank: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, artist, datetime, venue, city, region, country, latitude, longitude, url
+        case artistPictureURL = "artist_picture_url"
+        case artistRank = "artist_rank"
+    }
+
+    /// « 2026-11-20T20:00:00 » (heure locale de la salle).
+    var date: Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return formatter.date(from: String(datetime.prefix(19)))
     }
 }

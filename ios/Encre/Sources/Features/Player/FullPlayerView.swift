@@ -121,7 +121,23 @@ struct FullPlayerView: View {
             VStack(spacing: 6) {
                 Capsule().fill(Color.white.opacity(0.35)).frame(width: 38, height: 5)
                 sleepBadge
+                if player.isMixing {
+                    // Enchaînement AutoMix en cours (tempo calé si différent).
+                    Label(
+                        player.mixTempoRatio == 1
+                            ? "AutoMix"
+                            : String(format: "AutoMix · tempo %+.0f %%", (player.mixTempoRatio - 1) * 100),
+                        systemImage: "arrow.triangle.merge"
+                    )
+                    .font(Typo.caption)
+                    .foregroundStyle(Tone.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.white.opacity(0.15)))
+                    .transition(.scale.combined(with: .opacity))
+                }
             }
+            .animation(Motion.smooth, value: player.isMixing)
             Spacer()
             actionsMenu
         }
@@ -589,7 +605,7 @@ private struct QueueToggles: View {
                 player.toggleAutoplay()
             }
             .disabled(player.isStation)
-            toggle("wave.3.right", isOn: player.crossfadeEnabled, label: "Fondu enchaîné") {
+            toggle("arrow.triangle.merge", isOn: player.crossfadeEnabled, label: "AutoMix") {
                 player.toggleCrossfade()
             }
         }

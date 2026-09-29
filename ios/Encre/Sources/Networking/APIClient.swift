@@ -440,6 +440,74 @@ final class APIClient {
         return try await send(try request("/me/playlists/import-tracks", method: "POST", bodyData: data))
     }
 
+    // MARK: - Écoute ensemble
+
+    func createParty() async throws -> PartyState {
+        try await send(try request("/party", method: "POST"))
+    }
+
+    func activeParties() async throws -> [PartySummary] {
+        try await send(try request("/party/active"))
+    }
+
+    func partyState(code: String) async throws -> PartyState {
+        try await send(try request("/party/\(code)"))
+    }
+
+    func joinParty(code: String) async throws -> PartyState {
+        try await send(try request("/party/\(code)/join", method: "POST"))
+    }
+
+    func leaveParty(code: String) async throws {
+        try await sendNoContent(try request("/party/\(code)/leave", method: "POST"))
+    }
+
+    func setPartyState(code: String, track: Track?, position: Double, paused: Bool) async throws -> PartyState {
+        struct Body: Encodable { let track: Track?; let position: Double; let paused: Bool }
+        let data = try encode(Body(track: track, position: position, paused: paused))
+        return try await send(try request("/party/\(code)/state", method: "POST", bodyData: data))
+    }
+
+    func proposeToParty(code: String, track: Track) async throws -> PartyState {
+        struct Body: Encodable { let track: Track }
+        let data = try encode(Body(track: track))
+        return try await send(try request("/party/\(code)/queue", method: "POST", bodyData: data))
+    }
+
+    func consumePartyQueue(code: String, ids: [Int]) async throws -> PartyState {
+        struct Body: Encodable { let ids: [Int] }
+        let data = try encode(Body(ids: ids))
+        return try await send(try request("/party/\(code)/queue/consume", method: "POST", bodyData: data))
+    }
+
+    func reactInParty(code: String, emoji: String) async throws -> PartyState {
+        struct Body: Encodable { let emoji: String }
+        let data = try encode(Body(emoji: emoji))
+        return try await send(try request("/party/\(code)/react", method: "POST", bodyData: data))
+    }
+
+    // MARK: - Blind test
+
+    func blindRound(mode: String) async throws -> BlindRound {
+        try await send(try request("/blindtest/round", query: [URLQueryItem(name: "mode", value: mode)]))
+    }
+
+    func submitBlindScore(mode: String, score: Int, correct: Int, total: Int) async throws {
+        struct Body: Encodable { let mode: String; let score: Int; let correct: Int; let total: Int }
+        let data = try encode(Body(mode: mode, score: score, correct: correct, total: total))
+        try await sendNoContent(try request("/blindtest/score", method: "POST", bodyData: data))
+    }
+
+    func blindLeaderboard(mode: String = "daily") async throws -> [BlindScore] {
+        try await send(try request("/blindtest/leaderboard", query: [URLQueryItem(name: "mode", value: mode)]))
+    }
+
+    // MARK: - Concerts
+
+    func concerts() async throws -> [Concert] {
+        try await send(try request("/concerts"))
+    }
+
     // MARK: - Titres aimés Last.fm
 
     func lovedImportStatus() async throws -> LovedImportStatus {

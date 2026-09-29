@@ -51,6 +51,32 @@ final class PlayerManager: ObservableObject {
         return Array(context[(index + 1)...])
     }
 
+    // MARK: Écoute ensemble
+
+    /// Invité d'une session : la lecture suit l'hôte — pas de titre suivant
+    /// ni de lecture automatique de son côté, c'est l'hôte qui enchaîne.
+    @Published var followsParty = false
+    /// Position où se placer dès que le titre est prêt (rejoindre en cours).
+    private var pendingSeekSeconds: Double?
+
+    func playForParty(_ track: Track, at position: Double) {
+        endStation()
+        resetQueueState(name: "Écoute ensemble")
+        pendingSeekSeconds = position > 1 ? position : nil
+        start(track, context: [track])
+    }
+
+    func pause() {
+        if mixTask != nil { promoteMix() }
+        player?.pause()
+    }
+
+    func resume() {
+        guard let player else { return }
+        try? AVAudioSession.sharedInstance().setActive(true)
+        player.play()
+    }
+
     /// Relance le titre en cours depuis le début, en redemandant le flux au
     /// serveur (après « Mauvaise version ? »).
     func reloadCurrent() {
@@ -58,9 +84,162 @@ final class PlayerManager: ObservableObject {
         start(current, context: context)
     }
 
+    // MARK: AutoMix
+
+    /// Durée de l'enchaînement entre deux titres.
+    private let mixLength: Double = 8
+    private var mixIncoming: AVPlayer?
+    private var mixIncomingTrack: Track?
+    private var mixTask: Task<Void, Never>?
+    private var mixRate: Float = 1
+    private var bpmCache: [String: Double] = [:]
+    /// Un enchaînement est en cours (affiché dans le lecteur).
+    @Published private(set) var isMixing = false
+    /// Tempo de B calé sur A pendant l'enchaînement (1 = inchangé).
+    @Published private(set) var mixTempoRatio: Double = 1
+
+    private func bpm(of track: Track) -> Double? { track.bpm ?? bpmCache[track.id] }
+
+    /// Tempo inconnu : demandé une fois (fiche complète, en cache serveur).
+    private func fetchBPM(_ track: Track) {
+        guard bpm(of: track) == nil, track.source == "deezer" else { return }
+        Task { [weak self] in
+            if let full = try? await APIClient.shared.track(source: track.source, id: track.sourceId), let value = full.bpm {
+                self?.bpmCache[track.id] = value
+            }
+        }
+    }
+
+    /// Rapport de vitesse qui cale le tempo de B sur celui de A, à ±8 % au
+    /// plus (au-delà, on ne déforme pas le titre : simple fondu).
+    private func tempoRatio(from a: Track, to b: Track) -> Float {
+        guard let bpmA = bpm(of: a), let bpmB = bpm(of: b), bpmA > 0, bpmB > 0 else { return 1 }
+        for ratio in [bpmA / bpmB, bpmA / (bpmB * 2), (bpmA * 2) / bpmB] where abs(ratio - 1) <= 0.08 {
+            return Float(ratio)
+        }
+        return 1
+    }
+
+    /// À chaque tic de lecture quand l'AutoMix est actif : B est chargé en
+    /// silence un peu avant, puis l'enchaînement démarre `mixLength` secondes
+    /// avant la fin de A. Sans suivant prêt, simple fondu de sortie.
+    private func autoMixTick(position: Double, duration: Double) {
+        let remaining = duration - position
+        let canMix = !followsParty && repeatMode != .one && sleepTimer != .endOfTrack
+        if canMix, let next = upNext.first, remaining > 0 {
+            if mixIncoming != nil, mixIncomingTrack?.id != next.id, mixTask == nil { cancelMix() }
+            if remaining > mixLength + 10, mixIncoming != nil, mixTask == nil {
+                cancelMix()  // retour en arrière dans A
+            } else if remaining <= mixLength + 6 {
+                prepareMix(next: next)
+            }
+            if remaining <= mixLength, remaining > 0.5, mixTask == nil { beginMix(remaining: remaining) }
+        }
+        guard mixTask == nil else { return }
+        if remaining > 0 && remaining < 4 {
+            player?.volume = Float(max(0.05, remaining / 4))
+        } else if remaining >= 4 && position > 2 {
+            player?.volume = 1  // retour en arrière après le début du fondu
+        }
+    }
+
+    private func prepareMix(next: Track) {
+        guard mixIncoming == nil else { return }
+        let asset: AVURLAsset
+        if let local = DownloadManager.shared.localURL(for: next) {
+            asset = AVURLAsset(url: local)
+        } else if let request = try? APIClient.shared.streamRequest(source: next.source, id: next.sourceId) {
+            asset = AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers])
+        } else {
+            return
+        }
+        let item = AVPlayerItem(asset: asset)
+        // Changer la vitesse sans changer la hauteur (pas d'effet « chipmunk »).
+        item.audioTimePitchAlgorithm = .timeDomain
+        let incoming = AVPlayer(playerItem: item)
+        incoming.volume = 0
+        mixIncoming = incoming
+        mixIncomingTrack = next
+    }
+
+    /// A descend, B monte (courbe à puissance constante : le volume perçu
+    /// reste stable), B éventuellement accéléré ou ralenti pour tomber sur
+    /// le tempo de A.
+    private func beginMix(remaining: Double) {
+        guard let outgoing = player, let incoming = mixIncoming, let next = mixIncomingTrack, let current,
+              incoming.currentItem?.status == .readyToPlay else { return }
+        let rate = tempoRatio(from: current, to: next)
+        mixRate = rate
+        mixTempoRatio = Double(rate)
+        incoming.playImmediately(atRate: rate)
+        isMixing = true
+        let length = max(2, min(mixLength, remaining))
+        mixTask = Task { [weak self] in
+            let start = Date()
+            while !Task.isCancelled {
+                let t = min(1, Date().timeIntervalSince(start) / length)
+                outgoing.volume = Float(cos(t * .pi / 2))
+                incoming.volume = Float(sin(t * .pi / 2))
+                if t >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            guard !Task.isCancelled else { return }
+            self?.promoteMix()
+        }
+    }
+
+    /// Fin de l'enchaînement : B devient le titre en cours (file, écran
+    /// verrouillé, écoutes, tout suit), puis revient doucement à sa vitesse.
+    private func promoteMix() {
+        guard let incoming = mixIncoming, let next = mixIncomingTrack else { return }
+        mixTask?.cancel()
+        mixTask = nil
+        mixIncoming = nil
+        mixIncomingTrack = nil
+        isMixing = false
+        teardown()
+        current = next
+        if refill != nil && upNext.count < 3 {
+            Task { await self.topUpStation() }
+        } else if refill == nil && autoplayEnabled && upNext.count < 2 {
+            requestAutoplay()
+        }
+        errorMessage = nil
+        updateNowPlayingInfo(for: next)
+        fetchArtwork(for: next)
+        recoveryAttempted = false
+        beginPlayback(next, prepared: incoming)
+        fetchBPM(next)
+        let rate = mixRate
+        mixRate = 1
+        guard rate != 1 else { return }
+        Task { [weak self, weak incoming] in
+            for step in 1...20 {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard let incoming, incoming.timeControlStatus == .playing else { return }
+                incoming.rate = rate + (1 - rate) * Float(step) / 20
+            }
+            self?.mixTempoRatio = 1
+        }
+    }
+
+    private func cancelMix() {
+        mixTask?.cancel()
+        mixTask = nil
+        mixIncoming?.pause()
+        mixIncoming = nil
+        mixIncomingTrack = nil
+        if isMixing { isMixing = false }
+    }
+
     // MARK: Fin du titre
 
     private func handleTrackEnd() {
+        if mixTask != nil {
+            // Fin de A pendant l'enchaînement : B prend la main.
+            promoteMix()
+            return
+        }
         guard !endHandled, player != nil else { return }
         endHandled = true
         stallTask?.cancel()
@@ -181,7 +360,8 @@ final class PlayerManager: ObservableObject {
     /// ∞ : quand la liste se termine, des titres similaires (le « mix » de
     /// l'artiste) s'enchaînent tout seuls.
     @Published private(set) var autoplayEnabled = UserDefaults.standard.object(forKey: "encre.autoplay") as? Bool ?? true
-    /// Fondu enchaîné : fin de titre en fondu sortant, début en fondu entrant.
+    /// AutoMix : les titres s'enchaînent en se superposant (fondu à puissance
+    /// constante, tempo calé si possible), voir « AutoMix » plus bas.
     @Published private(set) var crossfadeEnabled = UserDefaults.standard.bool(forKey: "encre.crossfade")
     /// D'où vient la lecture (« De Nuance ») — l'album, l'artiste, la radio...
     @Published private(set) var contextName: String?
@@ -278,7 +458,7 @@ final class PlayerManager: ObservableObject {
 
     /// Ajoute le « mix » de l'artiste en cours à la fin de la file.
     private func requestAutoplay() {
-        guard autoplayTask == nil, refill == nil, repeatMode != .all, autoplayEnabled,
+        guard autoplayTask == nil, refill == nil, repeatMode != .all, autoplayEnabled, !followsParty,
               let seed = current, let artistId = seed.artistSourceId else { return }
         let generation = contextGeneration
         autoplayTask = Task { [weak self] in
@@ -413,6 +593,7 @@ final class PlayerManager: ObservableObject {
         }
         commands.pauseCommand.addTarget { [weak self] _ in
             guard let self, self.player != nil else { return .noSuchContent }
+            if self.mixTask != nil { self.promoteMix() }
             self.player?.pause()
             self.isPlaying = false
             return .success
@@ -508,6 +689,7 @@ final class PlayerManager: ObservableObject {
         // quelques secondes. En cas d'échec, `recover` prend le relais.
         recoveryAttempted = false
         beginPlayback(track)
+        if crossfadeEnabled { fetchBPM(track) }
     }
 
     /// La lecture directe a échoué ou traîne : on demande au serveur de
@@ -544,24 +726,33 @@ final class PlayerManager: ObservableObject {
     /// servi depuis son cache disque, il démarre quasi instantanément.
     /// Un titre téléchargé part du fichier sur l'iPhone (instantané, sans
     /// réseau) ; `preferLocal: false` après un échec de ce fichier.
-    private func beginPlayback(_ track: Track, preferLocal: Bool = true) {
+    private func beginPlayback(_ track: Track, preferLocal: Bool = true, prepared: AVPlayer? = nil) {
         do {
-            let asset: AVURLAsset
-            if preferLocal, let local = DownloadManager.shared.localURL(for: track) {
-                asset = AVURLAsset(url: local)
+            let player: AVPlayer
+            let item: AVPlayerItem
+            if let prepared, let preparedItem = prepared.currentItem {
+                // AutoMix : le titre joue déjà (entré en fondu), on le reprend tel quel.
+                player = prepared
+                item = preparedItem
+                player.volume = 1
             } else {
-                let (url, headers) = try APIClient.shared.streamRequest(source: track.source, id: track.sourceId)
-                asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+                let asset: AVURLAsset
+                if preferLocal, let local = DownloadManager.shared.localURL(for: track) {
+                    asset = AVURLAsset(url: local)
+                } else {
+                    let (url, headers) = try APIClient.shared.streamRequest(source: track.source, id: track.sourceId)
+                    asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+                }
+                item = AVPlayerItem(asset: asset)
+                player = AVPlayer(playerItem: item)
+                // Volume fixe au maximum : le vrai contrôle de volume, ce sont les
+                // boutons physiques et le curseur du Centre de contrôle (voir
+                // `SystemVolumeView` dans `NowPlayingSheet`), pas un curseur
+                // interne à l'app désynchronisé du reste de l'iPhone.
+                player.volume = crossfadeEnabled ? 0 : 1
             }
-            let item = AVPlayerItem(asset: asset)
-            let player = AVPlayer(playerItem: item)
-            // Volume fixe au maximum : le vrai contrôle de volume, ce sont les
-            // boutons physiques et le curseur du Centre de contrôle (voir
-            // `SystemVolumeView` dans `NowPlayingSheet`), pas un curseur
-            // interne à l'app désynchronisé du reste de l'iPhone.
-            player.volume = crossfadeEnabled ? 0 : 1
             self.player = player
-            if crossfadeEnabled {
+            if crossfadeEnabled && prepared == nil {
                 // Fondu entrant sur 1,5 s.
                 Task { [weak player] in
                     for step in 1...10 {
@@ -585,6 +776,10 @@ final class PlayerManager: ObservableObject {
                     case .readyToPlay:
                         self.isLoading = false
                         self.loadTimeoutTask?.cancel()
+                        if let seconds = self.pendingSeekSeconds {
+                            self.pendingSeekSeconds = nil
+                            self.seek(toSeconds: seconds)
+                        }
                     default:
                         break
                     }
@@ -647,13 +842,7 @@ final class PlayerManager: ObservableObject {
                 Task { @MainActor in
                     guard let self, let duration = self.referenceDuration() else { return }
                     if self.crossfadeEnabled {
-                        let remaining = duration - time.seconds
-                        if remaining > 0 && remaining < 4 {
-                            self.player?.volume = Float(max(0.05, remaining / 4))
-                        } else if remaining >= 4 && time.seconds > 2 {
-                            // Retour en arrière après le début du fondu.
-                            self.player?.volume = 1
-                        }
+                        self.autoMixTick(position: time.seconds, duration: duration)
                     }
                     if let last = self.lastTick, self.isPlaying {
                         let delta = time.seconds - last
@@ -693,7 +882,12 @@ final class PlayerManager: ObservableObject {
             endHandled = false
             scrobbleProgress = 0
             didScrobble = false
-            player.play()
+            if prepared == nil {
+                player.play()
+            } else {
+                isPlaying = true
+                isLoading = false
+            }
             listenStartedAt = Date()
             scrobbled = false
             nextPrepared = false
@@ -707,6 +901,7 @@ final class PlayerManager: ObservableObject {
             // toute seule...) laissait le sablier tourner indéfiniment sans le
             // moindre message — impossible à distinguer d'un blocage réel.
             loadTimeoutTask?.cancel()
+            guard prepared == nil else { return }
             loadTimeoutTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(25))
                 guard let self, !Task.isCancelled, self.current?.id == track.id, self.isLoading else { return }
@@ -726,6 +921,7 @@ final class PlayerManager: ObservableObject {
     /// une petite machine). « Suivant » reste instantané.
     private func prepareNext() {
         prefetchTask?.cancel()
+        if crossfadeEnabled, let next = upNext.first { fetchBPM(next) }
         guard let next = upNext.first, !DownloadManager.shared.isDownloaded(next) else { return }
         prefetchTask = Task {
             try? await APIClient.shared.prepareStream(source: next.source, id: next.sourceId)
@@ -733,6 +929,7 @@ final class PlayerManager: ObservableObject {
     }
 
     func togglePlayPause() {
+        if mixTask != nil { promoteMix() }
         guard let player else { return }
         if player.timeControlStatus == .playing {
             player.pause()
@@ -778,6 +975,12 @@ final class PlayerManager: ObservableObject {
     /// par opposition au bouton « suivant ».
     private func advance(by offset: Int, automatic: Bool = false) {
         guard let current, let index = context.firstIndex(where: { $0.id == current.id }) else {
+            isPlaying = false
+            return
+        }
+        if automatic && followsParty {
+            // Invité : on attend le titre suivant de l'hôte.
+            player?.pause()
             isPlaying = false
             return
         }
@@ -881,6 +1084,7 @@ final class PlayerManager: ObservableObject {
     }
 
     private func teardown() {
+        cancelMix()
         finishListening()
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }

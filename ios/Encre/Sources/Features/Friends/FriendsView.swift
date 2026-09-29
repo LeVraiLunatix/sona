@@ -8,10 +8,17 @@ struct FriendsView: View {
     @State private var friends: [Friend] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var showingParty = false
+    @State private var showingBlindTest = false
+    @State private var parties: [PartySummary] = []
+    @ObservedObject private var party = PartyManager.shared
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
+                activities
+                    .padding(.bottom, 10)
+
                 if isLoading && friends.isEmpty {
                     ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 80)
                 } else if friends.isEmpty {
@@ -48,9 +55,78 @@ struct FriendsView: View {
                 try? await Task.sleep(for: .seconds(15))
             }
         }
+        .sheet(isPresented: $showingParty) {
+            PartyView().environmentObject(player)
+        }
+        .fullScreenCover(isPresented: $showingBlindTest) {
+            BlindTestView()
+        }
+    }
+
+    /// Écoute ensemble et blind test, et les sessions des amis à rejoindre.
+    @ViewBuilder
+    private var activities: some View {
+        if let state = party.state {
+            Button { showingParty = true } label: {
+                HStack(spacing: 12) {
+                    EqualizerBars(isAnimating: !state.paused).frame(width: 16, height: 14)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(state.isHost ? "Ta session \(state.code) est en cours" : "Tu écoutes avec \(state.hostName ?? "l'hôte")")
+                            .font(Typo.rowTitle).foregroundStyle(.black)
+                        Text("\(state.members.count) à l'écoute · touche pour ouvrir").font(Typo.caption).foregroundStyle(.black.opacity(0.6))
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.black)
+                }
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white))
+            }
+            .buttonStyle(.pressable(scale: 0.98))
+        }
+        HStack(spacing: 12) {
+            activityCard(
+                title: "Écoute ensemble", subtitle: "Le même son, au même moment",
+                icon: "person.2.wave.2.fill",
+                colors: [Color(red: 0.4, green: 0.25, blue: 0.95), Color(red: 0.15, green: 0.1, blue: 0.4)]
+            ) { showingParty = true }
+            activityCard(
+                title: "Blind test", subtitle: "Défi du jour et classement",
+                icon: "waveform.badge.magnifyingglass",
+                colors: [Color(red: 0.95, green: 0.35, blue: 0.45), Color(red: 0.4, green: 0.08, blue: 0.2)]
+            ) { showingBlindTest = true }
+        }
+        if party.state == nil {
+            ForEach(parties.filter { !$0.joined }) { summary in
+                PartySummaryRow(summary: summary) {
+                    Task {
+                        await party.join(code: summary.code)
+                        showingParty = true
+                    }
+                }
+            }
+        }
+    }
+
+    private func activityCard(title: String, subtitle: String, icon: String, colors: [Color], action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon).font(.system(size: 24, weight: .semibold)).foregroundStyle(.white)
+                Spacer(minLength: 6)
+                Text(title).font(Typo.headline).foregroundStyle(.white)
+                Text(subtitle).font(Typo.caption).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 130, alignment: .leading)
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.96))
     }
 
     private func load() async {
+        parties = (try? await APIClient.shared.activeParties()) ?? parties
         do {
             friends = try await APIClient.shared.friends()
             errorMessage = nil
