@@ -4,6 +4,7 @@
 # cookies, puis relance Sona. Voir docs/MIGRATION_ORACLE.md.
 #
 #   cd ~/sona && ./deploy/import_transfer.sh 7-mot-mot
+#   cd ~/sona && ./deploy/import_transfer.sh ~/sona-transfer.tgz   (archive copiée à la main)
 set -euo pipefail
 
 main() {
@@ -14,10 +15,15 @@ main() {
     fi
     cd "$HOME/sona"
     archive="$HOME/sona-transfer.tgz"
-    rm -f "$archive"
-    if ! .venv/bin/wormhole receive --accept-file -o "$archive" "$code" || [ ! -s "$archive" ]; then
-        echo "⚠️  Rien reçu : relance l'envoi sur l'ancien serveur pour avoir un nouveau code." >&2
-        exit 1
+    if [ -f "$code" ]; then
+        # Archive déjà copiée sur ce serveur (scp) au lieu d'un code.
+        archive="$code"
+    else
+        rm -f "$archive"
+        if ! .venv/bin/wormhole receive --accept-file -o "$archive" "$code" || [ ! -s "$archive" ]; then
+            echo "⚠️  Rien reçu : relance l'envoi sur l'ancien serveur pour avoir un nouveau code." >&2
+            exit 1
+        fi
     fi
 
     # La base actuelle (vide ou non) est gardée de côté, au cas où.
