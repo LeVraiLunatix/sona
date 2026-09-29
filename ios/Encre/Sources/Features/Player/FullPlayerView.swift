@@ -367,6 +367,9 @@ struct FullPlayerView: View {
                     .transition(.opacity)
             }
 
+            TVCastBanner()
+                .padding(.top, 10)
+
             TransportRow(player: player)
                 .padding(.vertical, 22)
 
@@ -380,6 +383,8 @@ struct FullPlayerView: View {
                 panelButton(.lyrics, icon: "quote.bubble")
                 Spacer()
                 AirPlayButton()
+                Spacer()
+                TVCastButton()
                 Spacer()
                 panelButton(.queue, icon: "list.bullet")
             }

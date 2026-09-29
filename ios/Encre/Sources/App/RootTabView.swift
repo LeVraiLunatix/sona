@@ -31,6 +31,7 @@ struct RootTabView: View {
     @State private var showingBlindTest = false
     @State private var showingParty = false
     @State private var recap: RecapLaunch?
+    @State private var live: LiveLaunch?
     @Namespace private var zoomNamespace
     @Namespace private var playerNamespace
 
@@ -83,25 +84,42 @@ struct RootTabView: View {
         .sheet(isPresented: $showingParty) {
             PartyView().environmentObject(player)
         }
+        .fullScreenCover(item: $live) { launch in
+            BlindLiveView(joinCode: launch.code)
+        }
         .onOpenURL { url in open(url) }
         .task {
             // Écoutes restées en attente (hors connexion au dernier usage).
             await Scrobbler.shared.flush()
         }
+        .task { await NotificationManager.shared.start() }
     }
 
-    /// Liens `encre://…` des widgets et de la Live Activity.
+    /// Liens `encre://…` des widgets, de la Live Activity et des notifications.
     private func open(_ url: URL) {
         guard url.scheme == "encre" else { return }
         showingPlayer = false
         showingSettings = false
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let code = query.first { $0.name == "code" }?.value
         switch url.host() {
         case "blindtest":
             showingBlindTest = true
         case "recap":
-            recap = RecapLaunch(period: "month", offset: -1)  // dernier mois terminé
+            // Dernière semaine ou dernier mois terminés.
+            let period = query.first { $0.name == "period" }?.value == "week" ? "week" : "month"
+            recap = RecapLaunch(period: period, offset: -1)
+        case "live":
+            if let code { live = LiveLaunch(code: code) }
         case "party":
-            showingParty = true
+            if let code {
+                Task {
+                    await PartyManager.shared.join(code: code)
+                    showingParty = true
+                }
+            } else {
+                showingParty = true
+            }
         case "player":
             if player.current != nil { showingPlayer = true }
         case "djradio":

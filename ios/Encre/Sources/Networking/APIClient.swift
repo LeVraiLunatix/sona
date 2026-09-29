@@ -531,6 +531,33 @@ final class APIClient {
         try await send(try request("/blindtest/leaderboard", query: [URLQueryItem(name: "mode", value: mode)]))
     }
 
+    // MARK: - TV / PS5
+
+    func tvScreens() async throws -> [TVScreen] {
+        try await send(try request("/tv"))
+    }
+
+    func pairTV(code: String) async throws -> TVScreen {
+        struct Body: Encodable { let code: String }
+        return try await send(try request("/tv/pair", method: "POST", bodyData: try encode(Body(code: code))))
+    }
+
+    func unpairTV(_ screenId: String) async throws {
+        try await sendNoContent(try request("/tv/\(screenId)", method: "DELETE"))
+    }
+
+    func playOnTV(_ screenId: String, tracks: [Track]) async throws {
+        struct Body: Encodable { let tracks: [Track] }
+        try await sendNoContent(try request("/tv/\(screenId)/play", method: "POST", bodyData: try encode(Body(tracks: tracks))))
+    }
+
+    func controlTV(_ screenId: String, action: String, seconds: Double? = nil) async throws {
+        struct Body: Encodable { let action: String; let seconds: Double? }
+        try await sendNoContent(try request(
+            "/tv/\(screenId)/control", method: "POST", bodyData: try encode(Body(action: action, seconds: seconds))
+        ))
+    }
+
     // MARK: - Blind test en direct
 
     func createLive() async throws -> LiveState {

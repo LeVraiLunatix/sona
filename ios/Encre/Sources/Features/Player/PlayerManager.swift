@@ -766,8 +766,14 @@ final class PlayerManager: ObservableObject {
         } else if refill == nil && autoplayEnabled && upNext.count < 2 {
             requestAutoplay()
         }
-        isLoading = true
         errorMessage = nil
+        if let remotePlayback {
+            // Lecture sur la TV / PS5 : rien ne joue sur l'iPhone.
+            isLoading = false
+            remotePlayback(track, upNext)
+            return
+        }
+        isLoading = true
 
         // Activée à chaque lecture plutôt qu'une fois pour toutes : la
         // session peut avoir été désactivée par une interruption (appel,
@@ -1025,6 +1031,10 @@ final class PlayerManager: ObservableObject {
     }
 
     func togglePlayPause() {
+        if let remoteToggle {
+            remoteToggle()
+            return
+        }
         if mixTask != nil { promoteMix() }
         guard let player else { return }
         if player.timeControlStatus == .playing {
@@ -1142,6 +1152,13 @@ final class PlayerManager: ObservableObject {
         var seen = known
         return tracks.filter { seen.insert($0.id).inserted }
     }
+
+    // MARK: TV / PS5
+
+    /// Lecture déportée (voir `CastManager`) : chaque titre lancé part sur
+    /// l'écran au lieu de jouer ici, et lecture/pause le pilote.
+    var remotePlayback: ((Track, [Track]) -> Void)?
+    var remoteToggle: (() -> Void)?
 
     // MARK: Karaoké
 

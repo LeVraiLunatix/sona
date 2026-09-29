@@ -10,6 +10,9 @@ struct EncreApp: App {
         // Téléchargements intelligents de la nuit : à déclarer avant la fin
         // du lancement, sinon iOS refuse la tâche.
         SmartDownloads.registerBackgroundTask()
+        // Notifications (récaps, défi du jour, parties des amis).
+        NotificationManager.registerBackgroundTask()
+        NotificationManager.shared.setUp()
     }
 
     var body: some Scene {
@@ -59,7 +62,10 @@ struct AppGate: View {
                 Task { await auth.refresh() }
                 SmartDownloads.shared.runIfDue()
             }
-            if phase == .background { SmartDownloads.shared.schedule() }
+            if phase == .background {
+                SmartDownloads.shared.schedule()
+                NotificationManager.shared.scheduleRefresh()
+            }
         }
     }
 }

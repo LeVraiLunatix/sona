@@ -13,6 +13,7 @@ struct SettingsView: View {
     /// Commit déployé sur le serveur : pour vérifier qu'une mise à jour est passée.
     @State private var serverVersion: String?
     @State private var errorMessage: String?
+    @ObservedObject private var notifications = NotificationManager.shared
 
     var body: some View {
         Form {
@@ -81,6 +82,16 @@ struct SettingsView: View {
                             Text("Tes amis voient ce que tu écoutes en direct et tes dernières écoutes.")
                         }
                     }
+                }
+
+                Section {
+                    Toggle("Récaps de la semaine et du mois", isOn: $notifications.recaps)
+                    Toggle("Rappel du défi du jour", isOn: $notifications.dailyChallenge)
+                    Toggle("Parties lancées par mes amis", isOn: $notifications.friends)
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("Récaps le lundi et le 1er du mois à 10 h, défi du jour à 18 h 30. Les parties des amis (blind test en direct, écoute ensemble) sont signalées quand l'app tourne, même en arrière-plan pendant la lecture.")
                 }
 
                 Section {

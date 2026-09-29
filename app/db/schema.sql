@@ -208,6 +208,17 @@ CREATE TABLE IF NOT EXISTS rejected_sources (
     PRIMARY KEY (source, source_id, video_id)
 );
 
+-- Écrans associés pour « Écouter sur la TV / PS5 » (appli YouTube pilotée
+-- à distance, voir services/tv_cast.py).
+CREATE TABLE IF NOT EXISTS tv_screens (
+    user_id INTEGER NOT NULL,
+    screen_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    lounge_token TEXT NOT NULL,
+    linked_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, screen_id)
+);
+
 -- Blind test : un score par partie ; le défi du jour (mode 'daily') est le
 -- même pour tout le monde, classement du jour.
 CREATE TABLE IF NOT EXISTS blindtest_scores (

@@ -42,8 +42,11 @@ targets:
           - audio
           # Téléchargements intelligents la nuit (Wi-Fi + en charge).
           - processing
+          # Vérifier de temps en temps si un ami lance une partie (notifications).
+          - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - com.sona.encre.smart-downloads
+          - com.sona.encre.refresh
         # Concerts près de chez toi (distance aux salles, jamais envoyée).
         NSLocationWhenInUseUsageDescription: Sona trie les concerts de tes artistes selon leur distance.
         # Import d'une playlist depuis la bibliothèque Musique de l'iPhone

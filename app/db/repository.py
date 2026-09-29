@@ -681,6 +681,40 @@ class Repository:
         )
         await self._db.conn.commit()
 
+    # -- Écrans TV / PS5 ------------------------------------------------------
+
+    async def tv_screens(self, user_id: int) -> list[dict]:
+        cursor = await self._db.conn.execute(
+            "SELECT screen_id, name, linked_at FROM tv_screens WHERE user_id=? ORDER BY linked_at DESC", (user_id,)
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def tv_screen_get(self, user_id: int, screen_id: str) -> dict | None:
+        cursor = await self._db.conn.execute(
+            "SELECT screen_id, name, lounge_token FROM tv_screens WHERE user_id=? AND screen_id=?",
+            (user_id, screen_id),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def tv_screen_add(self, user_id: int, screen_id: str, name: str, lounge_token: str) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO tv_screens (user_id, screen_id, name, lounge_token, linked_at) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (user_id, screen_id) DO UPDATE SET name=excluded.name, lounge_token=excluded.lounge_token""",
+            (user_id, screen_id, name, lounge_token, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def tv_screen_set_token(self, user_id: int, screen_id: str, lounge_token: str) -> None:
+        await self._db.conn.execute(
+            "UPDATE tv_screens SET lounge_token=? WHERE user_id=? AND screen_id=?", (lounge_token, user_id, screen_id)
+        )
+        await self._db.conn.commit()
+
+    async def tv_screen_remove(self, user_id: int, screen_id: str) -> None:
+        await self._db.conn.execute("DELETE FROM tv_screens WHERE user_id=? AND screen_id=?", (user_id, screen_id))
+        await self._db.conn.commit()
+
     async def known_track(self, source: str, source_id: str) -> TrackInfo | None:
         """Fiche d'un titre déjà rencontré (playlist, écoutes) : de quoi le
         lire quand sa source d'origine ne le retrouve plus."""

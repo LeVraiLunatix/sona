@@ -819,6 +819,20 @@ struct BlindScore: Codable, Hashable, Identifiable {
     var id: String { "\(name)|\(score)" }
 }
 
+// MARK: - TV / PS5
+
+struct TVScreen: Codable, Hashable, Identifiable {
+    var screenId: String
+    var name: String
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case screenId = "screen_id"
+    }
+
+    var id: String { screenId }
+}
+
 // MARK: - Blind test en direct
 
 struct LivePlayer: Codable, Hashable, Identifiable {
