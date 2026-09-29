@@ -645,8 +645,9 @@ struct BlindTestView: View {
             audio?.play()
             pause = min(6, max(2.5, (q.revealEnd ?? lineTime + 3) - lineTime + 0.6))
         }
+        let delay = pause
         Task {
-            try? await Task.sleep(for: .seconds(pause))
+            try? await Task.sleep(for: .seconds(delay))
             index += 1
             if let round, index < round.questions.count {
                 withAnimation(Motion.smooth) { ask() }
