@@ -49,6 +49,9 @@ class AlbumInfo:
     track_count: int | None
     duration_seconds: int | None
     tracks: list[TrackInfo] = field(default_factory=list)
+    # Date de sortie complète (AAAA-MM-JJ), quand la source la donne.
+    release_date: str | None = None
+    record_type: str | None = None
 
     @property
     def uid(self) -> str:

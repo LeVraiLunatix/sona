@@ -44,6 +44,9 @@ class QueueItem:
     id: int
     track: dict
     by: str
+    # Soirée : les membres votent pour les propositions ; les plus votées
+    # passent devant dans la file de l'hôte.
+    votes: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -194,11 +197,29 @@ def propose(party: Party, user_id: int, track: dict) -> QueueItem:
     touch(party, user_id)
     if len(party.queue) >= MAX_QUEUE:
         raise PartyError(400, "La file de la session est pleine.")
-    item = QueueItem(party.next_id, track, party.members[user_id].name)
+    item = QueueItem(party.next_id, track, party.members[user_id].name, {user_id})
     party.next_id += 1
     party.queue.append(item)
     party.bump()
     return item
+
+
+def vote(party: Party, user_id: int, item_id: int) -> None:
+    """Vote (ou retire son vote) pour une proposition."""
+    touch(party, user_id)
+    item = next((q for q in party.queue if q.id == item_id), None)
+    if item is None:
+        raise PartyError(404, "Proposition introuvable (déjà jouée ?).")
+    if user_id in item.votes:
+        item.votes.discard(user_id)
+    else:
+        item.votes.add(user_id)
+    party.bump()
+
+
+def ordered_queue(party: Party) -> list[QueueItem]:
+    """Les plus votées d'abord, puis par ordre d'arrivée."""
+    return sorted(party.queue, key=lambda q: (-len(q.votes), q.id))
 
 
 def consume(party: Party, user_id: int, ids: list[int]) -> None:
@@ -233,7 +254,10 @@ def snapshot(party: Party, viewer_id: int) -> dict:
         "paused": party.paused,
         "position": party.position(now),
         "server_time": now,
-        "queue": [{"id": q.id, "track": q.track, "by": q.by} for q in party.queue],
+        "queue": [
+            {"id": q.id, "track": q.track, "by": q.by, "votes": len(q.votes), "voted": viewer_id in q.votes}
+            for q in ordered_queue(party)
+        ],
         "reactions": [{"id": r.id, "emoji": r.emoji, "by": r.by, "age": now - r.at} for r in party.reactions],
         "version": party.version,
     }

@@ -123,6 +123,13 @@ async def consume_queue(code: str, payload: ConsumeIn, deps: ApiDeps = Depends(r
     return party_service.snapshot(party, deps.user_id)
 
 
+@router.post("/{code}/queue/{item_id}/vote")
+async def vote_track(code: str, item_id: int, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    _guard(lambda: party_service.vote(party, deps.user_id, item_id))
+    return party_service.snapshot(party, deps.user_id)
+
+
 @router.post("/{code}/react")
 async def react(code: str, payload: ReactIn, deps: ApiDeps = Depends(require_token)) -> dict:
     party = _party(code)

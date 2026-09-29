@@ -140,11 +140,13 @@ class Play:
     duration_seconds: int | None = None
     listened_seconds: int | None = None
     origin: str = "sona"
+    lat: float | None = None
+    lon: float | None = None
 
 
 _PLAY_COLUMNS = (
     "played_at, title, artist, album, source, source_id, artist_source_id, album_source_id, "
-    "cover_url, duration_seconds, listened_seconds, origin"
+    "cover_url, duration_seconds, listened_seconds, origin, lat, lon"
 )
 
 
@@ -409,11 +411,11 @@ class Repository:
         added: list[Play] = []
         for p in plays:
             cursor = await self._db.conn.execute(
-                f"INSERT OR IGNORE INTO plays (user_id, {_PLAY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                f"INSERT OR IGNORE INTO plays (user_id, {_PLAY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     user_id, p.played_at, p.title, p.artist, p.album, p.source, p.source_id,
                     p.artist_source_id, p.album_source_id, p.cover_url, p.duration_seconds,
-                    p.listened_seconds, p.origin,
+                    p.listened_seconds, p.origin, p.lat, p.lon,
                 ),
             )
             if cursor.rowcount:
@@ -1168,6 +1170,38 @@ class Repository:
         await self._db.conn.commit()
 
     # -- Blind test ----------------------------------------------------
+
+    async def blindtest_games_since(self, user_id: int, since: str) -> int:
+        cursor = await self._db.conn.execute(
+            "SELECT COUNT(*) AS n FROM blindtest_scores WHERE user_id=? AND created_at >= ?", (user_id, since)
+        )
+        return (await cursor.fetchone())["n"]
+
+    # -- Moments (réactions à un instant d'un titre) -------------------------
+
+    async def moment_add(self, user_id: int, source: str, source_id: str, position: float, emoji: str, text: str | None) -> int:
+        cursor = await self._db.conn.execute(
+            """INSERT INTO track_moments (user_id, source, source_id, position, emoji, text, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, source, source_id, position, emoji, text, _now()),
+        )
+        await self._db.conn.commit()
+        return cursor.lastrowid
+
+    async def moments_for(self, source: str, source_id: str, user_ids: list[int]) -> list[dict]:
+        if not user_ids:
+            return []
+        marks = ",".join("?" * len(user_ids))
+        cursor = await self._db.conn.execute(
+            f"""SELECT id, user_id, position, emoji, text, created_at FROM track_moments
+                WHERE source=? AND source_id=? AND user_id IN ({marks}) ORDER BY position""",
+            (source, source_id, *user_ids),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def moment_delete(self, user_id: int, moment_id: int) -> None:
+        await self._db.conn.execute("DELETE FROM track_moments WHERE id=? AND user_id=?", (moment_id, user_id))
+        await self._db.conn.commit()
 
     async def blindtest_add_score(
         self, user_id: int, mode: str, day: str, score: int, correct: int, total: int

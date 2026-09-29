@@ -22,6 +22,9 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("app_accounts", "share_listening", "INTEGER NOT NULL DEFAULT 1"),
     ("playlists", "visibility", "TEXT NOT NULL DEFAULT 'private'"),
     ("library", "data", "TEXT"),
+    # Lieu approximatif de l'écoute (carte des écoutes), arrondi à ~1 km.
+    ("plays", "lat", "REAL"),
+    ("plays", "lon", "REAL"),
 )
 
 

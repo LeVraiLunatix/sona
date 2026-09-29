@@ -82,6 +82,8 @@ def _album_from_json(d: dict, tracks: list[TrackInfo] | None = None) -> AlbumInf
         track_count=d.get("nb_tracks"),
         duration_seconds=d.get("duration"),
         tracks=tracks or [],
+        release_date=d.get("release_date"),
+        record_type=d.get("record_type"),
     )
 
 

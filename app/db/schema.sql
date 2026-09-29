@@ -208,6 +208,20 @@ CREATE TABLE IF NOT EXISTS rejected_sources (
     PRIMARY KEY (source, source_id, video_id)
 );
 
+-- Moments : réaction (emoji, petit mot) à un instant précis d'un titre,
+-- visible des amis quand ils l'écoutent (voir routers/extras.py).
+CREATE TABLE IF NOT EXISTS track_moments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    position REAL NOT NULL,
+    emoji TEXT NOT NULL,
+    text TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_moments_track ON track_moments (source, source_id);
+
 -- Écrans associés pour « Écouter sur la TV / PS5 » (appli YouTube pilotée
 -- à distance, voir services/tv_cast.py).
 CREATE TABLE IF NOT EXISTS tv_screens (

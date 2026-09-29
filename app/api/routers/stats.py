@@ -39,6 +39,9 @@ class PlayIn(BaseModel):
     duration_seconds: int | None = Field(default=None, ge=0)
     listened_seconds: int | None = Field(default=None, ge=0)
     played_at: datetime | None = Field(default=None, description="Début de l'écoute ; maintenant par défaut")
+    # Lieu approximatif (carte des écoutes) : arrondi ici à ~1 km, jamais plus précis.
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lon: float | None = Field(default=None, ge=-180, le=180)
 
 
 class NowPlayingIn(BaseModel):
@@ -133,6 +136,8 @@ def _to_play(p: PlayIn) -> Play:
         source=p.source, source_id=p.source_id, artist_source_id=p.artist_source_id,
         album_source_id=p.album_source_id, cover_url=p.cover_url,
         duration_seconds=p.duration_seconds, listened_seconds=p.listened_seconds, origin="sona",
+        lat=round(p.lat, 2) if p.lat is not None else None,
+        lon=round(p.lon, 2) if p.lon is not None else None,
     )
 
 

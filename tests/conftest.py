@@ -4,7 +4,7 @@ import pytest
 
 from app.api.routers import friends, stats
 from app.bot import lookup
-from app.services import artist_photos, blindlive, concerts, party, tv_cast
+from app.services import artist_photos, blindlive, concerts, instrumental, party, tv_cast
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +29,7 @@ def _empty_catalog_cache():
     party.reset()
     blindlive.reset()
     tv_cast.reset()
+    instrumental.reset()
     concerts.reset()
     yield
     lookup.clear_cache()
