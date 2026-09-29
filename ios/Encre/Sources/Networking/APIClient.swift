@@ -488,8 +488,19 @@ final class APIClient {
 
     // MARK: - Blind test
 
-    func blindRound(mode: String) async throws -> BlindRound {
-        try await send(try request("/blindtest/round", query: [URLQueryItem(name: "mode", value: mode)]))
+    func blindRound(mode: String, ref: String? = nil, count: Int = 10, guess: String = "title") async throws -> BlindRound {
+        var query = [
+            URLQueryItem(name: "mode", value: mode),
+            URLQueryItem(name: "count", value: "\(count)"),
+            URLQueryItem(name: "guess", value: guess),
+        ]
+        if let ref { query.append(URLQueryItem(name: "ref", value: ref)) }
+        return try await send(try request("/blindtest/round", query: query))
+    }
+
+    /// Analyse audio pour l'AutoMix ; nil tant qu'elle n'est pas prête.
+    func analysis(source: String, id: String) async -> TrackAnalysis? {
+        try? await send(try request("/analysis/\(source)/\(id)"))
     }
 
     func submitBlindScore(mode: String, score: Int, correct: Int, total: Int) async throws {

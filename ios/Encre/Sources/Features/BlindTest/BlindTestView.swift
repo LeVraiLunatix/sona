@@ -3,7 +3,9 @@ import SwiftUI
 
 /// Blind test : un extrait, quatre propositions, 15 s. Plus on répond vite,
 /// plus on marque (et une série de bonnes réponses rapporte un bonus).
-/// Défi du jour identique pour tout le monde, avec classement.
+/// Défi du jour identique pour tout le monde, avec classement ; parties
+/// libres à la carte : tes titres, le top, un artiste, une radio ou une de
+/// tes playlists, 5 à 20 extraits, titre ou artiste à trouver, mode expert.
 struct BlindTestView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -25,8 +27,21 @@ struct BlindTestView: View {
     @State private var timer: Task<Void, Never>?
     @State private var resumeMainPlayer = false
     @State private var lastGain = 0
+    // Partie à la carte
+    @State private var ref: String?
+    @State private var refLabel: String?
+    @AppStorage("blindtest.count") private var count = 10
+    @AppStorage("blindtest.guess") private var guess = "title"
+    @AppStorage("blindtest.expert") private var expert = false
+    @State private var picking: BlindSourcePicker.Kind?
+    /// Réglages de la partie en cours (le défi du jour a les siens).
+    @State private var playingGuess = "title"
+    @State private var playingExpert = false
+    @State private var audioCut: Task<Void, Never>?
 
     static let questionSeconds: Double = 15
+    /// Mode expert : l'extrait s'arrête au bout de 5 s.
+    static let expertListenSeconds: Double = 5
 
     var body: some View {
         NavigationStack {
@@ -54,6 +69,13 @@ struct BlindTestView: View {
         }
         .task { await loadLeaderboard() }
         .onDisappear { stopAudio() }
+        .sheet(item: $picking) { kind in
+            BlindSourcePicker(kind: kind) { id, label in
+                picking = nil
+                start(kind.mode, ref: id, label: label)
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 
     // MARK: - Menu
@@ -66,28 +88,97 @@ struct BlindTestView: View {
                         .font(.system(size: 44, weight: .semibold))
                         .foregroundStyle(Tone.primary)
                         .symbolEffect(.bounce, options: .repeating.speed(0.3))
-                    Text("Trouve le titre").font(.system(size: 30, weight: .heavy)).foregroundStyle(Tone.primary)
-                    Text("10 extraits tirés de vos écoutes, à toi et tes amis. 15 secondes par titre : plus tu es rapide, plus tu marques.")
+                    Text("Blind test").font(.system(size: 30, weight: .heavy)).foregroundStyle(Tone.primary)
+                    Text("Un extrait, quatre propositions, 15 secondes. Plus tu es rapide, plus tu marques.")
                         .font(Typo.body)
                         .foregroundStyle(Tone.secondary)
                 }
 
                 modeCard(
                     title: "Défi du jour",
-                    subtitle: dailyPlayed ? "Déjà joué aujourd'hui : rejoue pour le plaisir (ne compte plus)" : "Les mêmes extraits pour tout le monde · classement",
+                    subtitle: dailyPlayed ? "Déjà joué aujourd'hui : rejoue pour le plaisir (ne compte plus)" : "10 extraits de vos écoutes, les mêmes pour tout le monde · classement",
                     icon: "calendar", highlighted: true
                 ) { start("daily") }
 
-                modeCard(title: "Partie libre", subtitle: "Un nouveau tirage à chaque fois", icon: "shuffle", highlighted: false) {
-                    start("solo")
-                }
-
-                if !leaderboard.isEmpty { leaderboardView(title: "Classement du jour") }
                 if let errorMessage {
                     Text(errorMessage).font(Typo.rowSubtitle).foregroundStyle(Tone.danger)
                 }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Partie libre").font(Typo.headline).foregroundStyle(Tone.primary)
+                    options
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        sourceTile("Tes titres", "Toi et tes amis", "person.2.fill", [.pink, .purple]) { start("solo") }
+                        sourceTile("Top du moment", "Les hits Deezer", "chart.line.uptrend.xyaxis", [.orange, .red]) { start("chart") }
+                        sourceTile("Un artiste", "Ses tubes et ses proches", "music.mic", [.blue, .cyan]) { picking = .artist }
+                        sourceTile("Une radio", "Rap FR, 2000s, rock…", "dot.radiowaves.left.and.right", [.green, .teal]) { picking = .radio }
+                        sourceTile("Une playlist", "Une de tes playlists", "music.note.list", [.indigo, .blue]) { picking = .playlist }
+                        sourceTile("Surprise", "Un thème au hasard", "dice.fill", [.yellow, .orange]) { surprise() }
+                    }
+                }
+
+                if !leaderboard.isEmpty { leaderboardView(title: "Classement du jour") }
             }
             .padding(20)
+        }
+    }
+
+    private var options: some View {
+        VStack(spacing: 12) {
+            Picker("Extraits", selection: $count) {
+                Text("5 extraits").tag(5)
+                Text("10 extraits").tag(10)
+                Text("20 extraits").tag(20)
+            }
+            .pickerStyle(.segmented)
+            Picker("À trouver", selection: $guess) {
+                Text("Trouver le titre").tag("title")
+                Text("Trouver l'artiste").tag("artist")
+            }
+            .pickerStyle(.segmented)
+            Toggle(isOn: $expert) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mode expert").font(Typo.rowTitle).foregroundStyle(Tone.primary)
+                    Text("5 s d'écoute seulement · points ×1,5").font(Typo.caption).foregroundStyle(Tone.secondary)
+                }
+            }
+            .tint(.purple)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Tone.surface))
+    }
+
+    private func sourceTile(_ title: String, _ subtitle: String, _ icon: String, _ colors: [Color], action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(Typo.headline).foregroundStyle(.white).lineLimit(1)
+                    Text(subtitle).font(Typo.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(colors: colors.map { $0.opacity(0.85) }, startPoint: .topLeading, endPoint: .bottomTrailing))
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.96))
+    }
+
+    /// Une radio thématique au hasard.
+    private func surprise() {
+        phase = .loading
+        Task {
+            if let radio = (try? await APIClient.shared.radioGroups())?.flatMap(\.radios).randomElement() {
+                start("radio", ref: radio.id, label: radio.title)
+            } else {
+                start("chart")
+            }
         }
     }
 
@@ -142,7 +233,14 @@ struct BlindTestView: View {
             let q = round.questions[index]
             VStack(spacing: 22) {
                 HStack {
-                    Text("\(index + 1) / \(round.questions.count)").font(Typo.caption).foregroundStyle(Tone.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(index + 1) / \(round.questions.count)").font(Typo.caption).foregroundStyle(Tone.secondary)
+                        Text(playingGuess == "artist" ? "Quel artiste ?" : "Quel titre ?")
+                            .font(Typo.caption).foregroundStyle(Tone.tertiary)
+                    }
+                    if playingExpert {
+                        Label("Expert", systemImage: "bolt.fill").font(Typo.caption).foregroundStyle(.purple)
+                    }
                     Spacer()
                     if streak >= 3 {
                         Label("Série ×\(streak)", systemImage: "flame.fill")
@@ -176,6 +274,14 @@ struct BlindTestView: View {
                 .frame(width: 180, height: 180)
                 .animation(Motion.bouncy, value: picked)
 
+                if picked != nil {
+                    VStack(spacing: 2) {
+                        Text(q.track.title).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(1)
+                        Text(q.track.artist).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                    }
+                    .transition(.opacity)
+                }
+
                 if let picked, lastGain > 0, picked == q.answer {
                     Text("+\(lastGain)").font(.system(size: 22, weight: .heavy)).foregroundStyle(.green)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -185,8 +291,12 @@ struct BlindTestView: View {
                     ForEach(Array(q.choices.enumerated()), id: \.offset) { choiceIndex, choice in
                         Button { answer(choiceIndex, question: q) } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(choice.title).font(Typo.headline).lineLimit(1)
-                                Text(choice.artist).font(Typo.rowSubtitle).opacity(0.75).lineLimit(1)
+                                if choice.title.isEmpty {
+                                    Text(choice.artist).font(Typo.headline).lineLimit(1)
+                                } else {
+                                    Text(choice.title).font(Typo.headline).lineLimit(1)
+                                    Text(choice.artist).font(Typo.rowSubtitle).opacity(0.75).lineLimit(1)
+                                }
                             }
                             .foregroundStyle(choiceForeground(choiceIndex, q))
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -233,9 +343,17 @@ struct BlindTestView: View {
                 Text("\(score) points").font(.system(size: 40, weight: .heavy)).foregroundStyle(Tone.primary)
                 Text("\(correct) bonne\(correct > 1 ? "s" : "") réponse\(correct > 1 ? "s" : "") sur \(round?.questions.count ?? 0)")
                     .font(Typo.body).foregroundStyle(Tone.secondary)
+                if let refLabel, mode != "daily" {
+                    Text(refLabel).font(Typo.caption).foregroundStyle(Tone.tertiary)
+                }
+                PillButton(title: "Menu", systemImage: "square.grid.2x2", kind: .secondary) {
+                    withAnimation(Motion.smooth) { phase = .menu }
+                }
 
                 HStack(spacing: 12) {
-                    PillButton(title: "Rejouer", systemImage: "arrow.clockwise") { start("solo") }
+                    PillButton(title: "Rejouer", systemImage: "arrow.clockwise") {
+                        if mode == "daily" { start("solo") } else { start(mode, ref: ref, label: refLabel) }
+                    }
                     PillButton(title: "Écouter", systemImage: "music.note.list", kind: .secondary) {
                         if let tracks = round?.questions.map(\.track), let first = tracks.first {
                             PlayerManager.shared.play(first, context: tracks, name: "Blind test")
@@ -262,15 +380,25 @@ struct BlindTestView: View {
 
     // MARK: - Déroulé
 
-    private func start(_ newMode: String) {
+    private func start(_ newMode: String, ref newRef: String? = nil, label: String? = nil) {
         mode = newMode
+        ref = newRef
+        refLabel = label
         phase = .loading
         errorMessage = nil
+        let daily = newMode == "daily"
+        playingGuess = daily ? "title" : guess
+        playingExpert = daily ? false : expert
         Task {
             do {
-                let fresh = try await APIClient.shared.blindRound(mode: newMode)
+                let fresh = try await APIClient.shared.blindRound(
+                    mode: newMode, ref: newRef, count: daily ? 10 : count, guess: playingGuess
+                )
+                playingGuess = fresh.guess ?? playingGuess
                 guard fresh.questions.count >= 3 else {
-                    errorMessage = "Pas assez de titres avec extrait pour l'instant : écoute encore un peu de musique !"
+                    errorMessage = newMode == "solo" || daily
+                        ? "Pas assez de titres avec extrait pour l'instant : écoute encore un peu de musique !"
+                        : "Pas assez de titres avec extrait pour ce thème : essaie-en un autre."
                     phase = .menu
                     return
                 }
@@ -306,6 +434,14 @@ struct BlindTestView: View {
             audio?.seek(to: CMTime(seconds: Double.random(in: 0...8), preferredTimescale: 600))
             audio?.play()
         }
+        audioCut?.cancel()
+        if playingExpert {
+            audioCut = Task {
+                try? await Task.sleep(for: .seconds(Self.expertListenSeconds))
+                guard !Task.isCancelled else { return }
+                audio?.pause()
+            }
+        }
         timer?.cancel()
         timer = Task {
             let start = Date()
@@ -329,7 +465,8 @@ struct BlindTestView: View {
             if choice == q.answer {
                 correct += 1
                 streak += 1
-                lastGain = 100 + Int(remaining * 10) + (streak >= 3 ? 50 : 0)
+                let base = 100 + Int(remaining * 10) + (streak >= 3 ? 50 : 0)
+                lastGain = playingExpert ? base * 3 / 2 : base
                 score += lastGain
             } else {
                 streak = 0
@@ -359,6 +496,7 @@ struct BlindTestView: View {
 
     private func stopAudio() {
         timer?.cancel()
+        audioCut?.cancel()
         audio?.pause()
         audio = nil
         if resumeMainPlayer {
@@ -369,5 +507,144 @@ struct BlindTestView: View {
 
     private func loadLeaderboard() async {
         leaderboard = (try? await APIClient.shared.blindLeaderboard()) ?? leaderboard
+    }
+}
+
+/// Choix du thème d'une partie : un artiste (recherche), une radio Deezer
+/// ou une de tes playlists.
+struct BlindSourcePicker: View {
+    enum Kind: String, Identifiable {
+        case artist, radio, playlist
+        var id: String { rawValue }
+        var mode: String { rawValue }
+        var title: String {
+            switch self {
+            case .artist: "Choisis un artiste"
+            case .radio: "Choisis une radio"
+            case .playlist: "Choisis une playlist"
+            }
+        }
+    }
+
+    let kind: Kind
+    let onPick: (String, String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var artists: [Artist] = []
+    @State private var radios: [RadioGroup] = []
+    @State private var playlists: [UserPlaylist] = []
+    @State private var loading = true
+
+    var body: some View {
+        NavigationStack {
+            List {
+                switch kind {
+                case .artist:
+                    ForEach(artists) { artist in
+                        row(artist.name, subtitle: artist.fans.map { "\($0.formatted()) fans" }, image: artist.pictureURL, round: true) {
+                            onPick(artist.sourceId, artist.name)
+                        }
+                    }
+                case .radio:
+                    ForEach(radios) { group in
+                        Section(group.title) {
+                            ForEach(group.radios) { radio in
+                                row(radio.title, subtitle: nil, image: radio.pictureURL, round: false) {
+                                    onPick(radio.id, radio.title)
+                                }
+                            }
+                        }
+                    }
+                case .playlist:
+                    ForEach(playlists.filter { $0.trackCount >= 4 }) { playlist in
+                        row(playlist.name, subtitle: "\(playlist.trackCount) titres", image: playlist.coverURL ?? playlist.covers.first, round: false) {
+                            onPick(String(playlist.id), playlist.name)
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Tone.background)
+            .overlay {
+                if loading && isEmpty {
+                    ProgressView().tint(.white)
+                } else if isEmpty && (kind != .artist || !query.isEmpty) {
+                    Text(kind == .playlist ? "Aucune playlist d'au moins 4 titres." : "Rien trouvé.")
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                }
+            }
+            .navigationTitle(kind.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
+            }
+            .modifier(ArtistSearch(enabled: kind == .artist, query: $query))
+        }
+        .task { await loadInitial() }
+        .task(id: query) {
+            guard kind == .artist, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            loading = true
+            if let found = try? await APIClient.shared.searchArtists(query: query, limit: 15) {
+                artists = found.filter { $0.source == "deezer" }
+            }
+            loading = false
+        }
+    }
+
+    private var isEmpty: Bool {
+        switch kind {
+        case .artist: artists.isEmpty
+        case .radio: radios.isEmpty
+        case .playlist: playlists.isEmpty
+        }
+    }
+
+    private func row(_ title: String, subtitle: String?, image: String?, round: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Artwork(url: image, cornerRadius: round ? 24 : 8, symbol: round ? "music.mic" : "music.note.list")
+                    .frame(width: 48, height: 48)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                    if let subtitle {
+                        Text(subtitle).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                    }
+                }
+                Spacer()
+                Image(systemName: "play.circle.fill").font(.system(size: 22)).foregroundStyle(Tone.secondary)
+            }
+        }
+        .listRowBackground(Color.clear)
+    }
+
+    private func loadInitial() async {
+        switch kind {
+        case .artist:
+            break
+        case .radio:
+            radios = (try? await APIClient.shared.radioGroups()) ?? []
+        case .playlist:
+            playlists = (try? await APIClient.shared.playlists()) ?? []
+        }
+        loading = false
+    }
+}
+
+/// Barre de recherche, seulement pour le choix d'un artiste.
+private struct ArtistSearch: ViewModifier {
+    let enabled: Bool
+    @Binding var query: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Artiste")
+        } else {
+            content
+        }
     }
 }

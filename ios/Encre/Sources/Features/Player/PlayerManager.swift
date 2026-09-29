@@ -92,6 +92,7 @@ final class PlayerManager: ObservableObject {
     private var mixIncomingTrack: Track?
     private var mixTask: Task<Void, Never>?
     private var mixRate: Float = 1
+    private var isFadingIn = false
     private var bpmCache: [String: Double] = [:]
     /// Un enchaînement est en cours (affiché dans le lecteur).
     @Published private(set) var isMixing = false
@@ -99,6 +100,53 @@ final class PlayerManager: ObservableObject {
     @Published private(set) var mixTempoRatio: Double = 1
 
     private func bpm(of track: Track) -> Double? { track.bpm ?? bpmCache[track.id] }
+
+    /// Analyses audio (serveur) : sonie, début, outro, fin.
+    private var analysisCache: [String: TrackAnalysis] = [:]
+    private var analysisRequested: [String: Date] = [:]
+    /// Sonie visée (LUFS) : les titres plus forts sont baissés d'autant,
+    /// tous sonnent pareil d'un titre à l'autre.
+    private let targetLoudness = -10.0
+
+    private func analysis(of track: Track?) -> TrackAnalysis? {
+        track.flatMap { analysisCache[$0.id] }
+    }
+
+    /// Demandée au plus toutes les 30 s par titre (elle est calculée par le
+    /// serveur une fois le fichier en cache).
+    private func fetchAnalysis(_ track: Track) {
+        guard analysisCache[track.id] == nil else { return }
+        if let last = analysisRequested[track.id], Date().timeIntervalSince(last) < 30 { return }
+        analysisRequested[track.id] = Date()
+        Task { [weak self] in
+            guard let found = await APIClient.shared.analysis(source: track.source, id: track.sourceId) else { return }
+            guard let self else { return }
+            self.analysisCache[track.id] = found
+            // Titre en cours : volume égalisé dès que l'analyse arrive.
+            if self.crossfadeEnabled, self.current?.id == track.id, self.mixTask == nil, !self.isFadingIn,
+               let player = self.player, player.volume > 0.99 {
+                player.volume = self.gain(for: track)
+            }
+        }
+    }
+
+    /// Volume qui ramène le titre à la sonie visée (jamais au-dessus de 1).
+    private func gain(for track: Track?) -> Float {
+        guard crossfadeEnabled, let loudness = analysis(of: track)?.loudness else { return 1 }
+        return Float(min(1, pow(10, (targetLoudness - loudness) / 20)))
+    }
+
+    /// Durée d'enchaînement : l'outro de A (4 à 12 s), arrondie à des
+    /// mesures entières quand le tempo est connu.
+    private func mixDuration(for track: Track, position: Double, end: Double) -> Double {
+        var length = mixLength
+        if analysis(of: track) != nil { length = min(12, max(4, end - position)) }
+        if let bpm = bpm(of: track), bpm > 0 {
+            let bar = 240 / bpm
+            length = min(16, max(bar * 2, (length / bar).rounded() * bar))
+        }
+        return max(2, min(length, end - position))
+    }
 
     /// Tempo inconnu : demandé une fois (fiche complète, en cache serveur).
     private func fetchBPM(_ track: Track) {
@@ -121,25 +169,36 @@ final class PlayerManager: ObservableObject {
     }
 
     /// À chaque tic de lecture quand l'AutoMix est actif : B est chargé en
-    /// silence un peu avant, puis l'enchaînement démarre `mixLength` secondes
-    /// avant la fin de A. Sans suivant prêt, simple fondu de sortie.
+    /// silence un peu avant, puis l'enchaînement démarre quand A retombe
+    /// (outro repérée par l'analyse du serveur), sinon `mixLength` secondes
+    /// avant la fin. Sans suivant prêt, simple fondu de sortie.
     private func autoMixTick(position: Double, duration: Double) {
-        let remaining = duration - position
+        let info = analysis(of: current)
+        // Fin réelle (silence final ignoré) et moment où le titre retombe.
+        let end = min(info?.end ?? duration, duration)
+        // Pas plus de 16 s avant la fin : on coupe l'outro, pas le morceau.
+        let mixStart = info.map { max($0.mixOut, $0.end - 16, $0.start) } ?? (duration - mixLength)
         let canMix = !followsParty && repeatMode != .one && sleepTimer != .endOfTrack
-        if canMix, let next = upNext.first, remaining > 0 {
+        if canMix, let next = upNext.first, position < end {
             if mixIncoming != nil, mixIncomingTrack?.id != next.id, mixTask == nil { cancelMix() }
-            if remaining > mixLength + 10, mixIncoming != nil, mixTask == nil {
+            if position < mixStart - 20, mixIncoming != nil, mixTask == nil {
                 cancelMix()  // retour en arrière dans A
-            } else if remaining <= mixLength + 6 {
-                prepareMix(next: next)
+            } else if position >= mixStart - 25 {
+                fetchAnalysis(next)
+                if let current { fetchAnalysis(current) }
             }
-            if remaining <= mixLength, remaining > 0.5, mixTask == nil { beginMix(remaining: remaining) }
+            if position >= mixStart - 6 { prepareMix(next: next) }
+            if position >= mixStart, end - position > 0.5, mixTask == nil {
+                beginMix(length: mixDuration(for: current ?? next, position: position, end: end))
+            }
         }
         guard mixTask == nil else { return }
+        let remaining = end - position
+        let base = gain(for: current)
         if remaining > 0 && remaining < 4 {
-            player?.volume = Float(max(0.05, remaining / 4))
-        } else if remaining >= 4 && position > 2 {
-            player?.volume = 1  // retour en arrière après le début du fondu
+            player?.volume = base * Float(max(0.05, remaining / 4))
+        } else if remaining >= 4 && position > 2, let player, abs(player.volume - base) > 0.01, !isFadingIn {
+            player.volume = base  // retour en arrière après le début du fondu
         }
     }
 
@@ -165,21 +224,30 @@ final class PlayerManager: ObservableObject {
     /// A descend, B monte (courbe à puissance constante : le volume perçu
     /// reste stable), B éventuellement accéléré ou ralenti pour tomber sur
     /// le tempo de A.
-    private func beginMix(remaining: Double) {
+    private func beginMix(length: Double) {
         guard let outgoing = player, let incoming = mixIncoming, let next = mixIncomingTrack, let current,
               incoming.currentItem?.status == .readyToPlay else { return }
         let rate = tempoRatio(from: current, to: next)
         mixRate = rate
         mixTempoRatio = Double(rate)
+        // B démarre là où le son commence vraiment (pas de blanc).
+        if let start = analysis(of: next)?.start, start > 0.3 {
+            incoming.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
         incoming.playImmediately(atRate: rate)
         isMixing = true
-        let length = max(2, min(mixLength, remaining))
+        let gainA = gain(for: current)
+        let gainB = gain(for: next)
         mixTask = Task { [weak self] in
             let start = Date()
             while !Task.isCancelled {
                 let t = min(1, Date().timeIntervalSince(start) / length)
-                outgoing.volume = Float(cos(t * .pi / 2))
-                incoming.volume = Float(sin(t * .pi / 2))
+                // Puissance constante, avec un léger décalage façon DJ : B
+                // s'installe avant que A ne s'efface vraiment.
+                let tA = max(0, min(1, (t - 0.15) / 0.85))
+                let tB = min(1, t / 0.85)
+                outgoing.volume = gainA * Float(cos(tA * .pi / 2))
+                incoming.volume = gainB * Float(sin(tB * .pi / 2))
                 if t >= 1 { break }
                 try? await Task.sleep(for: .milliseconds(50))
             }
@@ -734,7 +802,7 @@ final class PlayerManager: ObservableObject {
                 // AutoMix : le titre joue déjà (entré en fondu), on le reprend tel quel.
                 player = prepared
                 item = preparedItem
-                player.volume = 1
+                player.volume = gain(for: track)
             } else {
                 let asset: AVURLAsset
                 if preferLocal, let local = DownloadManager.shared.localURL(for: track) {
@@ -751,14 +819,17 @@ final class PlayerManager: ObservableObject {
                 // interne à l'app désynchronisé du reste de l'iPhone.
                 player.volume = crossfadeEnabled ? 0 : 1
             }
+            if crossfadeEnabled { fetchAnalysis(track) }
             self.player = player
             if crossfadeEnabled && prepared == nil {
-                // Fondu entrant sur 1,5 s.
-                Task { [weak player] in
+                // Fondu entrant sur 1,5 s, jusqu'au volume égalisé du titre.
+                isFadingIn = true
+                Task { [weak self, weak player] in
                     for step in 1...10 {
                         try? await Task.sleep(for: .milliseconds(150))
-                        player?.volume = Float(step) / 10
+                        player?.volume = (self?.gain(for: track) ?? 1) * Float(step) / 10
                     }
+                    self?.isFadingIn = false
                 }
             }
 

@@ -727,11 +727,12 @@ struct BlindQuestion: Codable, Hashable {
 struct BlindRound: Codable {
     var mode: String
     var day: String
+    var guess: String?
     var alreadyPlayed: Bool
     var questions: [BlindQuestion]
 
     enum CodingKeys: String, CodingKey {
-        case mode, day, questions
+        case mode, day, guess, questions
         case alreadyPlayed = "already_played"
     }
 }
@@ -781,5 +782,23 @@ struct Concert: Codable, Hashable, Identifiable {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         return formatter.date(from: String(datetime.prefix(19)))
+    }
+}
+
+
+// MARK: - AutoMix
+
+/// Analyse audio d'un titre (serveur) : sonie (LUFS), début réel, moment où
+/// il retombe (outro) et fin réelle, en secondes.
+struct TrackAnalysis: Codable, Hashable {
+    var loudness: Double
+    var start: Double
+    var mixOut: Double
+    var end: Double
+    var duration: Double
+
+    enum CodingKeys: String, CodingKey {
+        case loudness, start, end, duration
+        case mixOut = "mix_out"
     }
 }
