@@ -51,6 +51,29 @@ final class PlayerManager: ObservableObject {
         return Array(context[(index + 1)...])
     }
 
+    // MARK: Fin du titre
+
+    private func handleTrackEnd() {
+        guard !endHandled, player != nil else { return }
+        endHandled = true
+        stallTask?.cancel()
+        advance(by: 1, automatic: true)
+    }
+
+    /// Lecteur qui attend des données dans les toutes dernières secondes du
+    /// titre : le flux est sans doute fini sans l'avoir dit. S'il n'a pas
+    /// repris 3 s plus tard, on passe au suivant.
+    private func watchForStallAtEnd(_ track: Track) {
+        guard let duration = referenceDuration(), positionSeconds >= duration - 4 else { return }
+        stallTask?.cancel()
+        stallTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !Task.isCancelled, self.current?.id == track.id,
+                  self.player?.timeControlStatus != .playing else { return }
+            self.handleTrackEnd()
+        }
+    }
+
     // MARK: Amis : en pause, plus « en train d'écouter »
 
     /// Pause qui dure (5 s : pas pour un simple saut dans le titre) : les
@@ -281,6 +304,11 @@ final class PlayerManager: ObservableObject {
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var failedEndObserver: NSObjectProtocol?
+    private var stallTask: Task<Void, Never>?
+    /// Fin du titre déjà traitée (passage au suivant lancé) : plusieurs
+    /// signaux peuvent l'annoncer, un seul doit compter.
+    private var endHandled = false
     private var statusObserver: NSKeyValueObservation?
     private var timeControlObserver: NSKeyValueObservation?
     private var interruptionObserver: NSObjectProtocol?
@@ -569,6 +597,7 @@ final class PlayerManager: ObservableObject {
                         self.presencePaused()
                     case .waitingToPlayAtSpecifiedRate:
                         self.isLoading = true
+                        self.watchForStallAtEnd(track)
                     @unknown default:
                         break
                     }
@@ -578,7 +607,23 @@ final class PlayerManager: ObservableObject {
             endObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in self?.advance(by: 1, automatic: true) }
+                Task { @MainActor in self?.handleTrackEnd() }
+            }
+            // Flux direct coupé avant la fin annoncée (relais YouTube) : iOS
+            // envoie ce signal-là au lieu de « fin du titre ». Tout près de
+            // la fin, on passe au suivant ; plus tôt, on relance le titre.
+            failedEndObserver = NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main
+            ) { [weak self] notification in
+                let reason = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription
+                Task { @MainActor in
+                    guard let self, self.player?.currentItem === item else { return }
+                    if let duration = self.referenceDuration(), self.positionSeconds >= duration - 8 {
+                        self.handleTrackEnd()
+                    } else {
+                        self.recover(track, reason: reason)
+                    }
+                }
             }
 
             timeObserver = player.addPeriodicTimeObserver(
@@ -615,6 +660,11 @@ final class PlayerManager: ObservableObject {
                         self.scrobbled = true
                         Scrobbler.shared.record(track, startedAt: startedAt, listened: duration, duration: duration)
                     }
+                    // Durée du catalogue dépassée : le flux joue du vide ou
+                    // n'annoncera jamais sa fin — on enchaîne.
+                    if time.seconds >= duration + 1.5 {
+                        self.handleTrackEnd()
+                    }
                     if !self.nextPrepared && self.progress >= 0.6 {
                         self.nextPrepared = true
                         self.prepareNext()
@@ -623,6 +673,7 @@ final class PlayerManager: ObservableObject {
                 }
             }
 
+            endHandled = false
             player.play()
             listenStartedAt = Date()
             scrobbled = false
@@ -776,6 +827,7 @@ final class PlayerManager: ObservableObject {
     /// tapée, par exemple.
     func seek(toSeconds seconds: Double) {
         guard let player else { return }
+        endHandled = false  // retour en arrière : la fin pourra de nouveau enchaîner
         player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600))
         positionSeconds = max(0, seconds)
         if durationSeconds > 0 { progress = min(1, positionSeconds / durationSeconds) }
@@ -785,6 +837,7 @@ final class PlayerManager: ObservableObject {
     func seek(toFraction fraction: Double) {
         guard let player, let duration = referenceDuration() else { return }
         let clamped = min(1, max(0, fraction))
+        endHandled = false  // retour en arrière : la fin pourra de nouveau enchaîner
         player.seek(to: CMTime(seconds: clamped * duration, preferredTimescale: 600))
         // Mis à jour tout de suite : sans ça, la barre revient une demi-seconde
         // à l'ancienne position (prochain tick) avant de sauter à la nouvelle.
@@ -810,6 +863,10 @@ final class PlayerManager: ObservableObject {
         finishListening()
         if let timeObserver { player?.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let failedEndObserver { NotificationCenter.default.removeObserver(failedEndObserver) }
+        failedEndObserver = nil
+        stallTask?.cancel()
+        stallTask = nil
         statusObserver?.invalidate()
         timeControlObserver?.invalidate()
         coverTask?.cancel()
