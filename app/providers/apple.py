@@ -22,7 +22,12 @@ MEDIA_API = "https://amp-api.music.apple.com"
 # Jeton « développeur » du lecteur web, embarqué dans son code JavaScript
 # (un JWT ES256 : son en-tête encodé commence toujours par « eyJh »).
 _TOKEN_RE = re.compile(r"eyJh[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}")
-_SCRIPT_SRC_RE = re.compile(r"""<script[^>]+src=["']([^"']+\.js)["']""", re.I)
+# Scripts de la page : `<script src>` et morceaux préchargés `<link href>`
+# (le lecteur web est découpé, le jeton peut être dans n'importe lequel).
+_SCRIPT_SRC_RE = re.compile(r"""<(?:script|link)[^>]+(?:src|href)=["']([^"']+\.js)["']""", re.I)
+# Morceaux importés depuis un script : « assets/xxx~123.js ».
+_SCRIPT_IMPORT_RE = re.compile(r"""["'`](?:\./|/)?((?:assets/)?[\w~.-]+\.js)["'`]""")
+MAX_SCRIPTS_SCANNED = 20
 _PLAYLIST_ID_RE = re.compile(r"/(pl\.[A-Za-z0-9._-]+)")
 TOKEN_TTL_SECONDS = 12 * 3600
 
@@ -366,26 +371,53 @@ class AppleMusicClient:
     async def _web_api_token(self, page: str) -> str:
         if self._web_token and time.monotonic() < self._web_token_expiry:
             return self._web_token
-        token = _token_from_page(page)
+        token = _token_from_page(page) or self._token_in(page)
         if not token:
-            scripts = [src for src in _SCRIPT_SRC_RE.findall(page) if "/assets/" in src]
-            # Le jeton est dans le script principal (« index… ») : on commence par lui.
-            scripts.sort(key=lambda src: 0 if "index" in src else 1)
-            for src in scripts[:6]:
-                script_url = src if src.startswith("http") else f"{WEB_ORIGIN}{src}"
-                try:
-                    resp = await self._client.get(script_url, headers=BROWSER_HEADERS)
-                except httpx.HTTPError:
-                    continue
-                match = _TOKEN_RE.search(resp.text) if resp.is_success else None
-                if match:
-                    token = match.group(0)
-                    break
+            token = await self._token_from_scripts(page)
         if not token:
             raise AppleMusicError("jeton du lecteur web introuvable")
         self._web_token = token
         self._web_token_expiry = time.monotonic() + TOKEN_TTL_SECONDS
         return token
+
+    @staticmethod
+    def _token_in(text: str) -> str | None:
+        match = _TOKEN_RE.search(text)
+        return match.group(0) if match else None
+
+    async def _token_from_scripts(self, page: str) -> str | None:
+        """Cherche le jeton dans les scripts du lecteur web : ceux de la page
+        (principal « index » d'abord), puis les morceaux qu'ils importent."""
+
+        def absolute(src: str) -> str | None:
+            if src.startswith("http"):
+                return src if "music.apple.com" in src else None
+            path = src if src.startswith("/") else f"/{src}"
+            return f"{WEB_ORIGIN}{path}" if "/assets/" in path else None
+
+        queue = [u for u in (absolute(s) for s in _SCRIPT_SRC_RE.findall(page)) if u]
+        queue.sort(key=lambda u: 0 if "index" in u.rsplit("/", 1)[-1] else 1)
+        seen: set[str] = set()
+        while queue and len(seen) < MAX_SCRIPTS_SCANNED:
+            url = queue.pop(0)
+            if url in seen:
+                continue
+            seen.add(url)
+            try:
+                resp = await self._client.get(url, headers=BROWSER_HEADERS)
+            except httpx.HTTPError:
+                continue
+            if not resp.is_success:
+                continue
+            token = self._token_in(resp.text)
+            if token:
+                return token
+            for ref in _SCRIPT_IMPORT_RE.findall(resp.text):
+                candidate = absolute(ref if ref.startswith("assets/") else f"assets/{ref}")
+                if candidate and candidate not in seen:
+                    queue.append(candidate)
+        logger.info("Jeton Apple introuvable dans %d script(s) du lecteur web", len(seen))
+        return None
 
     async def _playlist_tracks_via_web_api(self, url: str, page: str) -> list[TrackInfo]:
         playlist_id = _PLAYLIST_ID_RE.search(url)

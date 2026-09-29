@@ -461,3 +461,33 @@ def test_import_from_device_library(client, monkeypatch):
     assert detail["track_count"] == 550  # tous gardés : Deezer quand trouvé, Apple sinon
     assert detail["entries"][1]["track"]["source"] == "deezer"
     assert detail["entries"][2]["track"] == {**detail["entries"][2]["track"], "source": "apple", "source_id": "1002"}
+
+
+def test_apple_token_found_in_a_preloaded_chunk():
+    """Le jeton n'est pas dans le script principal mais dans un morceau
+    importé par lui (lecteur web découpé)."""
+    page = _apple_page(300).replace(
+        '<script type="module" crossorigin src="/assets/index~abc123.js"></script>',
+        '<script type="module" crossorigin src="/assets/index~abc123.js"></script>'
+        '<link rel="modulepreload" href="/assets/vendor~1.js">',
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.startswith(PLAYLIST_URL):
+            return httpx.Response(200, text=page)
+        if url.endswith("/assets/index~abc123.js"):
+            return httpx.Response(200, text='import("./chunk~deep.js");const a=1;')
+        if url.endswith("/assets/vendor~1.js"):
+            return httpx.Response(200, text="rien ici")
+        if url.endswith("/assets/chunk~deep.js"):
+            return httpx.Response(200, text=f'const token="{FAKE_TOKEN}";')
+        if "amp-api.music.apple.com" in url:
+            return httpx.Response(200, json={"data": [_media_item(i) for i in range(5)]})
+        return httpx.Response(404)
+
+    client = AppleMusicClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    playlist = asyncio.run(client.get_playlist(PLAYLIST_URL))
+    # L'API donne 5 titres ici (< 300 de la page) : la page l'emporte, mais le jeton a bien été trouvé.
+    assert client._web_token == FAKE_TOKEN
+    assert len(playlist.tracks) == 300
