@@ -34,8 +34,9 @@ jobs:
           TITLE="🔴 Serveur Sona injoignable"
           # Trois essais espacés : un redémarrage (déploiement) n'est pas une panne.
           ok=false
+          health=""
           for attempt in 1 2 3; do
-            if curl -fsS --max-time 20 "$SERVER/health" >/dev/null; then ok=true; break; fi
+            if health=$(curl -fsS --max-time 20 "$SERVER/health"); then ok=true; break; fi
             sleep 30
           done
           open=$(gh issue list --repo "$REPO" --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
@@ -64,5 +65,28 @@ jobs:
           \`\`\`
           Cette issue se fermera toute seule quand le serveur répondra."
               notify "🔴 Sona ne répond plus. pm2 status / pm2 logs sona-api sur le serveur."
+            fi
+          fi
+          # Le serveur répond, mais la musique se lance-t-elle ? (cookies
+          # YouTube expirés, yt-dlp dépassé…)
+          if $ok; then
+            streaming=$(echo "$health" | jq -r '.streaming // "ok"')
+            cause=$(echo "$health" | jq -r '.streaming_cause // ""')
+            STITLE="🟠 Lecture en panne sur Sona"
+            sopen=$(gh issue list --repo "$REPO" --state open --search "\"$STITLE\" in:title" --json number --jq '.[0].number // empty')
+            if [ "$streaming" = "down" ] && [ -z "$sopen" ]; then
+              case "$cause" in
+                cookies) fix="Cookies YouTube expirés : renvoie-les depuis l'app (Réglages → Santé de la lecture) ou le site (menu du compte → Santé de la lecture).";;
+                ytdlp) fix="yt-dlp dépassé : lance la mise à jour depuis l'app (Réglages → Santé de la lecture → Mettre à jour).";;
+                *) fix="YouTube ne répond pas au serveur. Si ça dure : renouvelle les cookies YouTube.";;
+              esac
+              gh issue create --repo "$REPO" --title "$STITLE" --body "Les titres ne se lancent plus depuis $(date -u '+%H:%M UTC') (cause : $cause).
+
+          $fix
+
+          Cette issue se fermera toute seule quand la lecture refonctionnera."
+              notify "🟠 Lecture en panne sur Sona. $fix"
+            elif [ "$streaming" = "ok" ] && [ "$(echo "$health" | jq -r '.streaming_verified // false')" = "true" ] && [ -n "$sopen" ]; then
+              gh issue close "$sopen" --repo "$REPO" --comment "✅ La lecture refonctionne ($(date -u '+%H:%M UTC'))."
             fi
           fi

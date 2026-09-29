@@ -148,6 +148,25 @@ final class APIClient {
         try await send(try request("/admin/accounts"))
     }
 
+    // MARK: - Santé de la lecture (admin)
+
+    func streamingStatus() async throws -> StreamingStatus {
+        try await send(try request("/admin/streaming"))
+    }
+
+    func uploadYouTubeCookies(_ content: String) async throws -> AdminResult {
+        struct Body: Encodable { let content: String }
+        return try await send(try request("/admin/youtube-cookies", method: "POST", bodyData: try encode(Body(content: content))))
+    }
+
+    func streamingSelftest() async throws -> AdminResult {
+        try await send(try request("/admin/streaming/selftest", method: "POST"))
+    }
+
+    func updateYtdlp() async throws -> AdminResult {
+        try await send(try request("/admin/ytdlp/update", method: "POST"))
+    }
+
     /// `approve`, `reject`, `promote` ou `demote`.
     func adminDecide(accountId: Int, action: String) async throws -> AppAccount {
         try await send(try request("/admin/accounts/\(accountId)/\(action)", method: "POST"))

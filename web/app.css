@@ -525,3 +525,28 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
   .resume img { width: 52px; height: 52px; }
   .resume-cta { grid-column: 1 / -1; justify-content: center; }
 }
+
+/* ── Santé de la lecture ──────────────────────────────────────────────── */
+
+.health-hero { display: flex; gap: 18px; align-items: flex-start; padding: 22px; border-radius: 18px; background: var(--fill); border: 1px solid var(--hairline); max-width: 900px; }
+.health-hero .dot { width: 16px; height: 16px; border-radius: 50%; margin-top: 7px; flex: none; background: #30d158; box-shadow: 0 0 0 6px rgba(48, 209, 88, .18); }
+.health-hero.warn .dot { background: #ff9f0a; box-shadow: 0 0 0 6px rgba(255, 159, 10, .2); }
+.health-hero.bad .dot { background: #ff453a; box-shadow: 0 0 0 6px rgba(255, 69, 58, .2); animation: beat 1.4s ease-in-out infinite; }
+@keyframes beat { 50% { box-shadow: 0 0 0 11px rgba(255, 69, 58, .05); } }
+.health-hero .t { font-size: 22px; font-weight: 700; letter-spacing: -.015em; }
+.health-hero .s { color: var(--text-2); margin-top: 4px; }
+.health-hero .meta { color: var(--text-3); font-size: 13px; margin-top: 10px; }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; margin-top: 18px; max-width: 900px; }
+.health-card { padding: 20px; border-radius: 16px; background: var(--fill); border: 1px solid var(--hairline); }
+.health-card .k { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); }
+.health-card .v { font-size: 22px; font-weight: 700; margin: 6px 0 8px; }
+.health-card p { color: var(--text-2); font-size: 14px; margin: 0 0 14px; }
+.health-card details { font-size: 14px; color: var(--text-2); margin-bottom: 16px; }
+.health-card summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.health-card ol { padding-left: 20px; margin: 10px 0 0; }
+.health-card li { margin-bottom: 6px; }
+.pill-state { display: inline-block; font-size: 14px; font-weight: 600; padding: 4px 12px; border-radius: 999px; background: rgba(48, 209, 88, .16); color: #30d158; }
+.pill-state.warn { background: rgba(255, 159, 10, .16); color: #ff9f0a; }
+.pill-state.bad { background: rgba(255, 69, 58, .16); color: #ff453a; }
+.health-result { margin-top: 18px; font-weight: 500; color: var(--text-2); min-height: 1.4em; }
+.health-result.bad { color: #ff453a; }

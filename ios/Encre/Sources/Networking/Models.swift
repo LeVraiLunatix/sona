@@ -1246,3 +1246,74 @@ struct ConnectPlayback: Codable {
     var volume: Double?
     var name: String?
 }
+
+// MARK: - Santé de la lecture
+
+struct StreamingStatus: Codable {
+    struct Health: Codable {
+        var state: String
+        var cause: String?
+        var causeLabel: String?
+        var advice: String?
+        var recentOk: Int
+        var recentFailures: Int
+        var lastSuccessSeconds: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case state, cause, advice
+            case causeLabel = "cause_label"
+            case recentOk = "recent_ok"
+            case recentFailures = "recent_failures"
+            case lastSuccessSeconds = "last_success_seconds"
+        }
+    }
+
+    struct Ytdlp: Codable {
+        struct Update: Codable {
+            var checkedAt: Double
+            var result: String
+            var message: String
+
+            enum CodingKeys: String, CodingKey {
+                case result, message
+                case checkedAt = "checked_at"
+            }
+        }
+
+        var version: String?
+        var lastUpdate: Update?
+
+        enum CodingKeys: String, CodingKey {
+            case version
+            case lastUpdate = "last_update"
+        }
+    }
+
+    struct Cookies: Codable {
+        var present: Bool
+        var updatedAt: Double?
+        var loggedIn: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case present
+            case updatedAt = "updated_at"
+            case loggedIn = "logged_in"
+        }
+    }
+
+    var health: Health
+    var ytdlp: Ytdlp
+    var cookies: Cookies
+}
+
+/// Réponse des actions d'admin (cookies, essai, mise à jour).
+struct AdminResult: Codable {
+    var message: String?
+    var ok: Bool?
+    var loggedIn: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case message, ok
+        case loggedIn = "logged_in"
+    }
+}

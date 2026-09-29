@@ -113,6 +113,11 @@ struct SettingsView: View {
                 if account.isAdmin {
                     Section {
                         NavigationLink {
+                            StreamingHealthView()
+                        } label: {
+                            Label("Santé de la lecture", systemImage: "waveform.path.ecg")
+                        }
+                        NavigationLink {
                             AdminView()
                         } label: {
                             HStack {

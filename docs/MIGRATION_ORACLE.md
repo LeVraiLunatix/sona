@@ -212,3 +212,16 @@ push sur master) :
 Le site appelle le serveur dont l'adresse est dans `web/index.html`
 (balise `<meta name="sona-server">`) : à changer là si le serveur change
 d'adresse (DuckDNS…).
+
+### Si la musique ne se lance plus
+
+Sona se répare tout seul quand il peut :
+- **yt-dlp** est mis à jour chaque nuit (4 h 17), avec un essai de lecture ;
+  si la nouvelle version casse quelque chose, retour automatique à l'ancienne ;
+- si YouTube bloque, Sona essaie les autres sources (SoundCloud) ;
+- en cas de panne, les admins sont prévenus sur Telegram et une issue GitHub
+  « 🟠 Lecture en panne sur Sona » s'ouvre, avec quoi faire.
+
+Pour réparer sans toucher au serveur : **Réglages → Santé de la lecture**
+dans l'app, ou menu **Santé de la lecture** du site (admins) — renvoyer des
+cookies YouTube, lancer la mise à jour de yt-dlp, faire un essai de lecture.

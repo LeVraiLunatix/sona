@@ -7,6 +7,7 @@ import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -16,8 +17,10 @@ from app.api.routers import (
     accounts, blindlive, blindtest, browse, connect, extras, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
     search, stats, stream, tv, user_settings,
 )
+from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
 from app.config import load_settings
+from app.services import stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
 from app.db.database import Database
 from app.db.repository import Repository
@@ -83,13 +86,18 @@ async def lifespan(app: FastAPI):
     # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
     # les sauvegardes quotidiennes en charge — jamais pendant les tests.
     backups = None
-    if not settings.bot_token and "PYTEST_CURRENT_TEST" not in os.environ:
-        backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
+    watcher = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        if not settings.bot_token:
+            backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
+        watcher = asyncio.create_task(_watch_streaming(app.state.deps))
+        asyncio.create_task(asyncio.to_thread(ytdlp_updater.ensure_cron))
     try:
         yield
     finally:
-        if backups is not None:
-            backups.cancel()
+        for task in (backups, watcher):
+            if task is not None:
+                task.cancel()
         await deezer.aclose()
         await apple.aclose()
         await spotify.aclose()
@@ -97,6 +105,38 @@ async def lifespan(app: FastAPI):
         if lastfm_auth is not None:
             await lastfm_auth.aclose()
         await db.close()
+
+
+async def notify_admins(deps: ApiDeps, text: str) -> None:
+    """Message Telegram aux admins du bot (au mieux, jamais bloquant)."""
+    token = deps.settings.bot_token
+    if not token:
+        logger.warning("Alerte non envoyée (pas de bot Telegram) : %s", text.splitlines()[0])
+        return
+    try:
+        admins = await deps.repo.list_admins()
+        async with httpx.AsyncClient(timeout=10) as client:
+            for chat_id in admins:
+                await client.post(f"https://api.telegram.org/bot{token}/sendMessage", data={"chat_id": chat_id, "text": text})
+    except Exception as exc:
+        logger.info("Alerte Telegram impossible : %s", exc)
+
+
+async def _watch_streaming(deps: ApiDeps) -> None:
+    """Surveille la santé de la lecture : les admins sont prévenus d'une
+    panne (et de son retour à la normale), avec quoi faire."""
+    youtube_session.register_notifier(lambda text: notify_admins(deps, text))
+    previous = "ok"
+    while True:
+        await asyncio.sleep(60)
+        current = stream_health.status()
+        message = stream_health.alert_for(previous, current)
+        previous = current["state"]
+        if message:
+            logger.warning("Santé de la lecture : %s", message.splitlines()[0])
+            await notify_admins(deps, message)
+            if current["cause"] == "cookies" and deps.settings.youtube_cookies_file:
+                youtube_session.schedule_session_check(deps.settings.youtube_cookies_file, "panne de lecture")
 
 
 class GZipExceptStream:
@@ -146,6 +186,7 @@ def create_app() -> FastAPI:
     app.include_router(blindlive.router)
     app.include_router(tv.router)
     app.include_router(connect.router)
+    app.include_router(health_admin.router)
     app.include_router(extras.router)
     app.include_router(blindtest.router)
     app.include_router(concerts.router)
@@ -154,7 +195,12 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         # `version` : commit déployé — l'app l'affiche dans ses réglages, pour
         # savoir d'un coup d'œil si le serveur est à jour.
-        return {"status": "ok", "version": SERVER_VERSION}
+        # `streaming` : la lecture marche-t-elle ? (surveillance GitHub).
+        health_state = stream_health.status()
+        return {"status": "ok", "version": SERVER_VERSION,
+                "streaming": health_state["state"], "streaming_cause": health_state["cause"],
+                # Au moins un titre lancé récemment : la lecture marche vraiment.
+                "streaming_verified": health_state["recent_ok"] > 0}
 
     # Sona sur ordinateur (dossier `web/` du dépôt, le même que sur Vercel),
     # qui passe ensuite par la même API.

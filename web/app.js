@@ -86,6 +86,7 @@ const icons = {
   devices: ic("M4 5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v2h-2V5H6v9h7v2H3.5a1 1 0 0 1 0-2H4zm11 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2zm2 0v9h3V9zm1.5 7a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z"),
   phone: ic("M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v16h8V4zm4 13a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"),
   laptop: ic("M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v9H5zm2 0v7h10V5zM2 16h20v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"),
+  pulse: ic("M3 12h3.2l2.3-6.2c.3-.9 1.6-.9 1.9 0l3.6 11.7 2.2-5c.2-.3.5-.5.9-.5H21a1 1 0 1 1 0 2h-3.1l-2.9 6.4c-.4.8-1.6.8-1.9-.1L9.5 8.9 7.9 13.3c-.1.4-.5.7-.9.7H3a1 1 0 1 1 0-2z"),
   logo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2" stroke="#fff" stroke-width="2.3" stroke-linecap="round" fill="none"/></svg>`,
 };
 const bars = () => `<span class="bars ${audio.paused ? "paused" : ""}"><i></i><i></i><i></i></span>`;
@@ -164,6 +165,8 @@ function renderShell() {
         <div id="side-smart"></div>
         <div class="side-section">Playlists</div>
         <div id="side-playlists"></div>
+        ${account.is_admin ? `<div class="side-section">Administration</div>
+        <a class="side-link" href="#/health" data-nav="health">${icons.pulse}Santé de la lecture</a>` : ""}
       </div>
       <div class="side-user">
         ${account.avatar_url ? `<img src="${esc(account.avatar_url)}" alt="">` : `<span class="avatar-fallback">${esc(name[0] || "?")}</span>`}
@@ -228,6 +231,7 @@ async function route() {
     home: viewHome, search: () => viewSearch(parts[1] || ""), library: viewLibrary, playlists: viewPlaylists,
     album: () => viewAlbum(parts[1], parts[2]), artist: () => viewArtist(parts[1], parts[2]),
     playlist: () => viewUserPlaylist(parts[1]), smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
+    health: viewHealth,
   };
   const view = views[parts[0]] || viewHome;
   const token_ = (route.seq = (route.seq || 0) + 1);
@@ -528,6 +532,84 @@ async function viewPlaylists() {
         href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers,
         title: p.name, subtitle: `${p.track_count} titres`,
       })).join("")}</div>` : empty("♫", "Aucune playlist", "Crée ou importe tes playlists dans l'app.")}</section>`);
+}
+
+// ── Santé de la lecture (admin) ───────────────────────────────────────────
+
+const STATES = {
+  ok: ["Tout fonctionne", "La musique se lance normalement.", "ok"],
+  degraded: ["Lecture perturbée", "Certains titres ne se lancent pas.", "warn"],
+  down: ["Lecture en panne", "Les titres ne se lancent plus.", "bad"],
+};
+
+function ago(seconds) {
+  if (seconds == null) return "jamais";
+  if (seconds < 90) return "à l'instant";
+  if (seconds < 3600) return `il y a ${Math.round(seconds / 60)} min`;
+  if (seconds < 86400) return `il y a ${Math.round(seconds / 3600)} h`;
+  return `il y a ${Math.round(seconds / 86400)} j`;
+}
+
+async function viewHealth() {
+  $("#content").innerHTML = skeleton("Santé de la lecture");
+  const data = await api("/admin/streaming");
+  const h = data.health;
+  const [title, sub, tone] = STATES[h.state] || STATES.ok;
+  const update = data.ytdlp.last_update;
+  const cookies = data.cookies;
+  const cookieState = !cookies.present ? ["Aucun fichier", "bad"] : cookies.logged_in === false ? ["Déconnectés (expirés)", "bad"]
+    : cookies.logged_in ? ["Connectés", "ok"] : ["Pas encore vérifiés", "warn"];
+  setTimeout(bindHealth);
+  return page(`<h1 class="page-title">Santé de la lecture</h1>
+    <p class="page-sub">Sona surveille la lecture et se répare tout seul quand il peut. Ici, de quoi réparer le reste sans toucher au serveur.</p>
+    <div class="health-hero ${tone}"><span class="dot"></span><div><div class="t">${title}</div>
+      <div class="s">${esc(h.advice || sub)}</div>
+      <div class="meta">${h.recent_ok} titre(s) lancé(s) · ${h.recent_failures} échec(s) sur la dernière demi-heure · dernier titre lancé ${ago(h.last_success_seconds)}</div></div></div>
+    <div class="health-grid">
+      <section class="health-card">
+        <div class="k">Cookies YouTube</div><div class="v"><span class="pill-state ${cookieState[1]}">${cookieState[0]}</span></div>
+        <p>${cookies.updated_at ? `Envoyés ${ago(Date.now() / 1000 - cookies.updated_at)}.` : ""} YouTube les demande pour ne pas prendre le serveur pour un robot. Ils expirent de temps en temps.</p>
+        <details><summary>Comment les exporter</summary><ol>
+          <li>Ouvre une fenêtre de <b>navigation privée</b> et connecte-toi sur youtube.com.</li>
+          <li>Avec l'extension « Get cookies.txt LOCALLY », exporte les cookies <b>de ce site uniquement</b>.</li>
+          <li><b>Ferme la fenêtre privée</b> tout de suite (sinon Google change les cookies et l'export meurt).</li>
+          <li>Envoie le fichier ici.</li></ol></details>
+        <label class="btn" style="cursor:pointer">${icons.plus} Envoyer cookies.txt<input type="file" id="cookie-file" accept=".txt,text/plain" hidden></label>
+      </section>
+      <section class="health-card">
+        <div class="k">yt-dlp</div><div class="v">${esc(data.ytdlp.version || "?")}</div>
+        <p>${update ? `${esc(update.message)} <span class="muted">(${ago(Date.now() / 1000 - update.checked_at)})</span>` : "Mise à jour automatique chaque nuit à 4 h, avec essai de lecture et retour à l'ancienne version si la nouvelle casse quelque chose."}</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" id="ytdlp-update">Mettre à jour</button>
+          <button class="btn ghost" id="selftest">Essai de lecture</button>
+        </div>
+      </section>
+    </div>
+    <p class="health-result" id="health-result"></p>`);
+}
+
+function bindHealth() {
+  const result = (text, bad) => { const el = $("#health-result"); if (el) { el.textContent = text; el.classList.toggle("bad", !!bad); } };
+  $("#cookie-file")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    result("Envoi et vérification auprès de YouTube…");
+    try {
+      const got = await api("/admin/youtube-cookies", { method: "POST", body: JSON.stringify({ content: await file.text() }) });
+      result(got.message, got.logged_in === false);
+      setTimeout(route, 1500);
+    } catch (err) { result(err.message, true); }
+  });
+  $("#selftest")?.addEventListener("click", async () => {
+    result("Essai de lecture d'une vidéo YouTube…");
+    try {
+      const got = await api("/admin/streaming/selftest", { method: "POST" });
+      result(got.ok ? `✅ YouTube répond (${got.message}).` : `❌ ${got.message}`, !got.ok);
+    } catch (err) { result(err.message, true); }
+  });
+  $("#ytdlp-update")?.addEventListener("click", async () => {
+    try { result((await api("/admin/ytdlp/update", { method: "POST" })).message); } catch (err) { result(err.message, true); }
+  });
 }
 
 // ── Lecture ───────────────────────────────────────────────────────────────

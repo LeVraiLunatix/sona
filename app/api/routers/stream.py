@@ -21,7 +21,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, live_stream
+from app.services import audio_analysis, live_stream, stream_health
 from app.services.resolver import ResolutionError, iter_audio_sources
 
 logger = logging.getLogger(__name__)
@@ -87,11 +87,17 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
     preferred = await deps.repo.stream_source_get(source, source_id)
 
     attempts = 0
+    # YouTube en panne (cookies, yt-dlp dépassé…) : on ne s'acharne pas sur
+    # ses autres vidéos, mais on essaie encore les autres sources
+    # (SoundCloud) avant d'abandonner.
+    youtube_failure: DownloadError | None = None
     try:
         async with aclosing(
             iter_audio_sources(track, deps.settings.youtube_cookies_file, excluded, preferred)
         ) as sources:
             async for source_candidate in sources:
+                if youtube_failure is not None and source_candidate.platform == "youtube":
+                    continue
                 attempts += 1
                 try:
                     path = await download_and_tag(
@@ -99,7 +105,10 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                     )
                 except DownloadError as exc:
                     if source_candidate.platform == "youtube":
-                        raise HTTPException(status.HTTP_502_BAD_GATEWAY, _download_failure(exc)) from exc
+                        youtube_failure = exc
+                        stream_health.record(False, stream_health.classify(str(exc.__cause__ or exc), exc.bot_wall))
+                        logger.info("YouTube indisponible pour %s — %s, essai des autres sources", track.artist, track.title)
+                        continue
                     logger.info("Source %s inutilisable : %s", source_candidate.video_id, exc.__cause__ or exc)
                     if attempts >= MAX_SOURCE_ATTEMPTS:
                         break
@@ -114,6 +123,7 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                     content_type = _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream")
                     await deps.repo.stream_cache_set(source, source_id, fmt, quality, str(dest), content_type)
                     await deps.repo.stream_source_set(source, source_id, source_candidate.video_id)
+                    stream_health.record(True)
                     return dest
 
                 logger.info(
@@ -127,6 +137,8 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
     except ResolutionError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Résolution de la source audio impossible.") from exc
 
+    if youtube_failure is not None:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, _download_failure(youtube_failure)) from youtube_failure
     if attempts == 0:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucune source audio trouvée pour ce morceau.")
     raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucune version fidèle de ce morceau n'a été trouvée.")
@@ -144,6 +156,11 @@ FAILURE_TTL = 120.0
 # saturait la mémoire au point de figer tout le serveur.
 _download_slots = asyncio.Semaphore(1)
 _failures: dict[tuple[str, str, str, str], tuple[float, int, str]] = {}
+
+
+def forget_failures() -> None:
+    """Oublie les échecs récents (cookies renouvelés : on réessaie tout de suite)."""
+    _failures.clear()
 
 
 def prune_cache(directory: Path, max_bytes: int, keep: Path | None = None) -> int:
@@ -394,7 +411,9 @@ async def stream(
         if direct is not None:
             _warm(deps, source, source_id, quality, format)
             try:
-                return await _proxy(request, direct)
+                response = await _proxy(request, direct)
+                stream_health.record(True)
+                return response
             except _LiveFailed as exc:
                 logger.info("Relais direct de %s:%s interrompu (%s), repli sur le téléchargement", source, source_id, exc)
                 _live.drop(key)
