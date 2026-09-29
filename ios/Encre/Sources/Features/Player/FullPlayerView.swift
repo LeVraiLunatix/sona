@@ -222,6 +222,13 @@ struct FullPlayerView: View {
                     .matchedGeometryEffect(id: "artwork", in: hero)
                     .frame(width: 62, height: 62)
                     .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
+                    // Toucher la petite pochette : retour au lecteur (sans
+                    // paroles ni file), comme dans Musique.
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(Motion.smooth) { panel = .artwork }
+                    }
+                    .sensoryFeedback(.impact(weight: .light), trigger: panel)
                 titleRow(track, compact: true)
             }
             .padding(.top, 14)

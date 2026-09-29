@@ -116,17 +116,20 @@ class DeezerClient:
         return data
 
     async def search_tracks(
-        self, query: str, index: int = 0, limit: int = 25
+        self, query: str, index: int = 0, limit: int = 25, order: str | None = None
     ) -> tuple[list[TrackInfo], int]:
-        data = await self._get(
-            "/search/track", {"q": query, "index": index, "limit": limit}
-        )
+        """`order="RANKING"` : les titres les plus écoutés d'abord (recherche
+        de l'app) ; par défaut, l'ordre de pertinence de Deezer."""
+        params = {"q": query, "index": index, "limit": limit}
+        if order:
+            params["order"] = order
+        data = await self._get("/search/track", params)
         items = [_track_from_json(d) for d in data.get("data", [])]
         total = data.get("total", len(items))
         return items, total
 
     async def search_tracks_by_artist(
-        self, artist_name: str, query: str, index: int = 0, limit: int = 25
+        self, artist_name: str, query: str, index: int = 0, limit: int = 25, order: str | None = None
     ) -> tuple[list[TrackInfo], int]:
         """Morceaux de `artist_name` correspondant à `query`.
 
@@ -136,9 +139,10 @@ class DeezerClient:
         dont l'artiste principal est bien celui demandé. Le `total` de Deezer
         ne vaut plus une fois le lot filtré : la pagination se fait dans le lot.
         """
-        data = await self._get(
-            "/search/track", {"q": f"{artist_name} {query}".strip(), "limit": ARTIST_SEARCH_POOL}
-        )
+        params = {"q": f"{artist_name} {query}".strip(), "limit": ARTIST_SEARCH_POOL}
+        if order:
+            params["order"] = order
+        data = await self._get("/search/track", params)
         wanted = _artist_key(artist_name)
         tracks = [_track_from_json(d) for d in data.get("data", [])]
         mine = [t for t in tracks if wanted and _artist_key(t.artist) == wanted]

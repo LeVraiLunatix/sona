@@ -19,6 +19,7 @@ FALLBACK_POOL = 40
 # recherche de titres renvoie ses morceaux : « eiak » → Ziak (0,75) passe,
 # un titre de chanson inconnu qui ramènerait un artiste quelconque, non.
 ARTIST_MATCH_RATIO = 0.7
+POPULAR = "RANKING"
 
 
 class SearchError(Exception):
@@ -32,11 +33,13 @@ def _scoped_query(text: str, artist_scope_name: str | None) -> str:
 async def _search_deezer(
     deps: Deps, cached: query_cache.CachedQuery, index: int, limit: int
 ) -> tuple[list[TrackInfo], int]:
+    # Les titres les plus populaires d'abord (« ninho » → ses tubes), plutôt
+    # que les correspondances exactes les plus obscures.
     if cached.artist_scope_name:
         return await deps.deezer.search_tracks_by_artist(
-            cached.artist_scope_name, cached.text, index=index, limit=limit
+            cached.artist_scope_name, cached.text, index=index, limit=limit, order=POPULAR
         )
-    return await deps.deezer.search_tracks(cached.text, index=index, limit=limit)
+    return await deps.deezer.search_tracks(cached.text, index=index, limit=limit, order=POPULAR)
 
 
 async def _search_deezer_artist(

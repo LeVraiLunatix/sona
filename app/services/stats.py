@@ -104,6 +104,8 @@ class RankedItem:
     cover_url: str | None
     source: str | None
     source_id: str | None
+    # Photo de l'artiste (vérifiée par son nom, voir services/artist_photos).
+    picture_url: str | None = None
 
 
 @dataclass(slots=True)

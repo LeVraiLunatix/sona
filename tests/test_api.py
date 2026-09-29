@@ -101,7 +101,7 @@ def test_search_paginates_through_query_cache(client, monkeypatch):
         album=None, year=None, duration_seconds=None, cover_url=None,
     )
 
-    async def fake_search_tracks(query, index=0, limit=25):
+    async def fake_search_tracks(query, index=0, limit=25, order=None):
         # Un seul résultat non vide : la cascade Deezer/iTunes/YouTube
         # (app/services/search.py) s'arrête là, sans appeler les autres
         # providers (qui feraient de vrais appels réseau en test).

@@ -10,6 +10,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 from app.db.repository import Play
+from app.services import artist_photos
 from app.services import stats as stats_service
 from app.services.stats import MONTHS_FR, WEEKDAYS_FR, parse_iso, seconds_of
 
@@ -120,6 +121,8 @@ async def compute(deps, user_id: int, period: str, offset: int, tz_name: str | N
     board.sort(key=lambda row: -row[1])
     rank = next(i for i, (uid, _) in enumerate(board) if uid == user_id) + 1
 
+    await artist_photos.fix(deps, report.top_artists, limit=5)
+    await artist_photos.fix(deps, report.discoveries, limit=5)
     first = plays[0] if plays else None
     favourite = most_played_play(plays)
     return {

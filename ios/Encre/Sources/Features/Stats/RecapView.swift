@@ -230,7 +230,7 @@ struct RecapView: View {
         return VStack(spacing: 20) {
             Spacer()
             Text("Ton artiste n°1").font(.system(size: 22, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
-            ArtistPicture(source: artist.source, id: artist.sourceId, fallback: artist.coverURL)
+            ArtistPicture(source: artist.source, id: artist.sourceId, fallback: artist.coverURL, picture: artist.pictureURL)
                 .frame(width: 240, height: 240)
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.5), radius: 30, y: 14)
@@ -254,7 +254,7 @@ struct RecapView: View {
                     Text("\(index + 1)").font(.system(size: 28, weight: .black)).foregroundStyle(.white).frame(width: 34)
                     Group {
                         if round {
-                            ArtistPicture(source: item.source, id: item.sourceId, fallback: item.coverURL).clipShape(Circle())
+                            ArtistPicture(source: item.source, id: item.sourceId, fallback: item.coverURL, picture: item.pictureURL).clipShape(Circle())
                         } else {
                             Artwork(url: item.coverURL, cornerRadius: 8)
                         }
@@ -315,7 +315,7 @@ struct RecapView: View {
             .foregroundStyle(.white)
             ForEach(Array(recap.discoveries.prefix(4).enumerated()), id: \.element.id) { index, item in
                 HStack(spacing: 12) {
-                    ArtistPicture(source: item.source, id: item.sourceId, fallback: item.coverURL)
+                    ArtistPicture(source: item.source, id: item.sourceId, fallback: item.coverURL, picture: item.pictureURL)
                         .frame(width: 48, height: 48).clipShape(Circle())
                     Text(item.name).font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
                     Spacer()

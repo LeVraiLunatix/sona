@@ -263,11 +263,14 @@ struct RankedStat: Codable, Identifiable, Hashable {
     var coverURL: String?
     var source: String?
     var sourceId: String?
+    /// Photo de l'artiste, vérifiée par son nom côté serveur.
+    var pictureURL: String?
 
     enum CodingKeys: String, CodingKey {
         case name, subtitle, plays, minutes, source
         case coverURL = "cover_url"
         case sourceId = "source_id"
+        case pictureURL = "picture_url"
     }
 
     var id: String { "\(name)|\(subtitle ?? "")" }

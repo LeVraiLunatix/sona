@@ -14,7 +14,7 @@ from app.db.repository import Play
 from app.providers.lastfm import ImportStatus, LastfmClient, import_history
 from app.providers.base import TrackInfo
 from app.providers.lastfm_auth import LastfmAuthError
-from app.services import presence
+from app.services import artist_photos, presence
 from app.services import recap as recap_service
 from app.services import stats as stats_service
 
@@ -81,6 +81,7 @@ class RankedOut(BaseModel):
     cover_url: str | None
     source: str | None
     source_id: str | None
+    picture_url: str | None = None
 
 
 class BucketOut(BaseModel):
@@ -303,6 +304,8 @@ async def get_stats(
     if period not in stats_service.PERIODS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Période inconnue : {period}")
     report = await stats_service.compute(deps.repo, deps.user_id, period, offset, tz)
+    await artist_photos.fix(deps, report.top_artists)
+    await artist_photos.fix(deps, report.discoveries, limit=6)
     return StatsOut(**asdict(report))
 
 

@@ -32,14 +32,15 @@ class FakeDeezer:
         self.results = results if results is not None else [make_track("deezer", i) for i in range(10)]
         self.calls = 0
 
-    async def search_tracks(self, query, index=0, limit=25):
+    async def search_tracks(self, query, index=0, limit=25, order=None):
         self.calls += 1
+        self.order = order
         if self.error:
             raise self.error
         return self.results[index : index + limit], len(self.results)
 
-    async def search_tracks_by_artist(self, artist_name, query, index=0, limit=25):
-        return await self.search_tracks(f"{artist_name} {query}", index=index, limit=limit)
+    async def search_tracks_by_artist(self, artist_name, query, index=0, limit=25, order=None):
+        return await self.search_tracks(f"{artist_name} {query}", index=index, limit=limit, order=order)
 
     async def search_artists(self, query, limit=10):
         if self.error:

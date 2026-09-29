@@ -304,7 +304,7 @@ struct StatsView: View {
                 Carousel(items: Array(artists.dropFirst().prefix(15)), spacing: 16) { artist in
                     let rank = (artists.firstIndex(of: artist) ?? 0) + 1
                     VStack(spacing: 6) {
-                        ArtistBubble(name: artist.name, pictureURL: artist.coverURL, route: artistRoute(artist), size: 96) {
+                        ArtistBubble(name: artist.name, pictureURL: artist.pictureURL ?? artist.coverURL, route: artistRoute(artist), size: 96) {
                             if let route = artistRoute(artist) { path.append(route) }
                         }
                         Text("#\(rank) · \(artist.plays) écoute\(artist.plays > 1 ? "s" : "")")
@@ -322,7 +322,7 @@ struct StatsView: View {
             if let route = artistRoute(artist) { path.append(route) }
         } label: {
             ZStack(alignment: .bottomLeading) {
-                ArtistPicture(source: artist.source, id: artist.sourceId, fallback: artist.coverURL)
+                ArtistPicture(source: artist.source, id: artist.sourceId, fallback: artist.coverURL, picture: artist.pictureURL)
                     .frame(height: 220)
                 LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -439,7 +439,7 @@ struct StatsView: View {
                 .foregroundStyle(Tone.secondary)
                 .padding(.horizontal, 20)
             Carousel(items: artists, spacing: 16) { artist in
-                ArtistBubble(name: artist.name, pictureURL: artist.coverURL, route: artistRoute(artist), size: 90) {
+                ArtistBubble(name: artist.name, pictureURL: artist.pictureURL ?? artist.coverURL, route: artistRoute(artist), size: 90) {
                     if let route = artistRoute(artist) { path.append(route) }
                 }
             }
@@ -525,17 +525,19 @@ struct ArtistPicture: View {
     let source: String?
     let id: String?
     let fallback: String?
+    /// Photo déjà vérifiée par le serveur (stats, récap) : prioritaire.
+    var picture: String? = nil
     @State private var url: String?
 
     @MainActor private static var cache: [String: String] = [:]
 
     var body: some View {
-        Artwork(url: url ?? fallback, cornerRadius: 20, symbol: "person.fill")
+        Artwork(url: picture ?? url ?? fallback, cornerRadius: 20, symbol: "person.fill")
             .task(id: id) { await load() }
     }
 
     private func load() async {
-        guard let source, let id else { return }
+        guard picture == nil, let source, let id else { return }
         let key = "\(source):\(id)"
         if let cached = Self.cache[key] {
             url = cached
