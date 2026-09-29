@@ -82,17 +82,46 @@ main() {
     step "Adresse HTTPS (Caddy + sslip.io)"
     ip=$(curl -fsS -4 https://api.ipify.org || curl -fsS -4 https://ifconfig.me)
     domain="${ip//./-}.sslip.io"
-    [ -f /etc/caddy/Caddyfile ] && sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.avant-sona
-    sudo tee /etc/caddy/Caddyfile >/dev/null <<CADDY
-# Sona : HTTPS automatique (certificat Let's Encrypt) devant l'API locale.
+    # Un autre serveur web (nginx, Apache…) sur 80/443 empêcherait Caddy de
+    # démarrer : on s'arrête plutôt que de toucher à ce qui tourne déjà.
+    busy=$(sudo ss -tlnpH '( sport = :80 or sport = :443 )' | grep -v caddy || true)
+    if [ -n "$busy" ]; then
+        echo "Les ports 80/443 sont déjà utilisés par un autre programme :" >&2
+        echo "$busy" >&2
+        echo "Rien n'a été modifié côté web : envoie ce message pour adapter l'installation." >&2
+        exit 1
+    fi
+    file=/etc/caddy/Caddyfile
+    block="# Sona : HTTPS automatique (certificat Let's Encrypt) devant l'API locale.
 $domain {
     reverse_proxy 127.0.0.1:8000
-}
-CADDY
+}"
+    if [ -f "$file" ] && grep -qF "$domain" "$file"; then
+        :  # déjà configuré
+    elif [ -f "$file" ] && grep -v '^\s*#' "$file" | grep -q '[^[:space:]]' && ! grep -q 'root \* /usr/share/caddy' "$file"; then
+        # D'autres sites sont déjà servis : on ajoute Sona sans les toucher.
+        sudo cp "$file" "$file.avant-sona"
+        printf '\n%s\n' "$block" | sudo tee -a "$file" >/dev/null
+    else
+        [ -f "$file" ] && sudo cp "$file" "$file.avant-sona"
+        printf '%s\n' "$block" | sudo tee "$file" >/dev/null
+    fi
+    if ! sudo caddy validate --config "$file" --adapter caddyfile >/dev/null 2>&1; then
+        [ -f "$file.avant-sona" ] && sudo cp "$file.avant-sona" "$file"
+        echo "Configuration Caddy refusée : ancienne configuration remise." >&2
+        exit 1
+    fi
     sudo systemctl enable --now caddy >/dev/null 2>&1
     sudo systemctl reload caddy
 
     step "Processus (PM2) et démarrage automatique"
+    # Le port de l'API (8000) doit être libre, ou déjà tenu par Sona.
+    if sudo ss -tlnpH '( sport = :8000 )' | grep -q . && ! pm2 describe sona-api >/dev/null 2>&1; then
+        echo "Le port 8000 est déjà pris par un autre programme :" >&2
+        sudo ss -tlnpH '( sport = :8000 )' >&2
+        echo "Envoie ce message pour choisir un autre port." >&2
+        exit 1
+    fi
     # Processus d'une ancienne installation : recréés proprement (l'ancien
     # environnement Python a pu être remplacé).
     pm2 delete sona-api >/dev/null 2>&1 || true

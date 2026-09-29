@@ -31,7 +31,8 @@ main() {
         fi
     fi
     pm2 save >/dev/null
-    domain=$(awk '/sslip\.io/ {print $1; exit}' /etc/caddy/Caddyfile)
+    ip=$(curl -fsS -4 https://api.ipify.org || curl -fsS -4 https://ifconfig.me)
+    domain="${ip//./-}.sslip.io"
     sleep 3
     if curl -fsS "https://$domain/health" >/dev/null; then
         echo "✅ Données importées, Sona tourne : https://$domain"
