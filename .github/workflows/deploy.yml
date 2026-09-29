@@ -62,7 +62,7 @@ jobs:
           printf '%s\n' "$ORACLE_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
           # La commande envoyée est ignorée : `authorized_keys` impose
-          # `cd ~/sona && ./deploy.sh` à cette clé, qui ne peut rien faire
+          # `cd ~/sona && ./deploy/deploy.sh` à cette clé, qui ne peut rien faire
           # d'autre. La sortie du script arrive quand même dans les logs.
           ssh -i "$HOME/.ssh/sona_deploy" \
             -o IdentitiesOnly=yes \

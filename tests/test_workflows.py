@@ -98,7 +98,7 @@ def test_the_private_key_is_removed_from_the_runner():
 def test_deployment_doc_lists_the_one_time_setup():
     doc = (Path(__file__).resolve().parent.parent / "docs" / "DEPLOIEMENT.md").read_text(encoding="utf-8")
     assert "ssh-keygen -t ed25519" in doc
-    assert 'command="cd ~/sona && ./deploy.sh"' in doc
+    assert 'command="cd ~/sona && ./deploy/deploy.sh"' in doc
     assert "no-port-forwarding" in doc and "no-pty" in doc
     assert "ssh-keyscan" in doc
     for secret in SECRETS:

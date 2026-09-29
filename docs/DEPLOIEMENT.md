@@ -1,9 +1,12 @@
 # Déploiement automatique depuis GitHub
 
 Sona se déploie tout seul : chaque fusion sur `master` lance les tests, puis —
-s'ils passent — une connexion SSH au VPS Oracle qui exécute `~/sona/deploy.sh`
+s'ils passent — une connexion SSH au VPS Oracle qui exécute `~/sona/deploy/deploy.sh`
 (`git fetch`, `git reset --hard origin/master`, `pip install -r
-requirements.txt`, `pm2 restart sona --update-env`).
+requirements.txt`, `pm2 restart sona-api sona --update-env`). Le script est
+dans le dépôt (`deploy/deploy.sh`) ; sur un serveur neuf,
+`deploy/install_oracle.sh` fait toute cette configuration d'un coup (voir
+`docs/MIGRATION_ORACLE.md`).
 
 Deux workflows :
 
@@ -59,7 +62,7 @@ suivante à `~/.ssh/authorized_keys`, en remplaçant
 affiché :
 
 ```
-command="cd ~/sona && ./deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA… deploiement sona (github actions)
+command="cd ~/sona && ./deploy/deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA… deploiement sona (github actions)
 ```
 
 Tout sur **une seule ligne**, les options collées à la clé (une virgule entre
@@ -68,7 +71,7 @@ chaque option, une espace avant `ssh-ed25519`).
 Vérifie ensuite que le script est bien exécutable :
 
 ```bash
-chmod +x ~/sona/deploy.sh
+chmod +x ~/sona/deploy/deploy.sh
 ```
 
 Test depuis le PC — la commande envoyée est ignorée, c'est la commande forcée
