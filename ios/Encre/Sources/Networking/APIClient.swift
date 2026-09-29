@@ -513,6 +513,44 @@ final class APIClient {
         try await send(try request("/blindtest/leaderboard", query: [URLQueryItem(name: "mode", value: mode)]))
     }
 
+    // MARK: - Blind test en direct
+
+    func createLive() async throws -> LiveState {
+        try await send(try request("/blindlive", method: "POST"))
+    }
+
+    func activeLive() async throws -> [LiveSummary] {
+        try await send(try request("/blindlive/active"))
+    }
+
+    func liveState(code: String) async throws -> LiveState {
+        try await send(try request("/blindlive/\(code)"))
+    }
+
+    func joinLive(code: String) async throws -> LiveState {
+        try await send(try request("/blindlive/\(code)/join", method: "POST"))
+    }
+
+    func leaveLive(code: String) async throws {
+        try await sendNoContent(try request("/blindlive/\(code)/leave", method: "POST"))
+    }
+
+    func configureLive(code: String, mode: String, ref: String?, label: String?, count: Int, guess: String) async throws -> LiveState {
+        struct Body: Encodable { let mode: String; let ref: String?; let label: String?; let count: Int; let guess: String }
+        let data = try encode(Body(mode: mode, ref: ref, label: label, count: count, guess: guess))
+        return try await send(try request("/blindlive/\(code)/config", method: "POST", bodyData: data))
+    }
+
+    func startLive(code: String) async throws -> LiveState {
+        try await send(try request("/blindlive/\(code)/start", method: "POST"))
+    }
+
+    func answerLive(code: String, index: Int, choice: Int) async throws -> LiveState {
+        struct Body: Encodable { let index: Int; let choice: Int }
+        let data = try encode(Body(index: index, choice: choice))
+        return try await send(try request("/blindlive/\(code)/answer", method: "POST", bodyData: data))
+    }
+
     // MARK: - Concerts
 
     func concerts() async throws -> [Concert] {

@@ -11,6 +11,8 @@ struct FriendsView: View {
     @State private var showingParty = false
     @State private var showingBlindTest = false
     @State private var parties: [PartySummary] = []
+    @State private var liveRooms: [LiveSummary] = []
+    @State private var live: LiveLaunch?
     @ObservedObject private var party = PartyManager.shared
 
     var body: some View {
@@ -61,6 +63,9 @@ struct FriendsView: View {
         .fullScreenCover(isPresented: $showingBlindTest) {
             BlindTestView()
         }
+        .fullScreenCover(item: $live) { launch in
+            BlindLiveView(joinCode: launch.code)
+        }
     }
 
     /// Écoute ensemble et blind test, et les sessions des amis à rejoindre.
@@ -90,10 +95,13 @@ struct FriendsView: View {
                 colors: [Color(red: 0.4, green: 0.25, blue: 0.95), Color(red: 0.15, green: 0.1, blue: 0.4)]
             ) { showingParty = true }
             activityCard(
-                title: "Blind test", subtitle: "Défi du jour et classement",
+                title: "Blind test", subtitle: "Défi du jour, en direct entre amis",
                 icon: "waveform.badge.magnifyingglass",
                 colors: [Color(red: 0.95, green: 0.35, blue: 0.45), Color(red: 0.4, green: 0.08, blue: 0.2)]
             ) { showingBlindTest = true }
+        }
+        ForEach(liveRooms.filter { !$0.joined }) { room in
+            LiveSummaryRow(summary: room) { live = LiveLaunch(code: room.code) }
         }
         if party.state == nil {
             ForEach(parties.filter { !$0.joined }) { summary in
@@ -127,6 +135,7 @@ struct FriendsView: View {
 
     private func load() async {
         parties = (try? await APIClient.shared.activeParties()) ?? parties
+        liveRooms = (try? await APIClient.shared.activeLive()) ?? liveRooms
         do {
             friends = try await APIClient.shared.friends()
             errorMessage = nil

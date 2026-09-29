@@ -754,6 +754,98 @@ struct BlindScore: Codable, Hashable, Identifiable {
     var id: String { "\(name)|\(score)" }
 }
 
+// MARK: - Blind test en direct
+
+struct LivePlayer: Codable, Hashable, Identifiable {
+    var name: String
+    var avatarURL: String?
+    var isHost: Bool
+    var isMe: Bool
+    var score: Int
+    var correct: Int
+    var streak: Int
+    var answered: Bool
+    var gained: Int?
+    var wasRight: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case name, score, correct, streak, answered, gained
+        case avatarURL = "avatar_url"
+        case isHost = "is_host"
+        case isMe = "is_me"
+        case wasRight = "was_right"
+    }
+
+    var id: String { name }
+}
+
+struct LiveQuestion: Codable, Hashable {
+    var index: Int
+    var previewURL: String
+    var choices: [BlindChoice]
+    var answer: Int?
+    var track: Track?
+    var coverURL: String?
+    var myChoice: Int?
+    var answered: Int
+
+    enum CodingKeys: String, CodingKey {
+        case index, choices, answer, track, answered
+        case previewURL = "preview_url"
+        case coverURL = "cover_url"
+        case myChoice = "my_choice"
+    }
+}
+
+struct LiveState: Codable, Equatable {
+    var code: String
+    var isHost: Bool
+    var hostName: String?
+    var phase: String
+    var mode: String
+    var ref: String?
+    var label: String?
+    var count: Int
+    var guess: String
+    var total: Int
+    var serverTime: Double
+    var startsAt: Double?
+    var deadline: Double?
+    var nextAt: Double?
+    var question: LiveQuestion?
+    var players: [LivePlayer]
+    var tracks: [Track]
+    var version: Int
+
+    enum CodingKeys: String, CodingKey {
+        case code, phase, mode, ref, label, count, guess, total, question, players, tracks, version
+        case isHost = "is_host"
+        case hostName = "host_name"
+        case serverTime = "server_time"
+        case startsAt = "starts_at"
+        case deadline
+        case nextAt = "next_at"
+    }
+}
+
+struct LiveSummary: Codable, Hashable, Identifiable {
+    var code: String
+    var hostName: String?
+    var hostAvatarURL: String?
+    var players: Int
+    var phase: String
+    var label: String?
+    var joined: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case code, players, phase, label, joined
+        case hostName = "host_name"
+        case hostAvatarURL = "host_avatar_url"
+    }
+
+    var id: String { code }
+}
+
 // MARK: - Concerts
 
 struct Concert: Codable, Hashable, Identifiable {

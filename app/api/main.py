@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
-    accounts, blindtest, browse, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
+    accounts, blindlive, blindtest, browse, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
     search, stats, stream, user_settings,
 )
 from app.api.state import ApiDeps
@@ -124,6 +124,7 @@ def create_app() -> FastAPI:
     app.include_router(friends.router)
     app.include_router(home.router)
     app.include_router(party.router)
+    app.include_router(blindlive.router)
     app.include_router(blindtest.router)
     app.include_router(concerts.router)
 

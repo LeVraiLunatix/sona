@@ -38,6 +38,11 @@ struct BlindTestView: View {
     @State private var playingGuess = "title"
     @State private var playingExpert = false
     @State private var audioCut: Task<Void, Never>?
+    // En direct entre amis
+    @State private var live: LiveLaunch?
+    @State private var liveRooms: [LiveSummary] = []
+    @State private var askingCode = false
+    @State private var typedCode = ""
 
     static let questionSeconds: Double = 15
     /// Mode expert : l'extrait s'arrête au bout de 5 s.
@@ -68,7 +73,26 @@ struct BlindTestView: View {
             }
         }
         .task { await loadLeaderboard() }
+        .task {
+            while !Task.isCancelled {
+                liveRooms = (try? await APIClient.shared.activeLive()) ?? liveRooms
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
         .onDisappear { stopAudio() }
+        .fullScreenCover(item: $live) { launch in
+            BlindLiveView(joinCode: launch.code)
+        }
+        .alert("Rejoindre une partie", isPresented: $askingCode) {
+            TextField("Code (5 lettres)", text: $typedCode)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+            Button("Annuler", role: .cancel) {}
+            Button("Rejoindre") {
+                let code = typedCode.trimmingCharacters(in: .whitespaces).uppercased()
+                if !code.isEmpty { live = LiveLaunch(code: code) }
+            }
+        }
         .sheet(item: $picking) { kind in
             BlindSourcePicker(kind: kind) { id, label in
                 picking = nil
@@ -104,6 +128,8 @@ struct BlindTestView: View {
                     Text(errorMessage).font(Typo.rowSubtitle).foregroundStyle(Tone.danger)
                 }
 
+                liveSection
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Partie libre").font(Typo.headline).foregroundStyle(Tone.primary)
                     options
@@ -120,6 +146,41 @@ struct BlindTestView: View {
                 if !leaderboard.isEmpty { leaderboardView(title: "Classement du jour") }
             }
             .padding(20)
+        }
+    }
+
+    /// En direct : créer une partie, rejoindre celle d'un ami ou un code.
+    private var liveSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("En direct avec tes amis").font(Typo.headline).foregroundStyle(Tone.primary)
+            ForEach(liveRooms.filter { !$0.joined }) { room in
+                LiveSummaryRow(summary: room) { live = LiveLaunch(code: room.code) }
+            }
+            HStack(spacing: 12) {
+                Button { live = LiveLaunch(code: nil) } label: {
+                    Label("Créer une partie", systemImage: "person.3.fill")
+                        .font(Typo.headline)
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Capsule().fill(.white))
+                }
+                .buttonStyle(.pressable(scale: 0.97))
+                Button {
+                    typedCode = ""
+                    askingCode = true
+                } label: {
+                    Label("Code", systemImage: "number")
+                        .font(Typo.headline)
+                        .foregroundStyle(Tone.primary)
+                        .padding(.horizontal, 18)
+                        .frame(height: 52)
+                        .background(Capsule().fill(Tone.surfaceStrong))
+                }
+                .buttonStyle(.pressable(scale: 0.97))
+            }
+            Text("Le même extrait pour tout le monde au même moment, classement en direct.")
+                .font(Typo.caption).foregroundStyle(Tone.tertiary)
         }
     }
 
