@@ -190,7 +190,7 @@ Chaque sauvegarde est alors envoyée compressée dans le bucket
 
 ### Alerte si le serveur tombe
 
-Le workflow GitHub « Uptime » vérifie `/health` toutes les 15 minutes et
+Le workflow GitHub « Surveillance du serveur » vérifie `/health` toutes les 15 minutes et
 ouvre une issue « 🔴 Serveur Sona injoignable » (notification GitHub),
 refermée toute seule au retour. Pour être prévenu aussi sur Telegram,
 ajoute les secrets GitHub `TELEGRAM_BOT_TOKEN` (le token du bot) et
