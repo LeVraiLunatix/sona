@@ -681,6 +681,28 @@ class Repository:
         )
         await self._db.conn.commit()
 
+    async def known_track(self, source: str, source_id: str) -> TrackInfo | None:
+        """Fiche d'un titre déjà rencontré (playlist, écoutes) : de quoi le
+        lire quand sa source d'origine ne le retrouve plus."""
+        cursor = await self._db.conn.execute(
+            f"SELECT {_PLAYLIST_TRACK_COLUMNS} FROM playlist_tracks WHERE source=? AND source_id=? LIMIT 1",
+            (source, source_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return TrackInfo(**dict(row))
+        cursor = await self._db.conn.execute(
+            """SELECT title, artist, album, duration_seconds, cover_url, artist_source_id, album_source_id
+               FROM plays WHERE source=? AND source_id=? ORDER BY played_at DESC LIMIT 1""",
+            (source, source_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            d = dict(row)
+            return TrackInfo(source, source_id, d["title"], d["artist"], d["album"], None,
+                             d["duration_seconds"], d["cover_url"], d["artist_source_id"], d["album_source_id"])
+        return None
+
     async def stream_source_get(self, source: str, source_id: str) -> str | None:
         cursor = await self._db.conn.execute(
             "SELECT video_id FROM stream_sources WHERE source=? AND source_id=?", (source, source_id)

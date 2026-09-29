@@ -14,6 +14,9 @@ from app.providers.page_data import BROWSER_HEADERS, meta_content, script_json, 
 logger = logging.getLogger(__name__)
 
 LOOKUP_URL = "https://itunes.apple.com/lookup"
+# Catalogues essayés pour un identifiant : France d'abord, puis celui par
+# défaut (États-Unis).
+STOREFRONTS = ("fr", None)
 SEARCH_URL = "https://itunes.apple.com/search"
 # API du lecteur web d'Apple Music : la page publique d'une playlist ne
 # contient que ses 300 premiers titres, la suite se charge par là.
@@ -223,6 +226,17 @@ class AppleMusicClient:
             raise AppleMusicError(str(exc)) from exc
         return resp.json().get("results", [])
 
+    async def _lookup_any(self, params: dict) -> list[dict]:
+        """Recherche par identifiant dans plusieurs catalogues : un titre
+        importé d'une playlist française n'existe parfois pas dans le
+        catalogue américain (celui par défaut de l'API)."""
+        results: list[dict] = []
+        for country in STOREFRONTS:
+            results = await self._lookup({**params, "country": country} if country else params)
+            if results:
+                return results
+        return results
+
     async def search_tracks(self, query: str, limit: int = 25) -> list[TrackInfo]:
         """Recherche de morceaux via l'API iTunes Search.
 
@@ -242,14 +256,14 @@ class AppleMusicClient:
         return [_track_from_json(r) for r in results if r.get("trackId")]
 
     async def get_track(self, track_id: str) -> TrackInfo:
-        results = await self._lookup({"id": track_id, "entity": "song"})
+        results = await self._lookup_any({"id": track_id, "entity": "song"})
         for r in results:
             if str(r.get("trackId")) == str(track_id):
                 return _track_from_json(r)
         raise AppleMusicError("Morceau introuvable sur Apple Music.")
 
     async def get_album(self, album_id: str) -> AlbumInfo:
-        results = await self._lookup({"id": album_id, "entity": "song"})
+        results = await self._lookup_any({"id": album_id, "entity": "song"})
         if not results:
             raise AppleMusicError("Album introuvable sur Apple Music.")
         collection = next((r for r in results if r.get("wrapperType") == "collection"), None)
@@ -283,7 +297,7 @@ class AppleMusicClient:
         )
 
     async def get_artist(self, artist_id: str) -> ArtistInfo:
-        results = await self._lookup({"id": artist_id, "entity": "song", "limit": 1})
+        results = await self._lookup_any({"id": artist_id, "entity": "song", "limit": 1})
         if not results:
             raise AppleMusicError("Artiste introuvable sur Apple Music.")
         artist = results[0]
@@ -295,7 +309,7 @@ class AppleMusicClient:
         )
 
     async def get_artist_top_tracks(self, artist_id: str, limit: int = 25) -> list[TrackInfo]:
-        results = await self._lookup({"id": artist_id, "entity": "song", "limit": limit})
+        results = await self._lookup_any({"id": artist_id, "entity": "song", "limit": limit})
         return [_track_from_json(r) for r in results if r.get("wrapperType") == "track"]
 
     async def get_artist_albums(self, artist_id: str) -> tuple[list[AlbumInfo], list[AlbumInfo]]:

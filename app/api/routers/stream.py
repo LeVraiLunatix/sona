@@ -16,6 +16,7 @@ from starlette.background import BackgroundTask
 from app.api.auth import require_token
 from app.api.state import ApiDeps
 from app.bot import lookup
+from app.providers.base import TrackInfo
 from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
@@ -58,11 +59,24 @@ def _download_failure(exc: DownloadError) -> str:
     return f"Téléchargement audio impossible : {cause}"
 
 
+async def _track_for(deps: ApiDeps, source: str, source_id: str) -> TrackInfo:
+    """Fiche du titre chez sa source ; si elle ne le retrouve plus (titre
+    retiré, autre pays…), celle enregistrée avec la playlist ou les écoutes."""
+    try:
+        return await lookup.get_track(deps, source, source_id)
+    except lookup.ProviderErrors:
+        known = await deps.repo.known_track(source, source_id)
+        if known is None:
+            raise
+        logger.info("%s:%s introuvable chez la source : fiche enregistrée utilisée", source, source_id)
+        return known
+
+
 async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> Path:
     """Reproduit `deliver_track_audio` du bot, sans Telegram : télécharge,
     vérifie l'audio contre l'extrait officiel, et rend un fichier persistant."""
     try:
-        track = await lookup.get_track(deps, source, source_id)
+        track = await _track_for(deps, source, source_id)
     except lookup.ProviderErrors as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Morceau introuvable : {exc}") from exc
 
@@ -297,7 +311,7 @@ async def _live_source(deps: ApiDeps, source: str, source_id: str, key: tuple) -
         if known:
             return cached
         try:
-            track = await lookup.get_track(deps, source, source_id)
+            track = await _track_for(deps, source, source_id)
             excluded = await deps.repo.rejected_sources(source, source_id)
             preferred = await deps.repo.stream_source_get(source, source_id)
             found = await live_stream.resolve(track, deps.settings.youtube_cookies_file, excluded, preferred)
