@@ -13,6 +13,8 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 34) {
+                ConnectResumeBanner()
+
                 if let hero = viewModel.heroTrack {
                     heroCard(hero).padding(.horizontal, 20).reveal(0)
                 }

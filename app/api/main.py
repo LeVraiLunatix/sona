@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
-    accounts, blindlive, blindtest, browse, extras, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
+    accounts, blindlive, blindtest, browse, connect, extras, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
     search, stats, stream, tv, user_settings,
 )
 from app.api.state import ApiDeps
@@ -145,6 +145,7 @@ def create_app() -> FastAPI:
     app.include_router(party.router)
     app.include_router(blindlive.router)
     app.include_router(tv.router)
+    app.include_router(connect.router)
     app.include_router(extras.router)
     app.include_router(blindtest.router)
     app.include_router(concerts.router)

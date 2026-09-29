@@ -472,3 +472,56 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
   .np-right { height: 45vh; }
   .np-top { padding: 12px 14px; }
 }
+
+/* ── Sona Connect ─────────────────────────────────────────────────────── */
+
+.lcd.remote { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.on-device { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-weight: 600; }
+.on-device .icon { font-size: 13px; }
+
+.resume {
+  display: grid; grid-template-columns: 64px 1fr auto; gap: 16px; align-items: center; width: 100%; max-width: 720px;
+  margin: 0 0 8px; padding: 12px 16px 12px 12px; border-radius: 16px; text-align: left;
+  background: linear-gradient(120deg, var(--accent-soft), color-mix(in srgb, var(--accent-2) 16%, transparent));
+  border: 1px solid var(--hairline); transition: transform .25s var(--ease), box-shadow .25s;
+}
+.resume:hover { transform: translateY(-2px); box-shadow: var(--shadow-art); }
+.resume img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; box-shadow: var(--shadow-art); }
+.resume-text { display: flex; flex-direction: column; min-width: 0; }
+.resume .eyebrow { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--accent); }
+.resume .t { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resume .s { font-size: 13.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resume-cta { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap; }
+
+.devices-pop {
+  position: fixed; top: 76px; right: 20px; width: 340px; max-width: calc(100vw - 24px); z-index: 60;
+  background: var(--glass); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--hairline); border-radius: 16px; box-shadow: var(--shadow-pop); padding: 10px; color: var(--text);
+  animation: popIn .25s var(--spring) both;
+}
+@keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.dp-head { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); padding: 6px 8px 10px; }
+.dp-remote { display: grid; grid-template-columns: 48px 1fr; gap: 10px 12px; align-items: center; padding: 10px; margin-bottom: 8px; border-radius: 12px; background: var(--fill); }
+.dp-remote img { width: 48px; height: 48px; border-radius: 7px; object-fit: cover; }
+.dp-remote .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-remote .s { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-ctl { grid-column: 1 / -1; display: flex; justify-content: center; gap: 18px; }
+.dp-ctl button { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 20px; }
+.dp-ctl button:hover { background: var(--fill-strong); }
+.dp-remote input { grid-column: 1 / -1; }
+.dp-device { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; width: 100%; padding: 9px 8px; border-radius: 10px; text-align: left; }
+.dp-device:hover { background: var(--fill); }
+.dp-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--fill-strong); font-size: 20px; color: var(--text-2); }
+.dp-device.playing .dp-icon { background: var(--accent); color: #fff; }
+.dp-device .n { display: block; font-weight: 600; font-size: 14.5px; }
+.dp-device .st { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-device.playing .st { color: var(--accent); }
+.dp-device .go { font-size: 12.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+.dp-hint { font-size: 13px; color: var(--text-3); padding: 6px 8px 4px; margin: 0; }
+.np .devices-pop { color: var(--text); }
+
+@media (max-width: 760px) {
+  .resume { grid-template-columns: 52px 1fr; }
+  .resume img { width: 52px; height: 52px; }
+  .resume-cta { grid-column: 1 / -1; justify-content: center; }
+}

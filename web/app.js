@@ -31,6 +31,7 @@ const state = {
   queue: [], index: -1, name: "", shuffle: false, repeat: false,
   lyrics: null, lastLyric: -1, listened: 0, lastTick: 0, scrobbled: false, startedAt: null,
   liked: new Set(), npOpen: false, npTab: "lyrics", smart: [], playlists: [],
+  connect: { devices: [], session: null, active: null, receivedAt: 0, claim: false, open: false },
 };
 
 async function api(path, options = {}) {
@@ -82,6 +83,9 @@ const icons = {
   sparkles: ic("M10 2c.4 0 .8.3.9.7l1 3.4a5 5 0 0 0 3.3 3.3l3.4 1a1 1 0 0 1 0 1.9l-3.4 1a5 5 0 0 0-3.3 3.3l-1 3.4a1 1 0 0 1-1.9 0l-1-3.4a5 5 0 0 0-3.3-3.3l-3.4-1a1 1 0 0 1 0-1.9l3.4-1A5 5 0 0 0 8.1 6.1l1-3.4c.1-.4.5-.7.9-.7zm8 12c.3 0 .5.2.6.4l.4 1.3c.2.6.6 1 1.2 1.2l1.3.4a.6.6 0 0 1 0 1.2l-1.3.4c-.6.2-1 .6-1.2 1.2l-.4 1.3a.6.6 0 0 1-1.2 0l-.4-1.3c-.2-.6-.6-1-1.2-1.2l-1.3-.4a.6.6 0 0 1 0-1.2l1.3-.4c.6-.2 1-.6 1.2-1.2l.4-1.3c.1-.2.3-.4.6-.4z"),
   plus: ic("M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1z"),
   nextUp: ic("M4 6h11a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2zm0 5h11a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2zm0 5h7a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2zm13.5-1.5V12a1 1 0 1 1 2 0v2.5H22a1 1 0 1 1 0 2h-2.5V19a1 1 0 1 1-2 0v-2.5H15a1 1 0 1 1 0-2z"),
+  devices: ic("M4 5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v2h-2V5H6v9h7v2H3.5a1 1 0 0 1 0-2H4zm11 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2zm2 0v9h3V9zm1.5 7a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z"),
+  phone: ic("M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v16h8V4zm4 13a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"),
+  laptop: ic("M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v9H5zm2 0v7h10V5zM2 16h20v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"),
   logo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2" stroke="#fff" stroke-width="2.3" stroke-linecap="round" fill="none"/></svg>`,
 };
 const bars = () => `<span class="bars ${audio.paused ? "paused" : ""}"><i></i><i></i><i></i></span>`;
@@ -111,6 +115,7 @@ async function boot() {
     return renderLogin(account.status === "rejected" ? "Accès refusé par un administrateur." : "Ton compte attend la validation d'un administrateur.");
   }
   renderShell();
+  startConnect();
   loadSidebar();
   loadLiked();
   route();
@@ -375,6 +380,7 @@ async function viewHome() {
   const recentTracks = recent.filter((p) => p.source && p.source_id && !seen.has(p.source + p.source_id) && seen.add(p.source + p.source_id)).slice(0, 24);
   const name = (account.display_name || account.username || "").split(" ")[0];
   return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
+    <div id="resume">${resumeCard()}</div>
     ${shelf("Faits pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
       href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
       play: register(m.tracks, m.title),
@@ -556,6 +562,7 @@ function playAt(index) {
   if (!t) { audio.pause(); return; }
   state.index = index;
   Object.assign(state, { listened: 0, lastTick: 0, scrobbled: false, lyrics: null, lastLyric: -1, startedAt: new Date().toISOString() });
+  state.connect.claim = true;
   audio.src = `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
   audio.play().catch(() => {});
   api("/plays/now", {
@@ -576,17 +583,24 @@ function playAt(index) {
 }
 
 function next(auto = false) {
+  if (!auto && remoteDevice()) return sendCommand(remoteDevice().id, "next");
   if (state.repeat && auto) { audio.currentTime = 0; audio.play(); return; }
   if (state.index + 1 < state.queue.length) playAt(state.index + 1);
   else if (auto) { audio.pause(); renderTopbar(); }
 }
 
 function prev() {
+  if (remoteDevice()) return sendCommand(remoteDevice().id, "previous");
   if (audio.currentTime > 3 || state.index <= 0) audio.currentTime = 0;
   else playAt(state.index - 1);
 }
 
-const toggle = () => (audio.src ? (audio.paused ? audio.play() : audio.pause()) : null);
+function toggle() {
+  const remote = remoteDevice();
+  if (remote) return sendCommand(remote.id, "toggle");
+  if (!audio.src) return state.connect.session ? resumeHere() : null;
+  if (audio.paused) { state.connect.claim = true; audio.play(); } else audio.pause();
+}
 
 async function toggleLike(t, button) {
   const key = `${t.source}:${t.source_id}`;
@@ -625,21 +639,25 @@ function refreshCurrentMarks() {
 function renderTopbar() {
   const bar = $("#topbar");
   if (!bar) return;
-  const t = state.queue[state.index];
+  const remote = remoteDevice();
+  const t = remote ? state.connect.session?.track : state.queue[state.index];
   const liked = t && state.liked.has(`${t.source}:${t.source_id}`);
+  const playingIcon = remote ? icons.pause : audio.paused ? icons.play : icons.pause;
   bar.innerHTML = `
     <div class="transport">
       <button class="tbtn small ${state.shuffle ? "on" : ""}" data-act="shuffle" title="Aléatoire">${icons.shuffle}</button>
       <button class="tbtn" data-act="prev" title="Précédent">${icons.prev}</button>
-      <button class="tbtn big" data-act="toggle" title="Lecture/Pause (espace)">${audio.paused ? icons.play : icons.pause}</button>
+      <button class="tbtn big" data-act="toggle" title="Lecture/Pause (espace)">${playingIcon}</button>
       <button class="tbtn" data-act="next" title="Suivant">${icons.next}</button>
       <button class="tbtn small ${state.repeat ? "on" : ""}" data-act="repeat" title="Répéter le titre">${icons.repeat}</button>
     </div>
-    ${t ? `<div class="lcd"><img class="art" data-act="open" src="${esc(big(t.cover_url, 120))}" alt="">
-      <div class="meta" data-act="open"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}${t.album ? ` — ${esc(t.album)}` : ""}</div></div>
+    ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
+      <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
+        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${esc(t.artist)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     <div class="right-tools">
+      <button class="tbtn small ${remote || otherDevices().length ? "on" : ""}" data-act="devices" title="Sona Connect : tes appareils">${icons.devices}</button>
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
       <button class="tbtn small ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
       <button class="tbtn small ${state.npOpen && state.npTab === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
@@ -648,6 +666,7 @@ function renderTopbar() {
   bar.onclick = (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
+    if (act === "devices") return toggleDevices();
     if (act === "toggle") toggle();
     if (act === "prev") prev();
     if (act === "next") next();
@@ -657,7 +676,10 @@ function renderTopbar() {
     if (act === "open") openNowPlaying(state.npTab);
     if (act === "lyrics") openNowPlaying("lyrics", true);
     if (act === "queue") openNowPlaying("queue", true);
-    if (act === "seek" && audio.duration) {
+    if (act === "seek" && remote && t?.duration_seconds) {
+      const rect = e.target.closest(".progress").getBoundingClientRect();
+      sendCommand(remote.id, "seek", { position: ((e.clientX - rect.left) / rect.width) * t.duration_seconds });
+    } else if (act === "seek" && audio.duration) {
       const rect = e.target.closest(".progress").getBoundingClientRect();
       audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
     }
@@ -668,6 +690,14 @@ function renderTopbar() {
 }
 
 function updateProgress() {
+  const remote = remoteDevice();
+  if (remote) {
+    const session = state.connect.session;
+    const dur = session?.track?.duration_seconds || 0;
+    const fill = $("#lcd-fill");
+    if (fill && dur) fill.style.width = `${Math.min(100, (remotePosition() / dur) * 100)}%`;
+    return;
+  }
   const t = state.queue[state.index];
   const dur = audio.duration && isFinite(audio.duration) ? audio.duration : t?.duration_seconds || 0;
   const pct = dur ? Math.min(100, (audio.currentTime / dur) * 100) : 0;
@@ -710,7 +740,7 @@ function renderNowPlaying() {
     <div class="np-top">
       <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>
       <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>
-      <span style="width:36px"></span>
+      <button class="tbtn" data-np="devices" title="Sona Connect">${icons.devices}</button>
     </div>
     <div class="np-body">
       <div class="np-left">
@@ -734,6 +764,7 @@ function renderNowPlaying() {
     const act = e.target.closest("[data-np]")?.dataset.np;
     if (!act) return;
     if (act === "close") closeNowPlaying();
+    if (act === "devices") { e.stopPropagation(); toggleDevices(); }
     if (act === "lyrics" || act === "queue") { state.npTab = act; renderNowPlaying(); renderTopbar(); }
     if (act === "toggle") toggle();
     if (act === "prev") prev();
@@ -816,6 +847,202 @@ function syncLyrics(force) {
   if (el) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.36, behavior: force ? "auto" : "smooth" });
 }
 
+// ── Sona Connect ─────────────────────────────────────────────────────────
+// Un seul lecteur pour tous tes appareils : reprendre ici ce qui jouait sur
+// l'iPhone, piloter l'iPhone depuis le PC, envoyer la musique de l'un à
+// l'autre (voir app/services/connect.py côté serveur).
+
+const deviceId = store.get("sona.device") || (() => {
+  const id = `web-${Math.random().toString(36).slice(2, 12)}`;
+  store.set("sona.device", id);
+  return id;
+})();
+
+function deviceName() {
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Navigateur";
+  const os = /Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua) ? "Mac" : /Windows/.test(ua) ? "PC" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iPhone" : /Linux/.test(ua) ? "Linux" : "";
+  return os ? `${browser} · ${os}` : browser;
+}
+
+const otherDevices = () => state.connect.devices.filter((d) => !d.is_me);
+
+/** L'appareil qui joue ailleurs, quand rien ne joue ici : les commandes du
+    lecteur (lecture, suivant…) le pilotent à distance. */
+function remoteDevice() {
+  const { active, devices } = state.connect;
+  if (!active || active === deviceId || (audio.src && !audio.paused)) return null;
+  return devices.find((d) => d.id === active && d.playing) || null;
+}
+
+function remotePosition() {
+  const session = state.connect.session;
+  if (!session) return 0;
+  const drift = session.paused ? 0 : (Date.now() - state.connect.receivedAt) / 1000;
+  return session.position + drift;
+}
+
+function localState() {
+  if (!state.queue.length || state.index < 0) return null;
+  const start = Math.max(0, state.index - 20);
+  const queue = state.queue.slice(start, start + 150).map((t) => ({
+    source: t.source, source_id: t.source_id, title: t.title, artist: t.artist, album: t.album || null,
+    duration_seconds: t.duration_seconds || null, cover_url: t.cover_url || null,
+    artist_source_id: t.artist_source_id || null, album_source_id: t.album_source_id || null,
+  }));
+  return { queue, index: state.index - start, position: audio.currentTime || 0, paused: audio.paused, volume: audio.volume, name: state.name || null };
+}
+
+async function connectSync() {
+  const claim = state.connect.claim && !audio.paused;
+  if (claim) state.connect.claim = false;
+  let data;
+  try {
+    data = await api("/connect/sync", {
+      method: "POST",
+      body: JSON.stringify({ device_id: deviceId, name: deviceName(), kind: "web", state: localState(), claim }),
+    });
+  } catch { return; }
+  const wasRemote = remoteDevice()?.id;
+  Object.assign(state.connect, { devices: data.devices, session: data.session, active: data.active_device_id, receivedAt: Date.now() });
+  for (const command of data.commands || []) runCommand(command);
+  if (wasRemote !== remoteDevice()?.id || remoteDevice()) renderTopbar();
+  const resume = $("#resume");
+  if (resume) {
+    const html = resumeCard();
+    if (resume.innerHTML !== html) resume.innerHTML = html;
+  }
+  if (state.connect.open) renderDevices();
+}
+
+function startConnect() {
+  let timer;
+  const loop = async () => {
+    clearTimeout(timer);
+    await connectSync();
+    const busy = !audio.paused || remoteDevice() || state.connect.open;
+    timer = setTimeout(loop, document.hidden ? 8000 : busy ? 2000 : 4000);
+  };
+  loop();
+  document.addEventListener("visibilitychange", () => !document.hidden && loop());
+  audio.addEventListener("play", () => setTimeout(loop, 300));
+  audio.addEventListener("pause", () => setTimeout(loop, 300));
+  startConnect.now = loop;
+  setInterval(() => remoteDevice() && updateProgress(), 500);
+}
+
+function runCommand(c) {
+  switch (c.action) {
+    case "play": if (audio.src) audio.play(); break;
+    case "pause": if (!audio.paused) { audio.pause(); if (c.from) toast(`Lecture passée sur ${c.from}`); } break;
+    case "toggle": if (audio.src) (audio.paused ? audio.play() : audio.pause()); break;
+    case "next": next(); break;
+    case "previous": prev(); break;
+    case "seek": if (c.position != null) audio.currentTime = c.position; break;
+    case "volume": if (c.volume != null) { audio.volume = c.volume; renderTopbar(); } break;
+    case "transfer": playFrom(c.queue, c.index, c.position, c.name); if (c.from) toast(`Musique reprise ici depuis ${c.from}`); break;
+  }
+}
+
+/** Reprend une file à une position donnée (transfert, reprise). */
+function playFrom(queue, index, position, name) {
+  if (!queue?.length) return;
+  state.queue = queue;
+  state.name = name || "";
+  playAt(Math.min(index || 0, queue.length - 1));
+  if (position > 1) {
+    const seek = () => { audio.currentTime = position; audio.removeEventListener("loadedmetadata", seek); };
+    audio.addEventListener("loadedmetadata", seek);
+  }
+}
+
+function resumeHere() {
+  const session = state.connect.session;
+  if (!session) return;
+  playFrom(session.queue, session.index, remotePosition(), session.name);
+}
+
+async function sendCommand(target, action, extra = {}) {
+  try {
+    await api("/connect/command", { method: "POST", body: JSON.stringify({ device_id: deviceId, target, action, ...extra }) });
+    setTimeout(() => startConnect.now?.(), 700);
+  } catch (e) { toast(e.message); }
+}
+
+/** « Écouter sur… » : la musique part sur cet appareil, à la même seconde. */
+async function listenOn(device) {
+  if (device.is_me) {
+    if (remoteDevice() || (state.connect.session && !audio.src)) resumeHere();
+    closeDevices();
+    return;
+  }
+  await connectSync(); // position à jour avant l'envoi
+  await sendCommand(device.id, "transfer");
+  audio.pause();
+  toast(`Musique envoyée sur ${device.name}`);
+  closeDevices();
+}
+
+function resumeCard() {
+  const session = state.connect.session;
+  if (!session || session.device_id === deviceId || (audio.src && !audio.paused) || session.age_seconds > 6 * 3600) return "";
+  const t = session.track;
+  const playing = !session.paused;
+  return `<button class="resume" onclick="resumeHere()">
+    <img src="${esc(big(t.cover_url, 200))}" alt="">
+    <span class="resume-text"><span class="eyebrow">${playing ? `En lecture sur ${esc(session.device_name)}` : `Reprendre depuis ${esc(session.device_name)}`}</span>
+      <span class="t">${esc(t.title)}</span><span class="s">${esc(t.artist)} · ${fmt(remotePosition())}</span></span>
+    <span class="resume-cta">${icons.play} Écouter ici</span></button>`;
+}
+
+function toggleDevices() {
+  state.connect.open ? closeDevices() : openDevices();
+}
+
+function openDevices() {
+  state.connect.open = true;
+  renderDevices();
+  startConnect.now?.();
+  setTimeout(() => document.addEventListener("click", outsideDevices), 0);
+}
+
+function closeDevices() {
+  state.connect.open = false;
+  $(".devices-pop")?.remove();
+  document.removeEventListener("click", outsideDevices);
+}
+
+function outsideDevices(e) {
+  if (!e.target.closest(".devices-pop") && !e.target.closest('[data-act="devices"]')) closeDevices();
+}
+
+function renderDevices() {
+  let pop = $(".devices-pop");
+  if (!pop) { pop = document.createElement("div"); pop.className = "devices-pop"; document.body.append(pop); }
+  const devices = state.connect.devices.length ? state.connect.devices : [{ id: deviceId, name: deviceName(), kind: "web", is_me: true }];
+  const remote = remoteDevice();
+  const session = state.connect.session;
+  pop.innerHTML = `<div class="dp-head">Sona Connect</div>
+    ${remote && session ? `<div class="dp-remote">
+      <img src="${esc(big(session.track.cover_url, 120))}" alt="">
+      <div style="min-width:0"><div class="t">${esc(session.track.title)}</div><div class="s">${esc(session.track.artist)}</div></div>
+      <div class="dp-ctl"><button data-dc="previous">${icons.prev}</button><button data-dc="toggle">${icons.pause}</button><button data-dc="next">${icons.next}</button></div>
+      <input type="range" class="slider" data-dc="volume" min="0" max="1" step="0.05" value="${remote.volume ?? 1}" style="--p:${(remote.volume ?? 1) * 100}%" aria-label="Volume à distance">
+    </div>` : ""}
+    ${devices.map((d) => `<button class="dp-device ${d.playing ? "playing" : ""}" data-device="${esc(d.id)}">
+      <span class="dp-icon">${d.kind === "iphone" ? icons.phone : icons.laptop}</span>
+      <span style="min-width:0"><span class="n">${d.is_me ? "Cet ordinateur" : esc(d.name)}</span>
+        <span class="st">${d.playing ? `${bars()} ${esc(d.track?.title || "En lecture")}` : d.is_me ? esc(d.name) : "Connecté"}</span></span>
+      <span class="go">${d.is_me ? (remote || (session && !audio.src) ? "Écouter ici" : "") : "Écouter dessus"}</span></button>`).join("")}
+    ${devices.length < 2 ? `<p class="dp-hint">Ouvre Sona sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}`;
+  $$("[data-device]", pop).forEach((b) => (b.onclick = () => listenOn(devices.find((d) => d.id === b.dataset.device))));
+  $$("button[data-dc]", pop).forEach((b) => (b.onclick = () => remote && sendCommand(remote.id, b.dataset.dc)));
+  const vol = $('input[data-dc="volume"]', pop);
+  if (vol) vol.onchange = () => { vol.style.setProperty("--p", `${vol.value * 100}%`); sendCommand(remote.id, "volume", { volume: +vol.value }); };
+  const anchor = $('.right-tools [data-act="devices"]')?.getBoundingClientRect();
+  if (anchor && anchor.width) { pop.style.top = `${anchor.bottom + 8}px`; pop.style.right = `${Math.max(12, innerWidth - anchor.right - 8)}px`; }
+}
+
 // ── Événements audio ─────────────────────────────────────────────────────
 
 audio.volume = +(store.get("sona.volume") ?? 1);
@@ -875,3 +1102,5 @@ document.addEventListener("keydown", (e) => {
 });
 
 boot();
+
+window.resumeHere = resumeHere;

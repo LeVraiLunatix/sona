@@ -444,6 +444,8 @@ struct FullPlayerView: View {
                 Spacer()
                 TVCastButton()
                 Spacer()
+                ConnectButton()
+                Spacer()
                 panelButton(.queue, icon: "list.bullet")
             }
             .padding(.horizontal, 30)

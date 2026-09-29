@@ -66,6 +66,28 @@ final class PlayerManager: ObservableObject {
         start(track, context: [track])
     }
 
+    /// Sona Connect : la file en cours (autour du titre joué) et sa position.
+    var connectPlayback: ConnectPlayback? {
+        guard let current else { return nil }
+        let index = context.firstIndex(where: { $0.id == current.id }) ?? 0
+        let queue = context.isEmpty ? [current] : context
+        let start = max(0, index - 20)
+        let window = Array(queue[start..<min(queue.count, start + 150)])
+        return ConnectPlayback(
+            queue: window, index: context.isEmpty ? 0 : index - start,
+            position: positionSeconds, paused: !isPlaying, name: contextName
+        )
+    }
+
+    /// Sona Connect : reprend ici une lecture venue d'un autre appareil.
+    func playTransferred(queue: [Track], index: Int, position: Double, name: String?) {
+        guard queue.indices.contains(index) else { return }
+        endStation()
+        resetQueueState(name: name)
+        pendingSeekSeconds = position > 1 ? position : nil
+        start(queue[index], context: queue)
+    }
+
     func pause() {
         if mixTask != nil { promoteMix() }
         player?.pause()

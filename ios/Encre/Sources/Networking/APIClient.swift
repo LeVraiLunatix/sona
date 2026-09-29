@@ -607,6 +607,31 @@ final class APIClient {
         return (intro.text, intro.audio.flatMap { Data(base64Encoded: $0) })
     }
 
+    // MARK: - Sona Connect
+
+    func connectSync(deviceId: String, name: String, state: ConnectPlayback?, claim: Bool) async throws -> ConnectSyncResponse {
+        struct Body: Encodable {
+            let device_id: String
+            let name: String
+            let kind = "iphone"
+            let state: ConnectPlayback?
+            let claim: Bool
+        }
+        let data = try encode(Body(device_id: deviceId, name: name, state: state, claim: claim))
+        return try await send(try request("/connect/sync", method: "POST", bodyData: data))
+    }
+
+    func connectCommand(from deviceId: String, to target: String, action: String, position: Double? = nil) async throws {
+        struct Body: Encodable {
+            let device_id: String
+            let target: String
+            let action: String
+            let position: Double?
+        }
+        let data = try encode(Body(device_id: deviceId, target: target, action: action, position: position))
+        try await sendNoContent(try request("/connect/command", method: "POST", bodyData: data))
+    }
+
     func smartPlaylists() async throws -> [SmartPlaylist] {
         try await send(try request("/smart", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
     }

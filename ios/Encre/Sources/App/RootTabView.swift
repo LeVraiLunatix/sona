@@ -98,6 +98,10 @@ struct RootTabView: View {
             await Scrobbler.shared.flush()
         }
         .task { await NotificationManager.shared.start() }
+        .overlay(alignment: .top) {
+            ConnectToast().padding(.top, 8)
+        }
+        .task { ConnectManager.shared.start() }
         .task {
             // Le dernier titre, en pause, prêt à reprendre où on l'avait laissé.
             player.restoreSession()

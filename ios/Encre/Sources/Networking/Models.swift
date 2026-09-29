@@ -1179,3 +1179,69 @@ struct SmartPlaylist: Codable, Hashable, Identifiable {
     var count: Int
     var covers: [String]
 }
+
+// MARK: - Sona Connect
+
+struct ConnectDevice: Codable, Hashable, Identifiable {
+    var id: String
+    var name: String
+    var kind: String
+    var isMe: Bool
+    var playing: Bool
+    var track: Track?
+    var volume: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, kind, playing, track, volume
+        case isMe = "is_me"
+    }
+}
+
+struct ConnectSession: Codable, Hashable {
+    var deviceId: String
+    var deviceName: String
+    var queue: [Track]
+    var index: Int
+    var name: String?
+    var track: Track
+    var position: Double
+    var paused: Bool
+    var ageSeconds: Double
+
+    enum CodingKeys: String, CodingKey {
+        case queue, index, name, track, position, paused
+        case deviceId = "device_id"
+        case deviceName = "device_name"
+        case ageSeconds = "age_seconds"
+    }
+}
+
+struct ConnectCommand: Codable, Hashable {
+    var action: String
+    var from: String?
+    var position: Double?
+    var volume: Double?
+    var queue: [Track]?
+    var index: Int?
+    var name: String?
+}
+
+struct ConnectSyncResponse: Codable {
+    var devices: [ConnectDevice]
+    var activeDeviceId: String?
+    var session: ConnectSession?
+    var commands: [ConnectCommand]
+
+    enum CodingKeys: String, CodingKey {
+        case devices, session, commands
+        case activeDeviceId = "active_device_id"
+    }
+}
+
+struct ConnectPlayback: Codable {
+    var queue: [Track]
+    var index: Int
+    var position: Double
+    var paused: Bool
+    var name: String?
+}
