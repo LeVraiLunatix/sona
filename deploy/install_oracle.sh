@@ -12,6 +12,24 @@ DIR="$HOME/sona"
 
 step() { printf '\n\033[1;35m▶ %s\033[0m\n' "$1"; }
 
+apt_install() {
+    if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$@" >/dev/null 2>&1; then
+        return 0
+    fi
+    # Échec groupé : paquet par paquet, pour savoir lequel coince.
+    local pkg failed=""
+    for pkg in "$@"; do
+        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" >/dev/null 2>&1; then
+            failed="$failed $pkg"
+        fi
+    done
+    if [ -n "$failed" ]; then
+        echo "Paquets impossibles à installer :$failed" >&2
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $failed 2>&1 | tail -n 15 >&2 || true
+        exit 1
+    fi
+}
+
 main() {
     if ! command -v apt-get >/dev/null; then
         echo "Ce script est prévu pour Ubuntu (apt-get introuvable)." >&2
@@ -19,16 +37,21 @@ main() {
     fi
     step "Paquets système (Python, FFmpeg, Git, Node/PM2, Caddy)"
     sudo apt-get update -qq
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-        git curl python3 python3-venv python3-pip ffmpeg sqlite3 nodejs npm \
-        iptables-persistent debian-keyring debian-archive-keyring apt-transport-https gnupg >/dev/null
+    apt_install git curl python3 python3-venv python3-pip ffmpeg sqlite3 \
+        debian-keyring debian-archive-keyring apt-transport-https gnupg
+    command -v netfilter-persistent >/dev/null || apt_install iptables-persistent
+    # Node.js déjà présent (NodeSource, nvm… pour une autre appli) : on le
+    # garde, le paquet Ubuntu entrerait en conflit avec lui.
+    if ! command -v node >/dev/null; then
+        apt_install nodejs npm
+    fi
     # Python 3.11 minimum : sur Ubuntu 22.04 (Python 3.10), on installe 3.12.
     PY=python3
     if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq software-properties-common >/dev/null
+        apt_install software-properties-common
         sudo add-apt-repository -y ppa:deadsnakes/ppa >/dev/null
         sudo apt-get update -qq
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3.12 python3.12-venv >/dev/null
+        apt_install python3.12 python3.12-venv
         PY=python3.12
     fi
     if ! command -v caddy >/dev/null; then
@@ -37,9 +60,12 @@ main() {
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
             | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
         sudo apt-get update -qq
-        sudo apt-get install -y -qq caddy >/dev/null
+        apt_install caddy
     fi
-    command -v pm2 >/dev/null || sudo npm install -g pm2 --silent >/dev/null
+    if ! command -v pm2 >/dev/null; then
+        # npm installé par nvm (dans le dossier de l'utilisateur) : pas de sudo.
+        if [ -w "$(npm prefix -g)" ]; then npm install -g pm2 --silent >/dev/null; else sudo npm install -g pm2 --silent >/dev/null; fi
+    fi
 
     step "Pare-feu : ports 80 et 443 (HTTPS)"
     # Les images Ubuntu d'Oracle rejettent tout sauf SSH : on ouvre le web
