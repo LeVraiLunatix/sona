@@ -14,13 +14,14 @@ from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
-    accounts, blindlive, blindtest, browse, connect, extras, catalog, concerts, friends, history, home, library, lyrics, party, playlists,
+    accounts, blindlive, blindtest, browse, connect, extras, catalog, concerts, friends, history, home, karaoke, library, lyrics, party,
+    playlists,
     search, stats, stream, tv, user_settings,
 )
 from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
 from app.config import load_settings
-from app.services import stream_health, youtube_session, ytdlp_updater
+from app.services import karaoke as karaoke_service, stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
 from app.db.database import Database
 from app.db.repository import Repository
@@ -91,6 +92,8 @@ async def lifespan(app: FastAPI):
         if not settings.bot_token:
             backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
         watcher = asyncio.create_task(_watch_streaming(app.state.deps))
+        # Karaoké : la nuit, séparation des titres les plus écoutés.
+        karaoke_service.start_nightly(app.state.deps)
         asyncio.create_task(asyncio.to_thread(ytdlp_updater.ensure_cron))
     try:
         yield
@@ -98,6 +101,7 @@ async def lifespan(app: FastAPI):
         for task in (backups, watcher):
             if task is not None:
                 task.cancel()
+        karaoke_service.reset()
         await deezer.aclose()
         await apple.aclose()
         await spotify.aclose()
@@ -173,6 +177,7 @@ def create_app() -> FastAPI:
     app.include_router(search.router)
     app.include_router(catalog.router)
     app.include_router(stream.router)
+    app.include_router(karaoke.router)
     app.include_router(library.router)
     app.include_router(history.router)
     app.include_router(user_settings.router)

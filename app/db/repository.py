@@ -451,6 +451,16 @@ class Repository:
         )
         return [Play(**dict(r)) for r in await cursor.fetchall()]
 
+    async def plays_top_tracks(self, since: str, limit: int) -> list[tuple[str, str]]:
+        """Titres les plus écoutés depuis `since`, tous comptes confondus
+        (karaoké préparé la nuit)."""
+        cursor = await self._db.conn.execute(
+            "SELECT source, source_id FROM plays WHERE source IS NOT NULL AND source_id IS NOT NULL "
+            "AND played_at >= ? GROUP BY source, source_id ORDER BY COUNT(*) DESC, MAX(played_at) DESC LIMIT ?",
+            (since, limit),
+        )
+        return [(r[0], r[1]) for r in await cursor.fetchall()]
+
     async def plays_first_by_artist(self, user_id: int) -> dict[str, str]:
         """Première écoute de chaque artiste (clé : nom en minuscules) — pour
         repérer les découvertes d'une période."""
