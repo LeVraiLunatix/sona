@@ -62,14 +62,14 @@ final class KaraokeStore {
     }
 
     private func stems(for track: Track, quality: String, in directory: URL) -> Stems? {
-        let stems = Stems(
+        let pair = Stems(
             vocals: url(for: track, stem: "vocals", quality: quality, in: directory),
             instrumental: url(for: track, stem: "instrumental", quality: quality, in: directory),
             quality: quality
         )
         let manager = FileManager.default
-        guard manager.fileExists(atPath: stems.vocals.path), manager.fileExists(atPath: stems.instrumental.path) else { return nil }
-        return stems
+        guard manager.fileExists(atPath: pair.vocals.path), manager.fileExists(atPath: pair.instrumental.path) else { return nil }
+        return pair
     }
 
     /// Les meilleures pistes déjà sur l'iPhone.
@@ -105,16 +105,16 @@ final class KaraokeStore {
                 try? FileManager.default.removeItem(at: destination)
                 try FileManager.default.moveItem(at: temporary, to: destination)
             }
-            guard let stems = stems(for: track, quality: quality, in: directory) else { throw StoreError.download }
-            return stems
+            guard let found = self.stems(for: track, quality: quality, in: directory) else { throw StoreError.download }
+            return found
         }
         inFlight[key] = task
         defer { inFlight[key] = nil }
-        let stems = try await task.value
+        let fetched = try await task.value
         // Pistes fines arrivées : les rapides ne servent plus.
         if quality == "hq" { remove(track, quality: "fast") }
         prune()
-        return stems
+        return fetched
     }
 
     /// Titre suivant, ou titre téléchargé qu'on écoute : ses pistes sont
