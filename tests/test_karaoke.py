@@ -25,17 +25,22 @@ class FakeEngine:
     def __init__(self) -> None:
         self.calls: list[str] = []
         self.gate: asyncio.Event | None = None
+        # Retient seulement la passe fine.
+        self.hq_gate: asyncio.Event | None = None
         self.fail: str | None = None
 
-    async def __call__(self, settings, audio, model, vocals, instrumental, on_progress):
-        self.calls.append(Path(audio).name)
+    async def __call__(self, settings, audio, model, vocals, instrumental, on_progress, quality="hq"):
+        self.calls.append(f"{Path(audio).stem}:{quality}")
         on_progress(0.5)
         if self.gate is not None:
             await self.gate.wait()
+        if quality == "hq" and self.hq_gate is not None:
+            await self.hq_gate.wait()
         if self.fail:
             raise karaoke.SeparationError(self.fail)
-        vocals.write_bytes(b"V" * 1000)
-        instrumental.write_bytes(b"I" * 1000)
+        # Contenu différent par passe : on voit laquelle est servie.
+        vocals.write_bytes((b"V" if quality == "fast" else b"W") * 1000)
+        instrumental.write_bytes((b"I" if quality == "fast" else b"J") * 1000)
         on_progress(1.0)
 
 
@@ -46,8 +51,8 @@ def engine(monkeypatch, tmp_path):
     async def source_audio(deps, source, source_id):
         return tmp_path / f"{source}_{source_id}.m4a"
 
-    async def model(settings):
-        return tmp_path / "model.onnx"
+    async def model(settings, quality="hq"):
+        return tmp_path / f"{quality}.onnx"
 
     monkeypatch.setattr(karaoke, "run_separation", fake)
     monkeypatch.setattr(karaoke, "_source_audio", source_audio)
@@ -71,11 +76,12 @@ def client(tmp_path: Path, monkeypatch):
         yield test_client
 
 
-def wait_for(client, path: str, wanted: str, timeout: float = 5) -> dict:
+def wait_for(client, path: str, wanted: str, timeout: float = 5, quality: str | None = None) -> dict:
     deadline = time.monotonic() + timeout
     while True:
         state = client.get(path, headers=AUTH).json()
-        if state["status"] == wanted or time.monotonic() > deadline:
+        done = state["status"] == wanted and (quality is None or state.get("quality") == quality)
+        if done or time.monotonic() > deadline:
             return state
         time.sleep(0.02)
 
@@ -87,19 +93,56 @@ def test_separation_then_stems_with_range(client, engine):
     first = client.post("/karaoke/deezer/5", headers=AUTH).json()
     assert first["status"] in {"queued", "running", "ready"}
     assert wait_for(client, "/karaoke/deezer/5", "ready")["status"] == "ready"
-    assert engine.calls == ["deezer_5.m4a"]
+    # Passe rapide d'abord, puis la passe fine la remplace d'elle-même.
+    assert wait_for(client, "/karaoke/deezer/5", "ready", quality="hq")["quality"] == "hq"
+    assert engine.calls == ["deezer_5:fast", "deezer_5:hq"]
+    assert not any((client.app.state.deps.settings.karaoke_dir).glob("*_fast_*"))
 
     whole = client.get("/stream/deezer/5/karaoke/instrumental", headers=AUTH)
-    assert whole.status_code == 200 and whole.content == b"I" * 1000
+    assert whole.status_code == 200 and whole.content == b"J" * 1000
     assert whole.headers["content-type"] == "audio/mp4"
+    assert whole.headers["x-karaoke-quality"] == "hq"
     part = client.get("/stream/deezer/5/karaoke/vocals", headers={**AUTH, "Range": "bytes=0-3"})
-    assert part.status_code == 206 and part.content == b"VVVV"
+    assert part.status_code == 206 and part.content == b"WWWW"
+    assert client.get("/stream/deezer/5/karaoke/vocals?quality=fast", headers=AUTH).status_code == 404
     # Lecteur web : jeton dans l'adresse, accepté pour les flux /stream/.
     assert client.get("/stream/deezer/5/karaoke/vocals?token=test-token").status_code == 200
     assert client.get("/stream/deezer/5/karaoke/autre", headers=AUTH).status_code == 404
     # Déjà prêt : redemander ne relance rien.
     assert client.post("/karaoke/deezer/5", headers=AUTH).json()["status"] == "ready"
-    assert engine.calls == ["deezer_5.m4a"]
+    assert engine.calls == ["deezer_5:fast", "deezer_5:hq"]
+
+
+def test_fast_stems_are_served_while_refining(client, engine):
+    """Passe rapide prête : l'app peut chanter, la passe fine continue."""
+    engine.hq_gate = asyncio.Event()
+    client.post("/karaoke/deezer/5", headers=AUTH)
+    state = wait_for(client, "/karaoke/deezer/5", "ready")
+    assert state["quality"] == "fast"
+    assert wait_for(client, "/karaoke/deezer/5", "ready")["refining"]["quality"] == "hq"
+    got = client.get("/stream/deezer/5/karaoke/vocals", headers=AUTH)
+    assert got.content == b"V" * 1000 and got.headers["x-karaoke-quality"] == "fast"
+    assert client.get("/stream/deezer/5/karaoke/instrumental?quality=fast", headers=AUTH).content == b"I" * 1000
+    assert client.get("/stream/deezer/5/karaoke/instrumental?quality=hq", headers=AUTH).status_code == 404
+    client.portal.call(engine.hq_gate.set)
+    assert wait_for(client, "/karaoke/deezer/5", "ready", quality="hq")["quality"] == "hq"
+
+
+def test_listening_interrupts_a_refine(client, engine):
+    """Une passe fine en cours s'efface devant un titre à chanter maintenant."""
+    deps = client.app.state.deps
+    settings = deps.settings
+    settings.karaoke_dir.mkdir(parents=True, exist_ok=True)
+    for stem in karaoke.STEMS:
+        karaoke.stem_path(settings, "deezer", "old", stem, "fast").write_bytes(b"x")
+    engine.gate = asyncio.Event()
+    assert client.post("/karaoke/deezer/old", headers=AUTH).json()["quality"] == "fast"
+    running = wait_for(client, "/karaoke/deezer/old", "ready")
+    assert running["refining"]["status"] == "running"
+    client.post("/karaoke/deezer/new", headers=AUTH)
+    assert karaoke._jobs[("deezer", "old", "hq")].preempted
+    client.portal.call(engine.gate.set)
+    wait_for(client, "/karaoke/deezer/new", "ready", quality="hq")
 
 
 def test_requires_auth(client, engine):
@@ -121,8 +164,12 @@ def test_current_track_goes_before_upcoming(client, engine):
     state = client.get("/karaoke/deezer/2", headers=AUTH).json()
     assert state["status"] == "queued" and state["ahead"] == 2
     client.portal.call(engine.gate.set)
-    wait_for(client, "/karaoke/deezer/3", "ready")
-    assert engine.calls == ["deezer_1.m4a", "deezer_4.m4a", "deezer_2.m4a", "deezer_3.m4a"]
+    wait_for(client, "/karaoke/deezer/3", "ready", quality="hq")
+    # Toutes les passes rapides d'abord, puis les passes fines.
+    assert engine.calls == [
+        "deezer_1:fast", "deezer_4:fast", "deezer_2:fast", "deezer_3:fast",
+        "deezer_1:hq", "deezer_4:hq", "deezer_2:hq", "deezer_3:hq",
+    ]
 
 
 def test_failure_is_reported_and_remembered(client, engine):
@@ -158,7 +205,7 @@ def test_night_job_gives_way_to_listening(client, engine):
     # Pas de vrai sous-processus ici : on vérifie que la séparation de nuit
     # est bien marquée à interrompre et remise en file après le titre écouté.
     client.post("/karaoke/deezer/now", headers=AUTH)
-    assert karaoke._jobs[("deezer", "night")].preempted
+    assert karaoke._jobs[("deezer", "night", "hq")].preempted
     client.portal.call(engine.gate.set)
     wait_for(client, "/karaoke/deezer/now", "ready")
     assert started == ["night"]
@@ -166,7 +213,7 @@ def test_night_job_gives_way_to_listening(client, engine):
 
 def test_wrong_version_forgets_stems(client, engine):
     client.post("/karaoke/deezer/5", headers=AUTH)
-    wait_for(client, "/karaoke/deezer/5", "ready")
+    wait_for(client, "/karaoke/deezer/5", "ready", quality="hq")
     assert client.post("/stream/deezer/5/wrong-version", headers=AUTH).status_code == 200
     assert client.get("/karaoke/deezer/5", headers=AUTH).json()["status"] == "absent"
 
@@ -189,6 +236,11 @@ def test_prune_removes_oldest_pairs(tmp_path, monkeypatch):
     assert karaoke.is_ready(settings, "deezer", "old")
     assert not karaoke.is_ready(settings, "deezer", "mid")
     assert not any(tmp_path.glob("deezer_mid_*"))
+    # Les pistes rapides d'un titre partent avec lui.
+    for stem in karaoke.STEMS:
+        karaoke.stem_path(settings, "deezer", "new", stem, "fast").write_bytes(b"x" * 100)
+    assert karaoke.prune(settings, keep=("deezer", "old")) == 1
+    assert not any(tmp_path.glob("deezer_new*"))
 
 
 def test_nightly_queues_most_played(client, engine):
@@ -208,7 +260,7 @@ def test_nightly_queues_most_played(client, engine):
         return await karaoke.queue_top_tracks(deps, limit=2)
 
     assert client.portal.call(run) == 2
-    assert set(karaoke._jobs) == {("deezer", "b"), ("deezer", "c")}
+    assert set(karaoke._jobs) == {("deezer", "b", "hq"), ("deezer", "c", "hq")}
     assert all(job.priority == karaoke.NIGHT for job in karaoke._jobs.values())
     client.portal.call(engine.gate.set)
 
@@ -220,7 +272,7 @@ def test_model_download_checks_size(tmp_path, monkeypatch):
     monkeypatch.setenv("MODELS_DIR", str(tmp_path))
     settings = load_settings()
     spec = separation.ModelSpec("m.onnx", 64, 32, 256, 1.0, "instrumental", 10)
-    monkeypatch.setattr(karaoke, "model_spec", lambda: spec)
+    monkeypatch.setattr(karaoke, "model_spec", lambda quality="hq": spec)
     payload = {"body": b"x" * 7}
 
     def handler(request):

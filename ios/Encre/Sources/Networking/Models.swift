@@ -13,6 +13,15 @@ struct KaraokeStatus: Decodable {
     /// Séparations à faire avant celle-ci (en file).
     var ahead: Int?
     var error: String?
+    /// Prêt : `fast` (passe rapide) ou `hq` (passe fine, définitive).
+    var quality: String?
+    /// Prêt en passe rapide : où en est la passe fine.
+    var refining: Refining?
+
+    struct Refining: Decodable {
+        var status: String
+        var progress: Double?
+    }
 }
 
 struct Track: Codable, Identifiable, Hashable {

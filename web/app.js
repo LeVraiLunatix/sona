@@ -86,6 +86,7 @@ const icons = {
   devices: ic("M4 5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v2h-2V5H6v9h7v2H3.5a1 1 0 0 1 0-2H4zm11 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2zm2 0v9h3V9zm1.5 7a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z"),
   phone: ic("M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v16h8V4zm4 13a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"),
   laptop: ic("M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v9H5zm2 0v7h10V5zM2 16h20v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"),
+  mic: ic("M12 2a3.5 3.5 0 0 1 3.5 3.5v6a3.5 3.5 0 0 1-7 0v-6A3.5 3.5 0 0 1 12 2zm0 2a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 3 0v-6A1.5 1.5 0 0 0 12 4zM6 10.5a1 1 0 0 1 1 1 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-6 6.9V21a1 1 0 1 1-2 0v-2.6a7 7 0 0 1-6-6.9 1 1 0 0 1 1-1z"),
   pulse: ic("M3 12h3.2l2.3-6.2c.3-.9 1.6-.9 1.9 0l3.6 11.7 2.2-5c.2-.3.5-.5.9-.5H21a1 1 0 1 1 0 2h-3.1l-2.9 6.4c-.4.8-1.6.8-1.9-.1L9.5 8.9 7.9 13.3c-.1.4-.5.7-.9.7H3a1 1 0 1 1 0-2z"),
   logo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2" stroke="#fff" stroke-width="2.3" stroke-linecap="round" fill="none"/></svg>`,
 };
@@ -662,6 +663,7 @@ function playAt(index) {
   renderNowPlaying();
   refreshCurrentMarks();
   loadLyrics(t);
+  singTrackChanged(t);
 }
 
 function next(auto = false) {
@@ -856,6 +858,7 @@ function renderNowPlaying() {
           <button class="tbtn" data-np="next">${icons.next}</button>
           <button class="tbtn small ${state.repeat ? "on" : ""}" data-np="repeat">${icons.repeat}</button>
         </div>
+        <div class="np-sing" id="np-sing"></div>
       </div>
       <div class="np-right" id="np-right"></div>
     </div>`;
@@ -881,6 +884,7 @@ function renderNowPlaying() {
     seek._dragging = false;
   };
   if (state.npTab === "queue") renderQueue(); else renderLyrics();
+  renderSing();
   updateProgress();
 }
 
@@ -945,6 +949,238 @@ function syncLyrics(force) {
   const el = box.querySelector("p.on") || box.querySelector("p");
   if (el) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.36, behavior: force ? "auto" : "smooth" });
 }
+
+// ── Karaoké (voix / instru séparées par IA sur le serveur) ───────────────
+// Même principe que l'app : les deux pistes jouent ensemble, calées, et le
+// curseur « Voix » ne règle que le volume de la voix (0 % : instru seule ;
+// 100 % : titre normal, le mode se coupe). Elles passent par le Web Audio
+// du navigateur, décodées en entier : aucun décalage possible entre elles.
+// La balise <audio> continue de jouer le titre, muette, et sert d'horloge :
+// progression, paroles, fin du titre, Sona Connect marchent comme avant.
+// En attendant que la séparation soit prête, le titre joue normalement.
+
+const sing = {
+  on: false,
+  level: Math.min(0.95, Math.max(0, +(store.get("sona.vocal") ?? 0) || 0)),
+  track: null, gen: 0, status: "", quality: null,
+  ctx: null, buffers: null, playing: null, dragging: false,
+};
+
+const singShownLevel = () => (sing.on ? sing.level : 1);
+// Courbe au carré, comme l'app : 50 % ≈ voix 12 dB plus bas.
+const vocalGainOf = (level) => level * level;
+
+function setSing(on, render = true) {
+  if (on === sing.on) return;
+  sing.on = on;
+  if (on) {
+    // Créé pendant le clic : le navigateur n'autorise le son qu'après un geste.
+    if (!sing.ctx) { try { sing.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
+    sing.ctx?.resume?.();
+    const t = state.queue[state.index];
+    if (t) startSing(t);
+  } else {
+    stopSing();
+  }
+  if (render) renderSing();
+}
+
+/** Curseur « Voix ». `render: false` pendant le glissé (redessiner le
+ * curseur sous le doigt casserait le geste). */
+function setVocalLevel(value, render = true) {
+  const v = Math.min(1, Math.max(0, value));
+  if (v >= 0.99) { setSing(false, render); return; }
+  sing.level = v;
+  store.set("sona.vocal", String(v));
+  if (!sing.on) setSing(true, render);
+  if (sing.playing) sing.playing.vocals.gain.setTargetAtTime(vocalGainOf(v), sing.ctx.currentTime, 0.03);
+  if (render) renderSing();
+}
+
+function singTrackChanged(t) {
+  if (!sing.on) return;
+  startSing(t);
+}
+
+function stopSing() {
+  sing.gen++;
+  stopStems();
+  sing.buffers = null;
+  sing.quality = null;
+  sing.status = "";
+  audio.muted = false;
+}
+
+function startSing(t) {
+  stopSing();
+  sing.track = t;
+  const gen = sing.gen;
+  followSeparation(t, gen);
+  // Titres suivants : séparés d'avance par le serveur.
+  const upcoming = state.queue.slice(state.index + 1, state.index + 4).map((x) => ({ source: x.source, source_id: x.source_id }));
+  if (upcoming.length) api("/karaoke/prepare", { method: "POST", body: JSON.stringify({ tracks: upcoming }) }).catch(() => {});
+}
+
+const karaokePath = (t) => `/karaoke/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}`;
+
+/** Suit la séparation : pistes rapides dès qu'elles sont prêtes, puis les
+ * fines quand la seconde passe est finie. */
+async function followSeparation(t, gen) {
+  let requested = false;
+  let withoutRefine = 0;
+  while (sing.gen === gen) {
+    let st = null;
+    try {
+      st = requested ? await api(karaokePath(t)) : await api(karaokePath(t), { method: "POST" });
+      requested = true;
+    } catch {}
+    if (sing.gen !== gen) return;
+    if (st?.status === "ready") {
+      const quality = st.quality || "hq";
+      if (sing.quality === "hq") return;
+      if (sing.quality === quality) {
+        if (st.refining) {
+          withoutRefine = 0;
+          sing.status = st.refining.status === "running" ? `Affinage de la séparation… ${Math.round((st.refining.progress || 0) * 100)} %` : "";
+        } else if (++withoutRefine >= 3) { sing.status = ""; renderSing(); return; }
+      } else {
+        if (!sing.quality) { sing.status = "Chargement des pistes…"; renderSing(); }
+        const ok = await loadStems(t, quality, gen);
+        if (sing.gen !== gen) return;
+        if (!ok) { if (!sing.quality) sing.status = "Pistes séparées illisibles"; renderSing(); return; }
+        sing.status = "";
+        if (quality === "hq") { renderSing(); return; }
+      }
+    } else if (st?.status === "failed") {
+      if (!sing.quality) sing.status = "Séparation impossible pour ce titre";
+      renderSing();
+      return;
+    } else if (st?.status === "running") {
+      sing.status = `Séparation en cours… ${Math.round((st.progress || 0) * 100)} %`;
+    } else if (st?.status === "queued") {
+      sing.status = st.ahead ? `Séparation en attente (${st.ahead} avant)` : "Séparation en cours…";
+    } else if (st?.status === "absent") {
+      requested = false;
+    }
+    renderSing();
+    await new Promise((r) => setTimeout(r, sing.quality ? 8000 : 4000));
+  }
+}
+
+async function loadStems(t, quality, gen) {
+  if (!sing.ctx) { try { sing.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; } }
+  try {
+    const [vocals, instrumental] = await Promise.all(["vocals", "instrumental"].map(async (stem) => {
+      const res = await fetch(`${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}/karaoke/${stem}?quality=${quality}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return sing.ctx.decodeAudioData(await res.arrayBuffer());
+    }));
+    if (sing.gen !== gen || !sameTrack(t, state.queue[state.index])) return false;
+    sing.buffers = { vocals, instrumental };
+    sing.quality = quality;
+    audio.muted = true;
+    startStems(0.08);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** (Re)lance les deux pistes calées sur la position de la balise <audio>.
+ * `fade` : montée du son (s), pour une bascule sans clic. */
+function startStems(fade = 0.02) {
+  const previous = sing.playing;
+  sing.playing = null;
+  if (!sing.buffers || !sing.ctx || audio.paused) { stopNodes(previous); return; }
+  const ctx = sing.ctx;
+  ctx.resume?.();
+  const at = ctx.currentTime + 0.05;
+  const offset = audio.currentTime + 0.05;
+  if (offset >= sing.buffers.instrumental.duration) { stopNodes(previous); return; }
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0, at);
+  master.gain.linearRampToValueAtTime(audio.volume, at + fade);
+  master.connect(ctx.destination);
+  const vocalsGain = ctx.createGain();
+  vocalsGain.gain.value = vocalGainOf(sing.level);
+  vocalsGain.connect(master);
+  const sources = ["instrumental", "vocals"].map((stem) => {
+    const src = ctx.createBufferSource();
+    src.buffer = sing.buffers[stem];
+    src.connect(stem === "vocals" ? vocalsGain : master);
+    src.start(at, offset);
+    return src;
+  });
+  // L'ancienne lecture s'efface pendant que la nouvelle monte.
+  if (previous) {
+    previous.master.gain.setValueAtTime(previous.master.gain.value, at);
+    previous.master.gain.linearRampToValueAtTime(0, at + fade);
+    previous.sources.forEach((src) => { try { src.stop(at + fade + 0.02); } catch {} });
+  }
+  sing.playing = { sources, master, vocals: vocalsGain, at, offset };
+}
+
+function stopNodes(playing) {
+  if (!playing) return;
+  playing.sources.forEach((src) => { try { src.stop(); } catch {} });
+  try { playing.master.disconnect(); } catch {}
+}
+
+function stopStems() {
+  stopNodes(sing.playing);
+  sing.playing = null;
+}
+
+/** Les pistes dérivent-elles de la balise <audio> (horloges différentes) ? */
+function checkStemsDrift() {
+  const p = sing.playing;
+  if (!p || audio.paused) return;
+  const now = sing.ctx.currentTime;
+  if (now < p.at) return;
+  const expected = p.offset + (now - p.at);
+  if (Math.abs(expected - audio.currentTime) > 0.08) startStems();
+}
+
+function renderSing() {
+  const box = $("#np-sing");
+  if (!box) return;
+  if (sing.dragging && $("#np-voice", box)) {
+    // Glissé en cours : seulement l'état, pas le curseur.
+    const status = $(".np-sing-status", box);
+    if (status) status.textContent = sing.status;
+    return;
+  }
+  const level = singShownLevel();
+  const pct = Math.round(level * 100);
+  const hint = sing.on && !sing.quality && !sing.status ? "Voix normale en attendant la séparation" : "";
+  box.innerHTML = `
+    <button class="tbtn ${sing.on ? "on" : ""}" data-sing="toggle" title="Chante : voix séparée par IA">${icons.mic}</button>
+    <div class="np-sing-body">
+      <div class="np-sing-head"><span>Voix</span><span>${pct} %</span></div>
+      <input type="range" class="slider" id="np-voice" min="0" max="100" value="${pct}" style="--p:${pct}%" aria-label="Volume de la voix">
+      <div class="np-sing-status">${esc(sing.status || hint)}</div>
+    </div>`;
+  $("[data-sing=toggle]", box).onclick = () => setSing(!sing.on);
+  const slider = $("#np-voice", box);
+  slider.oninput = () => {
+    slider.style.setProperty("--p", `${slider.value}%`);
+    $(".np-sing-head span:last-child", box).textContent = `${slider.value} %`;
+    setVocalLevel(+slider.value / 100, false);
+    $("[data-sing=toggle]", box).classList.toggle("on", sing.on);
+  };
+  slider.onpointerdown = () => { sing.dragging = true; };
+  slider.onchange = () => { sing.dragging = false; renderSing(); };
+}
+
+audio.addEventListener("play", () => { if (sing.buffers) startStems(0.05); });
+audio.addEventListener("pause", stopStems);
+audio.addEventListener("seeked", () => { if (sing.buffers) startStems(0.03); });
+audio.addEventListener("timeupdate", checkStemsDrift);
+audio.addEventListener("volumechange", () => {
+  if (sing.playing) sing.playing.master.gain.setTargetAtTime(audio.volume, sing.ctx.currentTime, 0.02);
+});
 
 // ── Sona Connect ─────────────────────────────────────────────────────────
 // Un seul lecteur pour tous tes appareils : reprendre ici ce qui jouait sur

@@ -48,16 +48,21 @@ class ModelSpec:
 
 MODEL_URL = "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/{file}"
 
-# Meilleur modèle MDX-Net pour l'instru selon les mesures d'audio-separator
-# (SDR instru médian 15,5 dB sur MUSDB18) : c'est l'instru qu'on entend en
-# karaoké complet. Seuls des modèles bien plus lourds (Roformer, qui exigent
-# PyTorch et prendraient 10 à 30 min par titre sur ce serveur) font mieux.
+# Deux passes, deux modèles MDX-Net (mesures d'audio-separator sur MUSDB18,
+# SDR médian ; calcul mesuré par seconde de musique, même machine) :
+#
+# - « fast » : UVR_MDXNET_9482 — instru 14,9 dB, voix 9,3 dB, 3,6 fois moins
+#   de calcul. Le karaoké est prêt vite (≈ 1,5 min pour 3 min sur 2 cœurs ARM).
+# - « hq » : UVR-MDX-NET-Inst_HQ_4 — la meilleure instru des modèles ONNX
+#   (15,5 dB). Passe ensuite, en arrière-plan, et remplace les pistes rapides.
+#
+# Seuls des modèles bien plus lourds (Roformer, qui exigent PyTorch et
+# prendraient 10 à 30 min par titre sur ce serveur) font mieux.
 MODELS = {
-    "inst_hq_4": ModelSpec("UVR-MDX-NET-Inst_HQ_4.onnx", 5120, 2560, 256, 1.019, "instrumental", 59074342),
-    # Variante « voix » (SDR voix 10,2 dB, instru 15,4 dB), gardée au cas où.
-    "kim_vocal_2": ModelSpec("Kim_Vocal_2.onnx", 7680, 3072, 256, 1.009, "vocals", 66759214),
+    "fast": ModelSpec("UVR_MDXNET_9482.onnx", 6144, 2048, 256, 1.035, "vocals", 29704436),
+    "hq": ModelSpec("UVR-MDX-NET-Inst_HQ_4.onnx", 5120, 2560, 256, 1.019, "instrumental", 59074342),
 }
-DEFAULT_MODEL = "inst_hq_4"
+DEFAULT_MODEL = "hq"
 
 HOP = 1024
 # Recouvrement des morceaux : UVR prend 25 %. Mesuré sur un titre, 10 %
