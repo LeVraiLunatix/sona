@@ -5,7 +5,7 @@ jeton dans l'adresse) peut les lire comme n'importe quel flux audio."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -51,12 +51,22 @@ async def separation_status(source: str, source_id: str, deps: ApiDeps = Depends
 
 
 @router.get("/stream/{source}/{source_id}/karaoke/{stem}")
-async def stem_audio(source: str, source_id: str, stem: str, deps: ApiDeps = Depends(require_token)):
-    """Piste voix ou instru (m4a), avec support `Range` comme les autres flux."""
-    if stem not in karaoke.STEMS:
+async def stem_audio(
+    source: str,
+    source_id: str,
+    stem: str,
+    quality: str | None = Query(None, description="fast ou hq ; par défaut la meilleure prête"),
+    deps: ApiDeps = Depends(require_token),
+):
+    """Piste voix ou instru (m4a), avec support `Range` comme les autres flux.
+    L'app demande les deux pistes dans la même qualité (celle annoncée par
+    l'état) : une voix fine sur une instru rapide ne redonnerait pas le
+    titre exact."""
+    if stem not in karaoke.STEMS or (quality is not None and quality not in karaoke.QUALITIES):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Piste inconnue.")
-    if not karaoke.is_ready(deps.settings, source, source_id):
+    quality = quality or karaoke.ready_quality(deps.settings, source, source_id)
+    path = karaoke.stem_path(deps.settings, source, source_id, stem, quality) if quality else None
+    if path is None or not path.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Séparation pas encore prête.")
-    path = karaoke.stem_path(deps.settings, source, source_id, stem)
     karaoke.touch(path)
-    return FileResponse(path, media_type="audio/mp4", filename=path.name)
+    return FileResponse(path, media_type="audio/mp4", filename=path.name, headers={"X-Karaoke-Quality": quality})

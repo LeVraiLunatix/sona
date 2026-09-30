@@ -151,6 +151,7 @@ final class DownloadManager: ObservableObject {
         if let item = items.first(where: { $0.id == track.id }) {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.fileName))
             items.removeAll { $0.id == track.id }
+            KaraokeStore.shared.releaseOffline(track)
         }
         saveIndex()
         saveQueue()
@@ -194,6 +195,7 @@ final class DownloadManager: ObservableObject {
         }
         items.removeAll()
         failures.removeAll()
+        KaraokeStore.shared.removeAllOffline()
         saveIndex()
         saveQueue()
     }
@@ -215,6 +217,8 @@ final class DownloadManager: ObservableObject {
                 let item = try await fetch(track)
                 items.insert(item, at: 0)
                 saveIndex()
+                // Karaoké hors ligne : les pistes séparées suivent le titre.
+                await KaraokeStore.shared.keepOffline(track)
             } catch is CancellationError {
                 break
             } catch {

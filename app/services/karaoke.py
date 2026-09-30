@@ -1,16 +1,19 @@
 """Karaoké : file des séparations voix / instru, cache des pistes, état.
 
-Chaque titre est séparé une seule fois (voir `separation.py`), puis ses deux
-pistes (voix, instru) sont gardées dans `settings.karaoke_dir`. L'app les
-joue ensemble, parfaitement calées, et ne règle que le volume de la voix.
+Chaque titre est séparé en deux passes (voir `separation.py`) : une passe
+rapide, pour chanter au plus vite, puis une passe fine en arrière-plan qui
+remplace les pistes rapides. Les deux pistes (voix, instru) sont gardées
+dans `settings.karaoke_dir`. L'app les joue ensemble, parfaitement calées,
+et ne règle que le volume de la voix.
 
 Contraintes du serveur (2 cœurs ARM, qui servent aussi l'API et le bot) :
 
 - une seule séparation à la fois, dans un sous-processus en priorité basse
   (`nice`), avec un délai maximum — l'API ne l'attend jamais ;
 - ordre de passage : le titre en cours d'écoute, puis les suivants de la
-  file, puis les titres préparés la nuit (un titre écouté maintenant passe
-  même devant une séparation de nuit déjà commencée) ;
+  file (passes rapides), puis les passes fines, puis les titres préparés la
+  nuit (un titre écouté maintenant passe même devant une passe fine ou une
+  séparation de nuit déjà commencée) ;
 - rien ne casse si la séparation est impossible (modèle pas téléchargeable,
   numpy / onnxruntime absents, titre trop long…) : l'état passe à « échec »
   et l'app garde l'ancien mode (instru YouTube ou voix baissée).
@@ -38,15 +41,18 @@ from app.services import separation
 logger = logging.getLogger(__name__)
 
 STEMS = ("vocals", "instrumental")
+# Deux passes (voir `separation.MODELS`) : « fast » d'abord, pour chanter
+# vite, puis « hq », plus fine, qui remplace les pistes rapides.
+QUALITIES = ("hq", "fast")  # de la meilleure à la moins bonne
 
 # Priorités (plus petit = plus urgent).
-NOW, UPCOMING, NIGHT = 0, 1, 2
+NOW, UPCOMING, REFINE, NIGHT = 0, 1, 2, 3
 # Au-delà, les demandes les moins urgentes sont oubliées : l'app redemande
 # de toute façon les titres qu'elle s'apprête à jouer.
 MAX_QUEUE = 30
 # Un titre dont la séparation a échoué n'est retenté qu'après ce délai.
 FAILURE_TTL = 3600.0
-# Délai maximum d'une séparation (titre de 3 min : 3 à 6 min sur le serveur).
+# Délai maximum d'une séparation (titre de 3 min, passe fine : 5 à 8 min).
 TIMEOUT = 25 * 60
 
 
@@ -58,6 +64,7 @@ class SeparationError(Exception):
 class Job:
     source: str
     source_id: str
+    quality: str
     priority: int
     order: int
     status: str = "queued"  # queued, running, failed
@@ -67,11 +74,11 @@ class Job:
     preempted: bool = False
 
     @property
-    def key(self) -> tuple[str, str]:
-        return (self.source, self.source_id)
+    def key(self) -> tuple[str, str, str]:
+        return (self.source, self.source_id, self.quality)
 
 
-_jobs: dict[tuple[str, str], Job] = {}
+_jobs: dict[tuple[str, str, str], Job] = {}
 _order = itertools.count()
 _wake: asyncio.Event | None = None
 _worker: asyncio.Task | None = None
@@ -107,25 +114,49 @@ def _safe(text: str) -> str:
     return "".join(ch for ch in text if ch.isalnum() or ch in "-_") or "track"
 
 
-def stem_path(settings: Settings, source: str, source_id: str, stem: str) -> Path:
-    return settings.karaoke_dir / f"{_safe(source)}_{_safe(source_id)}_{stem}.m4a"
+def stem_path(settings: Settings, source: str, source_id: str, stem: str, quality: str = "hq") -> Path:
+    # Passe fine : noms d'origine (pistes déjà séparées avant les deux passes).
+    tag = "" if quality == "hq" else f"_{quality}"
+    return settings.karaoke_dir / f"{_safe(source)}_{_safe(source_id)}{tag}_{stem}.m4a"
+
+
+def ready_quality(settings: Settings, source: str, source_id: str) -> str | None:
+    """Meilleure qualité dont les deux pistes sont prêtes, ou None."""
+    for quality in QUALITIES:
+        if all(stem_path(settings, source, source_id, stem, quality).is_file() for stem in STEMS):
+            return quality
+    return None
 
 
 def is_ready(settings: Settings, source: str, source_id: str) -> bool:
-    return all(stem_path(settings, source, source_id, stem).is_file() for stem in STEMS)
+    return ready_quality(settings, source, source_id) is not None
+
+
+def _delete(settings: Settings, source: str, source_id: str, quality: str) -> None:
+    for stem in STEMS:
+        stem_path(settings, source, source_id, stem, quality).unlink(missing_ok=True)
 
 
 def forget(settings: Settings, source: str, source_id: str) -> None:
     """« Mauvaise version ? » : les pistes venaient du mauvais enregistrement."""
-    for stem in STEMS:
-        stem_path(settings, source, source_id, stem).unlink(missing_ok=True)
-    job = _jobs.get((source, source_id))
-    if job is not None and job.status != "running":
-        _jobs.pop(job.key, None)
+    for quality in QUALITIES:
+        _delete(settings, source, source_id, quality)
+        job = _jobs.get((source, source_id, quality))
+        if job is not None and job.status != "running":
+            _jobs.pop(job.key, None)
+
+
+def _title_key(path: Path) -> str:
+    """Titre auquel appartient une piste (ses deux qualités ensemble)."""
+    base = path.stem.rsplit("_", 1)[0]
+    for quality in QUALITIES:
+        if base.endswith(f"_{quality}"):
+            return base[: -len(quality) - 1]
+    return base
 
 
 def prune(settings: Settings, keep: tuple[str, str] | None = None) -> int:
-    """Supprime les titres les moins récemment écoutés (leurs deux pistes
+    """Supprime les titres les moins récemment écoutés (toutes leurs pistes
     ensemble) jusqu'à repasser sous la taille max. Renvoie le nombre de
     titres supprimés."""
     directory = settings.karaoke_dir
@@ -133,8 +164,7 @@ def prune(settings: Settings, keep: tuple[str, str] | None = None) -> int:
         return 0
     groups: dict[str, list[Path]] = {}
     for path in directory.glob("*.m4a"):
-        base = path.stem.rsplit("_", 1)[0]
-        groups.setdefault(base, []).append(path)
+        groups.setdefault(_title_key(path), []).append(path)
     kept = f"{_safe(keep[0])}_{_safe(keep[1])}" if keep else None
     total = sum(p.stat().st_size for paths in groups.values() for p in paths)
     limit = settings.karaoke_cache_max_mb * 1024 * 1024
@@ -168,19 +198,31 @@ def touch(path: Path) -> None:
 # -- État ---------------------------------------------------------------------
 
 
-def status(settings: Settings, source: str, source_id: str) -> dict:
-    """État d'un titre pour l'app : absent, en file, en cours, prêt, échec."""
-    if is_ready(settings, source, source_id):
-        return {"status": "ready", "progress": 1.0}
-    job = _jobs.get((source, source_id))
-    if job is None:
-        return {"status": "absent", "progress": 0.0, "available": engine_available()}
-    out = {"status": job.status, "progress": round(job.progress, 3)}
+def _job_state(job: Job) -> dict:
+    out = {"status": job.status, "progress": round(job.progress, 3), "quality": job.quality}
     if job.status == "queued":
         out["ahead"] = sum(1 for other in _pending() if _rank(other) < _rank(job)) + (1 if _running else 0)
     if job.error:
         out["error"] = job.error
     return out
+
+
+def status(settings: Settings, source: str, source_id: str) -> dict:
+    """État d'un titre pour l'app : absent, en file, en cours, prêt, échec.
+    Prêt en qualité rapide : `refining` dit où en est la passe fine."""
+    quality = ready_quality(settings, source, source_id)
+    if quality is not None:
+        out = {"status": "ready", "progress": 1.0, "quality": quality}
+        refine = _jobs.get((source, source_id, "hq"))
+        if quality == "fast" and refine is not None and refine.status != "failed":
+            out["refining"] = _job_state(refine)
+        return out
+    # Pas encore de pistes : la passe rapide si elle est demandée (c'est
+    # elle qui arrivera en premier), sinon la passe fine (préparée la nuit).
+    job = _jobs.get((source, source_id, "fast")) or _jobs.get((source, source_id, "hq"))
+    if job is None:
+        return {"status": "absent", "progress": 0.0, "available": engine_available()}
+    return _job_state(job)
 
 
 def _pending() -> list[Job]:
@@ -196,29 +238,43 @@ def _rank(job: Job) -> tuple[int, int]:
 
 def request(deps, source: str, source_id: str, priority: int = NOW) -> dict:
     """Met un titre en file (ou le fait remonter si déjà demandé) et renvoie
-    son état. Ne lance jamais le calcul dans la requête elle-même."""
+    son état. Ne lance jamais le calcul dans la requête elle-même.
+
+    Demandé pour être chanté (maintenant ou bientôt) : passe rapide d'abord,
+    la passe fine suivra. Préparé la nuit : directement la passe fine."""
     settings = deps.settings
-    if is_ready(settings, source, source_id):
+    ready = ready_quality(settings, source, source_id)
+    if ready == "hq":
         return status(settings, source, source_id)
-    key = (source, source_id)
-    job = _jobs.get(key)
-    if job is not None and job.status == "failed":
-        if time.monotonic() - job.failed_at < FAILURE_TTL:
-            return status(settings, source, source_id)
-        job = None
-    if job is None:
-        job = Job(source, source_id, priority, next(_order))
-        _jobs[key] = job
-        _trim_queue()
-    elif priority < job.priority:
-        job.priority = priority
-        job.order = next(_order)
-    # Un titre à écouter maintenant ne patiente pas derrière une séparation
-    # de nuit : celle-ci est interrompue et reprendra plus tard.
-    if priority < NIGHT and _running is not None and _running.priority == NIGHT and _running is not job:
+    if ready == "fast":
+        _ensure_job(source, source_id, "hq", max(priority, REFINE))
+    elif priority >= NIGHT:
+        _ensure_job(source, source_id, "hq", priority)
+    else:
+        _ensure_job(source, source_id, "fast", priority)
+    # Un titre à écouter maintenant ne patiente pas derrière une passe fine
+    # ou une séparation de nuit : elle est interrompue et reprendra après.
+    if priority == NOW and _running is not None and _running.priority >= REFINE \
+            and _running.key[:2] != (source, source_id):
         _preempt()
     _ensure_worker(deps)
     return status(settings, source, source_id)
+
+
+def _ensure_job(source: str, source_id: str, quality: str, priority: int) -> None:
+    key = (source, source_id, quality)
+    job = _jobs.get(key)
+    if job is not None and job.status == "failed":
+        if time.monotonic() - job.failed_at < FAILURE_TTL:
+            return
+        job = None
+    if job is None:
+        _jobs[key] = Job(source, source_id, quality, priority, next(_order))
+        _trim_queue()
+    elif priority < job.priority:
+        job.priority = priority
+        if job.status == "queued":
+            job.order = next(_order)
 
 
 def _trim_queue() -> None:
@@ -276,12 +332,18 @@ async def _work(deps) -> None:
             _fail(job, f"Séparation impossible : {exc}")
         else:
             _jobs.pop(job.key, None)
+            if job.quality == "fast":
+                # Pistes rapides prêtes : la passe fine suit, quand la file
+                # des titres à chanter est vide.
+                _ensure_job(job.source, job.source_id, "hq", max(job.priority, REFINE))
+            else:
+                _delete(deps.settings, job.source, job.source_id, "fast")
         finally:
             _running = None
 
 
 def _fail(job: Job, message: str) -> None:
-    logger.info("Karaoké : échec pour %s:%s — %s", job.source, job.source_id, message)
+    logger.info("Karaoké : échec (%s) pour %s:%s — %s", job.quality, job.source, job.source_id, message)
     job.status, job.error, job.failed_at = "failed", message, time.monotonic()
 
 
@@ -294,27 +356,27 @@ async def _process_job(deps, job: Job) -> None:
     if not engine_available():
         raise SeparationError("Séparation indisponible sur le serveur (numpy / onnxruntime absents).")
     audio = await _source_audio(deps, job.source, job.source_id)
-    model = await ensure_model(settings)
+    model = await ensure_model(settings, job.quality)
     if job.preempted:
         raise _Preempted
     settings.karaoke_dir.mkdir(parents=True, exist_ok=True)
-    vocals = stem_path(settings, job.source, job.source_id, "vocals")
-    instrumental = stem_path(settings, job.source, job.source_id, "instrumental")
+    vocals = stem_path(settings, job.source, job.source_id, "vocals", job.quality)
+    instrumental = stem_path(settings, job.source, job.source_id, "instrumental", job.quality)
     started = time.monotonic()
 
     def on_progress(fraction: float) -> None:
         job.progress = max(0.0, min(1.0, fraction))
 
     try:
-        await run_separation(settings, audio, model, vocals, instrumental, on_progress)
+        await run_separation(settings, audio, model, vocals, instrumental, on_progress, quality=job.quality)
     except SeparationError:
         if job.preempted:
             raise _Preempted from None
         raise
     logger.info(
-        "Karaoké : %s:%s séparé en %.0f s", job.source, job.source_id, time.monotonic() - started
+        "Karaoké : %s:%s séparé (%s) en %.0f s", job.source, job.source_id, job.quality, time.monotonic() - started
     )
-    prune(settings, keep=job.key)
+    prune(settings, keep=job.key[:2])
 
 
 async def _source_audio(deps, source: str, source_id: str) -> Path:
@@ -336,16 +398,16 @@ async def _source_audio(deps, source: str, source_id: str) -> Path:
 _model_lock: asyncio.Lock | None = None
 
 
-def model_spec() -> separation.ModelSpec:
-    return separation.MODELS[separation.DEFAULT_MODEL]
+def model_spec(quality: str = separation.DEFAULT_MODEL) -> separation.ModelSpec:
+    return separation.MODELS[quality]
 
 
-async def ensure_model(settings: Settings) -> Path:
+async def ensure_model(settings: Settings, quality: str = separation.DEFAULT_MODEL) -> Path:
     """Le modèle sur disque, téléchargé la première fois (~60 Mo, depuis les
     publications officielles d'UVR). Taille vérifiée : un téléchargement
     coupé n'est jamais pris pour un modèle valide."""
     global _model_lock
-    spec = model_spec()
+    spec = model_spec(quality)
     path = settings.models_dir / spec.file
     if path.is_file() and path.stat().st_size == spec.size:
         return path
@@ -385,13 +447,14 @@ async def run_separation(
     vocals: Path,
     instrumental: Path,
     on_progress: Callable[[float], None],
+    quality: str = separation.DEFAULT_MODEL,
 ) -> None:
     """Lance `python -m app.services.separation` en priorité basse et suit
     sa progression. Remplacé par un faux dans les tests."""
     global _process
     command = [
         sys.executable, "-m", "app.services.separation", str(audio), str(vocals), str(instrumental),
-        "--model", str(model), "--ffmpeg", settings.ffmpeg_path, "--threads", str(settings.karaoke_threads),
+        "--model", str(model), "--spec", quality, "--ffmpeg", settings.ffmpeg_path, "--threads", str(settings.karaoke_threads),
     ]
     # `nice -n 19` : le calcul ne prend que le temps processeur que l'API et
     # le bot laissent libre.
@@ -453,7 +516,8 @@ NIGHT_TRACKS = 10
 async def run_nightly(deps, now: Callable[[], time.struct_time] = time.localtime,
                       sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> None:
     """Chaque nuit, prépare les titres les plus écoutés ces 30 derniers jours
-    (tous comptes confondus) qui ne le sont pas encore. Ils passent après
+    (tous comptes confondus) qui ne le sont pas encore en passe fine (passe
+    fine directement : rien ne presse). Ils passent après
     tout titre demandé par l'app, et sont interrompus si quelqu'un écoute."""
     last_night = None
     while True:
@@ -479,7 +543,11 @@ async def queue_top_tracks(deps, limit: int = NIGHT_TRACKS) -> int:
     for source, source_id in await deps.repo.plays_top_tracks(since, limit * 3):
         if queued >= limit:
             break
-        if is_ready(deps.settings, source, source_id) or (source, source_id) in _jobs:
+        # Déjà en passe fine, ou déjà en file : rien à faire. Pistes rapides
+        # seulement : la nuit est le bon moment pour la passe fine.
+        if ready_quality(deps.settings, source, source_id) == "hq" or any(
+            key[:2] == (source, source_id) for key in _jobs
+        ):
             continue
         request(deps, source, source_id, NIGHT)
         queued += 1

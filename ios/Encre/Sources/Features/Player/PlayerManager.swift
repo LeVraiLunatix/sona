@@ -832,6 +832,7 @@ final class PlayerManager: ObservableObject {
             prepareTask = Task { [weak self] in
                 let item = try? await KaraokeMix.item(stems)
                 guard let self, !Task.isCancelled, self.current?.id == track.id else { return }
+                self.stemsQuality = stems.quality
                 self.beginPlayback(track, stems: item)
             }
         } else {
@@ -910,8 +911,11 @@ final class PlayerManager: ObservableObject {
             if crossfadeEnabled { fetchAnalysis(track) }
             prepareItem(item)
             self.player = player
-            if singAlong {
-                if let stems, item === stems { useStems() } else { startSinging(track) }
+            if singAlong { startSinging(track) }
+            if prepared == nil, DownloadManager.shared.isDownloaded(track) {
+                // Titre téléchargé : ses pistes séparées, si le serveur les a,
+                // pour chanter aussi sans réseau.
+                Task { await KaraokeStore.shared.prefetch(track) }
             }
             if crossfadeEnabled && prepared == nil {
                 // Fondu entrant sur 1,5 s, jusqu'au volume égalisé du titre.
@@ -1277,12 +1281,22 @@ final class PlayerManager: ObservableObject {
         case running(Double)
         case downloading
         case ready
+        /// Pistes rapides en lecture, passe fine en cours sur le serveur.
+        case improving(Double)
         case failed(String)
     }
     @Published private(set) var separation: SeparationState = .idle
     private var separationTask: Task<Void, Never>?
-    /// Item des pistes séparées en lecture (composition à deux pistes).
+    /// Item des pistes séparées en lecture (composition à deux pistes), et
+    /// leur qualité (« fast » puis « hq »).
     private weak var stemsItem: AVPlayerItem?
+    private var stemsQuality: String?
+
+    /// Qualité des pistes séparées qui jouent en ce moment, ou nil.
+    private var playingStemsQuality: String? {
+        guard let item = player?.currentItem, item === stemsItem else { return nil }
+        return stemsQuality
+    }
 
     /// Audio spatial (AirPods) : la stéréo spatialisée par iOS, avec suivi
     /// des mouvements de la tête si activé dans le Centre de contrôle.
@@ -1348,8 +1362,13 @@ final class PlayerManager: ObservableObject {
     private func startSinging(_ track: Track) {
         separationTask?.cancel()
         AudioEffects.vocalGain = Self.vocalGain(vocalLevel)
-        if let item = player?.currentItem, item === stemsItem {
+        if let quality = playingStemsQuality {
+            // Le titre démarre déjà sur ses pistes (téléchargées avant) ;
+            // rapides : on guette la passe fine.
             useStems()
+            if quality != "hq" {
+                separationTask = Task { [weak self] in await self?.followSeparation(track) }
+            }
             return
         }
         if let stems = KaraokeStore.shared.localStems(for: track) {
@@ -1359,7 +1378,11 @@ final class PlayerManager: ObservableObject {
             AudioEffects.singAmount = Float(1 - vocalLevel)
             if let item = player?.currentItem { prepareItem(item) }
             separation = .downloading
-            separationTask = Task { [weak self] in await self?.switchToStems(track, stems: stems) }
+            separationTask = Task { [weak self] in
+                guard let self else { return }
+                let switched = await self.switchToStems(track, stems: stems)
+                if !switched || stems.quality != "hq" { await self.followSeparation(track) }
+            }
         } else {
             lookForInstrumental(track)
             separation = .waiting(ahead: 0)
@@ -1378,10 +1401,12 @@ final class PlayerManager: ObservableObject {
         prepareUpcomingStems()
     }
 
-    /// Demande la séparation du titre, suit son avancement (toutes les 4 s)
-    /// puis bascule sur les pistes dès qu'elles sont prêtes.
+    /// Demande la séparation du titre et suit son avancement : bascule sur
+    /// les pistes rapides dès qu'elles sont prêtes, puis sur les pistes
+    /// fines quand la seconde passe est finie — chaque fois sans coupure.
     private func followSeparation(_ track: Track) async {
         var requested = false
+        var withoutRefine = 0
         while !Task.isCancelled, singAlong, current?.id == track.id {
             let state: KaraokeStatus?
             if requested {
@@ -1391,17 +1416,33 @@ final class PlayerManager: ObservableObject {
                 requested = state != nil
             }
             guard !Task.isCancelled, singAlong, current?.id == track.id else { return }
+            let playing = playingStemsQuality
             switch state?.status {
             case "ready":
-                separation = .downloading
-                guard let stems = try? await KaraokeStore.shared.fetch(track) else {
-                    separation = .failed("Pistes séparées impossibles à télécharger.")
+                let quality = state?.quality ?? "hq"
+                if playing == "hq" { return }
+                if playing == quality {
+                    // Pistes rapides en lecture : la passe fine avance.
+                    if let refining = state?.refining {
+                        withoutRefine = 0
+                        separation = refining.status == "running" ? .improving(refining.progress ?? 0) : .ready
+                    } else {
+                        // Passe fine abandonnée (échec) : on garde les rapides.
+                        withoutRefine += 1
+                        separation = .ready
+                        if withoutRefine >= 3 { return }
+                    }
+                    break
+                }
+                if playing == nil { separation = .downloading }
+                guard let stems = try? await KaraokeStore.shared.fetch(track, quality: quality) else {
+                    if playingStemsQuality == nil { separation = .failed("Pistes séparées impossibles à télécharger.") }
                     return
                 }
-                await switchToStems(track, stems: stems)
-                return
+                let switched = await switchToStems(track, stems: stems)
+                if quality == "hq" || !switched { return }
             case "failed":
-                separation = .failed(state?.error ?? "Séparation impossible pour ce titre.")
+                if playing == nil { separation = .failed(state?.error ?? "Séparation impossible pour ce titre.") }
                 return
             case "running":
                 separation = .running(state?.progress ?? 0)
@@ -1412,45 +1453,50 @@ final class PlayerManager: ObservableObject {
             default:
                 break  // serveur injoignable : on réessaie
             }
-            try? await Task.sleep(for: .seconds(4))
+            // Déjà sur les pistes rapides : rien ne presse.
+            try? await Task.sleep(for: .seconds(playingStemsQuality == nil ? 4 : 8))
         }
     }
 
-    private func switchToStems(_ track: Track, stems: KaraokeStore.Stems) async {
+    /// Bascule sur des pistes séparées (depuis l'original, l'ancien mode ou
+    /// des pistes rapides). Renvoie true si c'est fait.
+    @discardableResult
+    private func switchToStems(_ track: Track, stems: KaraokeStore.Stems) async -> Bool {
         guard let item = try? await KaraokeMix.item(stems) else {
-            KaraokeStore.shared.remove(track)
-            if singAlong, current?.id == track.id {
+            KaraokeStore.shared.remove(track, quality: stems.quality)
+            if singAlong, current?.id == track.id, playingStemsQuality == nil {
                 separation = .failed("Pistes séparées illisibles.")
                 if singSource == .searching { singSource = .reduced }
             }
-            return
+            return false
         }
         // Quelques essais : un enchaînement AutoMix ou la bascule vers
         // l'instru YouTube peut être en cours au même moment.
         for _ in 0..<5 {
             while isMixing {
                 try? await Task.sleep(for: .milliseconds(300))
-                if Task.isCancelled { return }
+                if Task.isCancelled { return false }
             }
-            guard !Task.isCancelled, singAlong, current?.id == track.id else { return }
-            stemsItem = item
+            guard !Task.isCancelled, singAlong, current?.id == track.id else { return false }
             let switched = await crossSwap(to: item, track: track) {
                 AudioEffects.singAmount = 0
                 AudioEffects.stemsActive = true
             }
             if switched {
+                stemsItem = item
+                stemsQuality = stems.quality
                 useStems()
-                return
+                return true
             }
             if item.status == .failed { break }
             try? await Task.sleep(for: .seconds(1))
         }
-        guard singAlong, current?.id == track.id, singSource != .separated else { return }
-        stemsItem = nil
+        if item.status == .failed { KaraokeStore.shared.remove(track, quality: stems.quality) }
+        guard singAlong, current?.id == track.id, playingStemsQuality == nil else { return false }
         AudioEffects.stemsActive = false
         separation = .failed("Lecture des pistes séparées impossible.")
-        if item.status == .failed { KaraokeStore.shared.remove(track) }
         if singSource == .searching { singSource = .reduced }
+        return false
     }
 
     /// Titres suivants de la file : séparés d'avance par le serveur.
@@ -1717,6 +1763,7 @@ final class PlayerManager: ObservableObject {
         separationTask?.cancel()
         separationTask = nil
         stemsItem = nil
+        stemsQuality = nil
         AudioEffects.stemsActive = false
         if singAlong { separation = .idle }
         player?.pause()

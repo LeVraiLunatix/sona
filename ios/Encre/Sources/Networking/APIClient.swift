@@ -604,8 +604,11 @@ final class APIClient {
     }
 
     /// Une des deux pistes séparées (`vocals` ou `instrumental`), en m4a.
-    func karaokeStemRequest(_ track: Track, stem: String) throws -> URLRequest {
-        var req = try request("/stream/\(track.source)/\(track.sourceId)/karaoke/\(stem)")
+    func karaokeStemRequest(_ track: Track, stem: String, quality: String) throws -> URLRequest {
+        var req = try request(
+            "/stream/\(track.source)/\(track.sourceId)/karaoke/\(stem)",
+            query: [URLQueryItem(name: "quality", value: quality)]
+        )
         req.timeoutInterval = 60
         return req
     }

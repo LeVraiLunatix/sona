@@ -372,6 +372,16 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .np-transport .tbtn:hover { background: rgba(255,255,255,.12); }
 .np-transport .tbtn.small { font-size: 20px; color: rgba(255,255,255,.6); width: 40px; height: 40px; }
 .np-transport .tbtn.small.on { color: #fff; }
+/* Karaoké : bouton « Chante » et curseur « Voix ». */
+.np-sing { display: flex; align-items: center; gap: 14px; }
+.np-sing .tbtn { color: rgba(255,255,255,.7); width: 44px; height: 44px; font-size: 22px; flex: none; }
+.np-sing .tbtn.on { color: #000; background: #fff; }
+.np-sing .tbtn:not(.on):hover { background: rgba(255,255,255,.12); }
+.np-sing-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.np-sing-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.75); }
+.np-sing-head span:last-child { font-variant-numeric: tabular-nums; }
+.np-sing input[type="range"].slider { background: linear-gradient(to right, rgba(255,255,255,.85) var(--p, 0%), rgba(255,255,255,.22) var(--p, 0%)); height: 6px; }
+.np-sing-status { min-height: 16px; font-size: 12px; color: rgba(255,255,255,.55); }
 
 .np-right { height: 100%; min-height: 0; position: relative; }
 .lyrics {

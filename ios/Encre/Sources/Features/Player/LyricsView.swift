@@ -400,6 +400,9 @@ struct VocalSlider: View {
             return "Séparation en cours… \(Int((progress * 100).rounded())) %"
         case .downloading:
             return "Presque prêt…"
+        case .improving(let progress):
+            // Pistes rapides en lecture : la version fine arrive toute seule.
+            return "Affinage de la séparation… \(Int((progress * 100).rounded())) %"
         case .failed:
             return fallbackLabel.map { "Séparation impossible · \($0)" } ?? "Séparation impossible"
         }
