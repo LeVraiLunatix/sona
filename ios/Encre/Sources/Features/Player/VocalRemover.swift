@@ -10,11 +10,24 @@ import MediaToolbox
 ///   (≈ 150 Hz – 6,5 kHz) du centre ; les basses (kick, 808) et les aigus
 ///   (charley, cymbales) restent, comme tout ce qui est sur les côtés. Sur un
 ///   mix presque mono, on en retire moins pour garder un son plein.
+/// - **Karaoké séparé par IA** (voir `KaraokeMix`) : deux pistes, voix et
+///   instru, chacune avec son propre traitement. Celui de la voix applique
+///   son volume (`vocalGain`) ; les deux passent par l'égaliseur (un filtre
+///   linéaire : égaliser chaque piste revient à égaliser leur somme), et le
+///   visualiseur additionne l'énergie des deux (voix et instru ne sont
+///   presque pas corrélées : leurs énergies s'ajoutent).
 /// - **Égaliseur** : 5 bandes (60 Hz, 250 Hz, 1 kHz, 4 kHz, 12 kHz), filtres
 ///   « biquad » classiques, avec une marge automatique contre la saturation.
 enum AudioEffects {
     /// 0 : son normal, 1 : voix baissée. Changement en douceur (voir `process`).
     static var singAmount: Float = 0
+
+    /// Volume de la piste voix en karaoké séparé (0 : instru seule, 1 :
+    /// titre normal). Suivi en douceur par le fil audio (voir `process`).
+    static var vocalGain: Float = 0
+    /// Les pistes séparées sont en lecture : le visualiseur ajoute
+    /// l'énergie de la voix (mesurée par son propre traitement).
+    static var stemsActive = false
 
     static let bands: [Float] = [60, 250, 1000, 4000, 12000]
     static let bandLabels = ["60", "250", "1k", "4k", "12k"]
@@ -52,13 +65,23 @@ enum AudioEffects {
 
     static func level(_ band: Int) -> Float { levels[band] }
 
-    /// Mixage à poser sur l'item (`item.audioMix`), ou nil si l'item n'a
-    /// pas encore de piste audio.
-    static func audioMix(for item: AVPlayerItem) async -> AVAudioMix? {
-        guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first else { return nil }
+    /// Énergie moyenne par bande de la piste voix (après son volume),
+    /// écrite par son traitement et ajoutée par celui de l'instru.
+    static let vocalEnergy: UnsafeMutablePointer<Float> = {
+        let pointer = UnsafeMutablePointer<Float>.allocate(capacity: levelBands)
+        pointer.initialize(repeating: 0, count: levelBands)
+        return pointer
+    }()
+
+    /// Rôle d'un traitement, passé à sa création (`clientInfo`).
+    fileprivate enum Role: Int {
+        case normal = 0, stemInstrumental = 1, stemVocals = 2
+    }
+
+    private static func makeTap(_ role: Role) -> MTAudioProcessingTap? {
         var callbacks = MTAudioProcessingTapCallbacks(
             version: kMTAudioProcessingTapCallbacksVersion_0,
-            clientInfo: nil,
+            clientInfo: UnsafeMutableRawPointer(bitPattern: role.rawValue),
             init: tapInit,
             finalize: tapFinalize,
             prepare: tapPrepare,
@@ -69,7 +92,26 @@ enum AudioEffects {
         let status = MTAudioProcessingTapCreate(
             kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap
         )
-        guard status == noErr, let tap else { return nil }
+        return status == noErr ? tap : nil
+    }
+
+    /// Mixage des pistes séparées : un traitement par piste.
+    static func stemsMix(instrumental: AVAssetTrack, vocals: AVAssetTrack) -> AVAudioMix? {
+        guard let instrumentalTap = makeTap(.stemInstrumental), let vocalsTap = makeTap(.stemVocals) else { return nil }
+        let instrumentalParameters = AVMutableAudioMixInputParameters(track: instrumental)
+        instrumentalParameters.audioTapProcessor = instrumentalTap
+        let vocalsParameters = AVMutableAudioMixInputParameters(track: vocals)
+        vocalsParameters.audioTapProcessor = vocalsTap
+        let mix = AVMutableAudioMix()
+        mix.inputParameters = [instrumentalParameters, vocalsParameters]
+        return mix
+    }
+
+    /// Mixage à poser sur l'item (`item.audioMix`), ou nil si l'item n'a
+    /// pas encore de piste audio.
+    static func audioMix(for item: AVPlayerItem) async -> AVAudioMix? {
+        guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first,
+              let tap = makeTap(.normal) else { return nil }
         let parameters = AVMutableAudioMixInputParameters(track: track)
         parameters.audioTapProcessor = tap
         let mix = AVMutableAudioMix()
@@ -139,7 +181,10 @@ private struct Biquad {
 
 /// État propre à un tap (format, filtres, largeur stéréo, niveaux appliqués).
 private final class TapState {
+    var role: AudioEffects.Role = .normal
     var usable = false
+    // Karaoké séparé : volume appliqué à la voix (suit `vocalGain`).
+    var gain: Float = 0
     var sampleRate: Float = 44_100
     // Mode « chante » : passe-bas à deux pôles sur le centre.
     var low1: Float = 0, low2: Float = 0
@@ -172,8 +217,11 @@ private final class TapState {
     }
 }
 
-private let tapInit: MTAudioProcessingTapInitCallback = { _, _, storageOut in
-    storageOut.pointee = Unmanaged.passRetained(TapState()).toOpaque()
+private let tapInit: MTAudioProcessingTapInitCallback = { _, clientInfo, storageOut in
+    let state = TapState()
+    state.role = AudioEffects.Role(rawValue: Int(bitPattern: clientInfo)) ?? .normal
+    state.gain = AudioEffects.vocalGain
+    storageOut.pointee = Unmanaged.passRetained(state).toOpaque()
 }
 
 private let tapFinalize: MTAudioProcessingTapFinalizeCallback = { tap in
@@ -198,16 +246,32 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, 
     let state = Unmanaged<TapState>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue()
     guard state.usable else { return }
     state.refreshEQ()
-    let target = AudioEffects.singAmount
+    let isVocals = state.role == .stemVocals
+    // Pistes séparées : jamais de « voix baissée » par traitement, la voix
+    // est déjà à part.
+    let target: Float = state.role == .normal ? AudioEffects.singAmount : 0
     let singing = target > 0 || state.applied > 0
     let measuring = AudioEffects.visualizerOn
-    guard singing || state.eqOn || measuring else { return }
+    guard isVocals || singing || state.eqOn || measuring else { return }
 
     let list = UnsafeMutableAudioBufferListPointer(buffers)
     guard list.count >= 2,
           let left = list[0].mData?.assumingMemoryBound(to: Float.self),
           let right = list[1].mData?.assumingMemoryBound(to: Float.self) else { return }
     let count = Int(framesOut.pointee)
+
+    if isVocals {
+        // Volume de la voix : suit le curseur en ~80 ms, sans claquement.
+        let goal = AudioEffects.vocalGain
+        let step: Float = 1 / max(1, state.sampleRate * 0.08)
+        var gain = state.gain
+        for i in 0..<count {
+            gain += gain < goal ? min(step, goal - gain) : -min(step, gain - goal)
+            left[i] *= gain
+            right[i] *= gain
+        }
+        state.gain = gain
+    }
 
     if singing {
         let rate = state.sampleRate
@@ -290,8 +354,14 @@ private func measureLevels(_ state: TapState, left: UnsafeMutablePointer<Float>,
     }
     state.splits = memory
     let frames = Float(max(1, count))
+    if state.role == .stemVocals {
+        // Voix séparée : son énergie est ajoutée par le traitement de l'instru.
+        for band in 0..<bands { AudioEffects.vocalEnergy[band] = energy[band] / frames }
+        return
+    }
+    let withVocals = state.role == .stemInstrumental && AudioEffects.stemsActive
     for band in 0..<bands {
-        let rms = sqrtf(energy[band] / frames)
+        let rms = sqrtf(energy[band] / frames + (withVocals ? AudioEffects.vocalEnergy[band] : 0))
         // −54 dB → 0, −6 dB → 1 (les aigus, plus faibles, un peu remontés).
         let db = 20 * log10f(max(rms, 1e-6)) + Float(band) * 1.5
         let value = min(1, max(0, (db + 54) / 48))
