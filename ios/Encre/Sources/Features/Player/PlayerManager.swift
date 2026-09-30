@@ -826,7 +826,17 @@ final class PlayerManager: ObservableObject {
         // YouTube en direct le temps de préparer le fichier) — démarrage en
         // quelques secondes. En cas d'échec, `recover` prend le relais.
         recoveryAttempted = false
-        beginPlayback(track)
+        if singAlong, let stems = KaraokeStore.shared.localStems(for: track) {
+            // Pistes séparées déjà sur l'iPhone : le titre démarre
+            // directement en karaoké (à défaut, le son normal).
+            prepareTask = Task { [weak self] in
+                let item = try? await KaraokeMix.item(stems)
+                guard let self, !Task.isCancelled, self.current?.id == track.id else { return }
+                self.beginPlayback(track, stems: item)
+            }
+        } else {
+            beginPlayback(track)
+        }
         if crossfadeEnabled { fetchBPM(track) }
     }
 
@@ -864,7 +874,9 @@ final class PlayerManager: ObservableObject {
     /// servi depuis son cache disque, il démarre quasi instantanément.
     /// Un titre téléchargé part du fichier sur l'iPhone (instantané, sans
     /// réseau) ; `preferLocal: false` après un échec de ce fichier.
-    private func beginPlayback(_ track: Track, preferLocal: Bool = true, prepared: AVPlayer? = nil) {
+    private func beginPlayback(
+        _ track: Track, preferLocal: Bool = true, prepared: AVPlayer? = nil, stems: AVPlayerItem? = nil
+    ) {
         do {
             let player: AVPlayer
             let item: AVPlayerItem
@@ -873,6 +885,12 @@ final class PlayerManager: ObservableObject {
                 player = prepared
                 item = preparedItem
                 player.volume = gain(for: track)
+            } else if let stems {
+                // Karaoké : les pistes séparées, déjà sur l'iPhone.
+                item = stems
+                stemsItem = stems
+                player = AVPlayer(playerItem: item)
+                player.volume = crossfadeEnabled ? 0 : 1
             } else {
                 let asset: AVURLAsset
                 if preferLocal, let local = DownloadManager.shared.localURL(for: track) {
@@ -891,8 +909,10 @@ final class PlayerManager: ObservableObject {
             }
             if crossfadeEnabled { fetchAnalysis(track) }
             prepareItem(item)
-            if singAlong && prepared == nil { lookForInstrumental(track) }
             self.player = player
+            if singAlong {
+                if let stems, item === stems { useStems() } else { startSinging(track) }
+            }
             if crossfadeEnabled && prepared == nil {
                 // Fondu entrant sur 1,5 s, jusqu'au volume égalisé du titre.
                 isFadingIn = true
@@ -905,123 +925,7 @@ final class PlayerManager: ObservableObject {
                 }
             }
 
-            // `AVPlayerItem.status` : seul moyen fiable de détecter un flux qui
-            // échoue (404, timeout, format non supporté...). Sans ça, un échec
-            // laissait auparavant `isPlaying = true` sans le moindre son ni
-            // message d'erreur — la cause la plus probable de "ça ne se lance
-            // pas".
-            statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-                Task { @MainActor in
-                    guard let self, self.player?.currentItem === item else { return }
-                    switch item.status {
-                    case .failed:
-                        self.recover(track, reason: item.error?.localizedDescription)
-                    case .readyToPlay:
-                        self.isLoading = false
-                        self.loadTimeoutTask?.cancel()
-                        if let seconds = self.pendingSeekSeconds {
-                            self.pendingSeekSeconds = nil
-                            self.seek(toSeconds: seconds)
-                        }
-                    default:
-                        break
-                    }
-                }
-            }
-
-            // `AVPlayer.timeControlStatus` reflète l'état réel du lecteur
-            // (en train de jouer, en pause, ou en train d'attendre des
-            // données) plutôt qu'un booléen local qu'on bascule à la main et
-            // qui peut diverger de la réalité.
-            timeControlObserver = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
-                Task { @MainActor in
-                    guard let self, self.player === player else { return }
-                    switch player.timeControlStatus {
-                    case .playing:
-                        self.isPlaying = true
-                        self.isLoading = false
-                        self.presenceResumed()
-                    case .paused:
-                        self.isPlaying = false
-                        self.presencePaused()
-                    case .waitingToPlayAtSpecifiedRate:
-                        self.isLoading = true
-                        self.watchForStallAtEnd(track)
-                    @unknown default:
-                        break
-                    }
-                }
-            }
-
-            endObserver = NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.handleTrackEnd() }
-            }
-            // Flux direct coupé avant la fin annoncée (relais YouTube) : iOS
-            // envoie ce signal-là au lieu de « fin du titre ». Tout près de
-            // la fin, on passe au suivant ; plus tôt, on relance le titre.
-            failedEndObserver = NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main
-            ) { [weak self] notification in
-                let reason = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription
-                Task { @MainActor in
-                    guard let self, self.player?.currentItem === item else { return }
-                    if let duration = self.referenceDuration(), self.positionSeconds >= duration - 8 {
-                        self.handleTrackEnd()
-                    } else {
-                        self.recover(track, reason: reason)
-                    }
-                }
-            }
-
-            timeObserver = player.addPeriodicTimeObserver(
-                forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main
-            ) { [weak self] time in
-                // Le bloc de `addPeriodicTimeObserver` n'est pas isolé à
-                // l'acteur, même exécuté sur la file main : `Task { @MainActor }`
-                // fait le saut explicite requis pour toucher les propriétés
-                // `@Published` de ce `@MainActor final class`.
-                Task { @MainActor in
-                    guard let self, let duration = self.referenceDuration() else { return }
-                    if self.crossfadeEnabled {
-                        self.autoMixTick(position: time.seconds, duration: duration)
-                    }
-                    if let last = self.lastTick, self.isPlaying {
-                        let delta = time.seconds - last
-                        if delta > 0 && delta <= 1.5 { self.listenedSeconds += delta }
-                    }
-                    self.lastTick = time.seconds
-                    self.positionSeconds = time.seconds
-                    self.durationSeconds = duration
-                    self.progress = min(1, time.seconds / duration)
-                    // Écoute comptée dès la moitié du titre (ou 4 min), comme
-                    // Last.fm : elle apparaît sur le profil pendant qu'on
-                    // écoute encore, pas seulement au titre suivant.
-                    let threshold = min(duration / 2, 240)
-                    if threshold > 0 {
-                        let value = min(1, self.listenedSeconds / threshold)
-                        if abs(value - self.scrobbleProgress) >= 0.01 || value == 1 { self.scrobbleProgress = value }
-                    }
-                    if !self.scrobbled, let track = self.current, let startedAt = self.listenStartedAt,
-                       Scrobbler.qualifies(listened: self.listenedSeconds, duration: duration) {
-                        self.scrobbled = true
-                        self.didScrobble = true
-                        Scrobbler.shared.record(track, startedAt: startedAt, listened: duration, duration: duration)
-                    }
-                    // Durée du catalogue dépassée : le flux joue du vide ou
-                    // n'annoncera jamais sa fin — on enchaîne.
-                    if time.seconds >= duration + 1.5 {
-                        self.handleTrackEnd()
-                    }
-                    if !self.nextPrepared && self.progress >= 0.6 {
-                        self.nextPrepared = true
-                        self.prepareNext()
-                    }
-                    self.updateNowPlayingElapsedTime()
-                    self.saveSession()
-                }
-            }
+            observe(player, item: item, track: track)
 
             endHandled = false
             scrobbleProgress = 0
@@ -1058,6 +962,144 @@ final class PlayerManager: ObservableObject {
         }
     }
 
+    /// Suivi d'un lecteur : état, fin du titre, progression, écoutes.
+    /// Détaché puis rattaché tel quel quand le son du titre change en cours
+    /// de route (karaoké, voir `crossSwap`).
+    private func observe(_ player: AVPlayer, item: AVPlayerItem, track: Track) {
+        // `AVPlayerItem.status` : seul moyen fiable de détecter un flux qui
+        // échoue (404, timeout, format non supporté...). Sans ça, un échec
+        // laissait auparavant `isPlaying = true` sans le moindre son ni
+        // message d'erreur — la cause la plus probable de "ça ne se lance
+        // pas".
+        statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            Task { @MainActor in
+                guard let self, self.player?.currentItem === item else { return }
+                switch item.status {
+                case .failed:
+                    self.recover(track, reason: item.error?.localizedDescription)
+                case .readyToPlay:
+                    self.isLoading = false
+                    self.loadTimeoutTask?.cancel()
+                    if let seconds = self.pendingSeekSeconds {
+                        self.pendingSeekSeconds = nil
+                        self.seek(toSeconds: seconds)
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        // `AVPlayer.timeControlStatus` reflète l'état réel du lecteur
+        // (en train de jouer, en pause, ou en train d'attendre des
+        // données) plutôt qu'un booléen local qu'on bascule à la main et
+        // qui peut diverger de la réalité.
+        timeControlObserver = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
+            Task { @MainActor in
+                guard let self, self.player === player else { return }
+                switch player.timeControlStatus {
+                case .playing:
+                    self.isPlaying = true
+                    self.isLoading = false
+                    self.presenceResumed()
+                case .paused:
+                    self.isPlaying = false
+                    self.presencePaused()
+                case .waitingToPlayAtSpecifiedRate:
+                    self.isLoading = true
+                    self.watchForStallAtEnd(track)
+                @unknown default:
+                    break
+                }
+            }
+        }
+
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleTrackEnd() }
+        }
+        // Flux direct coupé avant la fin annoncée (relais YouTube) : iOS
+        // envoie ce signal-là au lieu de « fin du titre ». Tout près de
+        // la fin, on passe au suivant ; plus tôt, on relance le titre.
+        failedEndObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main
+        ) { [weak self] notification in
+            let reason = (notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription
+            Task { @MainActor in
+                guard let self, self.player?.currentItem === item else { return }
+                if let duration = self.referenceDuration(), self.positionSeconds >= duration - 8 {
+                    self.handleTrackEnd()
+                } else {
+                    self.recover(track, reason: reason)
+                }
+            }
+        }
+
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main
+        ) { [weak self] time in
+            // Le bloc de `addPeriodicTimeObserver` n'est pas isolé à
+            // l'acteur, même exécuté sur la file main : `Task { @MainActor }`
+            // fait le saut explicite requis pour toucher les propriétés
+            // `@Published` de ce `@MainActor final class`.
+            Task { @MainActor in
+                guard let self, let duration = self.referenceDuration() else { return }
+                if self.crossfadeEnabled {
+                    self.autoMixTick(position: time.seconds, duration: duration)
+                }
+                if let last = self.lastTick, self.isPlaying {
+                    let delta = time.seconds - last
+                    if delta > 0 && delta <= 1.5 { self.listenedSeconds += delta }
+                }
+                self.lastTick = time.seconds
+                self.positionSeconds = time.seconds
+                self.durationSeconds = duration
+                self.progress = min(1, time.seconds / duration)
+                // Écoute comptée dès la moitié du titre (ou 4 min), comme
+                // Last.fm : elle apparaît sur le profil pendant qu'on
+                // écoute encore, pas seulement au titre suivant.
+                let threshold = min(duration / 2, 240)
+                if threshold > 0 {
+                    let value = min(1, self.listenedSeconds / threshold)
+                    if abs(value - self.scrobbleProgress) >= 0.01 || value == 1 { self.scrobbleProgress = value }
+                }
+                if !self.scrobbled, let track = self.current, let startedAt = self.listenStartedAt,
+                   Scrobbler.qualifies(listened: self.listenedSeconds, duration: duration) {
+                    self.scrobbled = true
+                    self.didScrobble = true
+                    Scrobbler.shared.record(track, startedAt: startedAt, listened: duration, duration: duration)
+                }
+                // Durée du catalogue dépassée : le flux joue du vide ou
+                // n'annoncera jamais sa fin — on enchaîne.
+                if time.seconds >= duration + 1.5 {
+                    self.handleTrackEnd()
+                }
+                if !self.nextPrepared && self.progress >= 0.6 {
+                    self.nextPrepared = true
+                    self.prepareNext()
+                }
+                self.updateNowPlayingElapsedTime()
+                self.saveSession()
+            }
+        }
+    }
+
+    private func stopObserving() {
+        if let timeObserver { player?.removeTimeObserver(timeObserver) }
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let failedEndObserver { NotificationCenter.default.removeObserver(failedEndObserver) }
+        timeObserver = nil
+        endObserver = nil
+        failedEndObserver = nil
+        stallTask?.cancel()
+        stallTask = nil
+        statusObserver?.invalidate()
+        timeControlObserver?.invalidate()
+        statusObserver = nil
+        timeControlObserver = nil
+    }
+
     /// Fait préparer le morceau suivant par le serveur pendant l'écoute du
     /// courant : « suivant » (ou la fin du morceau) enchaîne sans attente.
     /// Lancé une fois le morceau en cours bien entamé (60 %) : son propre
@@ -1067,6 +1109,11 @@ final class PlayerManager: ObservableObject {
     private func prepareNext() {
         prefetchTask?.cancel()
         if crossfadeEnabled, let next = upNext.first { fetchBPM(next) }
+        if singAlong, let next = upNext.first {
+            // Karaoké : les pistes du suivant, s'il est déjà séparé.
+            prepareUpcomingStems()
+            Task { await KaraokeStore.shared.prefetch(next) }
+        }
         guard let next = upNext.first, !DownloadManager.shared.isDownloaded(next) else { return }
         prefetchTask = Task {
             try? await APIClient.shared.prepareStream(source: next.source, id: next.sourceId)
@@ -1206,12 +1253,36 @@ final class PlayerManager: ObservableObject {
 
     // MARK: Karaoké, égaliseur, audio spatial
 
-    /// Mode « chante » : la vraie instrumentale du titre quand elle existe
-    /// (YouTube, même durée : les paroles restent calées), sinon la voix
-    /// baissée par traitement du son (voir `AudioEffects`).
+    /// Mode « chante ». Au mieux, les pistes voix / instru séparées par IA
+    /// sur le serveur (voir `KaraokeStore`) : le curseur « Voix » règle alors
+    /// le volume de la voix, en direct, de 0 (instru seule) à 100 % (titre
+    /// normal). En attendant qu'elles soient prêtes — ou si la séparation
+    /// échoue —, l'ancien mode : la vraie instrumentale du titre quand elle
+    /// existe (YouTube, même durée : les paroles restent calées), sinon la
+    /// voix baissée par traitement du son (voir `AudioEffects`). La bascule
+    /// vers les pistes séparées se fait toute seule, à la même position.
     @Published private(set) var singAlong = false
     @Published private(set) var singSource: SingSource = .off
-    enum SingSource { case off, searching, instrumental, reduced }
+    enum SingSource { case off, searching, instrumental, reduced, separated }
+
+    /// Curseur « Voix » : 0 = karaoké complet, 1 = titre normal. Sa dernière
+    /// valeur (sous 100 %) est retenue d'une fois sur l'autre.
+    @Published private(set) var vocalLevel: Double =
+        min(0.95, max(0, UserDefaults.standard.object(forKey: "encre.vocalLevel") as? Double ?? 0))
+
+    /// Où en est la séparation par IA du titre en cours (affiché dans le curseur).
+    enum SeparationState: Equatable {
+        case idle
+        case waiting(ahead: Int)
+        case running(Double)
+        case downloading
+        case ready
+        case failed(String)
+    }
+    @Published private(set) var separation: SeparationState = .idle
+    private var separationTask: Task<Void, Never>?
+    /// Item des pistes séparées en lecture (composition à deux pistes).
+    private weak var stemsItem: AVPlayerItem?
 
     /// Audio spatial (AirPods) : la stéréo spatialisée par iOS, avec suivi
     /// des mouvements de la tête si activé dans le Centre de contrôle.
@@ -1223,31 +1294,189 @@ final class PlayerManager: ObservableObject {
     }
 
     func setSingAlong(_ on: Bool) {
+        guard on != singAlong else { return }
         singAlong = on
         if on {
-            if let current { lookForInstrumental(current) }
-        } else {
+            if let current { startSinging(current) }
+            return
+        }
+        separationTask?.cancel()
+        separationTask = nil
+        separation = .idle
+        let wasSwapped = singSource == .instrumental || singSource == .separated
+        singSource = .off
+        guard wasSwapped, let current, let asset = originalAsset(for: current) else {
             AudioEffects.singAmount = 0
-            if singSource == .instrumental, let current { swapAudio(to: originalAsset(for: current)) }
-            singSource = .off
+            return
+        }
+        // Retour au son original, calé à la même position.
+        let item = AVPlayerItem(asset: asset)
+        Task { [weak self] in
+            guard let self else { return }
+            let switched = await self.crossSwap(to: item, track: current) {
+                AudioEffects.singAmount = 0
+                AudioEffects.stemsActive = false
+            }
+            guard !switched, !self.singAlong, self.current?.id == current.id else { return }
+            AudioEffects.singAmount = 0
+            AudioEffects.stemsActive = false
+            self.hardSwap(to: item, track: current)
         }
     }
 
-    /// En attendant (ou à défaut de) l'instrumentale : voix baissée.
+    /// Curseur « Voix ». Le descendre sous 100 % lance le mode chant ; le
+    /// remonter à 100 % l'arrête (titre normal).
+    func setVocalLevel(_ level: Double) {
+        let value = min(1, max(0, level))
+        if value >= 0.99 {
+            if singAlong { setSingAlong(false) }
+            return
+        }
+        vocalLevel = value
+        UserDefaults.standard.set(value, forKey: "encre.vocalLevel")
+        AudioEffects.vocalGain = Self.vocalGain(value)
+        if singSource == .searching || singSource == .reduced {
+            AudioEffects.singAmount = Float(1 - value)
+        }
+        if !singAlong { setSingAlong(true) }
+    }
+
+    /// Volume de la piste voix : courbe au carré, plus proche de l'oreille
+    /// (50 % sur le curseur ≈ voix 12 dB plus bas : bien « en fond »).
+    private static func vocalGain(_ level: Double) -> Float { Float(level * level) }
+
+    private func startSinging(_ track: Track) {
+        separationTask?.cancel()
+        AudioEffects.vocalGain = Self.vocalGain(vocalLevel)
+        if let item = player?.currentItem, item === stemsItem {
+            useStems()
+            return
+        }
+        if let stems = KaraokeStore.shared.localStems(for: track) {
+            // Déjà sur l'iPhone : bascule immédiate, voix baissée le temps
+            // de la préparer.
+            singSource = .searching
+            AudioEffects.singAmount = Float(1 - vocalLevel)
+            if let item = player?.currentItem { prepareItem(item) }
+            separation = .downloading
+            separationTask = Task { [weak self] in await self?.switchToStems(track, stems: stems) }
+        } else {
+            lookForInstrumental(track)
+            separation = .waiting(ahead: 0)
+            separationTask = Task { [weak self] in await self?.followSeparation(track) }
+        }
+        prepareUpcomingStems()
+    }
+
+    /// Les pistes séparées jouent : plus de traitement « voix baissée ».
+    private func useStems() {
+        AudioEffects.singAmount = 0
+        AudioEffects.stemsActive = true
+        AudioEffects.vocalGain = Self.vocalGain(vocalLevel)
+        singSource = .separated
+        separation = .ready
+        prepareUpcomingStems()
+    }
+
+    /// Demande la séparation du titre, suit son avancement (toutes les 4 s)
+    /// puis bascule sur les pistes dès qu'elles sont prêtes.
+    private func followSeparation(_ track: Track) async {
+        var requested = false
+        while !Task.isCancelled, singAlong, current?.id == track.id {
+            let state: KaraokeStatus?
+            if requested {
+                state = try? await APIClient.shared.karaokeStatus(track)
+            } else {
+                state = try? await APIClient.shared.karaokeRequest(track)
+                requested = state != nil
+            }
+            guard !Task.isCancelled, singAlong, current?.id == track.id else { return }
+            switch state?.status {
+            case "ready":
+                separation = .downloading
+                guard let stems = try? await KaraokeStore.shared.fetch(track) else {
+                    separation = .failed("Pistes séparées impossibles à télécharger.")
+                    return
+                }
+                await switchToStems(track, stems: stems)
+                return
+            case "failed":
+                separation = .failed(state?.error ?? "Séparation impossible pour ce titre.")
+                return
+            case "running":
+                separation = .running(state?.progress ?? 0)
+            case "queued":
+                separation = .waiting(ahead: state?.ahead ?? 0)
+            case "absent":
+                requested = false  // serveur redémarré entre-temps : on redemande
+            default:
+                break  // serveur injoignable : on réessaie
+            }
+            try? await Task.sleep(for: .seconds(4))
+        }
+    }
+
+    private func switchToStems(_ track: Track, stems: KaraokeStore.Stems) async {
+        guard let item = try? await KaraokeMix.item(stems) else {
+            KaraokeStore.shared.remove(track)
+            if singAlong, current?.id == track.id {
+                separation = .failed("Pistes séparées illisibles.")
+                if singSource == .searching { singSource = .reduced }
+            }
+            return
+        }
+        // Quelques essais : un enchaînement AutoMix ou la bascule vers
+        // l'instru YouTube peut être en cours au même moment.
+        for _ in 0..<5 {
+            while isMixing {
+                try? await Task.sleep(for: .milliseconds(300))
+                if Task.isCancelled { return }
+            }
+            guard !Task.isCancelled, singAlong, current?.id == track.id else { return }
+            stemsItem = item
+            let switched = await crossSwap(to: item, track: track) {
+                AudioEffects.singAmount = 0
+                AudioEffects.stemsActive = true
+            }
+            if switched {
+                useStems()
+                return
+            }
+            if item.status == .failed { break }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        guard singAlong, current?.id == track.id, singSource != .separated else { return }
+        stemsItem = nil
+        AudioEffects.stemsActive = false
+        separation = .failed("Lecture des pistes séparées impossible.")
+        if item.status == .failed { KaraokeStore.shared.remove(track) }
+        if singSource == .searching { singSource = .reduced }
+    }
+
+    /// Titres suivants de la file : séparés d'avance par le serveur.
+    private func prepareUpcomingStems() {
+        let upcoming = upNext.prefix(3).filter { KaraokeStore.shared.localStems(for: $0) == nil }
+        guard !upcoming.isEmpty else { return }
+        Task { await APIClient.shared.karaokePrepare(Array(upcoming)) }
+    }
+
+    /// En attendant (ou à défaut de) les pistes séparées : l'instrumentale
+    /// YouTube, sinon la voix baissée par traitement du son.
     private func lookForInstrumental(_ track: Track) {
         singSource = .searching
-        AudioEffects.singAmount = 1
+        AudioEffects.singAmount = Float(1 - vocalLevel)
         if let item = player?.currentItem { prepareItem(item) }
         Task { [weak self] in
             let found = await APIClient.shared.instrumental(for: track)
-            guard let self, self.singAlong, self.current?.id == track.id else { return }
-            if let found, let request = try? APIClient.shared.streamRequest(source: found.source, id: found.id) {
-                AudioEffects.singAmount = 0
-                self.swapAudio(to: AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers]))
-                self.singSource = .instrumental
-            } else {
+            guard let self, self.singAlong, self.current?.id == track.id, self.singSource == .searching else { return }
+            guard let found, let request = try? APIClient.shared.streamRequest(source: found.source, id: found.id) else {
                 self.singSource = .reduced
+                return
             }
+            let item = AVPlayerItem(asset: AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers]))
+            let switched = await self.crossSwap(to: item, track: track) { AudioEffects.singAmount = 0 }
+            guard self.singAlong, self.current?.id == track.id, self.singSource == .searching else { return }
+            self.singSource = switched ? .instrumental : .reduced
         }
     }
 
@@ -1257,22 +1486,85 @@ final class PlayerManager: ObservableObject {
         return AVURLAsset(url: request.url, options: ["AVURLAssetHTTPHeaderFieldsKey": request.headers])
     }
 
-    /// Change le son du titre en cours sans changer de titre (instrumentale
-    /// ↔ original) : même position, même état lecture/pause.
-    private func swapAudio(to asset: AVURLAsset?) {
-        guard let asset, let player else { return }
+    /// Change le son du titre en cours sans changer de titre (original ↔
+    /// instrumentale ↔ pistes séparées), sans coupure : le nouveau son est
+    /// préparé dans un second lecteur, démarré calé sur l'horloge à la même
+    /// position que l'ancien, puis un fondu de 0,2 s passe de l'un à
+    /// l'autre (le même morceau aux mêmes instants : le fondu ne s'entend
+    /// pas). `atSwitch` : réglages à appliquer au début du fondu. Renvoie
+    /// false si la bascule n'a pas pu se faire (l'ancien son continue).
+    @discardableResult
+    private func crossSwap(to item: AVPlayerItem, track: Track, atSwitch: @escaping () -> Void = {}) async -> Bool {
+        guard let old = player, current?.id == track.id, !isMixing else { return false }
+        prepareItem(item)
+        let incoming = AVPlayer(playerItem: item)
+        // Départ à une heure précise (`setRate(_:time:atHostTime:)`) : exige
+        // que le lecteur n'attende pas de lui-même d'avoir assez de données.
+        incoming.automaticallyWaitsToMinimizeStalling = false
+        incoming.volume = 0
+        guard await Self.waitUntilReady(item), player === old, current?.id == track.id, !isMixing else { return false }
+        let volume = old.volume
+        let resume = old.timeControlStatus == .waitingToPlayAtSpecifiedRate
+        if old.timeControlStatus == .playing {
+            var target = CMTime.zero
+            var delay = 0.0
+            for lead in [0.3, 0.6, 1.2] {
+                target = old.currentTime() + CMTime(seconds: lead, preferredTimescale: 600)
+                _ = await incoming.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
+                _ = await incoming.preroll(atRate: 1)
+                guard player === old, current?.id == track.id, old.timeControlStatus == .playing else { return false }
+                delay = (target - old.currentTime()).seconds / Double(max(old.rate, 0.1))
+                if delay > 0.03 { break }
+            }
+            guard delay > 0.03 else { return false }
+            let hostTime = CMClockGetTime(CMClockGetHostTimeClock()) + CMTime(seconds: delay, preferredTimescale: 1_000_000_000)
+            incoming.setRate(1, time: target, atHostTime: hostTime)
+            try? await Task.sleep(for: .seconds(delay))
+            atSwitch()
+            // Fondu linéaire : deux fois le même morceau, calé — la somme
+            // garde le même volume à chaque instant.
+            for step in 1...10 {
+                try? await Task.sleep(for: .milliseconds(20))
+                let t = Float(step) / 10
+                old.volume = volume * (1 - t)
+                incoming.volume = volume * t
+            }
+        } else {
+            _ = await incoming.seek(to: old.currentTime(), toleranceBefore: .zero, toleranceAfter: .zero)
+            guard player === old, current?.id == track.id else { return false }
+            atSwitch()
+            incoming.volume = volume
+        }
+        old.pause()
+        incoming.automaticallyWaitsToMinimizeStalling = true
+        stopObserving()
+        player = incoming
+        observe(incoming, item: item, track: track)
+        if resume { incoming.play() }
+        isPlaying = incoming.rate > 0
+        return true
+    }
+
+    private static func waitUntilReady(_ item: AVPlayerItem, timeout: Double = 10) async -> Bool {
+        let start = Date()
+        while item.status != .readyToPlay {
+            if item.status == .failed || Date().timeIntervalSince(start) > timeout { return false }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+
+    /// Bascule de secours, avec une micro-coupure : remplace le son du
+    /// lecteur en cours et revient à la même position.
+    private func hardSwap(to item: AVPlayerItem, track: Track) {
+        guard let player, current?.id == track.id else { return }
         let position = player.currentTime()
         let wasPlaying = player.timeControlStatus != .paused
-        let item = AVPlayerItem(asset: asset)
         prepareItem(item)
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.handleTrackEnd() }
-        }
+        stopObserving()
         player.replaceCurrentItem(with: item)
         player.seek(to: position, toleranceBefore: .zero, toleranceAfter: .zero)
+        observe(player, item: item, track: track)
         if wasPlaying { player.play() }
     }
 
@@ -1416,22 +1708,17 @@ final class PlayerManager: ObservableObject {
     private func teardown() {
         cancelMix()
         finishListening()
-        if let timeObserver { player?.removeTimeObserver(timeObserver) }
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        if let failedEndObserver { NotificationCenter.default.removeObserver(failedEndObserver) }
-        failedEndObserver = nil
-        stallTask?.cancel()
-        stallTask = nil
-        statusObserver?.invalidate()
-        timeControlObserver?.invalidate()
+        stopObserving()
         coverTask?.cancel()
         loadTimeoutTask?.cancel()
         prepareTask?.cancel()
         prepareTask = nil
-        timeObserver = nil
-        endObserver = nil
-        statusObserver = nil
-        timeControlObserver = nil
+        // Karaoké : la séparation suivie et les pistes étaient celles de ce titre.
+        separationTask?.cancel()
+        separationTask = nil
+        stemsItem = nil
+        AudioEffects.stemsActive = false
+        if singAlong { separation = .idle }
         player?.pause()
         player = nil
         progress = 0

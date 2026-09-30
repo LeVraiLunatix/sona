@@ -8,3 +8,7 @@ python-dotenv==1.0.1
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 edge-tts>=7.0,<8
+# Karaoké : séparation voix / instru (app/services/separation.py). Roues
+# précompilées pour Linux ARM (aarch64) et x86, sans PyTorch.
+numpy>=2.0
+onnxruntime>=1.20

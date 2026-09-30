@@ -5,6 +5,16 @@ import Foundation
 // Foundation convertit "cover_url" en "coverUrl", pas "coverURL" — silencieux
 // avec un champ optionnel (juste `nil`), donc facile à rater sans ça.
 
+/// État de la séparation voix / instru d'un titre sur le serveur :
+/// `absent`, `queued`, `running`, `ready` ou `failed`.
+struct KaraokeStatus: Decodable {
+    var status: String
+    var progress: Double?
+    /// Séparations à faire avant celle-ci (en file).
+    var ahead: Int?
+    var error: String?
+}
+
 struct Track: Codable, Identifiable, Hashable {
     var source: String
     var sourceId: String

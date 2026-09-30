@@ -21,7 +21,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, live_stream, stream_health
+from app.services import audio_analysis, karaoke, live_stream, stream_health
 from app.services.resolver import ResolutionError, iter_audio_sources
 
 logger = logging.getLogger(__name__)
@@ -441,6 +441,7 @@ async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(req
         except OSError as exc:
             logger.info("Fichier %s impossible à supprimer : %s", path, exc)
     _live.drop_track(source, source_id)
+    karaoke.forget(deps.settings, source, source_id)
     for key in [k for k in _failures if k[:2] == (source, source_id)]:
         del _failures[key]
     logger.info("Source %s écartée pour %s:%s (mauvaise version signalée)", video_id, source, source_id)

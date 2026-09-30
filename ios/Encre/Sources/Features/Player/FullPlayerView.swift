@@ -296,6 +296,9 @@ struct FullPlayerView: View {
                 titleRow(track, compact: true)
             }
             .padding(.top, 14)
+            // Le curseur « Voix » (bouton Chante) déborde sur les paroles :
+            // l'en-tête passe au-dessus d'elles.
+            .zIndex(1)
             content()
                 .frame(maxHeight: .infinity)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))

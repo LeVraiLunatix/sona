@@ -13,3 +13,5 @@ data/stream_cache/*
 data/cookies.txt
 data/backups/
 *.log
+data/karaoke/
+data/models/

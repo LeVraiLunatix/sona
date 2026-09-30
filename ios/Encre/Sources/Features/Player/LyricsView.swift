@@ -194,11 +194,8 @@ struct LyricsHeaderButtons: View {
                 }
             }
             if options.synced {
-                circle(player.singAlong ? "mic.fill" : "mic", on: player.singAlong, label: singLabel) {
-                    player.setSingAlong(!player.singAlong)
-                }
-                .symbolEffect(.pulse, isActive: player.singSource == .searching)
-                .sensoryFeedback(.selection, trigger: player.singAlong)
+                SingButton(player: player)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(Motion.smooth, value: options.synced)
@@ -218,13 +215,201 @@ struct LyricsHeaderButtons: View {
         .accessibilityLabel(label)
         .transition(.scale.combined(with: .opacity))
     }
+}
 
-    private var singLabel: String {
+/// Bouton « Chante » : un appui active ou coupe le mode chant ; un appui
+/// long (ou un glissé vertical) ouvre le curseur « Voix », qu'on règle
+/// dans la foulée sans lever le doigt — comme le volume dans le Centre de
+/// contrôle.
+struct SingButton: View {
+    @ObservedObject var player: PlayerManager
+    @State private var showsSlider = false
+    @State private var pressing = false
+    @State private var dragged = false
+    @State private var dragStart: Double?
+    @State private var longPressTask: Task<Void, Never>?
+    @State private var hideTask: Task<Void, Never>?
+
+    /// Valeur montrée : 100 % quand le mode chant est coupé (titre normal).
+    private var shownLevel: Double { player.singAlong ? player.vocalLevel : 1 }
+
+    var body: some View {
+        Image(systemName: player.singAlong ? "mic.fill" : "mic")
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(player.singAlong ? .black : .white)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.pulse, isActive: player.singSource == .searching)
+            .frame(width: 38, height: 38)
+            .background(Circle().fill(player.singAlong ? Color.white : Color.white.opacity(0.15)))
+            .scaleEffect(pressing ? 0.88 : 1)
+            .animation(Motion.snappy, value: pressing)
+            .contentShape(Circle())
+            .gesture(press)
+            .overlay(alignment: .top) {
+                if showsSlider {
+                    VocalSlider(player: player, level: shownLevel, onChange: adjust, onEnd: scheduleHide)
+                        .offset(y: 48)
+                        .transition(.scale(scale: 0.6, anchor: .top).combined(with: .opacity))
+                }
+            }
+            .animation(Motion.snappy, value: showsSlider)
+            .sensoryFeedback(.selection, trigger: player.singAlong)
+            .sensoryFeedback(.impact(weight: .medium), trigger: showsSlider) { _, shown in shown }
+            .accessibilityElement()
+            .accessibilityLabel("Chante")
+            .accessibilityValue(player.singAlong ? "Voix \(Int((player.vocalLevel * 100).rounded())) %" : "Désactivé")
+            .accessibilityHint("Touche deux fois pour activer ou couper. Balaie vers le haut ou le bas pour régler la voix.")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { player.setSingAlong(!player.singAlong) }
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: player.setVocalLevel(shownLevel + 0.1)
+                case .decrement: player.setVocalLevel(shownLevel - 0.1)
+                @unknown default: break
+                }
+            }
+    }
+
+    /// Un seul geste pour tout : appui court, appui long, glissé.
+    private var press: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if !pressing {
+                    pressing = true
+                    dragged = false
+                    dragStart = nil
+                    hideTask?.cancel()
+                    longPressTask = Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        guard !Task.isCancelled else { return }
+                        openSlider()
+                    }
+                }
+                if abs(value.translation.height) > 8 { dragged = true }
+                guard dragged || showsSlider else { return }
+                longPressTask?.cancel()
+                if !showsSlider { openSlider() }
+                // Glisser vers le haut monte la voix (150 pt = tout le curseur).
+                let start = dragStart ?? shownLevel
+                if dragStart == nil { dragStart = start }
+                adjust(start - value.translation.height / VocalSlider.height)
+            }
+            .onEnded { _ in
+                longPressTask?.cancel()
+                let wasTap = !dragged && !showsSlider
+                pressing = false
+                if wasTap {
+                    player.setSingAlong(!player.singAlong)
+                } else {
+                    scheduleHide()
+                }
+            }
+    }
+
+    private func openSlider() {
+        guard !showsSlider else { return }
+        showsSlider = true
+        dragStart = shownLevel
+    }
+
+    private func adjust(_ level: Double) {
+        hideTask?.cancel()
+        let clamped = min(1, max(0, level))
+        // Petits paliers : le curseur « accroche » 0 et 100 %.
+        let snapped = clamped < 0.02 ? 0 : (clamped > 0.98 ? 1 : clamped)
+        player.setVocalLevel(snapped)
+    }
+
+    private func scheduleHide() {
+        hideTask?.cancel()
+        hideTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            showsSlider = false
+        }
+    }
+}
+
+/// Curseur vertical « Voix », façon volume d'iOS : rempli depuis le bas.
+/// Montre aussi où en est la séparation par IA (« Séparation en cours… »).
+struct VocalSlider: View {
+    @ObservedObject var player: PlayerManager
+    let level: Double
+    let onChange: (Double) -> Void
+    let onEnd: () -> Void
+
+    static let height: CGFloat = 150
+    private let width: CGFloat = 52
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("\(Int((level * 100).rounded())) %")
+                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Tone.primary)
+                .contentTransition(.numericText())
+            ZStack(alignment: .bottom) {
+                Capsule().fill(Color.white.opacity(0.14))
+                Rectangle()
+                    .fill(Color.white)
+                    .frame(height: Self.height * level)
+                Image(systemName: level < 0.01 ? "music.note" : "music.mic")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(level > 0.12 ? Color.black : Color.white)
+                    .padding(.bottom, 12)
+            }
+            .frame(width: width, height: Self.height)
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in onChange(1 - value.location.y / Self.height) }
+                    .onEnded { _ in onEnd() }
+            )
+            Text("Voix")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Tone.secondary)
+            if let status {
+                Text(status)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Tone.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 110)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .environment(\.colorScheme, .dark)
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .animation(Motion.smooth, value: status)
+        .fixedSize()
+        .accessibilityHidden(true)
+    }
+
+    /// Avancement de la séparation, ou ce qui joue en attendant.
+    private var status: String? {
+        guard player.singAlong else { return nil }
+        switch player.separation {
+        case .idle, .ready:
+            return nil
+        case .waiting(let ahead):
+            return ahead > 0 ? "Séparation en attente (\(ahead) avant)" : "Séparation en cours…"
+        case .running(let progress):
+            return "Séparation en cours… \(Int((progress * 100).rounded())) %"
+        case .downloading:
+            return "Presque prêt…"
+        case .failed:
+            return fallbackLabel.map { "Séparation impossible · \($0)" } ?? "Séparation impossible"
+        }
+    }
+
+    private var fallbackLabel: String? {
         switch player.singSource {
-        case .off: "Chante"
-        case .searching: "Recherche de l'instru"
-        case .instrumental: "Instrumentale"
-        case .reduced: "Voix baissée"
+        case .instrumental: "instru"
+        case .reduced: "voix baissée"
+        default: nil
         }
     }
 }

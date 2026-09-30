@@ -57,6 +57,15 @@ class Settings:
     admin_lastfm_users: frozenset[str] = frozenset()
     # Identifiant d'application Bandsintown (concerts des artistes écoutés).
     bandsintown_app_id: str = "sona-app"
+    # Karaoké (app/services/karaoke.py) : pistes voix / instru séparées par
+    # IA, gardées dans `karaoke_dir` (les plus anciennes supprimées au-delà
+    # de la taille max), et modèle de séparation téléchargé dans
+    # `models_dir` à la première utilisation — jamais dans le dépôt.
+    karaoke_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "karaoke")
+    models_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "models")
+    karaoke_cache_max_mb: int = 1500
+    # Cœurs donnés au calcul (en priorité basse : l'API passe toujours avant).
+    karaoke_threads: int = 2
 
     @property
     def is_private_mode(self) -> bool:
@@ -101,6 +110,10 @@ def load_settings() -> Settings:
 
     api_user_id_raw = os.getenv("API_USER_ID", "").strip()
 
+    def data_dir(name: str, default: str) -> Path:
+        raw = Path(os.getenv(name, "").strip() or default)
+        return raw if raw.is_absolute() else BASE_DIR / raw
+
     return Settings(
         bot_token=token,
         allowed_user_ids=_parse_ids(os.getenv("ALLOWED_USER_IDS")),
@@ -119,6 +132,10 @@ def load_settings() -> Settings:
         lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
         bandsintown_app_id=os.getenv("BANDSINTOWN_APP_ID", "").strip() or "sona-app",
         lastfm_api_secret=os.getenv("LASTFM_API_SECRET", "").strip() or None,
+        karaoke_dir=data_dir("KARAOKE_DIR", "data/karaoke"),
+        models_dir=data_dir("MODELS_DIR", "data/models"),
+        karaoke_cache_max_mb=int(os.getenv("KARAOKE_CACHE_MAX_MB", "").strip() or 1500),
+        karaoke_threads=int(os.getenv("KARAOKE_THREADS", "").strip() or min(2, os.cpu_count() or 1)),
         admin_lastfm_users=frozenset(
             name.strip().casefold()
             for name in (os.getenv("ADMIN_LASTFM_USERS") or os.getenv("LASTFM_USER") or "").split(",")

@@ -581,6 +581,35 @@ final class APIClient {
         return (found.source, found.sourceId)
     }
 
+    // MARK: - Karaoké (voix / instru séparées par IA)
+
+    /// Titre écouté maintenant en mode chant : le serveur le met en tête de
+    /// sa file de séparation et répond tout de suite avec l'état.
+    func karaokeRequest(_ track: Track) async throws -> KaraokeStatus {
+        try await send(try request("/karaoke/\(track.source)/\(track.sourceId)", method: "POST"))
+    }
+
+    func karaokeStatus(_ track: Track) async throws -> KaraokeStatus {
+        try await send(try request("/karaoke/\(track.source)/\(track.sourceId)"))
+    }
+
+    /// Titres suivants de la file : séparés d'avance, après le titre en cours.
+    func karaokePrepare(_ tracks: [Track]) async {
+        struct Ref: Encodable { let source: String; let source_id: String }
+        struct Body: Encodable { let tracks: [Ref] }
+        guard !tracks.isEmpty,
+              let data = try? encode(Body(tracks: tracks.prefix(5).map { Ref(source: $0.source, source_id: $0.sourceId) })),
+              let req = try? request("/karaoke/prepare", method: "POST", bodyData: data) else { return }
+        _ = try? await perform(req)
+    }
+
+    /// Une des deux pistes séparées (`vocals` ou `instrumental`), en m4a.
+    func karaokeStemRequest(_ track: Track, stem: String) throws -> URLRequest {
+        var req = try request("/stream/\(track.source)/\(track.sourceId)/karaoke/\(stem)")
+        req.timeoutInterval = 60
+        return req
+    }
+
     func moments(for track: Track) async throws -> [TrackMoment] {
         try await send(try request("/moments/\(track.source)/\(track.sourceId)"))
     }
