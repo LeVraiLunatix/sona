@@ -113,8 +113,7 @@ struct SmartPlaylistView: View {
                             if let first = tracks.first { player.play(first, context: tracks, name: title) }
                         }
                         PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                            let shuffled = tracks.shuffled()
-                            if let first = shuffled.first { player.play(first, context: shuffled, name: title) }
+                            player.playShuffled(tracks, name: title)
                         }
                     }
                     .padding(.horizontal, 20)

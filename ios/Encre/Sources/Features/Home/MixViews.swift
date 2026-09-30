@@ -118,8 +118,7 @@ struct MixDetailView: View {
                             if let first = mix.tracks.first { player.play(first, context: mix.tracks, name: mix.title) }
                         }
                         PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                            let shuffled = mix.tracks.shuffled()
-                            if let first = shuffled.first { player.play(first, context: shuffled, name: mix.title) }
+                            player.playShuffled(mix.tracks, name: mix.title)
                         }
                     }
                     .padding(.horizontal, 20)

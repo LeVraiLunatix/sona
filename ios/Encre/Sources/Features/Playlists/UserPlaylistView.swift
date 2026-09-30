@@ -204,8 +204,7 @@ struct UserPlaylistView: View {
             HStack(spacing: 12) {
                 PillButton(title: "Lecture", systemImage: "play.fill") { play(from: 0) }
                 PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                    let shuffled = entries.map(\.track).shuffled()
-                    if let first = shuffled.first { player.play(first, context: shuffled, name: playlist.name) }
+                    player.playShuffled(entries.map(\.track), name: playlist.name)
                 }
             }
             .disabled(entries.isEmpty)

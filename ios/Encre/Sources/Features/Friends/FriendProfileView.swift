@@ -139,8 +139,7 @@ struct FriendProfileView: View {
                 }
                 .buttonStyle(.pressable(scale: 0.97))
                 Button {
-                    let shuffled = blend.tracks.shuffled()
-                    if let first = shuffled.first { player.play(first, context: shuffled, name: blend.title) }
+                    player.playShuffled(blend.tracks, name: blend.title)
                 } label: {
                     Image(systemName: "shuffle")
                         .font(Typo.headline).foregroundStyle(.white)

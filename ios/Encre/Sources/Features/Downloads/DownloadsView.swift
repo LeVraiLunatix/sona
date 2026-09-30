@@ -99,8 +99,7 @@ struct DownloadsView: View {
                     if let first = tracks.first { player.play(first, context: tracks, name: "Téléchargements") }
                 }
                 PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                    let tracks = downloads.tracks.shuffled()
-                    if let first = tracks.first { player.play(first, context: tracks, name: "Téléchargements") }
+                    player.playShuffled(downloads.tracks, name: "Téléchargements")
                 }
             }
             .disabled(downloads.items.isEmpty)

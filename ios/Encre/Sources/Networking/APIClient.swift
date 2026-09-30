@@ -597,10 +597,21 @@ final class APIClient {
     func karaokePrepare(_ tracks: [Track]) async {
         struct Ref: Encodable { let source: String; let source_id: String }
         struct Body: Encodable { let tracks: [Ref] }
-        guard !tracks.isEmpty,
-              let data = try? encode(Body(tracks: tracks.prefix(5).map { Ref(source: $0.source, source_id: $0.sourceId) })),
+        // Liste vide : le serveur retire simplement les titres « à venir »
+        // demandés avant (mode chant coupé).
+        guard let data = try? encode(Body(tracks: tracks.prefix(5).map { Ref(source: $0.source, source_id: $0.sourceId) })),
               let req = try? request("/karaoke/prepare", method: "POST", bodyData: data) else { return }
         _ = try? await perform(req)
+    }
+
+    /// File des séparations du serveur (menu karaoké).
+    func karaokeQueue() async throws -> KaraokeQueue {
+        try await send(try request("/karaoke/queue"))
+    }
+
+    /// Vide sa file de séparations (toute la file pour un administrateur).
+    func clearKaraokeQueue() async throws -> KaraokeQueue {
+        try await send(try request("/karaoke/queue", method: "DELETE"))
     }
 
     /// Une des deux pistes séparées (`vocals` ou `instrumental`), en m4a.

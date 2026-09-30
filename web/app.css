@@ -381,6 +381,11 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .np-sing-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.75); }
 .np-sing-head span:last-child { font-variant-numeric: tabular-nums; }
 .np-sing input[type="range"].slider { background: linear-gradient(to right, rgba(255,255,255,.85) var(--p, 0%), rgba(255,255,255,.22) var(--p, 0%)); height: 6px; }
+.np-sing-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.np-sing-presets button { font: inherit; font-size: 12px; font-weight: 600; color: #fff; background: rgba(255,255,255,.12); border: 0; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.np-sing-presets button:hover { background: rgba(255,255,255,.2); }
+.np-sing-presets button.on { background: #fff; color: #000; }
+.np-sing-presets button.clear { margin-left: auto; color: rgba(255,255,255,.7); }
 .np-sing-status { min-height: 16px; font-size: 12px; color: rgba(255,255,255,.55); }
 
 .np-right { height: 100%; min-height: 0; position: relative; }
