@@ -122,6 +122,8 @@ final class KaraokeStore {
 /// lues par le même lecteur — elles restent donc parfaitement calées, et
 /// seul le volume de la voix change (dans le traitement du son, voir
 /// `AudioEffects.vocalGain`), en direct, sans jamais recharger le titre.
+/// Sur le fil principal : iOS y exige la création de l'`AVPlayerItem`.
+@MainActor
 enum KaraokeMix {
     enum MixError: Error { case invalid }
 
