@@ -1003,6 +1003,8 @@ function singTrackChanged(t) {
 }
 
 function stopSing() {
+  // Titres « à venir » demandés au serveur : plus utiles.
+  if (sing.on === false && sing.track) api("/karaoke/prepare", { method: "POST", body: JSON.stringify({ tracks: [] }) }).catch(() => {});
   sing.gen++;
   stopStems();
   sing.buffers = null;
@@ -1160,8 +1162,21 @@ function renderSing() {
     <div class="np-sing-body">
       <div class="np-sing-head"><span>Voix</span><span>${pct} %</span></div>
       <input type="range" class="slider" id="np-voice" min="0" max="100" value="${pct}" style="--p:${pct}%" aria-label="Volume de la voix">
+      <div class="np-sing-presets">
+        ${[["Instru", 0], ["En fond", 0.35], ["Normal", 1]].map(([label, v]) =>
+          `<button class="${Math.abs(level - v) < 0.03 ? "on" : ""}" data-preset="${v}">${label}</button>`).join("")}
+        ${sing.on ? `<button class="clear" data-sing="clear" title="Vider la file d'attente de séparation du serveur">Vider la file</button>` : ""}
+      </div>
       <div class="np-sing-status">${esc(sing.status || hint)}</div>
     </div>`;
+  $$("[data-preset]", box).forEach((b) => (b.onclick = () => setVocalLevel(+b.dataset.preset)));
+  const clear = $("[data-sing=clear]", box);
+  if (clear) clear.onclick = async () => {
+    try {
+      const res = await api("/karaoke/queue", { method: "DELETE" });
+      toast(res.removed ? `File de séparation vidée (${res.removed})` : "La file de séparation était déjà vide");
+    } catch (e) { toast(e.message); }
+  };
   $("[data-sing=toggle]", box).onclick = () => setSing(!sing.on);
   const slider = $("#np-voice", box);
   slider.oninput = () => {

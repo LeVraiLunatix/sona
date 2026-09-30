@@ -24,6 +24,28 @@ struct KaraokeStatus: Decodable {
     }
 }
 
+/// File des séparations du serveur : en attente (au total et demandées
+/// par ce compte) et celle en cours.
+struct KaraokeQueue: Decodable {
+    var queued: Int
+    var mine: Int
+    var running: Running?
+    /// Réponse à « Vider la file » : séparations retirées.
+    var removed: Int?
+
+    struct Running: Decodable {
+        var sourceId: String
+        var quality: String
+        var progress: Double
+        var mine: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case quality, progress, mine
+            case sourceId = "source_id"
+        }
+    }
+}
+
 struct Track: Codable, Identifiable, Hashable {
     var source: String
     var sourceId: String

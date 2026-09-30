@@ -283,6 +283,7 @@ final class PlayerManager: ObservableObject {
     /// verrouillé, écoutes, tout suit), puis revient doucement à sa vitesse.
     private func promoteMix() {
         guard let incoming = mixIncoming, let next = mixIncomingTrack else { return }
+        if let previous = current, previous.id != next.id { remember(previous) }
         mixTask?.cancel()
         mixTask = nil
         mixIncoming = nil
@@ -738,6 +739,60 @@ final class PlayerManager: ObservableObject {
         start(track, context: playbackContext)
     }
 
+    /// « Aléatoire » d'un album, d'une playlist… : lecture dans le désordre,
+    /// et le bouton aléatoire du lecteur est bien affiché activé (le couper
+    /// reprend l'ordre d'origine après le titre en cours, comme Musique).
+    func playShuffled(_ tracks: [Track], name: String? = nil) {
+        let unique = PlayerManager.withoutDuplicates(tracks, excluding: [])
+        let shuffled = unique.shuffled()
+        guard let first = shuffled.first else { return }
+        endStation()
+        resetQueueState(name: name)
+        start(first, context: shuffled)
+        unshuffledContext = unique
+        shuffleEnabled = true
+    }
+
+    // MARK: Historique (façon Musique)
+
+    /// Titres écoutés avant le titre en cours, du plus ancien au plus
+    /// récent : affichés au-dessus de la file, on remonte pour les voir.
+    /// Gardés d'un lancement à l'autre.
+    @Published private(set) var history: [Track] = PlayerManager.loadHistory()
+    private static let historyKey = "encre.history"
+    private static let historyLimit = 60
+
+    private static func loadHistory() -> [Track] {
+        guard let data = UserDefaults.standard.data(forKey: historyKey),
+              let tracks = try? JSONDecoder().decode([Track].self, from: data) else { return [] }
+        return tracks
+    }
+
+    private func remember(_ track: Track) {
+        history.removeAll { $0.id == track.id }
+        history.append(track)
+        if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: Self.historyKey)
+        }
+    }
+
+    func clearHistory() {
+        history = []
+        UserDefaults.standard.removeObject(forKey: Self.historyKey)
+    }
+
+    /// Réécoute un titre de l'historique : il passe juste après le titre en
+    /// cours et démarre, la suite de la file ne bouge pas.
+    func playFromHistory(_ track: Track) {
+        guard currentIndex != nil else {
+            play(track, context: [track])
+            return
+        }
+        playNext([track])
+        next()
+    }
+
     private func resetQueueState(name: String?) {
         contextName = name
         shuffleEnabled = false
@@ -797,6 +852,8 @@ final class PlayerManager: ObservableObject {
     /// quel pour avancer/reculer dans le contexte, où `play` couperait la
     /// radio.
     private func start(_ track: Track, context playbackContext: [Track]) {
+        // Titre quitté après avoir vraiment joué : dans l'historique.
+        if let previous = current, previous.id != track.id, listenStartedAt != nil { remember(previous) }
         teardown()
         if track.id != current?.id { restoredPosition = nil }
         current = track
@@ -1290,7 +1347,9 @@ final class PlayerManager: ObservableObject {
     /// Item des pistes séparées en lecture (composition à deux pistes), et
     /// leur qualité (« fast » puis « hq »).
     private weak var stemsItem: AVPlayerItem?
-    private var stemsQuality: String?
+    @Published private(set) var stemsQuality: String?
+    /// File des séparations du serveur (menu karaoké).
+    @Published private(set) var karaokeQueue: KaraokeQueue?
 
     /// Qualité des pistes séparées qui jouent en ce moment, ou nil.
     private var playingStemsQuality: String? {
@@ -1317,6 +1376,8 @@ final class PlayerManager: ObservableObject {
         separationTask?.cancel()
         separationTask = nil
         separation = .idle
+        // Les titres « à venir » demandés au serveur ne servent plus.
+        Task { await APIClient.shared.karaokePrepare([]) }
         let wasSwapped = singSource == .instrumental || singSource == .separated
         singSource = .off
         guard wasSwapped, let current, let asset = originalAsset(for: current) else {
@@ -1497,6 +1558,21 @@ final class PlayerManager: ObservableObject {
         separation = .failed("Lecture des pistes séparées impossible.")
         if singSource == .searching { singSource = .reduced }
         return false
+    }
+
+    /// Menu karaoké ouvert : état de la file du serveur.
+    func refreshKaraokeQueue() async {
+        if let queue = try? await APIClient.shared.karaokeQueue() { karaokeQueue = queue }
+    }
+
+    /// « Vider la file » : les séparations demandées par ce compte partent
+    /// (toutes pour un administrateur). Le titre chanté en ce moment est
+    /// redemandé aussitôt par le suivi de sa séparation.
+    @discardableResult
+    func clearKaraokeQueue() async -> Int? {
+        guard let queue = try? await APIClient.shared.clearKaraokeQueue() else { return nil }
+        karaokeQueue = queue
+        return queue.removed
     }
 
     /// Titres suivants de la file : séparés d'avance par le serveur.

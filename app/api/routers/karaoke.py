@@ -30,12 +30,20 @@ class PrepareIn(BaseModel):
 @router.post("/karaoke/prepare")
 async def prepare_upcoming(payload: PrepareIn, deps: ApiDeps = Depends(require_token)) -> list[dict]:
     """Titres à venir quand le mode chant est actif : séparés à l'avance,
-    après le titre en cours d'écoute."""
-    return [
-        {"source": t.source, "source_id": t.source_id,
-         **karaoke.request(deps, t.source, t.source_id, karaoke.UPCOMING)}
-        for t in payload.tracks
-    ]
+    après le titre en cours d'écoute. Remplace la liste envoyée avant."""
+    return karaoke.prepare_upcoming(deps, [(t.source, t.source_id) for t in payload.tracks])
+
+
+@router.get("/karaoke/queue")
+async def separation_queue(deps: ApiDeps = Depends(require_token)) -> dict:
+    """File des séparations (menu karaoké de l'app)."""
+    return karaoke.queue_info(deps)
+
+
+@router.delete("/karaoke/queue")
+async def clear_separation_queue(deps: ApiDeps = Depends(require_token)) -> dict:
+    """Vide sa file de séparations (toute la file pour un administrateur)."""
+    return {"removed": karaoke.clear_queue(deps), **karaoke.queue_info(deps)}
 
 
 @router.post("/karaoke/{source}/{source_id}")

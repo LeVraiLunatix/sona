@@ -114,8 +114,7 @@ struct AlbumDetailView: View {
                     if let first = album.tracks.first { player.play(first, context: album.tracks, name: album.title) }
                 }
                 PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                    let shuffled = album.tracks.shuffled()
-                    if let first = shuffled.first { player.play(first, context: shuffled, name: album.title) }
+                    player.playShuffled(album.tracks, name: album.title)
                 }
             }
             .padding(.horizontal, 20)

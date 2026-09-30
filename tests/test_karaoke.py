@@ -164,12 +164,17 @@ def test_current_track_goes_before_upcoming(client, engine):
     state = client.get("/karaoke/deezer/2", headers=AUTH).json()
     assert state["status"] == "queued" and state["ahead"] == 2
     client.portal.call(engine.gate.set)
-    wait_for(client, "/karaoke/deezer/3", "ready", quality="hq")
-    # Toutes les passes rapides d'abord, puis les passes fines.
+    wait_for(client, "/karaoke/deezer/4", "ready", quality="hq")
+    # Toutes les passes rapides d'abord, puis les passes fines — seulement
+    # pour les titres chantés : un titre « à venir » attend d'être chanté.
     assert engine.calls == [
         "deezer_1:fast", "deezer_4:fast", "deezer_2:fast", "deezer_3:fast",
-        "deezer_1:hq", "deezer_4:hq", "deezer_2:hq", "deezer_3:hq",
+        "deezer_1:hq", "deezer_4:hq",
     ]
+    assert client.get("/karaoke/deezer/3", headers=AUTH).json()["quality"] == "fast"
+    # Chanté ensuite : sa passe fine est lancée.
+    client.post("/karaoke/deezer/3", headers=AUTH)
+    assert wait_for(client, "/karaoke/deezer/3", "ready", quality="hq")["quality"] == "hq"
 
 
 def test_failure_is_reported_and_remembered(client, engine):
@@ -330,3 +335,55 @@ def test_separate_splits_into_two_stems_that_sum_to_the_mix(monkeypatch):
 def test_stream_router_still_exports_ensure_file():
     """Le karaoké réutilise le fichier du cache de lecture."""
     assert callable(stream.ensure_file)
+
+
+def test_new_upcoming_list_replaces_the_old_one(client, engine):
+    """Titres passés ou file changée : leurs séparations « à venir »
+    quittent la file du serveur."""
+    engine.gate = asyncio.Event()
+    client.post("/karaoke/deezer/now", headers=AUTH)
+    wait_for(client, "/karaoke/deezer/now", "running")
+    refs = lambda *ids: {"tracks": [{"source": "deezer", "source_id": i} for i in ids]}
+    client.post("/karaoke/prepare", headers=AUTH, json=refs("a", "b", "c"))
+    client.post("/karaoke/prepare", headers=AUTH, json=refs("c", "d"))
+    queued = {key[1] for key, job in karaoke._jobs.items() if job.status == "queued"}
+    assert queued == {"c", "d"}
+    client.portal.call(engine.gate.set)
+
+
+def test_clear_queue(client, engine):
+    """« Vider la file » : ses séparations partent, même celle en cours ;
+    celles des autres comptes restent."""
+    engine.gate = asyncio.Event()
+    deps = client.app.state.deps
+    client.post("/karaoke/deezer/1", headers=AUTH)
+    wait_for(client, "/karaoke/deezer/1", "running")
+    client.post("/karaoke/prepare", headers=AUTH, json={"tracks": [{"source": "deezer", "source_id": "2"}]})
+
+    async def other_account():
+        from dataclasses import replace
+
+        karaoke.request(replace(deps, user_id_override=99), "deezer", "autre", karaoke.UPCOMING)
+
+    client.portal.call(other_account)
+    info = client.get("/karaoke/queue", headers=AUTH).json()
+    assert info["queued"] == 2 and info["running"]["source_id"] == "1"
+
+    # Le jeton de test est administrateur : un compte simple ne vide que
+    # ses propres demandes.
+    async def clear_as_user():
+        from dataclasses import replace
+
+        return karaoke.clear_queue(replace(deps, is_admin=False))
+
+    assert client.portal.call(clear_as_user) == 2
+    assert karaoke._jobs[("deezer", "1", "fast")].cancelled
+    assert ("deezer", "2", "fast") not in karaoke._jobs
+    assert ("deezer", "autre", "fast") in karaoke._jobs
+    client.portal.call(engine.gate.set)
+    # Pas de passe fine pour une séparation abandonnée.
+    wait_for(client, "/karaoke/deezer/autre", "ready")
+    assert ("deezer", "1", "hq") not in karaoke._jobs
+    # Un administrateur vide tout.
+    client.post("/karaoke/prepare", headers=AUTH, json={"tracks": [{"source": "deezer", "source_id": "x"}]})
+    assert client.delete("/karaoke/queue", headers=AUTH).json()["queued"] == 0

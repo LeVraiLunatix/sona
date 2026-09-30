@@ -245,11 +245,16 @@ struct SingButton: View {
             .animation(Motion.snappy, value: pressing)
             .contentShape(Circle())
             .gesture(press)
-            .overlay(alignment: .top) {
+            .overlay(alignment: .topTrailing) {
+                // Le panneau s'ouvre sous le bouton, vers la gauche (le
+                // bouton est au bord droit de l'en-tête).
                 if showsSlider {
-                    VocalSlider(player: player, level: shownLevel, onChange: adjust, onEnd: scheduleHide)
-                        .offset(y: 48)
-                        .transition(.scale(scale: 0.6, anchor: .top).combined(with: .opacity))
+                    KaraokePanel(
+                        player: player, level: shownLevel, onChange: adjust,
+                        onInteract: scheduleHide, onClose: { showsSlider = false }
+                    )
+                    .offset(y: 48)
+                    .transition(.scale(scale: 0.7, anchor: .topTrailing).combined(with: .opacity))
                 }
             }
             .animation(Motion.snappy, value: showsSlider)
@@ -289,10 +294,11 @@ struct SingButton: View {
                 guard dragged || showsSlider else { return }
                 longPressTask?.cancel()
                 if !showsSlider { openSlider() }
-                // Glisser vers le haut monte la voix (150 pt = tout le curseur).
+                // Glisser vers le haut monte la voix (hauteur du curseur =
+                // de 0 à 100 %).
                 let start = dragStart ?? shownLevel
                 if dragStart == nil { dragStart = start }
-                adjust(start - value.translation.height / VocalSlider.height)
+                adjust(start - value.translation.height / KaraokePanel.height)
             }
             .onEnded { _ in
                 longPressTask?.cancel()
@@ -320,99 +326,265 @@ struct SingButton: View {
         player.setVocalLevel(snapped)
     }
 
+    /// Le panneau se referme seul après quelques secondes sans y toucher.
     private func scheduleHide() {
         hideTask?.cancel()
         hideTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
+            try? await Task.sleep(for: .seconds(6))
             guard !Task.isCancelled else { return }
             showsSlider = false
         }
     }
 }
 
-/// Curseur vertical « Voix », façon volume d'iOS : rempli depuis le bas.
-/// Montre aussi où en est la séparation par IA (« Séparation en cours… »).
-struct VocalSlider: View {
+/// Menu karaoké, ouvert par un appui long (ou un glissé) sur « Chante » :
+/// le curseur « Voix » façon volume d'iOS (rempli depuis le bas), trois
+/// raccourcis, ce qui joue en ce moment, l'avancement de la séparation par
+/// IA et la file d'attente du serveur, qu'on peut vider.
+struct KaraokePanel: View {
     @ObservedObject var player: PlayerManager
     let level: Double
     let onChange: (Double) -> Void
-    let onEnd: () -> Void
+    /// Toute action dans le panneau repousse sa fermeture automatique.
+    let onInteract: () -> Void
+    let onClose: () -> Void
 
-    static let height: CGFloat = 150
-    private let width: CGFloat = 52
+    @State private var clearing = false
+    @State private var clearedCount: Int?
+
+    static let height: CGFloat = 188
+    private let sliderWidth: CGFloat = 56
+    private let columnWidth: CGFloat = 196
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text("\(Int((level * 100).rounded())) %")
-                .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Tone.primary)
-                .contentTransition(.numericText())
-            ZStack(alignment: .bottom) {
-                Capsule().fill(Color.white.opacity(0.14))
-                Rectangle()
-                    .fill(Color.white)
-                    .frame(height: Self.height * level)
-                Image(systemName: level < 0.01 ? "music.note" : "music.mic")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(level > 0.12 ? Color.black : Color.white)
-                    .padding(.bottom, 12)
+        HStack(alignment: .top, spacing: 14) {
+            slider
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                presets
+                sourceLine
+                if let status = statusText {
+                    statusView(status)
+                        .transition(.opacity)
+                }
+                Spacer(minLength: 0)
+                queueLine
             }
-            .frame(width: width, height: Self.height)
-            .clipShape(Capsule())
-            .contentShape(Capsule())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in onChange(1 - value.location.y / Self.height) }
-                    .onEnded { _ in onEnd() }
-            )
-            Text("Voix")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Tone.secondary)
-            if let status {
-                Text(status)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Tone.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(width: 110)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(.opacity)
+            .frame(width: columnWidth, height: Self.height, alignment: .topLeading)
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Color.white.opacity(0.08)))
+        .environment(\.colorScheme, .dark)
+        .shadow(color: .black.opacity(0.4), radius: 22, y: 10)
+        .animation(Motion.smooth, value: statusText)
+        .animation(Motion.smooth, value: player.singSource)
+        .fixedSize()
+        // État de la file du serveur, tant que le panneau est ouvert.
+        .task {
+            while !Task.isCancelled {
+                await player.refreshKaraokeQueue()
+                try? await Task.sleep(for: .seconds(5))
             }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .environment(\.colorScheme, .dark)
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-        .animation(Motion.smooth, value: status)
-        .fixedSize()
-        .accessibilityHidden(true)
     }
 
-    /// Avancement de la séparation, ou ce qui joue en attendant.
-    private var status: String? {
+    // MARK: Curseur
+
+    private var slider: some View {
+        ZStack(alignment: .bottom) {
+            Capsule().fill(Color.white.opacity(0.14))
+            Rectangle()
+                .fill(Color.white)
+                .frame(height: Self.height * level)
+            Image(systemName: level < 0.01 ? "music.note" : "music.mic")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(level > 0.12 ? Color.black : Color.white)
+                .contentTransition(.symbolEffect(.replace))
+                .padding(.bottom, 14)
+        }
+        .frame(width: sliderWidth, height: Self.height)
+        .clipShape(Capsule())
+        .contentShape(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in onChange(1 - value.location.y / Self.height) }
+                .onEnded { _ in onInteract() }
+        )
+        .accessibilityElement()
+        .accessibilityLabel("Voix")
+        .accessibilityValue("\(Int((level * 100).rounded())) %")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: onChange(level + 0.1)
+            case .decrement: onChange(level - 0.1)
+            @unknown default: break
+            }
+            onInteract()
+        }
+    }
+
+    // MARK: Colonne
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Voix")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Tone.primary)
+            Text("\(Int((level * 100).rounded())) %")
+                .font(.system(size: 17, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Tone.secondary)
+                .contentTransition(.numericText())
+                .animation(Motion.snappy, value: level)
+            Spacer(minLength: 0)
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Tone.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
+            }
+            .buttonStyle(.pressable(scale: 0.85))
+            .accessibilityLabel("Fermer")
+        }
+    }
+
+    /// Raccourcis : karaoké complet, voix en fond pour suivre, titre normal.
+    private var presets: some View {
+        HStack(spacing: 6) {
+            preset("Instru", value: 0)
+            preset("En fond", value: 0.35)
+            preset("Normal", value: 1)
+        }
+    }
+
+    private func preset(_ title: String, value: Double) -> some View {
+        let isOn = abs(level - value) < 0.03
+        return Button {
+            onChange(value)
+            onInteract()
+        } label: {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isOn ? Color.black : Tone.primary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(Capsule().fill(isOn ? Color.white : Color.white.opacity(0.12)))
+        }
+        .buttonStyle(.pressable(scale: 0.92))
+        .sensoryFeedback(.selection, trigger: isOn)
+    }
+
+    /// Ce qui joue en ce moment.
+    private var sourceLine: some View {
+        let (icon, text): (String, String) = switch player.singSource {
+        case .off: ("waveform", "Titre original")
+        case .searching: ("hourglass", "Préparation du karaoké…")
+        case .instrumental: ("music.note", "Instru YouTube en attendant")
+        case .reduced: ("dial.low", "Voix baissée en attendant")
+        case .separated:
+            ("sparkles", player.stemsQuality == "hq" ? "Voix séparée par IA · haute qualité" : "Voix séparée par IA · version rapide")
+        }
+        return Label {
+            Text(text).fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: icon).frame(width: 16)
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(player.singSource == .separated ? Tone.primary : Tone.secondary)
+    }
+
+    private struct Status: Equatable {
+        var text: String
+        var progress: Double?
+        var isError = false
+    }
+
+    /// Avancement de la séparation par IA du titre en cours.
+    private var statusText: Status? {
         guard player.singAlong else { return nil }
         switch player.separation {
         case .idle, .ready:
             return nil
         case .waiting(let ahead):
-            return ahead > 0 ? "Séparation en attente (\(ahead) avant)" : "Séparation en cours…"
+            return Status(text: ahead > 0 ? "En file d'attente (\(ahead) avant)" : "Séparation par IA…")
         case .running(let progress):
-            return "Séparation en cours… \(Int((progress * 100).rounded())) %"
+            return Status(text: "Séparation par IA… \(Int((progress * 100).rounded())) %", progress: progress)
         case .downloading:
-            return "Presque prêt…"
+            return Status(text: "Chargement des pistes…")
         case .improving(let progress):
-            // Pistes rapides en lecture : la version fine arrive toute seule.
-            return "Affinage de la séparation… \(Int((progress * 100).rounded())) %"
-        case .failed:
-            return fallbackLabel.map { "Séparation impossible · \($0)" } ?? "Séparation impossible"
+            return Status(text: "Version haute qualité… \(Int((progress * 100).rounded())) %", progress: progress)
+        case .failed(let message):
+            return Status(text: message, isError: true)
         }
     }
 
-    private var fallbackLabel: String? {
-        switch player.singSource {
-        case .instrumental: "instru"
-        case .reduced: "voix baissée"
-        default: nil
+    private func statusView(_ status: Status) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(status.text)
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(status.isError ? Tone.danger : Tone.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let progress = status.progress {
+                ProgressView(value: min(1, max(0, progress)))
+                    .tint(.white)
+                    .animation(Motion.smooth, value: progress)
+            }
+        }
+    }
+
+    /// File des séparations du serveur, avec « Vider ».
+    @ViewBuilder
+    private var queueLine: some View {
+        let queue = player.karaokeQueue
+        let waiting = queue?.queued ?? 0
+        HStack(spacing: 8) {
+            Image(systemName: "list.bullet")
+                .font(.system(size: 11, weight: .semibold))
+            Text(queueText(waiting: waiting, running: queue?.running != nil))
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(2)
+            Spacer(minLength: 0)
+            if waiting > 0 || queue?.running != nil {
+                Button {
+                    onInteract()
+                    clearing = true
+                    Task {
+                        clearedCount = await player.clearKaraokeQueue()
+                        clearing = false
+                    }
+                } label: {
+                    Group {
+                        if clearing {
+                            ProgressView().controlSize(.mini).tint(.white)
+                        } else {
+                            Text("Vider")
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Tone.primary)
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .background(Capsule().fill(Color.white.opacity(0.14)))
+                }
+                .buttonStyle(.pressable(scale: 0.9))
+                .disabled(clearing)
+                .accessibilityLabel("Vider la file d'attente de séparation")
+            }
+        }
+        .foregroundStyle(Tone.tertiary)
+    }
+
+    private func queueText(waiting: Int, running: Bool) -> String {
+        if let cleared = clearedCount, waiting == 0 {
+            return cleared > 0 ? "File vidée (\(cleared))" : "File déjà vide"
+        }
+        switch (waiting, running) {
+        case (0, false): return "File du serveur vide"
+        case (0, true): return "1 séparation en cours"
+        case (1, _): return "1 titre en attente"
+        default: return "\(waiting) titres en attente"
         }
     }
 }

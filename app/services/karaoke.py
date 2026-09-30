@@ -29,7 +29,7 @@ import os
 import shutil
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -72,6 +72,11 @@ class Job:
     error: str | None = None
     failed_at: float = 0.0
     preempted: bool = False
+    # Abandonnée (file vidée) : interrompue, et pas remise en file.
+    cancelled: bool = False
+    # Comptes qui l'attendent (vide : séparation de nuit). Sert à vider sa
+    # propre file sans toucher à celle des autres.
+    users: set[int] = field(default_factory=set)
 
     @property
     def key(self) -> tuple[str, str, str]:
@@ -240,18 +245,22 @@ def request(deps, source: str, source_id: str, priority: int = NOW) -> dict:
     """Met un titre en file (ou le fait remonter si déjà demandé) et renvoie
     son état. Ne lance jamais le calcul dans la requête elle-même.
 
-    Demandé pour être chanté (maintenant ou bientôt) : passe rapide d'abord,
-    la passe fine suivra. Préparé la nuit : directement la passe fine."""
+    Demandé pour être chanté : passe rapide d'abord, puis la passe fine si
+    le titre est chanté maintenant (un titre seulement « à venir » n'a sa
+    passe fine que s'il est chanté ensuite). Préparé la nuit : directement
+    la passe fine."""
     settings = deps.settings
+    user = deps.user_id if priority < NIGHT else None
     ready = ready_quality(settings, source, source_id)
     if ready == "hq":
         return status(settings, source, source_id)
     if ready == "fast":
-        _ensure_job(source, source_id, "hq", max(priority, REFINE))
+        if priority == NOW or priority >= NIGHT:
+            _ensure_job(source, source_id, "hq", max(priority, REFINE), user)
     elif priority >= NIGHT:
-        _ensure_job(source, source_id, "hq", priority)
+        _ensure_job(source, source_id, "hq", priority, user)
     else:
-        _ensure_job(source, source_id, "fast", priority)
+        _ensure_job(source, source_id, "fast", priority, user)
     # Un titre à écouter maintenant ne patiente pas derrière une passe fine
     # ou une séparation de nuit : elle est interrompue et reprendra après.
     if priority == NOW and _running is not None and _running.priority >= REFINE \
@@ -261,7 +270,64 @@ def request(deps, source: str, source_id: str, priority: int = NOW) -> dict:
     return status(settings, source, source_id)
 
 
-def _ensure_job(source: str, source_id: str, quality: str, priority: int) -> None:
+def prepare_upcoming(deps, tracks: list[tuple[str, str]]) -> list[dict]:
+    """Titres suivants de la file de l'app. Ceux demandés avant par ce
+    compte et qui n'en font plus partie (titres passés, file changée) sont
+    retirés : sans ça, la file du serveur grossissait à chaque titre."""
+    wanted = set(tracks)
+    for job in list(_jobs.values()):
+        if job.status == "queued" and job.priority == UPCOMING and deps.user_id in job.users \
+                and job.key[:2] not in wanted:
+            job.users.discard(deps.user_id)
+            if not job.users:
+                _jobs.pop(job.key, None)
+    return [
+        {"source": source, "source_id": source_id, **request(deps, source, source_id, UPCOMING)}
+        for source, source_id in tracks
+    ]
+
+
+def queue_info(deps) -> dict:
+    """État de la file pour le menu karaoké : combien de séparations en
+    attente, dont celles demandées par ce compte, et celle en cours."""
+    pending = _pending()
+    info = {
+        "queued": len(pending),
+        "mine": sum(1 for job in pending if deps.user_id in job.users),
+        "running": None,
+    }
+    if _running is not None:
+        info["running"] = {
+            "source": _running.source, "source_id": _running.source_id, "quality": _running.quality,
+            "progress": round(_running.progress, 3), "mine": deps.user_id in _running.users,
+        }
+    return info
+
+
+def clear_queue(deps) -> int:
+    """Vide la file : les séparations demandées par ce compte (toutes pour
+    un administrateur), en attente, en cours ou en échec (elles pourront
+    être redemandées aussitôt). Renvoie le nombre de séparations retirées."""
+    removed = 0
+    for job in list(_jobs.values()):
+        mine = deps.user_id in job.users
+        if not (deps.is_admin or mine):
+            continue
+        job.users.discard(deps.user_id)
+        if job.users and not deps.is_admin:
+            continue  # un autre compte l'attend encore
+        if job is _running:
+            job.cancelled = True
+            _preempt()
+        else:
+            _jobs.pop(job.key, None)
+        removed += 1
+    if removed:
+        logger.info("Karaoké : file vidée (%d séparation(s))", removed)
+    return removed
+
+
+def _ensure_job(source: str, source_id: str, quality: str, priority: int, user: int | None = None) -> None:
     key = (source, source_id, quality)
     job = _jobs.get(key)
     if job is not None and job.status == "failed":
@@ -269,12 +335,15 @@ def _ensure_job(source: str, source_id: str, quality: str, priority: int) -> Non
             return
         job = None
     if job is None:
-        _jobs[key] = Job(source, source_id, quality, priority, next(_order))
+        job = Job(source, source_id, quality, priority, next(_order))
+        _jobs[key] = job
         _trim_queue()
     elif priority < job.priority:
         job.priority = priority
         if job.status == "queued":
             job.order = next(_order)
+    if user is not None:
+        job.users.add(user)
 
 
 def _trim_queue() -> None:
@@ -321,6 +390,9 @@ async def _work(deps) -> None:
         except asyncio.CancelledError:
             raise
         except _Preempted:
+            if job.cancelled:
+                _jobs.pop(job.key, None)
+                continue
             logger.info("Karaoké : séparation de %s:%s reportée (titre plus urgent)", job.source, job.source_id)
             job.status, job.progress = "queued", 0.0
             job.order = next(_order)
@@ -332,12 +404,17 @@ async def _work(deps) -> None:
             _fail(job, f"Séparation impossible : {exc}")
         else:
             _jobs.pop(job.key, None)
-            if job.quality == "fast":
-                # Pistes rapides prêtes : la passe fine suit, quand la file
-                # des titres à chanter est vide.
-                _ensure_job(job.source, job.source_id, "hq", max(job.priority, REFINE))
-            else:
+            if job.quality == "hq":
+                # Passe fine prête : les pistes rapides ne servent plus.
                 _delete(deps.settings, job.source, job.source_id, "fast")
+            elif job.priority == NOW and not job.cancelled:
+                # Titre chanté : la passe fine suit, quand la file des
+                # titres à chanter est vide. (File vidée pendant le calcul,
+                # ou titre seulement « à venir » : pas de passe fine.)
+                _ensure_job(job.source, job.source_id, "hq", REFINE)
+                refine = _jobs.get((job.source, job.source_id, "hq"))
+                if refine is not None:
+                    refine.users |= job.users
         finally:
             _running = None
 

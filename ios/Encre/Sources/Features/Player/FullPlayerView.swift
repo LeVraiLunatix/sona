@@ -351,6 +351,8 @@ struct FullPlayerView: View {
     /// File d'attente façon Musique : les quatre bascules (aléatoire,
     /// répétition, lecture automatique, fondu enchaîné), « Poursuivre la
     /// lecture » réordonnable, puis les titres similaires qui suivront.
+    /// Au-dessus, hors de vue à l'ouverture, l'historique : on remonte la
+    /// liste pour retrouver les titres écoutés avant.
     private var queueList: some View {
         VStack(alignment: .leading, spacing: 14) {
             QueueToggles(player: player)
@@ -359,7 +361,32 @@ struct FullPlayerView: View {
             // En-têtes en lignes ordinaires plutôt qu'en `Section` : les
             // en-têtes d'une liste simple restent collés en haut, sur un fond
             // grisé qui jure avec le lecteur.
+            ScrollViewReader { proxy in
             List {
+                let history = player.history.filter { $0.id != player.current?.id }
+                if !history.isEmpty {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Historique")
+                            .font(Typo.headline)
+                            .foregroundStyle(Tone.primary)
+                        Spacer()
+                        Button("Effacer") {
+                            withAnimation(Motion.smooth) { player.clearHistory() }
+                        }
+                        .font(Typo.rowSubtitle)
+                        .foregroundStyle(Tone.secondary)
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.bottom, 4)
+                    .queueRowStyle()
+
+                    ForEach(history) { track in
+                        QueueRow(track: track, showsHandle: false) { player.playFromHistory(track) }
+                            .opacity(0.6)
+                            .queueRowStyle()
+                    }
+                }
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Poursuivre la lecture")
                         .font(Typo.headline)
@@ -371,7 +398,9 @@ struct FullPlayerView: View {
                     }
                 }
                 .padding(.bottom, 4)
+                .padding(.top, player.history.contains { $0.id != player.current?.id } ? 18 : 0)
                 .queueRowStyle()
+                .id(Self.queueStart)
 
                 if player.queuedNext.isEmpty {
                     Text("Rien après ce morceau.")
@@ -419,8 +448,20 @@ struct FullPlayerView: View {
             .scrollIndicators(.hidden)
             .environment(\.defaultMinListRowHeight, 10)
             .mask { EdgeFade() }
+            // À l'ouverture, la file démarre sur « Poursuivre la lecture » :
+            // l'historique attend au-dessus, comme dans Musique.
+            .task {
+                try? await Task.sleep(for: .milliseconds(30))
+                proxy.scrollTo(Self.queueStart, anchor: .top)
+            }
+            .onChange(of: player.current?.id) { _, _ in
+                withAnimation(Motion.smooth) { proxy.scrollTo(Self.queueStart, anchor: .top) }
+            }
+            }
         }
     }
+
+    private static let queueStart = "queue-start"
 
     // MARK: - Commandes
 
