@@ -15,7 +15,7 @@ final class CastManager: ObservableObject {
     @Published var errorMessage: String?
     /// Feuille d'association (code YouTube) : son état vit ici, pas dans la
     /// liste, pour qu'elle ne se referme pas quand la liste est reconstruite.
-    @Published var cast.showingPairing = false
+    @Published var showingPairing = false
 
     private let player = PlayerManager.shared
 
