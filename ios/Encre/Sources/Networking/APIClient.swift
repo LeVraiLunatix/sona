@@ -739,11 +739,16 @@ final class APIClient {
         try await sendNoContent(try request("/tv/\(screenId)/play", method: "POST", bodyData: try encode(Body(tracks: tracks))))
     }
 
-    func controlTV(_ screenId: String, action: String, seconds: Double? = nil) async throws {
-        struct Body: Encodable { let action: String; let seconds: Double? }
+    func controlTV(_ screenId: String, action: String, seconds: Double? = nil, volume: Int? = nil) async throws {
+        struct Body: Encodable { let action: String; let seconds: Double?; let volume: Int? }
         try await sendNoContent(try request(
-            "/tv/\(screenId)/control", method: "POST", bodyData: try encode(Body(action: action, seconds: seconds))
+            "/tv/\(screenId)/control", method: "POST",
+            bodyData: try encode(Body(action: action, seconds: seconds, volume: volume))
         ))
+    }
+
+    func tvState(_ screenId: String) async throws -> TVState {
+        try await send(try request("/tv/\(screenId)/state"))
     }
 
     // MARK: - Blind test en direct

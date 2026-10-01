@@ -16,8 +16,10 @@ incompatible avec le bot Telegram.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 
 import httpx
@@ -36,6 +38,8 @@ _SID = re.compile(r'\["c","([^"]+)"')
 _GSESSION = re.compile(r'\["S","([^"]+)"')
 _EVENT_ID = re.compile(r"\[(\d+),\[")
 ACTIONS = {"play": "play", "pause": "pause", "next": "next", "previous": "previous", "stop": "stopVideo"}
+# États annoncés par l'appli YouTube de l'écran (onStateChange).
+_STATES = {-1: "idle", 0: "ended", 1: "playing", 2: "paused", 3: "buffering", 5: "idle"}
 
 
 class CastError(Exception):
@@ -86,6 +90,110 @@ class Session:
     last_event: str = "0"
     offset: int = 0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Ce que l'écran annonce (position, durée, état, vidéo, volume).
+    video_id: str | None = None
+    position: float = 0.0
+    duration: float = 0.0
+    state: int = -1
+    volume: int | None = None
+    updated: float = 0.0
+    # Vidéo YouTube -> titre Sona envoyé, pour savoir lequel joue à l'écran.
+    videos: dict[str, tuple[str, str]] = field(default_factory=dict)
+    listener: asyncio.Task | None = None
+
+    def apply_event(self, name: str, data: dict) -> None:
+        if name in ("nowPlaying", "onStateChange"):
+            if name == "nowPlaying" and not data:
+                self.video_id, self.state, self.position, self.duration = None, -1, 0.0, 0.0
+            else:
+                self.video_id = data.get("videoId") or self.video_id
+                for key, attr in (("currentTime", "position"), ("duration", "duration")):
+                    try:
+                        setattr(self, attr, float(data[key]))
+                    except (KeyError, TypeError, ValueError):
+                        pass
+                try:
+                    self.state = int(data["state"])
+                except (KeyError, TypeError, ValueError):
+                    pass
+            self.updated = time.monotonic()
+        elif name == "onVolumeChanged":
+            try:
+                self.volume = int(data.get("volume"))
+            except (TypeError, ValueError):
+                pass
+        elif name == "loungeScreenDisconnected":
+            self.state = -1
+            self.updated = time.monotonic()
+
+    def snapshot(self) -> dict:
+        position = self.position
+        if self.state == 1 and self.updated:
+            position += time.monotonic() - self.updated
+            if self.duration:
+                position = min(position, self.duration)
+        mapped = self.videos.get(self.video_id or "")
+        return {
+            "connected": self.connected,
+            "state": _STATES.get(self.state, "idle"),
+            "position": round(position, 1),
+            "duration": self.duration,
+            "video_id": self.video_id,
+            "track": {"source": mapped[0], "source_id": mapped[1]} if mapped else None,
+            "volume": self.volume,
+        }
+
+    def feed(self, text: str) -> None:
+        """Lit les événements d'un morceau de flux : des lignes « longueur »
+        puis un tableau JSON `[[index, ["nom", {...}]], ...]`."""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("["):
+                continue
+            try:
+                events = json.loads(line)
+            except ValueError:
+                continue
+            for event in events:
+                try:
+                    index, (name, *rest) = event
+                except (TypeError, ValueError):
+                    continue
+                self.last_event = str(index)
+                data = rest[0] if rest and isinstance(rest[0], dict) else {}
+                self.apply_event(name, data)
+
+    async def listen(self) -> None:
+        """Écoute l'écran tant que la session vit (longue requête rouverte à
+        chaque fin) : c'est ce qui donne le temps de lecture et l'état."""
+        while self.connected:
+            params = {
+                "name": DEVICE_NAME, "loungeIdToken": self.token, "SID": self.sid, "AID": self.last_event,
+                "gsessionid": self.gsession, "device": "REMOTE_CONTROL", "app": "youtube-desktop",
+                "VER": 8, "v": 2, "RID": "rpc", "CI": 0, "TYPE": "xmlhttp",
+            }
+            try:
+                async with _http() as client:
+                    async with client.stream("GET", f"{API}/bc/bind", params=params) as resp:
+                        if resp.status_code != 200:
+                            self.sid = self.gsession = None
+                            return
+                        async for chunk in resp.aiter_text():
+                            self.feed(chunk)
+                await asyncio.sleep(0.5)
+            except httpx.TimeoutException:
+                continue
+            except httpx.HTTPError:
+                await asyncio.sleep(2)
+            except Exception:
+                logger.exception("Écoute de l'écran interrompue")
+                return
+
+    def ensure_listener(self) -> None:
+        if self.connected and (self.listener is None or self.listener.done()):
+            self.listener = asyncio.create_task(self.listen())
+            _background.add(self.listener)
+            self.listener.add_done_callback(_background.discard)
 
     @property
     def connected(self) -> bool:
@@ -114,6 +222,7 @@ class Session:
         ids = _EVENT_ID.findall(text)
         self.last_event = ids[-1] if ids else "0"
         self.offset = 0
+        self.state = -1
 
     async def command(self, name: str, parameters: dict | None = None) -> None:
         self.offset += 1
@@ -142,21 +251,39 @@ def reset() -> None:
     _sessions.clear()
 
 
-async def send(repo, user_id: int, screen_id: str, name: str, parameters: dict | None = None) -> None:
-    """Envoie une commande, en (re)connectant la session au besoin : une
-    session expirée ou perdue est rouverte une fois, jeton rafraîchi."""
+async def _session(repo, user_id: int, screen_id: str) -> Session:
     stored = await repo.tv_screen_get(user_id, screen_id)
     if stored is None:
         raise CastError("Écran inconnu : associe-le d'abord.")
     session = _sessions.get(screen_id)
     if session is None or session.token != stored["lounge_token"]:
         session = _sessions[screen_id] = Session(screen_id, stored["lounge_token"])
+    return session
+
+
+async def state(repo, user_id: int, screen_id: str) -> dict:
+    """Ce que joue l'écran (position, durée, état), sans rien lui envoyer
+    sauf une demande d'état à la première connexion."""
+    session = await _session(repo, user_id, screen_id)
+    if not session.connected or session.listener is None or session.listener.done():
+        try:
+            await send(repo, user_id, screen_id, "getNowPlaying")
+        except CastError:
+            return session.snapshot()
+    return session.snapshot()
+
+
+async def send(repo, user_id: int, screen_id: str, name: str, parameters: dict | None = None) -> None:
+    """Envoie une commande, en (re)connectant la session au besoin : une
+    session expirée ou perdue est rouverte une fois, jeton rafraîchi."""
+    session = await _session(repo, user_id, screen_id)
     async with session.lock:
         for attempt in range(2):
             try:
                 if not session.connected:
                     await session.connect()
                 await session.command(name, parameters)
+                session.ensure_listener()
                 return
             except CastError as exc:
                 if attempt or str(exc) not in ("expired", "lost"):
@@ -192,6 +319,8 @@ async def play(repo, user_id: int, screen_id: str, tracks: list[TrackInfo], cook
     first = await video_id_for(repo, tracks[0], cookies_file)
     if first is None:
         raise CastError("Titre introuvable sur YouTube.")
+    session = await _session(repo, user_id, screen_id)
+    session.videos = {first: (tracks[0].source, tracks[0].source_id)}
     await send(repo, user_id, screen_id, "setPlaylist", {"videoId": first, "currentTime": 0, "currentIndex": 0})
 
     async def queue_rest() -> None:
@@ -199,6 +328,7 @@ async def play(repo, user_id: int, screen_id: str, tracks: list[TrackInfo], cook
             try:
                 video = await video_id_for(repo, track, cookies_file)
                 if video:
+                    session.videos.setdefault(video, (track.source, track.source_id))
                     await send(repo, user_id, screen_id, "addVideo", {"videoId": video})
             except CastError as exc:
                 logger.info("File de l'écran interrompue : %s", exc)

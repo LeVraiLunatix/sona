@@ -1027,6 +1027,26 @@ struct TVScreen: Codable, Hashable, Identifiable {
     var id: String { screenId }
 }
 
+/// Ce que joue l'écran : position, durée, état, titre et volume, relevés
+/// par le serveur auprès de l'appli YouTube de la PS5 / TV.
+struct TVState: Decodable {
+    struct Playing: Decodable {
+        var source: String
+        var sourceId: String
+        enum CodingKeys: String, CodingKey {
+            case source
+            case sourceId = "source_id"
+        }
+    }
+
+    var connected: Bool
+    var state: String
+    var position: Double
+    var duration: Double
+    var track: Playing?
+    var volume: Int?
+}
+
 // MARK: - Blind test en direct
 
 struct LivePlayer: Codable, Hashable, Identifiable {

@@ -111,6 +111,10 @@ struct RootTabView: View {
         }
         .task { ConnectManager.shared.start() }
         .task {
+            // Écran TV / PS5 choisi avant la fermeture de l'appli : on le reprend.
+            await CastManager.shared.restore()
+        }
+        .task {
             // Le dernier titre, en pause, prêt à reprendre où on l'avait laissé.
             player.restoreSession()
             HeadGestures.shared.startIfEnabled()

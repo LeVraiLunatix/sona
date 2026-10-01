@@ -1311,6 +1311,35 @@ final class PlayerManager: ObservableObject {
     /// l'écran au lieu de jouer ici, et lecture/pause le pilote.
     var remotePlayback: ((Track, [Track]) -> Void)?
     var remoteToggle: (() -> Void)?
+    var remoteSeek: ((Double) -> Void)?
+
+    /// État relevé sur l'écran (voir `CastManager`) : la barre, le temps et
+    /// le bouton lecture/pause suivent la TV / PS5.
+    func applyCast(position: Double, duration: Double, playing: Bool) {
+        if isPlaying != playing { isPlaying = playing }
+        let total = duration > 0 ? duration : (referenceDuration() ?? 0)
+        positionSeconds = position
+        if total > 0 {
+            durationSeconds = total
+            progress = min(1, position / total)
+        }
+        updateNowPlayingElapsedTime()
+    }
+
+    /// L'écran est passé de lui-même au titre suivant de sa file : le
+    /// lecteur le suit, sans le renvoyer à l'écran.
+    func followCast(source: String, sourceId: String) {
+        let id = "\(source):\(sourceId)"
+        guard id != current?.id, let track = context.first(where: { $0.id == id }) else { return }
+        if let previous = current, listenStartedAt != nil { remember(previous) }
+        finishListening()
+        current = track
+        positionSeconds = 0
+        progress = 0
+        durationSeconds = Double(track.durationSeconds ?? 0)
+        updateNowPlayingInfo(for: track)
+        fetchArtwork(for: track)
+    }
 
     // MARK: Karaoké, égaliseur, audio spatial
 
@@ -1794,6 +1823,12 @@ final class PlayerManager: ObservableObject {
     /// Saut à une position absolue — une ligne de paroles synchronisées
     /// tapée, par exemple.
     func seek(toSeconds seconds: Double) {
+        if let remoteSeek {
+            remoteSeek(max(0, seconds))
+            positionSeconds = max(0, seconds)
+            if durationSeconds > 0 { progress = min(1, positionSeconds / durationSeconds) }
+            return
+        }
         guard let player else { return }
         endHandled = false  // retour en arrière : la fin pourra de nouveau enchaîner
         player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600))
@@ -1803,6 +1838,11 @@ final class PlayerManager: ObservableObject {
     }
 
     func seek(toFraction fraction: Double) {
+        if remoteSeek != nil {
+            let duration = durationSeconds > 0 ? durationSeconds : (referenceDuration() ?? 0)
+            if duration > 0 { seek(toSeconds: min(1, max(0, fraction)) * duration) }
+            return
+        }
         guard let player, let duration = referenceDuration() else { return }
         let clamped = min(1, max(0, fraction))
         endHandled = false  // retour en arrière : la fin pourra de nouveau enchaîner

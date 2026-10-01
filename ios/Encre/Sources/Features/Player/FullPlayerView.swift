@@ -34,6 +34,7 @@ struct FullPlayerView: View {
     @AppStorage("encre.visualizer") private var visualizer = false
     /// Musique sur un autre appareil (PC…) : le lecteur devient sa télécommande.
     @ObservedObject private var remote = RemoteFlag.shared
+    @ObservedObject private var cast = CastManager.shared
     @Namespace private var hero
 
     private struct AutoHideKey: Equatable {
@@ -492,10 +493,14 @@ struct FullPlayerView: View {
             TransportRow(player: player)
                 .padding(.vertical, 22)
 
-            HStack(spacing: 12) {
-                Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
-                SystemVolumeView().frame(height: 30)
-                Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+            if cast.active != nil {
+                TVVolumeSlider()
+            } else {
+                HStack(spacing: 12) {
+                    Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+                    SystemVolumeView().frame(height: 30)
+                    Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+                }
             }
 
             // Paroles · où sort la musique (AirPods, AirPlay, PS5, PC) · file.

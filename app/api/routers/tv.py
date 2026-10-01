@@ -25,6 +25,7 @@ class PlayIn(BaseModel):
 class ControlIn(BaseModel):
     action: str
     seconds: float | None = Field(None, ge=0)
+    volume: int | None = Field(None, ge=0, le=100)
 
 
 def _info(track: Track) -> TrackInfo:
@@ -65,10 +66,20 @@ async def play(screen_id: str, payload: PlayIn, deps: ApiDeps = Depends(require_
     return {"video_id": video_id}
 
 
+@router.get("/{screen_id}/state")
+async def screen_state(screen_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    try:
+        return await tv_cast.state(deps.repo, deps.user_id, screen_id)
+    except tv_cast.CastError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
 @router.post("/{screen_id}/control")
 async def control(screen_id: str, payload: ControlIn, deps: ApiDeps = Depends(require_token)) -> dict:
     if payload.action == "seek" and payload.seconds is not None:
         command, parameters = "seekTo", {"newTime": int(payload.seconds)}
+    elif payload.action == "volume" and payload.volume is not None:
+        command, parameters = "setVolume", {"volume": payload.volume}
     elif payload.action in tv_cast.ACTIONS:
         command, parameters = tv_cast.ACTIONS[payload.action], None
     else:

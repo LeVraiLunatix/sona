@@ -19,6 +19,7 @@ class FakeYouTube:
         self.commands: list[tuple[str, dict]] = []
         self.binds = 0
         self.expire_next_command = False
+        self.events = ""
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -32,6 +33,9 @@ class FakeYouTube:
         if path.endswith("/bc/bind") and "SID" not in request.url.params:
             self.binds += 1
             return httpx.Response(200, text='52\n[[0,["c","SID1","",8]],[1,["S","GS1"]]]\n')
+        if path.endswith("/bc/bind") and request.method == "GET":
+            # Flux d'événements de l'écran (l'écoute de l'état).
+            return httpx.Response(200, text=self.events)
         if path.endswith("/bc/bind"):
             if self.expire_next_command:
                 self.expire_next_command = False
@@ -76,3 +80,32 @@ def test_pair_play_and_control(client, monkeypatch):
 
     client.delete("/tv/ps5", headers=me)
     assert client.get("/tv", headers=me).json() == []
+
+
+def test_screen_state_and_volume(client, monkeypatch):
+    youtube = FakeYouTube()
+    youtube.events = (
+        '80\n[[2,["nowPlaying",{"videoId":"abcdefghijk","currentTime":"12.5","duration":"200","state":"1"}]],'
+        '[3,["onVolumeChanged",{"volume":"35","muted":"false"}]]]\n'
+    )
+    monkeypatch.setattr(tv_cast, "_http", lambda: httpx.AsyncClient(transport=httpx.MockTransport(youtube.handler)))
+
+    async def known_video(repo, track, cookies_file=None):
+        return VIDEO
+
+    monkeypatch.setattr(tv_cast, "video_id_for", known_video)
+    me = login(client, "alice")
+    client.post("/tv/pair", headers=me, json={"code": "1234 5678 9012"})
+    client.post("/tv/ps5/play", headers=me, json={"tracks": [TRACK]})
+
+    import time
+    for _ in range(40):
+        got = client.get("/tv/ps5/state", headers=me).json()
+        if got["state"] == "playing":
+            break
+        time.sleep(0.1)
+    assert got["state"] == "playing" and got["duration"] == 200.0 and got["position"] >= 12.5
+    assert got["track"] == {"source": "deezer", "source_id": "1"} and got["volume"] == 35
+
+    assert client.post("/tv/ps5/control", headers=me, json={"action": "volume", "volume": 50}).status_code == 200
+    assert youtube.commands[-1] == ("setVolume", {"volume": "50"})

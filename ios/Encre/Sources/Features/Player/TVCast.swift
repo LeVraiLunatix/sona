@@ -18,11 +18,35 @@ final class CastManager: ObservableObject {
     @Published var showingPairing = false
 
     private let player = PlayerManager.shared
+    private static let savedKey = "encre.cast.screen"
+    private var pollTask: Task<Void, Never>?
+    /// Après l'envoi d'un titre, l'écran annonce encore l'ancien un instant.
+    private var ignoreStateUntil = Date.distantPast
 
     private init() {}
 
+    /// Volume de l'écran (0…100), tel qu'il l'annonce.
+    @Published private(set) var volume: Double?
+
     func loadScreens() async {
         screens = (try? await APIClient.shared.tvScreens()) ?? screens
+    }
+
+    /// Relance du suivi au démarrage de l'appli : l'écran choisi reste
+    /// connecté tant qu'on ne l'a pas quitté soi-même (l'appli peut avoir été
+    /// fermée par iOS pendant que YouTube continue sur la TV).
+    func restore() async {
+        guard active == nil, let id = UserDefaults.standard.string(forKey: Self.savedKey) else { return }
+        for attempt in 0..<4 {
+            await loadScreens()
+            if let screen = screens.first(where: { $0.screenId == id }) {
+                attach(to: screen)
+                return
+            }
+            if !screens.isEmpty { break }  // l'écran n'est plus associé
+            try? await Task.sleep(for: .seconds(2 + attempt * 2))
+        }
+        if screens.isEmpty == false { UserDefaults.standard.removeObject(forKey: Self.savedKey) }
     }
 
     func pair(code: String) async -> Bool {
@@ -44,44 +68,95 @@ final class CastManager: ObservableObject {
         screens.removeAll { $0 == screen }
     }
 
-    /// Bascule la lecture sur `screen` : le titre en cours et la suite.
-    func start(on screen: TVScreen) async {
+    /// Branche le lecteur sur `screen` (sans rien envoyer à l'écran).
+    private func attach(to screen: TVScreen) {
         active = screen
-        player.pause()
+        UserDefaults.standard.set(screen.screenId, forKey: Self.savedKey)
         player.remotePlayback = { [weak self] track, upNext in
             Task { await self?.send(track, upNext: upNext) }
         }
         player.remoteToggle = { [weak self] in
             Task { await self?.togglePause() }
         }
+        player.remoteSeek = { [weak self] seconds in
+            Task { await self?.control("seek", seconds: seconds) }
+        }
+        startPolling()
+    }
+
+    /// Bascule la lecture sur `screen` : le titre en cours et la suite.
+    func start(on screen: TVScreen) async {
+        player.pause()
+        attach(to: screen)
         if let current = player.current {
             await send(current, upNext: player.upNext)
         }
     }
 
     func stop() async {
+        pollTask?.cancel()
+        pollTask = nil
         if let active {
             try? await APIClient.shared.controlTV(active.screenId, action: "stop")
         }
         active = nil
         paused = false
+        volume = nil
+        UserDefaults.standard.removeObject(forKey: Self.savedKey)
         player.remotePlayback = nil
         player.remoteToggle = nil
+        player.remoteSeek = nil
     }
 
-    func control(_ action: String) async {
+    func control(_ action: String, seconds: Double? = nil) async {
         guard let active else { return }
         do {
-            try await APIClient.shared.controlTV(active.screenId, action: action)
+            try await APIClient.shared.controlTV(active.screenId, action: action, seconds: seconds)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
+    func setVolume(_ value: Double) async {
+        guard let active else { return }
+        volume = value
+        try? await APIClient.shared.controlTV(active.screenId, action: "volume", volume: Int(value.rounded()))
+    }
+
     func togglePause() async {
         paused.toggle()
+        player.applyCast(position: player.positionSeconds, duration: player.durationSeconds, playing: !paused)
         await control(paused ? "pause" : "play")
+    }
+
+    // MARK: Suivi de l'écran
+
+    private func startPolling() {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshState()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func refreshState() async {
+        guard let screen = active, !isSending, Date() >= ignoreStateUntil,
+              let state = try? await APIClient.shared.tvState(screen.screenId),
+              active == screen, !isSending, state.connected else { return }
+        if let volume = state.volume { self.volume = Double(volume) }
+        if let playing = state.track {
+            player.followCast(source: playing.source, sourceId: playing.sourceId)
+        } else if let expected = player.current?.durationSeconds, expected > 0, state.duration > 0,
+                  abs(state.duration - Double(expected)) > 5 {
+            return  // l'écran joue autre chose que ce titre
+        }
+        guard state.state != "idle" else { return }
+        let playing = state.state == "playing" || state.state == "buffering"
+        paused = state.state == "paused"
+        player.applyCast(position: state.position, duration: state.duration, playing: playing)
     }
 
     private func send(_ track: Track, upNext: [Track]) async {
@@ -92,9 +167,32 @@ final class CastManager: ObservableObject {
             try await APIClient.shared.playOnTV(active.screenId, tracks: [track] + upNext.prefix(15))
             paused = false
             errorMessage = nil
+            ignoreStateUntil = Date().addingTimeInterval(3)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+/// Volume de la TV / PS5, à la place du volume de l'iPhone pendant la
+/// lecture sur un écran.
+struct TVVolumeSlider: View {
+    @ObservedObject private var cast = CastManager.shared
+    @State private var value = 50.0
+    @State private var editing = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+            Slider(value: $value, in: 0...100) { editing = $0; if !$0 { Task { await cast.setVolume(value) } } }
+                .tint(.white)
+            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
+        }
+        .frame(height: 30)
+        .onChange(of: cast.volume) { _, new in
+            if let new, !editing { value = new }
+        }
+        .onAppear { if let volume = cast.volume { value = volume } }
     }
 }
 
