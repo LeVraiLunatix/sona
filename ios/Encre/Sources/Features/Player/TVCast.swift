@@ -13,6 +13,9 @@ final class CastManager: ObservableObject {
     @Published private(set) var paused = false
     @Published private(set) var isSending = false
     @Published var errorMessage: String?
+    /// Feuille d'association (code YouTube) : son état vit ici, pas dans la
+    /// liste, pour qu'elle ne se referme pas quand la liste est reconstruite.
+    @Published var cast.showingPairing = false
 
     private let player = PlayerManager.shared
 
@@ -155,6 +158,20 @@ struct TVCastSheet: View {
                     ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } }
                 }
         }
+        .tvPairingSheet()
+    }
+}
+
+extension View {
+    /// À poser sur une vue stable (hors `List`) qui contient `TVCastSections`.
+    func tvPairingSheet() -> some View { modifier(TVPairingModifier()) }
+}
+
+private struct TVPairingModifier: ViewModifier {
+    @ObservedObject private var cast = CastManager.shared
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $cast.showingPairing) { TVPairingView() }
     }
 }
 
@@ -164,10 +181,6 @@ struct TVCastSheet: View {
 struct TVCastSections: View {
     @ObservedObject private var cast = CastManager.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var code = ""
-    @State private var pairing = false
-    @State private var showingPairing = false
-
     var body: some View {
         Group {
             if let active = cast.active {
@@ -212,7 +225,7 @@ struct TVCastSections: View {
                         }
                     }
                 }
-                Button { showingPairing = true } label: {
+                Button { cast.showingPairing = true } label: {
                     Label("Associer une PS5 ou une TV", systemImage: "plus.circle")
                 }
                 if let error = cast.errorMessage {
@@ -224,7 +237,6 @@ struct TVCastSections: View {
                 Text("Le son passe par l'appli YouTube de l'écran (avec ses pubs, sans YouTube Premium).")
             }
         }
-        .sheet(isPresented: $showingPairing) { pairingView }
         .task { await cast.loadScreens() }
     }
 
@@ -235,7 +247,14 @@ struct TVCastSections: View {
         .buttonStyle(.borderless)
     }
 
-    private var pairingView: some View {
+}
+
+private struct TVPairingView: View {
+    @ObservedObject private var cast = CastManager.shared
+    @State private var code = ""
+    @State private var pairing = false
+
+    var body: some View {
         NavigationStack {
             Form {
                 Section {
@@ -252,7 +271,7 @@ struct TVCastSections: View {
                             pairing = true
                             if await cast.pair(code: code) {
                                 code = ""
-                                showingPairing = false
+                                cast.showingPairing = false
                             }
                             pairing = false
                         }
@@ -267,7 +286,7 @@ struct TVCastSections: View {
             .navigationTitle("Associer un écran")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Annuler") { showingPairing = false } }
+                ToolbarItem(placement: .cancellationAction) { Button("Annuler") { cast.showingPairing = false } }
             }
         }
         .presentationDetents([.medium, .large])

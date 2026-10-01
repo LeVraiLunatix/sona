@@ -131,6 +131,7 @@ struct OutputSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
         }
+        .tvPairingSheet()
         .onAppear { route.refresh() }
     }
 
