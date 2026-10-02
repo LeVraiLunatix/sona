@@ -382,6 +382,8 @@ function renderShell() {
         ${SIDE_NAV.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
         <div class="side-section">Découvrir et jouer</div>
         ${SIDE_MORE.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
+        ${desktop ? `<div class="side-section">Sur ce PC</div>
+        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}Sona sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>` : ""}
         <div class="side-section">Faites pour toi</div>
         <div id="side-smart"></div>
         <div class="side-section">Playlists</div>
@@ -539,6 +541,7 @@ async function route() {
     stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
     blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
     settings: viewSettings, admin: viewAdmin, health: viewHealth,
+    ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
   const token_ = (route.seq = (route.seq || 0) + 1);
@@ -1438,11 +1441,13 @@ function renderTopbar() {
       <button class="tbtn" data-act="next" title="Suivant">${icons.next}</button>
       <button class="tbtn small ${state.repeat ? "on" : ""}" data-act="repeat" title="Répéter le titre">${icons.repeat}</button>
     </div>
+    ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
         <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${esc(t.artist)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
+    ${grip()}
     <div class="right-tools">
       ${desktop ? `<button class="tbtn small ${desk.clients.length ? "on" : ""}" data-act="remote" title="Télécommande : pilote ce PC depuis ton téléphone">${icons.phone}</button>
       <button class="tbtn small ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
@@ -1584,8 +1589,8 @@ function renderNowPlaying() {
   np.innerHTML = `
     <div class="np-bg"><img src="${esc(big(t.cover_url, 300))}" alt=""></div>
     <div class="np-top">
-      <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>
-      <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>
+      <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>${grip()}
+      <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>${grip()}
       <div class="np-top-right"><button class="tbtn" data-np="more" title="Plus d'options">${icons.more}</button><button class="tbtn" data-np="devices" title="Sona Connect">${icons.devices}</button></div>
     </div>
     <div class="np-body">
@@ -3859,10 +3864,11 @@ async function viewSettings() {
       <a class="set-row" data-clear-history><span class="mi-icon">${icons.clock}</span><span class="set-text"><b>Effacer l'historique de navigation</b><small>Les fiches consultées récemment</small></span>${icons.right}</a>
     </div>
 
-    ${desktop ? `<h3 class="set-head">Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>` : ""}
+    ${desktop ? `<h3 class="set-head">Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>
+    <h3 class="set-head">Mises à jour</h3><div class="set-group" id="desk-updates"><p class="set-row muted">Chargement…</p></div>` : ""}
 
     <h3 class="set-head">Appli</h3><div class="set-group">
-      ${desktop ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</b><small>Version ${esc(desktop.version)}</small></span></div>` : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
+      ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
         : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
       ${linkRow('href="#/concerts"', icons.calendar, "Concerts")}
@@ -3928,7 +3934,7 @@ function bindSettings() {
     await api("/history", { method: "DELETE" }).then(() => toast("Historique effacé")).catch((e) => toast(e.message));
   });
   $("[data-install-app]")?.addEventListener("click", installApp);
-  if (desktop) renderDesktopSettings();
+  if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
     try { await api("/auth/logout", { method: "POST" }); } catch {}
@@ -4049,6 +4055,13 @@ document.addEventListener("keydown", (e) => {
 // notification, aperçu de la barre des tâches, mini-lecteur, télécommande
 // du téléphone) et commandes reçues en retour. Rien de tout ça sur le web.
 
+/** Poignée pour déplacer la fenêtre : un élément vide, à côté des boutons et
+    jamais autour. Sous Windows, une zone « drag » avale les clics de tout ce
+    qu'elle contient, même marqué « no-drag ». */
+function grip() {
+  return desktop ? `<div class="grip" aria-hidden="true"></div>` : "";
+}
+
 const desk = { clients: [], mini: false, name: "", last: "", pos: 0, at: 0, timer: null, cover: null, slot: 0 };
 
 function desktopInit() {
@@ -4064,8 +4077,10 @@ function desktopInit() {
   controls.innerHTML = `<button data-w="minimize" title="Réduire"><svg viewBox="0 0 10 10"><path d="M1 5.5h8"/></svg></button>
     <button data-w="maximize" title="Agrandir"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg></button>
     <button data-w="close" class="close" title="Fermer"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>`;
+  const strip = document.createElement("div");
+  strip.className = "drag-top";
   document.body.prepend(ambient);
-  document.body.append(controls);
+  document.body.append(strip, controls);
   controls.onclick = (e) => {
     const action = e.target.closest("[data-w]")?.dataset.w;
     if (action) desktop.window[action]();
@@ -4277,7 +4292,317 @@ async function renderDesktopSettings() {
   };
 }
 
+// ── Sona sur l'iPhone (app Windows) ──────────────────────────────────────
+// Comme CordLauncher : Sona s'installe sur l'iPhone depuis le PC, signée
+// avec le compte Apple de l'utilisateur, par câble ou en Wi-Fi, puis elle est
+// renouvelée avant d'expirer et mise à jour toute seule (mode automatique).
+// Le travail est fait par l'app (desktop/src/iphone.js + sona-iphone).
+
+const iph = { state: null, target: null, twoFactorSheet: null, cleanup: null };
+const deskErr = (e) => String(e?.message || e || "Erreur").replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+const PHASES = {
+  account: "Connexion au compte Apple", downloading: "Téléchargement de Sona", preparing: "Préparation (compte, appareil)",
+  signing: "Signature avec ton compte Apple", installing: "Envoi sur l'iPhone", done: "Terminé",
+};
+
+function iphoneInit() {
+  if (!desktop?.onIphone) return;
+  desktop.onIphone((model) => { iph.state = model; iphoneChanged(); });
+  desktop.iphoneState().then((model) => { iph.state = model; iphoneChanged(); }).catch(() => {});
+  desktop.onOpen((hash) => { if (account) location.hash = hash; });
+  desktop.onUpdates((model) => renderUpdates(model));
+}
+
+/** Rafraîchit ce qui dépend de l'état iPhone : pastille, page ouverte, fenêtre de code. */
+function iphoneChanged() {
+  const m = iph.state;
+  if (!m) return;
+  const badge = $("#iph-badge");
+  if (badge) {
+    const n = (m.apps || []).filter((a) => iphoneUpdate(a) || iphoneHealth(a) !== "ok").length;
+    badge.textContent = n ? String(n) : "";
+  }
+  if (location.hash.startsWith("#/iphone") && $("#iphone-root")) $("#iphone-root").innerHTML = iphoneBody();
+  if ($("#desk-updates")) renderUpdates();
+  iphoneTwoFactor();
+}
+
+const iphoneUpdate = (a) => {
+  const latest = iph.state?.latest;
+  if (!latest || !a.version) return null;
+  const pa = latest.version.split(".").map(Number), pb = a.version.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0) ? latest : null;
+  return null;
+};
+const iphoneDays = (a) => (a.expiresAt == null ? null : (a.expiresAt - Date.now()) / 86_400_000);
+function iphoneHealth(a) {
+  const d = iphoneDays(a);
+  if (d == null) return "ok";
+  return d <= 0 ? "expired" : d <= 1 ? "urgent" : d <= 2 ? "soon" : "ok";
+}
+function leftLabel(a) {
+  const d = iphoneDays(a);
+  if (d == null) return "";
+  if (d <= 0) return "Expirée";
+  if (d < 1) return `${Math.max(1, Math.round(d * 24))} h`;
+  return `${Math.floor(d)} j`;
+}
+
+async function viewIphone() {
+  if (!iph.state) iph.state = await desktop.iphoneState().catch(() => null);
+  setTimeout(() => {
+    desktop.iphone("refresh").catch(() => {});
+    if (!iph.state?.latest) desktop.iphone("check").catch(() => {});
+    bindIphone();
+  });
+  return page(`<h1 class="page-title">Sona sur l'iPhone</h1>
+    <p class="page-sub">Installe Sona sur ton iPhone depuis ce PC, avec ton compte Apple. Elle reste ensuite à jour et se renouvelle toute seule, par câble ou en Wi-Fi.</p>
+    <div id="iphone-root">${iphoneBody()}</div>`);
+}
+
+function iphoneTargetDevice(m) {
+  const reachable = (m.devices || []).filter((d) => d.connection !== "offline");
+  if (iph.target && (m.devices || []).some((d) => d.udid === iph.target)) return (m.devices || []).find((d) => d.udid === iph.target);
+  const withApp = reachable.find((d) => (m.apps || []).some((a) => a.udid === d.udid));
+  return withApp || reachable.find((d) => d.trusted) || reachable[0] || (m.devices || [])[0] || null;
+}
+
+function iphoneBody() {
+  const m = iph.state;
+  if (!m) return `<p class="muted">Chargement…</p>`;
+  if (!m.available) {
+    return `<div class="iph-card"><div class="pair-off">${icons.phone}<b>Module iPhone absent</b><small>Cette version de Sona a été fabriquée sans lui. Installe la dernière version de Sona pour Windows.</small></div></div>`;
+  }
+  const device = iphoneTargetDevice(m);
+  const installed = device ? (m.apps || []).find((a) => a.udid === device.udid) : (m.apps || [])[0];
+  const profile = (m.status?.profiles || []).find((p) => p.active);
+  const ready = !!profile && (profile.connected || profile.remembered);
+  const reachable = device && device.trusted && device.connection !== "offline";
+  const upd = installed && iphoneUpdate(installed);
+  const health = installed ? iphoneHealth(installed) : "ok";
+  const busy = m.busy;
+  const progress = m.progress;
+  const pct = progress && progress.progress >= 0 ? Math.round(progress.progress * 100) : null;
+  const days = installed ? iphoneDays(installed) : null;
+  const total = installed?.expiresAt && installed?.installedAt ? Math.max(1, (installed.expiresAt - installed.installedAt) / 86_400_000) : 7;
+  const ring = days == null ? 1 : Math.max(0, Math.min(1, days / total));
+
+  let action = "";
+  const disabled = busy || !reachable || !ready ? "disabled" : "";
+  if (!installed) action = `<button class="btn" data-iph="install" ${disabled}>${icons.download} Installer Sona${m.latest ? ` ${esc(m.latest.version)}` : ""}</button>`;
+  else if (upd) action = `<button class="btn" data-iph="update" ${disabled}>${icons.download} Mettre à jour vers ${esc(upd.version)}</button>`;
+  else action = `<button class="btn ${health === "ok" ? "ghost" : ""}" data-iph="renew" ${disabled || (!installed.ipa ? "disabled" : "")}>${icons.repeat} Renouveler</button>`;
+  const why = busy ? "" : !ready ? "Connecte d'abord ton compte Apple, juste en dessous."
+    : !device ? "Branche ton iPhone à ce PC avec un câble."
+    : device.connection === "offline" ? `${esc(device.name || "L'iPhone")} n'est ni branché ni sur le même Wi-Fi que ce PC.`
+    : !device.trusted ? "Déverrouille l'iPhone et touche « Se fier à cet ordinateur »." : "";
+
+  const hero = `<div class="iph-hero">
+    <div class="iph-ring ${health}" style="--r:${ring}"><img src="icons/icon-192.png" alt=""><span class="iph-left">${installed ? esc(leftLabel(installed)) : ""}</span></div>
+    <div class="iph-hero-text">
+      <span class="eyebrow">${installed ? (health === "expired" ? "Expirée" : health === "ok" ? "Installée" : "À renouveler bientôt") : "Pas encore installée"}${device?.name ? ` · ${esc(device.name)}` : ""}</span>
+      <h2>Sona ${installed?.version ? esc(installed.version) : m.latest ? esc(m.latest.version) : ""}</h2>
+      <p>${installed
+        ? `${installed.expiresAt ? `Valable jusqu'au ${new Date(installed.expiresAt).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${health === "ok" ? "" : " — renouvelle-la pour la garder"}.` : "Suivie par Sona."}${upd ? ` La version ${esc(upd.version)} est sortie.` : ""}`
+        : "Ta musique, tes playlists et Sona Connect sur l'iPhone. Signée avec ton compte Apple, gratuitement."}</p>
+      ${busy ? `<div class="iph-progress"><div class="iph-progress-head"><b>${esc(PHASES[progress?.phase] || busy)}</b><span>${pct != null ? `${pct} %` : ""}</span></div>
+        <div class="iph-bar ${pct == null ? "indeterminate" : ""}"><i style="width:${pct ?? 30}%"></i></div></div>`
+        : `<div class="iph-actions">${action}${installed ? `<button class="btn ghost" data-iph="menu">${icons.more}</button>` : ""}</div>
+        ${why ? `<p class="iph-why">${why}</p>` : ""}`}
+      ${m.error && !busy ? `<p class="iph-error">${esc(m.error)}</p>` : ""}
+    </div></div>`;
+
+  const devices = (m.devices || []).map((d) => {
+    const conn = { usb: "Câble", wifi: "Wi-Fi", offline: "Hors de portée" }[d.connection] || d.connection;
+    const app = (m.apps || []).find((a) => a.udid === d.udid);
+    return `<div class="iph-device ${device && d.udid === device.udid ? "on" : ""}" data-iph-device="${esc(d.udid)}" role="button">
+      <span class="dp-icon">${icons.phone}</span>
+      <span class="iph-device-text"><b>${esc(d.name || "iPhone")}</b>
+        <small>${d.iosVersion ? `iOS ${esc(d.iosVersion)} · ` : ""}<span class="pill-mini ${d.connection}">${conn}</span>${!d.trusted && d.connection === "usb" ? " · touche « Se fier » sur l'iPhone" : ""}${app?.version ? ` · Sona ${esc(app.version)}` : ""}</small></span>
+      ${d.connection === "usb" && d.trusted ? `<label class="iph-wifi" title="Renouveler et mettre à jour sans câble, sur le même Wi-Fi"><span>Wi-Fi</span><input type="checkbox" data-iph-wifi="${esc(d.udid)}" ${d.wifi ? "checked" : ""}><i></i></label>` : ""}
+    </div>`;
+  }).join("");
+
+  const profiles = (m.status?.profiles || []).map((p) => `<div class="iph-profile ${p.active ? "on" : ""}">
+      ${avatar(null, p.email, "avatar")}
+      <span class="iph-device-text"><b>${esc(p.email)}</b><small>${p.active ? "Signe Sona · " : ""}${p.pausedFor ? `En pause ${Math.ceil(p.pausedFor / 60)} min (Apple) · ` : ""}${p.connected ? "Connecté" : p.remembered ? "Mot de passe mémorisé" : "À reconnecter"}</small></span>
+      <span class="iph-profile-acts">${p.active ? "" : `<button class="btn ghost small" data-iph-switch="${esc(p.email)}">Utiliser</button>`}
+        ${!p.connected && !p.remembered ? `<button class="btn ghost small" data-iph-login="${esc(p.email)}">Se connecter</button>` : ""}
+        <button class="tbtn small" data-iph-forget="${esc(p.email)}" title="Oublier ce compte">${icons.close}</button></span>
+    </div>`).join("");
+
+  return `${hero}
+    <div class="iph-grid">
+      <section class="iph-card"><div class="iph-card-head"><h3>Ton iPhone</h3><button class="tbtn small ${m.scanning ? "spin" : ""}" data-iph="refresh" title="Actualiser">${icons.repeat}</button></div>
+        ${devices || `<div class="iph-empty">${icons.phone}<b>${m.devicesError ? esc(m.devicesError) : "Aucun iPhone branché"}</b>
+          <small>${m.devicesError ? "Puis branche l'iPhone avec un câble." : "Branche-le avec un câble, déverrouille-le et touche « Se fier ». Ensuite, active le Wi-Fi ici pour te passer du câble."}</small></div>`}
+      </section>
+      <section class="iph-card"><div class="iph-card-head"><h3>Compte Apple</h3></div>
+        ${profiles || `<p class="muted iph-note">Sona signe l'app avec ton compte Apple (gratuit). Le mot de passe reste sur ce PC, dans le coffre de Windows.</p>`}
+        <div class="iph-card-foot"><button class="btn ${profiles ? "ghost" : ""}" data-iph="add-account">${icons.plus} ${profiles ? "Ajouter un compte" : "Connecter mon compte Apple"}</button></div>
+      </section>
+      <section class="iph-card"><div class="iph-card-head"><h3>Automatique</h3></div>
+        <div class="set-group flat">${toggleRow("iph-auto", "Mises à jour et renouvellement automatiques", "Sona installe chaque nouvelle version et renouvelle l'app deux jours avant qu'elle expire, dès que l'iPhone est branché ou sur le même Wi-Fi. Sinon, un rappel la veille.", m.auto)}</div>
+        <p class="iph-note muted">${m.latest ? `Dernière version : Sona ${esc(m.latest.version)}` : "Dernière version inconnue"}${m.lastCheck ? ` · vérifié ${esc(since(new Date(m.lastCheck).toISOString()))}` : ""}</p>
+        <div class="iph-card-foot"><button class="btn ghost" data-iph="check" ${m.checking ? "disabled" : ""}>${m.checking ? "Recherche…" : "Rechercher une mise à jour"}</button></div>
+      </section>
+      <section class="iph-card iph-help"><div class="iph-card-head"><h3>Première installation</h3></div>
+        <ol class="steps">
+          <li>Installe <b>Appareils Apple</b> (Microsoft Store) ou <b>iTunes</b> : Windows en a besoin pour parler à l'iPhone.</li>
+          <li>Branche l'iPhone, déverrouille-le et touche <b>Se fier</b>.</li>
+          <li>Connecte ton compte Apple ici, puis <b>Installer Sona</b>.</li>
+          <li>Sur l'iPhone : <b>Réglages › Général › VPN et gestion de l'appareil</b> › fais confiance à ton compte, puis active le <b>mode développeur</b> si iOS le demande.</li>
+        </ol>
+        <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (Sona la renouvelle) et 3 apps au plus par iPhone.</p>
+      </section>
+    </div>`;
+}
+
+function bindIphone() {
+  const root = $("#iphone-root");
+  if (!root || root._bound) return;
+  root._bound = true;
+  const run = async (name, args, done) => {
+    try { await desktop.iphone(name, args); if (done) toast(done); } catch (e) { toast(deskErr(e)); }
+  };
+  root.addEventListener("click", async (e) => {
+    const target = (sel) => e.target.closest(sel);
+    const device = iphoneTargetDevice(iph.state || {});
+    const udid = device?.udid;
+    if (target("[data-iph-wifi]") || target(".iph-wifi")) return;
+    const act = target("[data-iph]")?.dataset.iph;
+    if (act === "refresh") return run("refresh");
+    if (act === "check") return run("check");
+    if (act === "install") return run("install", { udid });
+    if (act === "update") return run("update", { udid });
+    if (act === "renew") return run("renew", { udid });
+    if (act === "add-account") return appleLoginSheet();
+    if (act === "menu") {
+      return actionSheet("Sona sur l'iPhone", [
+        { icon: icons.download, label: "Réinstaller la dernière version", run: () => run("install", { udid }) },
+        { icon: icons.install, label: "Installer un fichier .ipa…", sub: "Une version précise de Sona", run: async () => { const file = await desktop.iphonePick(); if (file) run("installFile", { udid, file }); } },
+        { icon: icons.lock, label: "Réinitialiser l'appareil Apple", sub: "Si Apple refuse les connexions : il redemandera un code", run: async () => { if (await confirmSheet("Réinitialiser l'appareil présenté à Apple ?", "Réinitialiser")) run("resetDevice", {}, "Appareil Apple réinitialisé"); } },
+        { icon: icons.list, label: "Ouvrir le journal", run: () => desktop.iphoneLogs().then((ok) => !ok && toast("Rien dans le journal pour l'instant")) },
+        { icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "Sona reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) },
+      ]);
+    }
+    const dev = target("[data-iph-device]");
+    if (dev) { iph.target = dev.dataset.iphDevice; iphoneChanged(); return; }
+    const sw = target("[data-iph-switch]");
+    if (sw) return run("switch", { email: sw.dataset.iphSwitch }, "Compte Apple changé");
+    const login = target("[data-iph-login]");
+    if (login) return appleLoginSheet(login.dataset.iphLogin);
+    const forget = target("[data-iph-forget]");
+    if (forget && (await confirmSheet(`Oublier ${forget.dataset.iphForget} sur ce PC ?`, "Oublier"))) return run("forget", { email: forget.dataset.iphForget });
+  });
+  root.addEventListener("change", (e) => {
+    const wifi = e.target.closest("[data-iph-wifi]");
+    if (wifi) return run("setWifi", { udid: wifi.dataset.iphWifi, enabled: wifi.checked }, wifi.checked ? "Wi-Fi activé : plus besoin du câble sur le même réseau" : "Wi-Fi coupé");
+    if (e.target.matches('[data-setting="iph-auto"]')) run("setAuto", { auto: e.target.checked });
+  });
+}
+
+/** Connexion d'un compte Apple (la 2FA arrive ensuite dans sa propre fenêtre). */
+function appleLoginSheet(email = "") {
+  const wrap = openSheet(`<h2 class="sheet-title">Compte Apple</h2>
+    <p class="muted">Sona signe l'app avec ton identifiant Apple, comme Sideloadly ou AltStore. Le mot de passe ne quitte pas ce PC.</p>
+    <form class="ask" id="apple-form">
+      <input class="field" name="email" type="email" placeholder="Identifiant Apple" value="${esc(email)}" autocomplete="username" required>
+      <input class="field" name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
+      <label class="switch-row flat"><span><b>Mémoriser sur ce PC</b><small>Dans le coffre de Windows : Sona renouvelle l'app chaque semaine sans rien te redemander.</small></span><input type="checkbox" name="remember" checked><i></i></label>
+      <p class="iph-error" id="apple-error" hidden></p>
+      <div class="pill-row"><button type="button" class="btn ghost" data-cancel>Annuler</button><button class="btn" type="submit">Se connecter</button></div>
+    </form>`);
+  const form = $("#apple-form", wrap);
+  setTimeout(() => $(email ? "[name=password]" : "[name=email]", form)?.focus(), 250);
+  $("[data-cancel]", wrap).onclick = () => wrap.close();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const button = $("button[type=submit]", form);
+    button.disabled = true;
+    button.textContent = "Connexion…";
+    $("#apple-error", wrap).hidden = true;
+    try {
+      await desktop.iphone("login", { email: form.email.value.trim(), password: form.password.value, remember: form.remember.checked });
+      wrap.close();
+      toast("Compte Apple connecté");
+    } catch (err) {
+      const box = $("#apple-error", wrap);
+      if (box) { box.textContent = deskErr(err); box.hidden = false; }
+      button.disabled = false;
+      button.textContent = "Se connecter";
+    }
+  };
+}
+
+/** Code de vérification Apple : la fenêtre s'ouvre quand le module le demande. */
+function iphoneTwoFactor() {
+  const tf = iph.state?.twoFactor;
+  if (!tf) { iph.twoFactorSheet?.close(); iph.twoFactorSheet = null; return; }
+  if (iph.twoFactorSheet) return;
+  const numbers = tf.numbers || tf.trustedPhoneNumbers || [];
+  const wrap = openSheet(`<h2 class="sheet-title">Code de vérification Apple</h2>
+    <p class="muted">Apple vient d'envoyer un code à tes appareils pour ${esc(tf.email || "ton compte")}. Saisis-le ici.</p>
+    <form class="ask" id="tf-form">
+      <input class="field tf-code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code" required>
+      ${tf.lastError ? `<p class="iph-error">${esc(tf.lastError)}</p>` : ""}
+      <div class="pill-row"><button type="button" class="btn ghost" data-tf="resend">Renvoyer</button>
+        ${numbers.length ? `<button type="button" class="btn ghost" data-tf="sms">Par SMS</button>` : ""}
+        <button type="button" class="btn ghost" data-tf="abort">Annuler</button><button class="btn" type="submit">Valider</button></div>
+    </form>`, { onClose: () => { if (iph.twoFactorSheet === wrap) { iph.twoFactorSheet = null; if (iph.state?.twoFactor) desktop.iphone("twoFactor", { response: "Abort" }).catch(() => {}); } } });
+  iph.twoFactorSheet = wrap;
+  const form = $("#tf-form", wrap);
+  setTimeout(() => form.code.focus(), 250);
+  form.code.oninput = () => { form.code.value = form.code.value.replace(/\D/g, "").slice(0, 6); if (form.code.value.length === 6) form.requestSubmit(); };
+  const respond = (response) => desktop.iphone("twoFactor", { response }).catch((e) => toast(deskErr(e)));
+  form.onsubmit = (e) => { e.preventDefault(); if (form.code.value.length === 6) { $("button[type=submit]", form).textContent = "Vérification…"; respond({ SubmitCode: form.code.value }); } };
+  $('[data-tf="resend"]', wrap).onclick = () => respond("ResendCode");
+  $('[data-tf="abort"]', wrap).onclick = () => { iph.twoFactorSheet = null; respond("Abort"); wrap.close(); };
+  $('[data-tf="sms"]', wrap)?.addEventListener("click", () => actionSheet("Recevoir le code par SMS", numbers.map((n) => ({
+    icon: icons.phone, label: n.numberWithDialCode || `••• ${n.lastTwoDigits}`, run: () => respond({ SendSms: n.id }),
+  }))));
+}
+
+// ── Mises à jour (app Windows et Sona sur l'iPhone) ──────────────────────
+
+let updatesState = null;
+
+async function renderUpdates(model) {
+  const box = $("#desk-updates");
+  if (!box || !desktop?.updates) return;
+  if (model) updatesState = model;
+  if (!updatesState) updatesState = await desktop.updates("state").catch(() => null);
+  const u = updatesState;
+  if (!u || !$("#desk-updates")) return;
+  const m = iph.state;
+  const iphoneApp = (m?.apps || [])[0];
+  const iphoneUpd = iphoneApp && iphoneUpdate(iphoneApp);
+  const winLine = u.downloading != null ? `Téléchargement… ${Math.round(u.downloading * 100)} %`
+    : u.available ? `Sona ${esc(u.latest.version)} est disponible (tu as la ${esc(u.current)})`
+    : u.checking ? "Recherche…"
+    : `Version ${esc(u.current)}${u.lastCheck ? ` · à jour, vérifié ${esc(since(new Date(u.lastCheck).toISOString()))}` : ""}`;
+  box.innerHTML = `<div class="set-row"><span class="mi-icon">${icons.laptop}</span><span class="set-text"><b>Sona pour Windows</b><small>${winLine}</small></span>
+      ${u.available && u.downloading == null ? `<button class="btn small" data-upd="install">${u.portable ? "Télécharger" : "Mettre à jour"}</button>` : ""}</div>
+    <a class="set-row" href="#/iphone"><span class="mi-icon">${icons.phone}</span><span class="set-text"><b>Sona sur l'iPhone</b><small>${
+      !m?.available ? "Module iPhone absent de cette version"
+      : iphoneApp ? `${esc(iphoneApp.version || "?")} sur ${esc(iphoneApp.deviceName || "l'iPhone")}${iphoneUpd ? ` · ${esc(iphoneUpd.version)} disponible` : " · à jour"}${iphoneApp.expiresAt ? ` · expire ${esc(new Date(iphoneApp.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))}` : ""}`
+      : m?.latest ? `Pas encore installée · dernière version ${esc(m.latest.version)}` : "Pas encore installée"}</small></span>${icons.right}</a>
+    ${toggleRow("upd-check", "Rechercher automatiquement", "Au démarrage puis toutes les 6 heures, pour Windows et pour l'iPhone.", u.autoCheck)}
+    ${u.portable ? "" : toggleRow("upd-install", "Installer sans demander", "Sona se met à jour tout seul et redémarre (la musique reprend où elle en était sur l'iPhone si tu changes d'appareil).", u.autoInstall)}
+    <div class="set-row"><span class="set-text">${u.error ? `<small class="iph-error">${esc(u.error)}</small>` : `<small>Les nouvelles versions arrivent à chaque mise à jour de Sona.</small>`}</span>
+      <button class="btn ghost small" data-upd="check" ${u.checking || m?.checking ? "disabled" : ""}>Rechercher</button></div>`;
+  $('[data-upd="install"]', box)?.addEventListener("click", () => desktop.updates("install").catch((e) => toast(deskErr(e))));
+  $('[data-upd="check"]', box).onclick = async () => {
+    const [win] = await Promise.all([desktop.updates("check").catch((e) => ({ error: deskErr(e) })), desktop.iphone("check").catch(() => null)]);
+    if (win?.error) toast(win.error);
+    else if (!win?.available) toast("Sona est à jour");
+  };
+  $('[data-setting="upd-check"]', box).onchange = (e) => desktop.updates("updatesCheck", e.target.checked);
+  $('[data-setting="upd-install"]', box)?.addEventListener("change", (e) => desktop.updates("updatesInstall", e.target.checked));
+}
+
 desktopInit();
+iphoneInit();
 
 boot();
 

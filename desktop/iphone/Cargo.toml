@@ -1,0 +1,31 @@
+[package]
+name = "sona-iphone"
+version = "1.0.0"
+description = "Sona pour Windows : installe et renouvelle Sona sur l'iPhone (compte Apple, signature, envoi par câble ou Wi-Fi)"
+edition = "2021"
+publish = false
+
+# Le cœur iPhone de CordLauncher (même auteur), sans Tauri : l'app Electron le
+# pilote en JSON, une ligne par message, sur l'entrée et la sortie standard.
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "rt", "sync", "time", "fs", "macros", "io-util", "io-std"] }
+futures-util = "0.3"
+hex = "0.4"
+# Mêmes versions qu'isideload (reqwest 0.13 + native-tls, sha2 0.11) : une
+# seule copie de chaque dans le binaire.
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "http2", "system-proxy"] }
+sha2 = "0.11"
+keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
+isideload = "0.4.0"
+idevice = { version = "0.1.68", default-features = false, features = ["ring", "usbmuxd", "installation_proxy", "tcp"] }
+plist = "1"
+mdns-sd = "0.21.4"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

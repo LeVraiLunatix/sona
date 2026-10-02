@@ -1,0 +1,216 @@
+{
+  "Name": "Sona",
+  "Version": "1.0.0.0",
+  "Author": "Sona",
+  "Actions": [
+    {
+      "Name": "Lecture / pause",
+      "UUID": "app.sona.remote.playpause",
+      "Icon": "imgs/actions/playpause/icon",
+      "Tooltip": "Lance ou met en pause la musique de Sona.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/playpause/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "En cours",
+      "UUID": "app.sona.remote.nowplaying",
+      "Icon": "imgs/actions/nowplaying/icon",
+      "Tooltip": "La pochette du titre en cours ; un appui met en pause ou relance.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/nowplaying/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": false
+    },
+    {
+      "Name": "Suivant",
+      "UUID": "app.sona.remote.next",
+      "Icon": "imgs/actions/next/icon",
+      "Tooltip": "Titre suivant.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/next/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Précédent",
+      "UUID": "app.sona.remote.previous",
+      "Icon": "imgs/actions/previous/icon",
+      "Tooltip": "Titre précédent (ou retour au début du titre).",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/previous/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "J'aime",
+      "UUID": "app.sona.remote.like",
+      "Icon": "imgs/actions/like/icon",
+      "Tooltip": "Ajoute le titre en cours à ta bibliothèque (ou l'en retire).",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/like/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Aléatoire",
+      "UUID": "app.sona.remote.shuffle",
+      "Icon": "imgs/actions/shuffle/icon",
+      "Tooltip": "Active ou coupe la lecture aléatoire.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/shuffle/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Répéter",
+      "UUID": "app.sona.remote.repeat",
+      "Icon": "imgs/actions/repeat/icon",
+      "Tooltip": "Répète le titre en cours.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/repeat/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Volume +",
+      "UUID": "app.sona.remote.volumeup",
+      "Icon": "imgs/actions/volumeup/icon",
+      "Tooltip": "Monte le volume de Sona de 10 %.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/volumeup/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Volume −",
+      "UUID": "app.sona.remote.volumedown",
+      "Icon": "imgs/actions/volumedown/icon",
+      "Tooltip": "Baisse le volume de Sona de 10 %.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/volumedown/key",
+          "TitleAlignment": "middle",
+          "FontSize": 11,
+          "ShowTitle": true
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Molette Sona",
+      "UUID": "app.sona.remote.dial",
+      "Icon": "imgs/actions/dial/icon",
+      "Tooltip": "Stream Deck + : tourner pour le volume, appuyer pour lecture/pause, toucher l'écran pour passer au suivant.",
+      "Controllers": [
+        "Encoder"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/dial/key"
+        }
+      ],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Volume",
+          "Push": "Lecture / pause",
+          "Touch": "Suivant"
+        }
+      }
+    }
+  ],
+  "Category": "Sona",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "CodePath": "bin/plugin.js",
+  "Description": "Pilote Sona pour Windows : lecture, pochette du titre en cours, j'aime, aléatoire, volume, molette du Stream Deck +. Rien à configurer : le plugin retrouve Sona sur ce PC.",
+  "Icon": "imgs/plugin/marketplace",
+  "SDKVersion": 3,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    },
+    {
+      "Platform": "mac",
+      "MinimumVersion": "12"
+    }
+  ],
+  "Nodejs": {
+    "Version": "24",
+    "Debug": "disabled"
+  },
+  "UUID": "app.sona.remote",
+  "URL": "https://github.com/LeVraiLunatix/sona"
+}

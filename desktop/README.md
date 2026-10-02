@@ -25,6 +25,11 @@ ce qu'un navigateur ne sait pas faire.
   pochette), via la Media Session de la page.
 - **Lancer avec Windows** (option) : Sona démarre discrètement dans la zone
   de notification, prêt à recevoir la musique de l'iPhone.
+- **Sona sur l'iPhone** (onglet « Sona sur l'iPhone » de la barre latérale),
+  comme CordLauncher : voir plus bas.
+- **Mises à jour** : l'app vérifie les nouvelles versions (Windows et
+  iPhone) au démarrage puis toutes les 6 heures. Réglages › Mises à jour.
+- **Plugin Stream Deck** : voir plus bas.
 
 ## Installer
 
@@ -35,6 +40,7 @@ version **« Sona pour Windows »** du dépôt (onglet *Releases*) :
 - `Sona-Setup-x.y.z.exe` : installateur (menu Démarrer, raccourci bureau,
   désinstallation depuis les Paramètres de Windows) ;
 - `Sona-Portable-x.y.z.exe` : version qui se lance sans rien installer.
+- `Sona-StreamDeck.streamDeckPlugin` : le plugin Stream Deck.
 
 Sur une *pull request*, les mêmes fichiers sont dans les **artefacts** du
 workflow (onglet *Actions* → l'exécution → *Sona-Windows*).
@@ -47,6 +53,79 @@ quand même**.
 À la première activation de la télécommande, le **pare-feu Windows** demande
 s'il faut autoriser Sona : accepte pour les **réseaux privés** (le Wi-Fi de
 la maison), sinon le téléphone ne peut pas joindre le PC.
+
+## Sona sur l'iPhone
+
+La même méthode que CordLauncher (même moteur, `isideload`) : Sona s'installe
+sur l'iPhone depuis le PC, **signée avec ton compte Apple** (gratuit), sans
+SideStore ni Sideloadly.
+
+1. Installe **Appareils Apple** (Microsoft Store) ou **iTunes** : Windows en
+   a besoin pour parler à l'iPhone (service *Apple Mobile Device*).
+2. Branche l'iPhone, déverrouille-le, touche **Se fier**.
+3. Onglet **Sona sur l'iPhone** → **Connecter mon compte Apple** (le code de
+   vérification d'Apple s'affiche dans l'app) → **Installer Sona**.
+4. Sur l'iPhone : Réglages › Général › **VPN et gestion de l'appareil** ›
+   faire confiance à ton compte, puis activer le **mode développeur** si iOS
+   le demande.
+
+Ensuite, le **mode automatique** (activé par défaut) fait le reste, même
+fenêtre fermée : chaque nouvelle version de Sona iOS (la source SideStore du
+dépôt, `releases/latest/download/source.json`) est installée, et l'app est
+**renouvelée deux jours avant d'expirer** (7 jours avec un compte gratuit).
+Si l'iPhone n'est pas là, une notification prévient la veille. Avec le
+**Wi-Fi** activé dans l'onglet (iPhone branché une fois), plus besoin du
+câble : il suffit d'être sur le même réseau.
+
+- Le mot de passe Apple n'est gardé que si tu coches « Mémoriser », dans le
+  **coffre de Windows** ; il sert à renouveler sans rien redemander.
+- Si Apple refuse en rafale (erreurs 429), Sona met le compte en pause dix
+  minutes ; « Réinitialiser l'appareil Apple » (menu ⋯) repart de zéro.
+- Les certificats Apple créés par Sona portent le nom de machine « Sona » :
+  ce sont les seuls que Sona révoque quand la limite est atteinte (jamais
+  ceux d'AltStore, de Sideloadly ou de CordLauncher).
+- Compte gratuit : 3 apps au plus par iPhone, 10 identifiants d'app par
+  semaine (limites d'Apple).
+- Journal détaillé : menu ⋯ › Ouvrir le journal
+  (`%APPDATA%\Sona\iphone\logs\iphone.log`).
+
+Le travail est fait par `sona-iphone.exe` (dossier `iphone/`, en Rust), le
+cœur iPhone de CordLauncher sans Tauri, piloté par l'app en JSON sur son
+entrée/sortie standard.
+
+## Mises à jour
+
+Chaque fusion sur `master` publie la version « Sona pour Windows » avec un
+`latest.json` (numéro de version, installateur, empreinte SHA-256). L'app le
+lit au démarrage puis toutes les 6 heures :
+
+- **Rechercher automatiquement** (par défaut) : une notification par
+  nouvelle version, et « Mettre à jour » dans Réglages › Mises à jour ;
+- **Installer sans demander** : téléchargement, vérification de
+  l'empreinte, installation silencieuse, Sona redémarre à jour.
+
+La version portable ne peut pas se remplacer elle-même : « Télécharger »
+ouvre la page de la nouvelle version. L'iPhone, lui, suit le mode
+automatique de l'onglet Sona sur l'iPhone.
+
+## Plugin Stream Deck
+
+`Sona-StreamDeck.streamDeckPlugin` (dans la version « Sona pour Windows ») :
+double-clic pour l'installer dans le logiciel Stream Deck (7.1 ou plus).
+Rien à configurer : il lit la clé de la télécommande dans les réglages de
+Sona sur le même PC et lui parle en local.
+
+| Action | Effet |
+|---|---|
+| En cours | La pochette du titre en cours ; un appui met en pause ou relance |
+| Lecture / pause, Suivant, Précédent | La lecture, l'icône suit l'état |
+| J'aime, Aléatoire, Répéter | En rose quand c'est activé |
+| Volume +, Volume − | ±10 % |
+| Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
+
+Sona fermé, ou télécommande coupée dans Sona : les touches l'indiquent et un
+appui affiche l'alerte du Stream Deck. Le code est dans `streamdeck/`
+(`npm run build`, `npm test`, `npm run pack`).
 
 ## Connexion
 
@@ -80,6 +159,7 @@ Node 22, depuis ce dossier :
 ```bash
 npm install
 npm start          # lance l'app (Sona web du dossier ../web, rechargé à chaque lancement)
+cd iphone && cargo build --release   # module iPhone (trouvé tout seul par `npm start`)
 npm test           # tests de la télécommande (node --test, sans Electron)
 npm run check      # syntaxe de tous les scripts
 npm run dist       # installateur + portable Windows dans dist/ (à lancer sous Windows)
@@ -96,6 +176,10 @@ Organisation :
 | `src/remote-server.js` | Serveur de la télécommande (HTTP + Server-Sent Events) |
 | `src/settings.js` | Réglages de l'app (`%APPDATA%\Sona\settings.json`) |
 | `src/glyphs.js` | Icônes de la barre des tâches, dessinées en mémoire |
+| `src/iphone.js` | Onglet iPhone : pilote `sona-iphone`, mode automatique, rappels |
+| `src/updater.js` | Mises à jour de l'app (latest.json, SHA-256, installation silencieuse) |
+| `iphone/` | `sona-iphone` (Rust) : compte Apple, signature, envoi câble/Wi-Fi |
+| `streamdeck/` | Plugin Stream Deck |
 | `src/mini/` | Mini-lecteur |
 | `remote/` | Page Sona Remote, servie au téléphone |
 | `../web/desktop.css` | Habillage verre liquide de Sona web dans l'app |
