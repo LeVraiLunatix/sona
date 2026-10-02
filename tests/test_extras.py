@@ -31,7 +31,7 @@ class ExtraDeezer:
         self.tracks = {str(i): TrackInfo("deezer", str(i), f"T{i}", f"A{i % 4}", None, None, 180, None,
                                          bpm=150 + i * 3) for i in range(20)}
 
-    async def get_artist_albums(self, artist_id):
+    async def get_artist_albums(self, artist_id, artist_name=None):
         return self.albums.get(artist_id, ([], []))
 
     async def get_artist_radio(self, artist_id, limit=25):

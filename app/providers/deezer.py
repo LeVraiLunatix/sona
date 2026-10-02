@@ -225,13 +225,25 @@ class DeezerClient:
         return [_track_from_json(d) for d in data.get("data", [])]
 
     async def get_artist_albums(
-        self, artist_id: str
+        self, artist_id: str, artist_name: str | None = None
     ) -> tuple[list[AlbumInfo], list[AlbumInfo]]:
-        """Retourne (albums, singles_et_eps)."""
+        """Retourne (albums, singles_et_eps).
+
+        `/artist/{id}/albums` ne dit pas de qui sont les albums : sans ça,
+        chacun s'affichait « Artiste inconnu ». L'artiste (nom donné par
+        l'appelant, sinon demandé à Deezer) est reporté sur chaque album."""
         data = await self._get(f"/artist/{artist_id}/albums", {"limit": 100})
+        entries = data.get("data", [])
+        if artist_name is None and any(not (d.get("artist") or {}).get("name") for d in entries):
+            try:
+                artist_name = (await self.get_artist(artist_id)).name
+            except DeezerError:
+                artist_name = None
         albums: list[AlbumInfo] = []
         singles: list[AlbumInfo] = []
-        for d in data.get("data", []):
+        for d in entries:
+            if not (d.get("artist") or {}).get("name") and artist_name:
+                d = {**d, "artist": {"id": artist_id, "name": artist_name}}
             info = _album_from_json(d)
             if (d.get("record_type") or "").lower() == "album":
                 albums.append(info)

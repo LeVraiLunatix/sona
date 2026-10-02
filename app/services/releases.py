@@ -37,7 +37,7 @@ async def recent_releases(deps, user_id: int, today: date | None = None) -> list
     async def of(name: str, artist_id: str) -> list[dict]:
         async with semaphore:
             try:
-                albums, singles = await deps.deezer.get_artist_albums(artist_id)
+                albums, singles = await deps.deezer.get_artist_albums(artist_id, name)
             except DeezerError as exc:
                 logger.info("Sorties de %s indisponibles : %s", name, exc)
                 return []
