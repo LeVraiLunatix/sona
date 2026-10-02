@@ -26,7 +26,8 @@ class PlaybackIn(BaseModel):
 class SyncIn(BaseModel):
     device_id: str = Field(min_length=6, max_length=64)
     name: str = Field(min_length=1, max_length=60)
-    kind: str = Field("web", pattern="^(iphone|web)$")
+    # `desktop` : Sona pour Windows (l'app d'ordinateur, voir desktop/).
+    kind: str = Field("web", pattern="^(iphone|web|desktop)$")
     state: PlaybackIn | None = None
     # Lecture lancée à la main sur cet appareil : les autres se mettent en pause.
     claim: bool = False

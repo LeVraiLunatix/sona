@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: http: data:; style-src 'self'; script-src 'self'">
+<title>Sona — mini-lecteur</title>
+<link rel="stylesheet" href="mini.css">
+</head>
+<body>
+<div class="ambient"><img id="bg" alt=""></div>
+<main class="mini">
+  <div class="art-wrap"><img id="art" class="art" alt=""><span class="art-glow"></span></div>
+  <div class="info">
+    <div class="line"><div class="t" id="title">Rien en lecture</div></div>
+    <div class="a" id="artist">Lance un titre dans Sona</div>
+    <div class="row">
+      <div class="ctl">
+        <button data-a="previous" aria-label="Précédent"><svg viewBox="0 0 24 24"><path d="M21 17.7V6.3c0-.7-.8-1.1-1.4-.7l-8.1 5.7c-.5.4-.5 1.1 0 1.4l8.1 5.7c.6.4 1.4 0 1.4-.7zm-9.5 0V6.3c0-.7-.8-1.1-1.4-.7L2 11.3c-.5.4-.5 1.1 0 1.4l8.1 5.7c.6.4 1.4 0 1.4-.7z"/></svg></button>
+        <button data-a="toggle" class="big" id="toggle" aria-label="Lecture/Pause"></button>
+        <button data-a="next" aria-label="Suivant"><svg viewBox="0 0 24 24"><path d="M3 6.3v11.4c0 .7.8 1.1 1.4.7l8.1-5.7c.5-.4.5-1.1 0-1.4L4.4 5.6C3.8 5.2 3 5.6 3 6.3zm9.5 0v11.4c0 .7.8 1.1 1.4.7l8.1-5.7c.5-.4.5-1.1 0-1.4l-8.1-5.7c-.6-.4-1.4 0-1.4.7z"/></svg></button>
+      </div>
+      <span class="time" id="time"></span>
+    </div>
+    <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
+  </div>
+  <div class="win">
+    <button data-a="expand" title="Ouvrir Sona"><svg viewBox="0 0 24 24"><path d="M14 3h6a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V6.4l-5.3 5.3a1 1 0 0 1-1.4-1.4L17.6 5H14a1 1 0 1 1 0-2zM4 13a1 1 0 0 1 1 1v3.6l5.3-5.3a1 1 0 0 1 1.4 1.4L6.4 19H10a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg></button>
+    <button data-a="close" title="Fermer le mini-lecteur"><svg viewBox="0 0 24 24"><path d="M6.7 5.3 12 10.6l5.3-5.3a1 1 0 1 1 1.4 1.4L13.4 12l5.3 5.3a1 1 0 0 1-1.4 1.4L12 13.4l-5.3 5.3a1 1 0 0 1-1.4-1.4l5.3-5.3-5.3-5.3a1 1 0 0 1 1.4-1.4z"/></svg></button>
+  </div>
+</main>
+<script src="mini.js"></script>
+</body>
+</html>

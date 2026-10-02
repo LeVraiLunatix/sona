@@ -213,6 +213,8 @@ def create_app() -> FastAPI:
     # Liste fermée : rien d'autre du disque n'est servi par cette route.
     web_files = {"": ("index.html", "text/html"), "app.css": ("app.css", "text/css"),
                  "app.js": ("app.js", "application/javascript"),
+                 # Habillage de l'app d'ordinateur (desktop/), sans effet sur le web.
+                 "desktop.css": ("desktop.css", "text/css"),
                  # Appli installable (écran d'accueil du téléphone).
                  "sw.js": ("sw.js", "application/javascript"),
                  "manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
