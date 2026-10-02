@@ -344,6 +344,26 @@ réglages et administration. Restent propres à l'app iOS : les
 téléchargements hors ligne, les widgets, les notifications et les Live
 Activities.
 
+## Sona pour Windows
+
+Le dossier `desktop/` est l'app d'ordinateur : Sona web dans une vraie
+fenêtre Windows, habillée en verre liquide (la pochette en cours en fond,
+panneaux translucides). En plus du site :
+
+- **Sona Connect** : le PC apparaît sur l'iPhone, qui peut y envoyer la
+  musique et le piloter, même fenêtre fermée (Sona reste dans la zone de
+  notification) ;
+- **télécommande du téléphone**, à la Cider Remote : un QR code dans l'app,
+  le téléphone le scanne et pilote le PC sur le Wi-Fi (pochette, paroles,
+  file, recherche) ;
+- mini-lecteur toujours au premier plan, boutons dans l'aperçu de la barre
+  des tâches, touches multimédia du clavier, lancement avec Windows.
+
+L'installateur `.exe` est fabriqué par GitHub Actions (workflow
+`windows.yml`) et publié dans la version « Sona pour Windows » du dépôt.
+Détails, sécurité de la télécommande et développement :
+[desktop/README.md](desktop/README.md).
+
 ## API (backend pour une app iPhone)
 
 En plus du bot Telegram, Sona expose une API HTTP privée qui réutilise les

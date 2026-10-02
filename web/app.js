@@ -54,7 +54,19 @@ function since(iso) {
   return new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-const SERVER = ($('meta[name="sona-server"]')?.content || "").replace(/\/$/, "");
+// Sona pour Windows (dossier desktop/ du dépôt) : la même page, dans l'app
+// d'ordinateur, qui expose `window.sonaDesktop` (télécommande du téléphone,
+// mini-lecteur, zone de notification…). Voir « Sona pour Windows » plus bas.
+const desktop = window.sonaDesktop || null;
+if (desktop) {
+  document.documentElement.classList.add("desktop", `desktop-${desktop.platform}`);
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "desktop.css";
+  document.head.append(link);
+}
+
+const SERVER = ((desktop && desktop.server) || $('meta[name="sona-server"]')?.content || "").replace(/\/$/, "");
 const onServer = !SERVER || location.pathname.startsWith("/web") || (() => { try { return new URL(SERVER).origin === location.origin; } catch { return true; } })();
 const BASE = onServer ? "" : SERVER;
 
@@ -151,6 +163,7 @@ const icons = {
   globe: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-2.4 2.3A8 8 0 0 0 4.1 11h3.9c.1-2.5.7-4.8 1.6-6.7zm4.8 0c.9 1.9 1.5 4.2 1.6 6.7h3.9a8 8 0 0 0-5.5-6.7zM12 4.2c-1 1.6-1.9 4-2 6.8h4c-.1-2.8-1-5.2-2-6.8zM4.1 13a8 8 0 0 0 5.5 6.7c-.9-1.9-1.5-4.2-1.6-6.7zm6 0c.1 2.8 1 5.2 2 6.8 1-1.6 1.9-4 2-6.8zm5.9 0c-.1 2.5-.7 4.8-1.6 6.7a8 8 0 0 0 5.5-6.7z"),
   install: ic("M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zm5 4a1 1 0 0 0-1 1v3H8a1 1 0 1 0 0 2h3v3a1 1 0 1 0 2 0v-3h3a1 1 0 1 0 0-2h-3V8a1 1 0 0 0-1-1z"),
   user: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm0 9c-2.4 0-4.5 1.1-5.7 2.8A8 8 0 0 0 12 20a8 8 0 0 0 5.7-2.2C16.5 16.1 14.4 15 12 15z"),
+  miniPlayer: ic("M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h16V6zm8 6h6a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z"),
   clock: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a1 1 0 0 1 1 1v4.6l3.2 1.9a1 1 0 1 1-1 1.7l-3.7-2.2A1 1 0 0 1 11 12V7a1 1 0 0 1 1-1z"),
   logo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2" stroke="#fff" stroke-width="2.3" stroke-linecap="round" fill="none"/></svg>`,
 };
@@ -227,7 +240,8 @@ async function exchangeLastfm(lastfmToken, quiet = false) {
 async function renderLogin(error, waiting = false) {
   document.body.style.overflow = "hidden";
   const config = await fetch(BASE + "/auth/config").then((r) => r.json()).catch(() => ({}));
-  const cb = location.origin + location.pathname;
+  // App d'ordinateur : la page n'a pas d'adresse web, Last.fm revient sur Sona web du serveur.
+  const cb = desktop ? `${SERVER}/web/` : location.origin + location.pathname;
   const url = config.api_key ? `https://www.last.fm/api/auth/?api_key=${encodeURIComponent(config.api_key)}&cb=${encodeURIComponent(cb)}` : null;
   $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
     <img class="login-icon" src="icons/icon-192.png" alt="">
@@ -237,12 +251,13 @@ async function renderLogin(error, waiting = false) {
     ${waiting ? `<p class="fine wait">Autorise Sona sur la page Last.fm, puis reviens ici.<br><button class="link-btn" id="login-check">J'ai autorisé, continuer</button></p>` : ""}
     ${error ? `<p class="error">${esc(error)}</p>` : ""}
     <p class="fine">Le même compte que dans l'app Sona.</p>
-    ${!standalone && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer Sona comme une app." : "Astuce : installe Sona depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
+    ${desktop ? `<p class="fine">Une fenêtre Last.fm s'ouvre : autorise Sona, elle se ferme toute seule.</p>` : ""}
+    ${!standalone && !desktop && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer Sona comme une app." : "Astuce : installe Sona depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
   </div></div>`;
   const btn = $("#login-btn");
   // Appli installée : la page Last.fm s'ouvre dans un navigateur à part, d'où
   // le retour ne revient pas ici — jeton demandé au serveur, échangé au retour.
-  if (btn && standalone) {
+  if (btn && (standalone || desktop)) {
     btn.onclick = async (e) => {
       e.preventDefault();
       try {
@@ -251,9 +266,10 @@ async function renderLogin(error, waiting = false) {
         const got = await res.json();
         store.set("sona.pendingLastfm", got.token);
         const authUrl = `${got.auth_url}&cb=${encodeURIComponent(`${cb}?handoff=1`)}`;
-        if (!window.open(authUrl, "_blank")) location.href = authUrl;
+        if (desktop) desktop.openAuth(authUrl);
+        else if (!window.open(authUrl, "_blank")) location.href = authUrl;
         renderLogin(null, true);
-      } catch { location.href = btn.href; }
+      } catch { if (!desktop) location.href = btn.href; else renderLogin("Serveur Sona injoignable."); }
     };
   }
   const check = $("#login-check");
@@ -295,7 +311,7 @@ function signOut() {
 }
 
 function registerServiceWorker() {
-  if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
+  if (!("serviceWorker" in navigator) || location.protocol === "file:" || desktop) return;
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
@@ -405,6 +421,7 @@ function renderShell() {
   bindNowPlayingGestures();
   renderTopbar();
   renderNowPlaying();
+  desktopReport(true);
 }
 
 const avatar = (url, name, cls = "avatar") => url
@@ -1427,6 +1444,8 @@ function renderTopbar() {
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     <div class="right-tools">
+      ${desktop ? `<button class="tbtn small ${desk.clients.length ? "on" : ""}" data-act="remote" title="Télécommande : pilote ce PC depuis ton téléphone">${icons.phone}</button>
+      <button class="tbtn small ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
       <button class="tbtn small ${remote || otherDevices().length ? "on" : ""}" data-act="devices" title="Sona Connect : tes appareils">${icons.devices}</button>
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
       <button class="tbtn small ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
@@ -1437,6 +1456,8 @@ function renderTopbar() {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
     if (act === "devices") return toggleDevices();
+    if (act === "remote") return openRemotePairing();
+    if (act === "mini") return desktop?.set("mini", !desk.mini);
     if (act === "toggle") toggle();
     if (act === "prev") prev();
     if (act === "next") next();
@@ -1472,6 +1493,7 @@ function renderTopbar() {
   }
   renderMini();
   updateProgress();
+  desktopReport();
 }
 
 /** Mini-lecteur du téléphone, posé au-dessus des onglets (comme dans l'app). */
@@ -2046,6 +2068,7 @@ const deviceId = store.get("sona.device") || (() => {
 })();
 
 function deviceName() {
+  if (desktop) return desk.name || desktop.deviceName;
   const ua = navigator.userAgent;
   const browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Navigateur";
   const os = /Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua) ? "Mac" : /Windows/.test(ua) ? "PC" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iPhone" : /Linux/.test(ua) ? "Linux" : "";
@@ -2088,7 +2111,7 @@ async function connectSync(wait = 0) {
   try {
     data = await api("/connect/sync", {
       method: "POST",
-      body: JSON.stringify({ device_id: deviceId, name: deviceName(), kind: "web", state: localState(), claim, wait }),
+      body: JSON.stringify({ device_id: deviceId, name: deviceName(), kind: desktop ? "desktop" : "web", state: localState(), claim, wait }),
     });
   } catch { return false; }
   const wasRemote = remoteDevice()?.id;
@@ -2245,7 +2268,7 @@ function renderDevices() {
   let pop = $(".devices-pop");
   if (!pop) { pop = document.createElement("div"); pop.className = "devices-pop"; document.body.append(pop); }
   pop.classList.toggle("as-sheet", isMobile());
-  const devices = state.connect.devices.length ? state.connect.devices : [{ id: deviceId, name: deviceName(), kind: "web", is_me: true }];
+  const devices = state.connect.devices.length ? state.connect.devices : [{ id: deviceId, name: deviceName(), kind: desktop ? "desktop" : "web", is_me: true }];
   const remote = remoteDevice();
   const session = state.connect.session;
   pop.innerHTML = `<div class="dp-head">Sona Connect</div>
@@ -3836,8 +3859,10 @@ async function viewSettings() {
       <a class="set-row" data-clear-history><span class="mi-icon">${icons.clock}</span><span class="set-text"><b>Effacer l'historique de navigation</b><small>Les fiches consultées récemment</small></span>${icons.right}</a>
     </div>
 
+    ${desktop ? `<h3 class="set-head">Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>` : ""}
+
     <h3 class="set-head">Appli</h3><div class="set-group">
-      ${standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
+      ${desktop ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</b><small>Version ${esc(desktop.version)}</small></span></div>` : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
         : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
       ${linkRow('href="#/concerts"', icons.calendar, "Concerts")}
@@ -3903,6 +3928,7 @@ function bindSettings() {
     await api("/history", { method: "DELETE" }).then(() => toast("Historique effacé")).catch((e) => toast(e.message));
   });
   $("[data-install-app]")?.addEventListener("click", installApp);
+  if (desktop) renderDesktopSettings();
   $("[data-signout]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
     try { await api("/auth/logout", { method: "POST" }); } catch {}
@@ -4016,6 +4042,242 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft" && audio.src) audio.currentTime -= 10;
   else if (e.key.toLowerCase() === "l" && audio.src) openNowPlaying("lyrics", true);
 });
+
+// ── Sona pour Windows ─────────────────────────────────────────────────────
+// La même page dans l'app d'ordinateur (dossier desktop/) : barre de titre
+// et fond en verre (desktop.css), état de lecture envoyé à l'app (zone de
+// notification, aperçu de la barre des tâches, mini-lecteur, télécommande
+// du téléphone) et commandes reçues en retour. Rien de tout ça sur le web.
+
+const desk = { clients: [], mini: false, name: "", last: "", pos: 0, at: 0, timer: null, cover: null, slot: 0 };
+
+function desktopInit() {
+  if (!desktop) return;
+  // Fond vivant (la pochette en cours, floue) et boutons de fenêtre : hors de
+  // #root, pour rester en place de l'écran de connexion à l'app.
+  const ambient = document.createElement("div");
+  ambient.className = "ambient";
+  ambient.setAttribute("aria-hidden", "true");
+  ambient.innerHTML = `<img alt=""><img alt=""><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i>`;
+  const controls = document.createElement("div");
+  controls.className = "wctl";
+  controls.innerHTML = `<button data-w="minimize" title="Réduire"><svg viewBox="0 0 10 10"><path d="M1 5.5h8"/></svg></button>
+    <button data-w="maximize" title="Agrandir"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg></button>
+    <button data-w="close" class="close" title="Fermer"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>`;
+  document.body.prepend(ambient);
+  document.body.append(controls);
+  controls.onclick = (e) => {
+    const action = e.target.closest("[data-w]")?.dataset.w;
+    if (action) desktop.window[action]();
+  };
+  desktop.onWindow(({ maximized, focused }) => {
+    document.documentElement.classList.toggle("maximized", maximized);
+    document.documentElement.classList.toggle("blurred", !focused);
+    $('[data-w="maximize"]', controls).innerHTML = maximized
+      ? `<svg viewBox="0 0 10 10"><rect x="1.5" y="3" width="5.5" height="5.5" rx="1"/><path d="M3 3V2.4c0-.5.4-.9.9-.9h3.7c.5 0 .9.4.9.9v3.7c0 .5-.4.9-.9.9H7"/></svg>`
+      : `<svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg>`;
+    $('[data-w="maximize"]', controls).title = maximized ? "Restaurer" : "Agrandir";
+  });
+  desktop.onCommand(async (c) => {
+    try { desktop.reply(c.id, await desktopCommand(c)); } catch (e) { desktop.reply(c.id, null, e.message || "Erreur"); }
+  });
+  desktop.onAuthDone(({ authorized }) => retryPendingLogin(!authorized));
+  desktop.onRemoteClients((clients) => {
+    const before = desk.clients.length;
+    desk.clients = clients || [];
+    if (desk.clients.length > before) toast(`${desk.clients[desk.clients.length - 1].name} connecté à la télécommande`);
+    if (account) renderTopbar();
+    remotePairingRefresh?.();
+    if ($("#desk-settings")) renderDesktopSettings();
+  });
+  desktop.onOpenRemote(() => account && openRemotePairing());
+  desktop.onMini((on) => { desk.mini = on; if (account) renderTopbar(); if ($("#desk-settings")) renderDesktopSettings(); });
+  desktop.settings().then((s) => { desk.mini = s.mini; desk.name = s.deviceNameShown; }).catch(() => {});
+  for (const ev of ["play", "pause", "seeked", "volumechange", "loadedmetadata"]) audio.addEventListener(ev, () => desktopReport());
+  // Filet de sécurité : file modifiée, paroles chargées, lecture sur un autre appareil…
+  setInterval(() => desktopReport(), 1000);
+}
+
+/** Ce que joue Sona (ici, ou l'appareil Sona Connect piloté depuis le PC). */
+function desktopSnapshot() {
+  const remote = remoteDevice();
+  const session = state.connect.session;
+  const t = remote ? session?.track : state.queue[state.index];
+  if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat };
+  const start = Math.max(0, state.index - 15);
+  const ly = !remote && sameTrack(t, state.queue[state.index]) ? state.lyrics : null;
+  return {
+    track: cleanTrack(t),
+    paused: remote ? !!session.paused : audio.paused,
+    position: remote ? remotePosition() : audio.currentTime || 0,
+    duration: remote ? t.duration_seconds || 0 : (audio.duration && isFinite(audio.duration) ? audio.duration : t.duration_seconds || 0),
+    volume: remote ? remote.volume ?? 1 : audio.volume,
+    shuffle: state.shuffle, repeat: state.repeat,
+    liked: state.liked.has(trackKey(t)),
+    remoteDevice: remote ? remote.name : null,
+    index: remote ? -1 : state.index,
+    queueName: remote ? "" : state.station ? `${state.station.name} · radio` : state.name || "",
+    queue: remote ? [] : state.queue.slice(start, state.index + 40).map((q, k) => ({ i: start + k, title: q.title, artist: q.artist, cover_url: q.cover_url || null })),
+    lyrics: ly ? { synced: ly.synced, instrumental: ly.instrumental, lines: ly.lines.map((l) => ({ time: l.time ?? null, text: l.text || "" })) } : null,
+  };
+}
+
+/** Envoie l'état à l'app s'il a changé (ou si la position a sauté). */
+function desktopReport(force) {
+  if (!desktop || !account) return;
+  clearTimeout(desk.timer);
+  desk.timer = setTimeout(() => {
+    const snap = desktopSnapshot();
+    const { position = 0, ...rest } = snap;
+    const sig = JSON.stringify(rest);
+    const expected = desk.pos + (snap.paused ? 0 : (Date.now() - desk.at) / 1000);
+    updateAmbient(snap.track);
+    if (!force && sig === desk.last && Math.abs(position - expected) < 1.5) return;
+    Object.assign(desk, { last: sig, pos: position, at: Date.now() });
+    desktop.report(snap);
+  }, force ? 0 : 60);
+}
+
+/** Fond de la fenêtre : la pochette en cours, floue, en fondu. */
+function updateAmbient(t) {
+  const url = t?.cover_url ? big(t.cover_url, 300) : "";
+  if (url === desk.cover) return;
+  desk.cover = url;
+  const imgs = $$(".ambient img");
+  if (imgs.length < 2) return;
+  document.documentElement.classList.toggle("has-art", !!url);
+  if (!url) { imgs.forEach((i) => i.classList.remove("on")); return; }
+  const next = imgs[desk.slot = 1 - desk.slot];
+  const prev = imgs[1 - desk.slot];
+  next.onload = () => { if (desk.cover === url) { next.classList.add("on"); prev.classList.remove("on"); } };
+  next.src = url;
+}
+
+/** Commande de la télécommande, du mini-lecteur ou de la barre des tâches. */
+async function desktopCommand(c) {
+  const remote = remoteDevice();
+  const t = remote ? state.connect.session?.track : state.queue[state.index];
+  const paused = remote ? !!state.connect.session?.paused : audio.paused;
+  const track = c.track && c.track.source && c.track.source_id ? cleanTrack(c.track) : null;
+  let result = true;
+  switch (c.action) {
+    case "toggle": toggle(); break;
+    case "play": if (paused) toggle(); break;
+    case "pause": if (!paused) toggle(); break;
+    case "next": await next(); break;
+    case "previous": prev(); break;
+    case "seek":
+      if (!Number.isFinite(c.position)) break;
+      if (remote) sendCommand(remote.id, "seek", { position: c.position });
+      else if (audio.src) audio.currentTime = c.position;
+      break;
+    case "volume": {
+      if (!Number.isFinite(c.volume)) break;
+      const v = Math.max(0, Math.min(1, c.volume));
+      if (remote) sendCommand(remote.id, "volume", { volume: v });
+      else { audio.volume = v; store.set("sona.volume", String(v)); }
+      renderTopbar();
+      break;
+    }
+    case "like": if (t) await toggleLike(t); break;
+    case "shuffle": state.shuffle = !state.shuffle; renderTopbar(); break;
+    case "repeat": state.repeat = !state.repeat; renderTopbar(); break;
+    case "playIndex": if (!remote && state.queue[c.index]) playAt(c.index); break;
+    case "removeIndex":
+      if (!remote && c.index > state.index && c.index < state.queue.length) {
+        state.queue.splice(c.index, 1);
+        if (state.npOpen && state.npTab === "queue") renderQueue();
+      }
+      break;
+    case "search": {
+      const q = String(c.query || "").trim();
+      result = q ? ((await api(`/search?q=${encodeURIComponent(q)}&limit=25`)).tracks || []).map(cleanTrack) : [];
+      break;
+    }
+    case "playTrack": if (track) playList([track], 0, ""); break;
+    case "playNext": if (track) playNext(track); break;
+    case "addToQueue": if (track) addToQueue(track); break;
+    default: throw new Error("Action inconnue");
+  }
+  desktopReport(true);
+  return result;
+}
+
+// ── Télécommande : association du téléphone ─────────────────────────────
+
+let remotePairingRefresh = null;
+
+async function openRemotePairing() {
+  if (!desktop) return;
+  const wrap = openSheet(`<div id="pairing"><h2 class="sheet-title">Télécommande</h2><p class="muted">Chargement…</p></div>`, {
+    cls: "pair-sheet", onClose: () => { remotePairingRefresh = null; },
+  });
+  const paint = async () => {
+    const [info, s] = await Promise.all([desktop.remoteInfo(), desktop.settings()]);
+    const box = $("#pairing", wrap);
+    if (!box) return;
+    const others = info.urls.slice(1).filter((u) => u.rank < 9);
+    box.innerHTML = `<h2 class="sheet-title">Télécommande</h2>
+      <p class="muted">Pilote Sona sur ce PC depuis ton téléphone : pochette, paroles, file d'attente et recherche. Le téléphone doit être sur le même Wi-Fi.</p>
+      ${!s.remoteEnabled ? `<div class="pair-off">${icons.phone}<b>Télécommande désactivée</b><small>Active-la pour afficher le QR code.</small></div>`
+        : info.qr ? `<div class="pair-qr"><div class="qr-frame"><img src="${info.qr}" alt="QR code d'association"></div>
+            <div class="pair-steps"><b>Scanne avec l'appareil photo</b><span>Ouvre le lien : la télécommande s'affiche. Ajoute-la à l'écran d'accueil pour la retrouver.</span>
+            <code>${esc(info.urls[0].url)}</code>${others.length ? `<small>Autre réseau : ${others.map((u) => esc(u.url)).join(" · ")}</small>` : ""}</div></div>`
+        : `<div class="pair-off">${icons.globe}<b>${esc(info.error || "Aucun réseau trouvé")}</b><small>Connecte le PC au Wi-Fi ou à un câble réseau.</small></div>`}
+      ${info.clients.length ? `<div class="pair-clients">${info.clients.map((c) => `<div class="pair-client"><span class="dot"></span>${icons.phone}<b>${esc(c.name)}</b><small>connecté ${esc(since(new Date(c.since).toISOString()))}</small></div>`).join("")}</div>` : ""}
+      <div class="set-group">
+        ${toggleRow("remote-on", "Télécommande sur le réseau local", "Le PC accepte les téléphones associés (réseau local uniquement).", s.remoteEnabled)}
+        ${s.remoteEnabled ? linkRow("data-remote-reset", icons.lock, "Nouveau code d'association", "Les téléphones déjà associés devront rescanner") : ""}
+      </div>
+      <p class="fine-print">Rien ne passe ? Windows a peut-être demandé d'autoriser Sona dans son pare-feu : accepte pour les <b>réseaux privés</b>.</p>`;
+    const toggleInput = $('[data-setting="remote-on"]', box);
+    toggleInput.onchange = async () => { await desktop.set("remoteEnabled", toggleInput.checked); paint(); };
+    $("[data-remote-reset]", box)?.addEventListener("click", async () => {
+      if (!(await confirmSheet("Changer le code d'association ?", "Changer"))) return;
+      await desktop.set("remoteKey");
+      paint();
+      toast("Nouveau code : rescanne-le avec ton téléphone");
+    });
+  };
+  remotePairingRefresh = () => paint().catch(() => {});
+  paint().catch((e) => toast(e.message));
+  return wrap;
+}
+
+async function renderDesktopSettings() {
+  const box = $("#desk-settings");
+  if (!box) return;
+  const s = await desktop.settings().catch(() => null);
+  if (!s || !$("#desk-settings")) return;
+  desk.name = s.deviceNameShown;
+  box.innerHTML = `${linkRow("data-desk-remote", icons.phone, "Télécommande du téléphone",
+      !s.remoteEnabled ? "Désactivée" : desk.clients.length ? `${plural(desk.clients.length, "téléphone connecté", "téléphones connectés")}` : "Scanne un QR code avec ton téléphone")}
+    ${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
+    ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : Sona reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
+    ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
+    ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}
+    ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
+  $("[data-desk-remote]", box).onclick = () => openRemotePairing();
+  for (const key of ["mini", "closeToTray", "launchAtLogin"]) {
+    const input = $(`[data-setting="desk-${key}"]`, box);
+    input.onchange = () => { haptic(); desktop.set(key, input.checked).catch((e) => { input.checked = !input.checked; toast(e.message); }); };
+  }
+  $("[data-desk-name]", box).onclick = async () => {
+    const name = await askText({ title: "Nom dans Sona Connect", value: s.deviceName || s.deviceNameShown, placeholder: "PC du salon", confirm: "Enregistrer", hint: "C'est le nom que tu verras sur l'iPhone pour envoyer la musique sur ce PC." });
+    if (name == null) return;
+    await desktop.set("deviceName", name);
+    desk.name = (await desktop.settings()).deviceNameShown;
+    startConnect.now?.();
+    renderDesktopSettings();
+  };
+  $("[data-desk-server]", box).onclick = async () => {
+    const url = await askText({ title: "Serveur Sona", value: s.serverUrl || SERVER, placeholder: "https://…", confirm: "Enregistrer", hint: "Laisse l'adresse par défaut sauf si ton serveur Sona a changé d'adresse. Sona redémarre." });
+    if (url == null) return;
+    try { await desktop.set("serverUrl", url === SERVER ? "" : url); } catch (e) { toast(e.message); }
+  };
+}
+
+desktopInit();
 
 boot();
 

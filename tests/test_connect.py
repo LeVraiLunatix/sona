@@ -79,6 +79,26 @@ def test_pausing_the_pc_keeps_it_as_the_remote_target(client):
     assert seen["session"]["track"]["title"] == "Titre"
 
 
+def test_windows_app_is_a_connect_device_the_iphone_can_drive(client):
+    """Sona pour Windows se signale en `desktop` : l'iPhone le voit et le pilote."""
+    me = login(client, "alice")
+    sync(client, me, "desk-abcdef", "PC du salon", "desktop", {"queue": [TRACK], "position": 3, "paused": False}, claim=True)
+    seen = sync(client, me, "iphone-123", "iPhone", "iphone")
+    pc = next(d for d in seen["devices"] if d["id"] == "desk-abcdef")
+    assert pc["kind"] == "desktop" and pc["playing"]
+    response = client.post("/connect/command", headers=me,
+                           json={"device_id": "iphone-123", "target": "desk-abcdef", "action": "pause"})
+    assert response.status_code == 204
+    got = sync(client, me, "desk-abcdef", "PC du salon", "desktop", {"queue": [TRACK], "position": 4, "paused": False})
+    assert [c["action"] for c in got["commands"]] == ["pause"]
+
+
+def test_unknown_device_kind_is_refused(client):
+    me = login(client, "alice")
+    response = client.post("/connect/sync", headers=me, json={"device_id": "toaster-1", "name": "Grille-pain", "kind": "toaster"})
+    assert response.status_code == 422
+
+
 def test_waiting_device_is_woken_by_a_command():
     import asyncio
     import time as clock

@@ -1,0 +1,85 @@
+name: Windows
+
+# Sona pour Windows (dossier desktop/) : fabrique l'installateur .exe et la
+# version portable. L'app embarque Sona web (web/) : elle se refabrique aussi
+# quand le site change. Seulement dans ces cas-là : une minute de runner
+# Windows compte double dans le quota gratuit d'Actions.
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "web/**"
+      - ".github/workflows/windows.yml"
+  push:
+    branches: [master]
+    paths:
+      - "desktop/**"
+      - "web/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exe:
+    name: Sona pour Windows (.exe)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Publication sur master : mise à jour de la version « windows ».
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérifier la syntaxe
+        run: npm run check
+
+      - name: Tests de la télécommande
+        run: npm test
+
+      - name: Fabriquer l'installateur et la version portable
+        # Pas de certificat de signature : l'.exe n'est pas signé (Windows
+        # SmartScreen le signale au premier lancement, voir desktop/README.md).
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist
+
+      - name: Garder les .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sona-Windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publier la version Windows
+        # Toujours la même version « windows », en préversion : elle ne prend
+        # jamais la place de la dernière version iOS (« latest »), que SideStore
+        # lit pour proposer les mises à jour de l'app iPhone.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! gh release view windows --repo "$REPO" >/dev/null 2>&1; then
+            gh release create windows --repo "$REPO" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Sona pour Windows" \
+              --notes "Installateur (Sona-Setup) et version portable (Sona-Portable) de l'app d'ordinateur. Remplacés à chaque mise à jour de master."
+          fi
+          gh release upload windows dist/*.exe --repo "$REPO" --clobber

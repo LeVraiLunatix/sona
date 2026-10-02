@@ -1,0 +1,307 @@
+/* Sona pour Windows — habillage « verre liquide » de l'app d'ordinateur.
+   Chargé seulement dans l'app (classe `desktop` sur <html>, voir app.js) :
+   Sona web dans un navigateur ne change pas.
+
+   Principe : la pochette en cours, très floue, remplit le fond de la
+   fenêtre et respire doucement ; par-dessus, des panneaux de verre qui
+   flottent (barre latérale, lecteur, contenu), avec un liseré de lumière
+   sur le bord haut, une ombre profonde et des mouvements à ressort. */
+
+html.desktop {
+  --sidebar-w: 264px;
+  --topbar-h: 72px;
+  --gap: 10px;
+  --wctl-w: 128px;
+  --bg: #08080c;
+  --bg-elevated: rgba(34, 34, 42, .72);
+  --sidebar: transparent;
+  --glass: rgba(30, 30, 38, .55);
+  --hairline: rgba(255, 255, 255, .08);
+  --fill: rgba(255, 255, 255, .06);
+  --fill-strong: rgba(255, 255, 255, .11);
+  --text: #f6f6f8;
+  --text-2: rgba(246, 246, 248, .66);
+  --text-3: rgba(246, 246, 248, .42);
+  --accent-soft: rgba(250, 45, 108, .2);
+  --shadow-art: 0 10px 28px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .3);
+  --shadow-pop: 0 28px 70px rgba(0, 0, 0, .55);
+  /* Verre */
+  --g-fill: linear-gradient(180deg, rgba(255, 255, 255, .095), rgba(255, 255, 255, .035));
+  --g-tint: rgba(18, 18, 26, .38);
+  --g-edge: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 -1px 0 rgba(255, 255, 255, .035), inset 0 0 0 1px rgba(255, 255, 255, .065);
+  --g-lift: 0 18px 48px rgba(0, 0, 0, .32), 0 2px 8px rgba(0, 0, 0, .18);
+  --g-blur: blur(42px) saturate(190%);
+  --g-pill: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .07));
+  --g-pill-edge: inset 0 1px 0 rgba(255, 255, 255, .42), inset 0 0 0 .5px rgba(255, 255, 255, .22);
+  color-scheme: dark;
+}
+
+html.desktop body {
+  background: var(--bg);
+  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif;
+  user-select: none;
+}
+html.desktop :is(input, textarea, .lyrics, .chat, .page p) { user-select: text; }
+html.desktop #root { position: relative; z-index: 1; height: 100%; }
+
+/* ── Fond vivant ─────────────────────────────────────────────────────── */
+
+html.desktop .ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: #08080c; transition: filter .8s var(--ease); }
+html.desktop .ambient img {
+  position: absolute; inset: -30%; width: 160%; height: 160%; object-fit: cover; opacity: 0;
+  filter: blur(90px) saturate(1.8) brightness(.55); transition: opacity 1.4s var(--ease);
+  animation: amb-drift 40s ease-in-out infinite alternate;
+}
+html.desktop .ambient img + img { animation-delay: -20s; animation-direction: alternate-reverse; }
+html.desktop .ambient img.on { opacity: 1; }
+@keyframes amb-drift { from { transform: scale(1) rotate(0deg); } to { transform: scale(1.2) rotate(12deg) translate(2%, -3%); } }
+html.desktop .ambient .blob { position: absolute; width: 62vmax; height: 62vmax; border-radius: 50%; filter: blur(70px); opacity: .5; mix-blend-mode: screen; transition: opacity 1.2s var(--ease); }
+html.desktop .ambient .b1 { left: -22vmax; top: -26vmax; background: radial-gradient(circle, rgba(150, 95, 255, .75), transparent 66%); animation: amb-float 26s ease-in-out infinite alternate; }
+html.desktop .ambient .b2 { right: -24vmax; top: 10vh; background: radial-gradient(circle, rgba(255, 64, 129, .6), transparent 66%); animation: amb-float 31s ease-in-out infinite alternate-reverse; }
+html.desktop .ambient .b3 { left: 20vw; bottom: -36vmax; background: radial-gradient(circle, rgba(64, 140, 255, .5), transparent 66%); animation: amb-float 36s ease-in-out infinite alternate; }
+html.desktop.has-art .ambient .blob { opacity: .12; }
+@keyframes amb-float { to { transform: translate(14vw, 10vh) scale(1.18); } }
+/* Assombrit vers les bords : le texte reste lisible quelle que soit la pochette. */
+html.desktop .ambient::after { content: ""; position: absolute; inset: 0; background: radial-gradient(130% 100% at 50% 0%, rgba(0, 0, 0, .05), rgba(0, 0, 0, .45)); }
+html.desktop.blurred .ambient { filter: saturate(.75) brightness(.85); }
+
+/* ── Panneaux de verre ───────────────────────────────────────────────── */
+
+html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet, .toast) {
+  background: var(--g-fill), var(--g-tint);
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  border: 0;
+  box-shadow: var(--g-edge), var(--g-lift);
+}
+/* Reflet : la lumière accroche le coin haut-gauche, comme une plaque de verre épaisse. */
+html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet)::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
+  background: radial-gradient(90% 60% at 10% 0%, rgba(255, 255, 255, .1), transparent 55%),
+              linear-gradient(180deg, rgba(255, 255, 255, .04), transparent 30%);
+}
+html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet) > * { position: relative; z-index: 1; }
+
+html.desktop .app {
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  gap: var(--gap);
+  padding: var(--gap);
+  height: 100vh;
+}
+html.desktop .sidebar { position: relative; border-radius: 22px; padding: 16px 10px 10px; }
+html.desktop .content {
+  border-radius: 22px; position: relative;
+  background: linear-gradient(180deg, rgba(14, 14, 20, .42), rgba(10, 10, 14, .55));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .05), var(--g-lift);
+}
+html.desktop .page { padding: 30px 40px 60px; }
+
+/* ── Barre de titre : le lecteur sert de poignée ─────────────────────── */
+
+html.desktop .topbar {
+  position: relative; border-radius: 22px; padding: 0 calc(var(--wctl-w) + 18px) 0 16px;
+  -webkit-app-region: drag;
+  grid-template-columns: auto minmax(240px, 1fr) auto;
+  gap: 16px;
+}
+html.desktop .topbar :is(button, input, .lcd, .volume, a) { -webkit-app-region: no-drag; }
+html.desktop .brand { -webkit-app-region: drag; padding: 6px 10px 16px; }
+html.desktop .brand-icon { box-shadow: 0 6px 16px rgba(0, 0, 0, .4), 0 0 0 .5px rgba(255, 255, 255, .2); }
+
+/* Boutons de fenêtre, en verre, posés dans la barre du lecteur. */
+html.desktop .wctl {
+  position: fixed; z-index: 200; top: calc(var(--gap) + (var(--topbar-h) - 34px) / 2); right: calc(var(--gap) + 14px);
+  display: flex; gap: 6px; -webkit-app-region: no-drag;
+}
+html.desktop .wctl button {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2);
+  background: rgba(255, 255, 255, .06); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .1);
+  transition: background .18s var(--ease), color .18s, transform .25s var(--spring), box-shadow .2s;
+}
+html.desktop .wctl svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; }
+html.desktop .wctl button:hover { background: rgba(255, 255, 255, .16); color: #fff; }
+html.desktop .wctl button:active { transform: scale(.88); }
+html.desktop .wctl .close:hover { background: #e5243b; color: #fff; box-shadow: 0 0 0 .5px rgba(255, 255, 255, .25), 0 4px 16px rgba(229, 36, 59, .55); }
+html.desktop.blurred .wctl button { opacity: .6; }
+html.desktop:not(:has(.app)) .wctl { top: 14px; right: 14px; }
+
+/* Transport */
+html.desktop .transport { gap: 4px; }
+html.desktop .tbtn { transition: background .18s var(--ease), transform .3s var(--spring), color .18s; }
+html.desktop .tbtn:hover { background: rgba(255, 255, 255, .1); }
+html.desktop .tbtn:active { transform: scale(.84); }
+html.desktop .topbar .tbtn.big {
+  width: 46px; height: 46px; font-size: 22px; color: #fff; position: relative;
+  background: var(--g-pill); box-shadow: var(--g-pill-edge), 0 6px 18px rgba(0, 0, 0, .3);
+}
+html.desktop .topbar .tbtn.big::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(70% 50% at 32% 14%, rgba(255, 255, 255, .5), transparent 60%); mix-blend-mode: overlay;
+}
+html.desktop .topbar .tbtn.big:hover { background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .1)); }
+
+/* L'écran du lecteur : une lentille de verre dans la barre. */
+html.desktop .lcd {
+  height: 54px; border-radius: 16px; border: 0; padding: 0 14px 0 3px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .03)), rgba(0, 0, 0, .14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .06), inset 0 8px 20px rgba(0, 0, 0, .12);
+}
+html.desktop .lcd .art { width: 48px; height: 48px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
+html.desktop .lcd .progress { left: 56px; right: 14px; bottom: 5px; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: visible; }
+html.desktop .lcd .progress .fill { border-radius: 3px; background: linear-gradient(90deg, rgba(255, 255, 255, .55), #fff); box-shadow: 0 0 10px rgba(255, 255, 255, .45); }
+html.desktop .lcd.remote { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 22%, transparent); }
+html.desktop .right-tools { gap: 4px; }
+html.desktop .volume { width: 120px; }
+
+/* Curseurs : un tube de verre et une perle de lumière. */
+html.desktop input[type="range"].slider {
+  height: 5px; background: linear-gradient(to right, rgba(255, 255, 255, .85) var(--p, 0%), rgba(255, 255, 255, .14) var(--p, 0%));
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .1);
+}
+html.desktop input[type="range"].slider::-webkit-slider-thumb { width: 14px; height: 14px; background: radial-gradient(circle at 35% 30%, #fff, #e8e8ee); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .2), 0 2px 8px rgba(0, 0, 0, .45), 0 0 12px rgba(255, 255, 255, .4); }
+
+/* ── Barre latérale ──────────────────────────────────────────────────── */
+
+html.desktop .side-search input {
+  height: 36px; border-radius: 12px; background: rgba(0, 0, 0, .18);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
+html.desktop .side-search input:focus { background: rgba(0, 0, 0, .28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), 0 0 0 3px var(--accent-soft); }
+html.desktop .side-link { border-radius: 11px; padding: 7px 11px; transition: background .18s var(--ease), transform .25s var(--spring); }
+html.desktop .side-link:hover { background: rgba(255, 255, 255, .07); }
+html.desktop .side-link:active { transform: scale(.97); }
+html.desktop .side-link.active {
+  background: var(--g-pill); box-shadow: var(--g-pill-edge), 0 4px 14px rgba(0, 0, 0, .18);
+}
+html.desktop .side-link .thumb { border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+html.desktop .side-user { border-top: 0; margin-top: 6px; padding: 8px 10px; background: rgba(255, 255, 255, .05); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); border-radius: 14px; }
+html.desktop .side-user:hover { background: rgba(255, 255, 255, .09); }
+html.desktop .scroll { scrollbar-color: rgba(255, 255, 255, .16) transparent; }
+html.desktop .scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .14); }
+html.desktop .scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .26); }
+html.desktop .scroll::-webkit-scrollbar-button { display: none; height: 0; }
+html.desktop .scroll::-webkit-scrollbar-track { margin: 14px 0; }
+
+/* ── Contenu ─────────────────────────────────────────────────────────── */
+
+html.desktop .section-head { border-top-color: rgba(255, 255, 255, .07); }
+html.desktop .card .art-wrap { border-radius: 14px; }
+html.desktop .card .art-wrap::before {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .22), transparent 42%); opacity: 0; transition: opacity .3s var(--ease);
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .18);
+}
+html.desktop .card:hover .art-wrap::before { opacity: 1; }
+html.desktop .card:hover .art-wrap { transform: translateY(-4px) scale(1.015); }
+html.desktop .card .art-wrap, html.desktop .feature, html.desktop .home-hero { transition: transform .45s var(--spring), box-shadow .3s var(--ease); }
+html.desktop .feature, html.desktop .home-hero { border-radius: 20px; }
+html.desktop :is(.card, .feature) .play-fab {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(235, 235, 240, .85)); color: #000;
+  box-shadow: inset 0 1px 0 #fff, 0 6px 18px rgba(0, 0, 0, .4);
+}
+html.desktop .tr { border-radius: 12px; }
+html.desktop .tr:nth-child(odd) { background: rgba(255, 255, 255, .03); }
+html.desktop .tr:hover { background: rgba(255, 255, 255, .08); }
+html.desktop .tr.current { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), rgba(255, 255, 255, .04)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05); }
+html.desktop .hero-art { border-radius: 18px; box-shadow: 0 30px 70px rgba(0, 0, 0, .55), 0 0 0 .5px rgba(255, 255, 255, .14); }
+html.desktop .hero-glow::after { background: none; }
+html.desktop .hero-glow { -webkit-mask-image: linear-gradient(#000 30%, transparent); mask-image: linear-gradient(#000 30%, transparent); }
+html.desktop .hero-glow img { opacity: .6; }
+
+html.desktop .btn {
+  border-radius: 999px; height: 38px; padding: 0 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 0 0 .5px rgba(255, 255, 255, .2), 0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: filter .15s, transform .3s var(--spring), box-shadow .2s;
+}
+html.desktop .btn:active { transform: scale(.95); }
+html.desktop .btn.ghost { background: var(--g-pill); color: var(--text); box-shadow: var(--g-pill-edge), 0 4px 14px rgba(0, 0, 0, .2); }
+html.desktop .btn.ghost.danger, html.desktop .btn.danger { color: #ff6961; }
+html.desktop :is(.chip, .top-card, .set-group, .install-card, .health-card, .health-hero, .cast-remote) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .03));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .05);
+  border: 0;
+}
+html.desktop .chip { transition: background .2s, transform .3s var(--spring); }
+html.desktop .chip:hover { background: rgba(255, 255, 255, .12); }
+html.desktop .chip:active { transform: scale(.95); }
+html.desktop .set-group { border-radius: 18px; }
+html.desktop .set-group > * + * { border-top-color: rgba(255, 255, 255, .06); }
+html.desktop .set-row .mi-icon { background: var(--g-pill); box-shadow: var(--g-pill-edge); }
+html.desktop .switch-row i { background: rgba(255, 255, 255, .14); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .3); }
+html.desktop .switch-row input:checked + i { background: linear-gradient(180deg, #3ee06a, #28b84f); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 0 14px rgba(48, 209, 88, .35); }
+html.desktop :is(.search-hero input, .field) {
+  background: rgba(0, 0, 0, .2); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+html.desktop :is(.search-hero input, .field):focus { background: rgba(0, 0, 0, .28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), 0 0 0 4px var(--accent-soft); }
+html.desktop .skeleton { background: linear-gradient(90deg, rgba(255, 255, 255, .04) 25%, rgba(255, 255, 255, .09) 50%, rgba(255, 255, 255, .04) 75%); background-size: 200% 100%; }
+html.desktop .resume { background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 22%, transparent), rgba(255, 255, 255, .05)); border: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .06); border-radius: 20px; }
+
+/* ── Popovers, feuilles, toasts ──────────────────────────────────────── */
+
+html.desktop .devices-pop { border-radius: 22px; animation: lg-pop .42s var(--spring) both; }
+html.desktop .dp-remote, html.desktop .dp-icon { background: rgba(255, 255, 255, .07); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+html.desktop .dp-device { border-radius: 14px; }
+html.desktop .dp-device:hover { background: rgba(255, 255, 255, .08); }
+@keyframes lg-pop { from { opacity: 0; transform: translateY(-8px) scale(.94); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+
+html.desktop .sheet-backdrop { background: rgba(0, 0, 0, .3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+html.desktop .sheet { border-radius: 26px; padding: 8px 22px 22px; background: var(--g-fill), rgba(22, 22, 30, .62); }
+html.desktop .menu-item { border-radius: 12px; padding: 11px 8px; border-bottom-color: rgba(255, 255, 255, .06); }
+html.desktop .menu-item:hover { background: rgba(255, 255, 255, .08); }
+html.desktop .toast { border-radius: 999px; padding: 11px 20px; }
+
+/* ── Lecteur plein écran ─────────────────────────────────────────────── */
+
+html.desktop .np { background: #0a0a0e; }
+html.desktop .np-top { -webkit-app-region: drag; padding: calc(var(--gap) + 16px) calc(var(--wctl-w) + 34px) 14px 26px; }
+html.desktop .np-top :is(button, .np-tabs) { -webkit-app-region: no-drag; }
+html.desktop .np-tabs { background: rgba(255, 255, 255, .1); border-radius: 999px; padding: 4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .1); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+html.desktop .np-tabs button { border-radius: 999px; transition: background .3s var(--ease), color .2s; }
+html.desktop .np-tabs button.on { background: var(--g-pill); box-shadow: var(--g-pill-edge); }
+html.desktop .np-art { border-radius: 20px; box-shadow: 0 40px 90px rgba(0, 0, 0, .55), 0 0 0 .5px rgba(255, 255, 255, .14); }
+html.desktop .np-transport .tbtn.big {
+  background: var(--g-pill); box-shadow: var(--g-pill-edge), 0 14px 34px rgba(0, 0, 0, .3);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+html.desktop .np-transport .tbtn.big:hover { background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .1)); }
+html.desktop .qrow { border-radius: 12px; }
+
+/* ── Connexion ───────────────────────────────────────────────────────── */
+
+html.desktop .login { -webkit-app-region: drag; background: transparent; }
+html.desktop .login :is(a, button, input) { -webkit-app-region: no-drag; }
+html.desktop .login-bg { opacity: .9; }
+html.desktop .login-card {
+  max-width: 440px; padding: 40px 38px 34px; border-radius: 32px;
+  background: var(--g-fill), rgba(18, 18, 26, .32); -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  box-shadow: var(--g-edge), var(--g-lift);
+}
+html.desktop .login h1 { font-size: 44px; }
+html.desktop .login p { font-size: 16.5px; margin-bottom: 26px; }
+html.desktop .login .btn { background: #fff; color: #000; box-shadow: inset 0 1px 0 #fff, 0 10px 30px rgba(0, 0, 0, .35); }
+
+/* ── Télécommande : association ──────────────────────────────────────── */
+
+html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
+.pair-qr { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; margin: 8px 0 18px; }
+.qr-frame { position: relative; width: 200px; height: 200px; padding: 12px; border-radius: 26px; background: #fff;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, .08), 0 18px 46px rgba(0, 0, 0, .45), 0 0 50px color-mix(in srgb, var(--accent) 25%, transparent); }
+.qr-frame img { width: 100%; height: 100%; image-rendering: pixelated; border-radius: 10px; }
+.pair-steps { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pair-steps b { font-size: 17px; }
+.pair-steps span { color: var(--text-2); font-size: 14px; }
+.pair-steps code { font: 600 13px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--text); background: rgba(0, 0, 0, .25); padding: 7px 10px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); user-select: text; overflow-wrap: anywhere; }
+.pair-steps small { color: var(--text-3); font-size: 12px; overflow-wrap: anywhere; }
+.pair-off { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 26px 16px; margin: 8px 0 16px; border-radius: 18px; background: rgba(255, 255, 255, .04); }
+.pair-off .icon { font-size: 34px; color: var(--text-3); margin-bottom: 6px; }
+.pair-off small { color: var(--text-2); }
+.pair-clients { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
+.pair-client { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px 7px 11px; border-radius: 999px; font-size: 13.5px;
+  background: rgba(48, 209, 88, .12); box-shadow: inset 0 0 0 1px rgba(48, 209, 88, .3); }
+.pair-client .dot { width: 7px; height: 7px; border-radius: 50%; background: #30d158; box-shadow: 0 0 10px #30d158; }
+.pair-client small { color: var(--text-2); }
+.fine-print { font-size: 12.5px; color: var(--text-3); margin: 14px 2px 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.desktop .ambient img, html.desktop .ambient .blob { animation: none; }
+}
