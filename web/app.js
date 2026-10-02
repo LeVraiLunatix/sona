@@ -80,7 +80,9 @@ async function api(path, options = {}) {
   if (!res.ok) {
     let msg = `Erreur ${res.status}`;
     try { msg = (await res.json()).detail || msg; } catch {}
-    throw new Error(typeof msg === "string" ? msg : `Erreur ${res.status}`);
+    const err = new Error(typeof msg === "string" ? msg : `Erreur ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? null : res.json();
 }
@@ -195,8 +197,9 @@ async function startApp() {
   loadLiked();
   loadSettings();
   route();
-  const party = store.get("sona.joinParty");
-  if (party) { store.set("sona.joinParty", null); location.hash = `#/party/${party}`; }
+  const joinCode = store.get("sona.joinParty");
+  if (joinCode) { store.set("sona.joinParty", null); location.hash = `#/party/${joinCode}`; }
+  else partyRestore();
 }
 
 /** Échange un jeton Last.fm autorisé contre une session Sona. `quiet` :
@@ -1214,6 +1217,15 @@ function shuffled(list) {
 function playList(tracks, index, name, { keepStation = false } = {}) {
   let queue = [...tracks];
   if (!queue.length) return;
+  // Invité d'une écoute ensemble : un titre touché se propose à la session
+  // (ou on quitte la session pour l'écouter seul).
+  if (partyGuest()) {
+    const t = queue[index] || queue[0];
+    return actionSheet(t.title, [
+      { icon: icons.headphones, label: "Proposer à la session", sub: "La plus votée passe après le titre en cours", run: () => partyPropose(t) },
+      { icon: icons.play, label: "Quitter la session et l'écouter", run: async () => { await partyLeave(); playList(tracks, index, name, { keepStation }); } },
+    ]);
+  }
   if (state.shuffle) {
     const first = queue.splice(index, 1)[0];
     queue = [first, ...shuffled(queue)];
@@ -1228,6 +1240,7 @@ function playList(tracks, index, name, { keepStation = false } = {}) {
 /** Radio (station Deezer, radio DJ, radio d'artiste…) : la file se recharge
     d'elle-même quand elle se vide. */
 async function playStation(name, loader) {
+  if (partyGuest()) return toast("Tu es dans une écoute ensemble : c'est l'hôte qui choisit la musique");
   const tracks = await loader();
   if (!tracks?.length) throw new Error("Rien à jouer pour cette radio.");
   state.shuffle = false;
@@ -1245,6 +1258,7 @@ function djLoader(seed) {
 }
 
 async function startDJRadio(seed) {
+  if (partyGuest()) return toast("Tu es dans une écoute ensemble : c'est l'hôte qui choisit la musique");
   toast(`Radio DJ à partir de « ${seed.title} »…`);
   try {
     const tracks = await djLoader(seed)();
@@ -1316,6 +1330,7 @@ function playAt(index, { position = 0 } = {}) {
   singTrackChanged(t);
   // Dernier titre de la file : la suite est préparée pendant l'écoute.
   if (index >= state.queue.length - 2) extendQueue();
+  partyNotify();
 }
 
 /** « En train d'écouter » pour les amis et sur Last.fm. */
@@ -1330,6 +1345,8 @@ function reportNowPlaying(t, position = 0) {
 }
 
 async function next(auto = false) {
+  // Invité d'une écoute ensemble : c'est l'hôte qui enchaîne.
+  if (partyGuest()) return auto ? undefined : partyIntercept("next");
   if (!auto && remoteDevice()) return sendCommand(remoteDevice().id, "next");
   if (state.repeat && auto) { audio.currentTime = 0; audio.play(); return; }
   if (state.index + 1 >= state.queue.length) await extendQueue();
@@ -1338,12 +1355,14 @@ async function next(auto = false) {
 }
 
 function prev() {
+  if (partyIntercept("prev")) return;
   if (remoteDevice()) return sendCommand(remoteDevice().id, "previous");
   if (audio.currentTime > 3 || state.index <= 0) audio.currentTime = 0;
   else playAt(state.index - 1);
 }
 
 function toggle() {
+  if (partyIntercept("toggle")) return;
   const remote = remoteDevice();
   // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs appuis
   // rapprochés ne s'annulent pas.
@@ -1467,7 +1486,7 @@ function renderMini() {
   mp.innerHTML = `<div class="mp-inner" data-mp="open">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
-      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : esc(t.artist)}</div></div>
+      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${esc(t.artist)}` : esc(t.artist)}</div></div>
     <button class="mp-btn" data-mp="toggle" aria-label="Lecture/Pause">${paused ? icons.play : icons.pause}</button>
     <button class="mp-btn" data-mp="next" aria-label="Suivant">${icons.next}</button>
     <div class="mp-progress"><div class="fill" id="mp-fill"></div></div></div>`;
@@ -2359,7 +2378,7 @@ function trackMenu(t, ctx = null, index = -1) {
     { icon: icons.plus, label: "Ajouter à une playlist…", run: () => addToPlaylistSheet([t]) },
     { icon: liked ? icons.heartFill : icons.heart, label: liked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque", run: () => toggleLike(t) },
     { icon: icons.radio, label: "Lancer la radio DJ", sub: "Des titres qui s'enchaînent bien avec celui-ci", run: () => startDJRadio(t) },
-    party.state && { icon: icons.headphones, label: party.state.is_host ? "Jouer dans la session" : "Proposer à la session", run: () => partyPropose(t) },
+    party.state && { icon: icons.headphones, label: party.state.is_host ? "Jouer ensuite dans la session" : "Proposer à la session", run: () => partyPropose(t) },
     t.artist_source_id && { icon: icons.user, label: "Aller à l'artiste", run: () => { closeNowPlaying(); go(`#/artist/${t.source}/${t.artist_source_id}`); } },
     t.album_source_id && { icon: icons.note, label: "Aller à l'album", run: () => { closeNowPlaying(); go(`#/album/${t.source}/${t.album_source_id}`); } },
     playing && { icon: icons.sparkles, label: "Réagir à cet instant", sub: "Tes amis verront ta réaction à ce moment du titre", run: () => addMoment(t) },
@@ -3200,168 +3219,447 @@ function liveRender() {
 
 // ── Écoute ensemble ──────────────────────────────────────────────────────
 // Comme l'app : l'hôte envoie ce qu'il joue, les invités calent leur lecteur
-// dessus (même titre, à ~2 s près, même pause) ; les propositions votées
-// passent dans la file de l'hôte.
+// dessus (même titre, à ~1,5 s près, même pause) ; les propositions votées
+// passent dans la file de l'hôte. Ici en plus : synchro instantanée (le
+// serveur répond dès que la session change), discussion, vote pour passer le
+// titre, contrôle partagé, titres déjà joués, passage de la main, retour
+// automatique dans la session après un rechargement de la page.
 
-const party = { state: null, loop: null, sent: null, fetchedAt: 0, lastReaction: 0, takenDuring: null };
+const party = {
+  state: null, gen: 0, fetchedAt: 0, rtt: 0, sent: null, takenDuring: null, skippedFor: null,
+  lastReaction: 0, lastMessage: 0, lastCommand: 0, ownReactions: 0, localPause: false,
+  tab: "queue", unread: 0, timer: null, renderedVersion: null,
+};
 const PARTY_EMOJIS = ["🔥", "❤️", "😂", "🙌", "💃", "🎉"];
+const partyGuest = () => !!party.state && !party.state.is_host;
+const partyPath = (suffix = "") => `/party/${encodeURIComponent(party.state.code)}${suffix}`;
+
+// Lecture lancée sans geste de l'utilisateur (suivre l'hôte) : sur iPhone,
+// le lecteur doit d'abord avoir joué une fois pendant un appui.
+const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+let audioUnlocked = false;
+audio.addEventListener("play", () => { audioUnlocked = true; });
+function unlockAudio() {
+  if (audioUnlocked) return;
+  if (!audio.src) { audio.src = SILENCE; audio.play().catch(() => {}); return; }
+  if (audio.paused) audio.play().then(() => audio.pause()).catch(() => {});
+}
+const isSilence = () => audio.src.startsWith("data:");
 
 async function partyEnter(fresh) {
-  party.state = fresh;
-  party.sent = null;
-  party.fetchedAt = Date.now();
-  party.lastReaction = Math.max(0, ...fresh.reactions.map((r) => r.id));
-  clearInterval(party.loop);
-  party.loop = setInterval(partyTick, 2000);
-  if (!fresh.is_host) partyFollow(fresh);
+  party.gen++;
+  Object.assign(party, {
+    state: fresh, sent: null, takenDuring: null, skippedFor: null, localPause: false, unread: 0, renderedVersion: null,
+    lastReaction: Math.max(0, ...fresh.reactions.map((r) => r.id)),
+    lastMessage: Math.max(0, ...(fresh.messages || []).map((m) => m.id)),
+    lastCommand: Math.max(0, ...(fresh.commands || []).map((c) => c.id)),
+    fetchedAt: Date.now(),
+  });
+  store.set("sona.party", fresh.code);
+  partyLoop(party.gen);
+  clearInterval(party.timer);
+  // Chaque seconde : l'invité se recale, l'hôte reprend les propositions
+  // (la fin d'un titre arrive sans que la session change).
+  party.timer = setInterval(partyClock, 1000);
+  if (fresh.is_host) partyPublish(true); else partyFollow();
+  renderParty();
+}
+
+function partyStop(message) {
+  if (!party.state) return;
+  party.gen++;
+  clearInterval(party.timer);
+  party.state = null;
+  store.set("sona.party", null);
+  if (message) toast(message);
   renderParty();
 }
 
 async function partyLeave(silent = false) {
   if (!party.state) return;
-  const code = party.state.code;
-  clearInterval(party.loop);
-  party.state = null;
-  if (!silent) api(`/party/${encodeURIComponent(code)}/leave`, { method: "POST" }).catch(() => {});
-  renderParty();
+  const path = partyPath("/leave");
+  partyStop();
+  if (!silent) api(path, { method: "POST" }).catch(() => {});
 }
 
-async function partyTick() {
-  if (!party.state) return;
-  try {
-    let fresh = await api(`/party/${encodeURIComponent(party.state.code)}`);
-    party.fetchedAt = Date.now();
-    if (fresh.is_host) {
-      fresh = await partyPublish(fresh);
-      fresh = await partyTakeProposals(fresh);
-    } else partyFollow(fresh);
-    const reactions = fresh.reactions.filter((r) => r.id > party.lastReaction);
-    if (reactions.length) {
-      party.lastReaction = Math.max(...reactions.map((r) => r.id));
-      reactions.forEach((r) => floatReaction(r.emoji, r.by));
+/** Relit l'état en continu : le serveur ne répond que quand quelque chose
+    change (titre, pause, message…), au plus tard après 20 s. */
+async function partyLoop(gen) {
+  while (party.state && gen === party.gen) {
+    const sent = Date.now();
+    try {
+      const fresh = await api(partyPath(`?since=${party.state.version}&wait=20`));
+      if (gen !== party.gen) return;
+      partyHandle(fresh, Date.now() - sent);
+    } catch (e) {
+      if (gen !== party.gen) return;
+      if (e.status === 404) return partyStop("La session d'écoute est terminée.");
+      if (e.status === 403) return partyStop("Tu ne fais plus partie de la session.");
+      await new Promise((r) => setTimeout(r, 2500));
     }
-    party.state = fresh;
-    renderParty();
-  } catch (e) {
-    if (/404|403|introuvable|terminée|plus/i.test(e.message)) { toast("La session d'écoute est terminée."); partyLeave(true); }
   }
 }
 
-async function partyPublish(current) {
+/** Nouvel état reçu (lecture, ou réponse à une action). `rtt` : durée de
+    l'aller-retour, pour compenser le trajet de la position. */
+function partyHandle(fresh, rtt = 0) {
+  if (!party.state || fresh.code !== party.state.code) return;
+  const wasHost = party.state.is_host;
+  party.state = fresh;
+  party.fetchedAt = Date.now();
+  // Réponse d'une longue attente : seul le trajet retour compte.
+  party.rtt = Math.min(rtt, 1500);
+  if (fresh.is_host && !wasHost) { toast("Tu es maintenant l'hôte de la session 👑"); party.sent = null; partyPublish(true); }
+  if (!fresh.is_host && wasHost) toast(`${fresh.host_name || "Quelqu'un"} est maintenant l'hôte`);
+  for (const r of fresh.reactions.filter((x) => x.id > party.lastReaction)) {
+    if (party.ownReactions > 0 && r.by === myName()) { party.ownReactions--; continue; }
+    if (r.age < 8) floatReaction(r.emoji, r.by);
+  }
+  party.lastReaction = Math.max(party.lastReaction, ...fresh.reactions.map((r) => r.id));
+  const messages = (fresh.messages || []).filter((m) => m.id > party.lastMessage && !m.mine);
+  party.lastMessage = Math.max(party.lastMessage, ...(fresh.messages || []).map((m) => m.id));
+  if (messages.length) {
+    const onChat = location.hash.startsWith("#/party") && party.tab === "chat";
+    if (!onChat) { party.unread += messages.length; const m = messages.at(-1); toast(`💬 ${m.by} : ${m.text.slice(0, 80)}`); }
+  }
+  if (fresh.is_host) partyHostDuties(); else partyFollow();
+  renderParty();
+}
+
+const myName = () => account?.display_name || account?.username || "";
+
+function partyClock() {
+  if (!party.state) return;
+  if (party.state.is_host) { partyPublish(false); partyTakeProposals(); }
+  else partyFollow();
+  partyTick();
+}
+
+// ── Hôte ──
+
+let publishTimer = null;
+/** L'hôte a changé quelque chose (titre, pause, saut) : prévenir tout de suite. */
+function partyNotify() {
+  if (!party.state?.is_host) return;
+  clearTimeout(publishTimer);
+  publishTimer = setTimeout(() => partyPublish(false), 150);
+}
+["play", "pause", "seeked"].forEach((ev) => audio.addEventListener(ev, partyNotify));
+
+async function partyPublish(force) {
+  const s = party.state;
+  if (!s?.is_host || isSilence()) return;
   const t = state.queue[state.index] || null;
   const paused = audio.paused;
   const position = audio.currentTime || 0;
   const id = t ? trackKey(t) : null;
-  let changed = !party.sent || party.sent.id !== id || party.sent.paused !== paused;
-  if (!changed && !paused) changed = Math.abs(party.sent.position + (Date.now() - party.sent.at) / 1000 - position) > 3;
-  if (!changed) return current;
+  let changed = force || !party.sent || party.sent.id !== id || party.sent.paused !== paused;
+  if (!changed && !paused) changed = Math.abs(party.sent.position + (Date.now() - party.sent.at) / 1000 - position) > 1.5;
+  if (!changed) return;
   party.sent = { id, paused, position, at: Date.now() };
-  return api(`/party/${encodeURIComponent(current.code)}/state`, { method: "POST", body: JSON.stringify({ track: t ? cleanTrack(t) : null, position, paused }) }).catch(() => current);
+  try {
+    const fresh = await api(partyPath("/state"), { method: "POST", body: JSON.stringify({ track: t ? cleanTrack(t) : null, position, paused }) });
+    partyHandle(fresh);
+  } catch { party.sent = null; }
 }
 
-async function partyTakeProposals(current) {
-  const top = current.queue[0];
+/** Commandes des invités (contrôle partagé) et vote pour passer le titre. */
+function partyHostDuties() {
+  const s = party.state;
+  for (const c of (s.commands || []).filter((x) => x.id > party.lastCommand)) {
+    party.lastCommand = c.id;
+    if (c.action === "pause" && !audio.paused) { audio.pause(); toast(`${c.by} a mis en pause`); }
+    else if (c.action === "play" && audio.paused && audio.src) { audio.play().catch(() => {}); toast(`${c.by} a relancé la lecture`); }
+    else if (c.action === "next") { toast(`${c.by} a passé le titre`); next(); }
+    else if (c.action === "previous") { toast(`${c.by} est revenu au titre précédent`); prev(); }
+  }
+  const key = s.track ? trackKey(s.track) : null;
+  if (key && s.skip && s.skip.votes >= s.skip.needed && party.skippedFor !== key && sameTrack(s.track, state.queue[state.index])) {
+    party.skippedFor = key;
+    toast("Titre passé à la demande des invités ⏭️");
+    next();
+  }
+  partyTakeProposals();
+}
+
+/** La proposition la plus votée passe juste après le titre en cours : tout
+    de suite si rien d'autre n'est prévu, sinon dans les 25 dernières
+    secondes (le temps que les votes s'accumulent). Une seule par titre. */
+let takingProposal = false;
+async function partyTakeProposals() {
+  const s = party.state;
+  const top = s?.queue?.[0];
   const playing = state.queue[state.index];
-  if (!top || !playing) return current;
+  if (!s?.is_host || !top || !playing || takingProposal) return;
   const dur = audio.duration && isFinite(audio.duration) ? audio.duration : playing.duration_seconds || 0;
   const endingSoon = dur > 0 && dur - audio.currentTime < 25;
   const nothingNext = state.index >= state.queue.length - 1;
-  if (!(nothingNext || (endingSoon && party.takenDuring !== trackKey(playing)))) return current;
+  if (!(nothingNext || (endingSoon && party.takenDuring !== trackKey(playing)))) return;
+  takingProposal = true;
   party.takenDuring = trackKey(playing);
   state.queue.splice(state.index + 1, 0, top.track);
-  return api(`/party/${encodeURIComponent(current.code)}/queue/consume`, { method: "POST", body: JSON.stringify({ ids: [top.id] }) }).catch(() => current);
+  if (state.npOpen && state.npTab === "queue") renderQueue();
+  try { partyHandle(await api(partyPath("/queue/consume"), { method: "POST", body: JSON.stringify({ ids: [top.id] }) })); }
+  catch {} finally { takingProposal = false; }
 }
 
-function partyFollow(fresh) {
-  const t = fresh.track;
-  if (!t) return;
-  const target = fresh.position + (fresh.paused ? 0 : (Date.now() - party.fetchedAt) / 1000);
-  if (!sameTrack(t, state.queue[state.index])) {
+/** Hôte : jouer une proposition tout de suite. */
+async function partyPlayNow(item) {
+  state.queue.splice(state.index + 1, 0, item.track);
+  next();
+  try { partyHandle(await api(partyPath("/queue/consume"), { method: "POST", body: JSON.stringify({ ids: [item.id] }) })); } catch {}
+}
+
+// ── Invité ──
+
+/** Position de l'hôte maintenant, d'après le dernier état reçu. */
+function partyTarget() {
+  const s = party.state;
+  if (!s) return 0;
+  return s.position + (s.paused ? 0 : (Date.now() - party.fetchedAt + party.rtt / 2) / 1000);
+}
+
+function partyFollow() {
+  const s = party.state;
+  if (!s || s.is_host || !s.track) return;
+  const target = partyTarget();
+  if (!sameTrack(s.track, state.queue[state.index])) {
+    // Nouveau titre de l'hôte : même titre, même seconde.
     state.station = null;
-    state.queue = [t];
+    state.queue = [s.track];
     state.name = "Écoute ensemble";
     playAt(0, { position: target });
-    if (fresh.paused) audio.pause();
+    if (s.paused || party.localPause) audio.pause();
     return;
   }
-  if (fresh.paused) {
+  if (audio.readyState < 2) return;  // encore en chargement
+  const dur = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
+  if (s.paused || party.localPause) {
     if (!audio.paused) audio.pause();
-    if (Math.abs(audio.currentTime - target) > 2) audio.currentTime = target;
+    if (s.paused && Math.abs(audio.currentTime - target) > 1.5) audio.currentTime = target;
     return;
   }
-  if (audio.paused && audio.readyState > 0) audio.play().catch(() => {});
-  if (audio.readyState > 0 && Math.abs(audio.currentTime - target) > 2.5) audio.currentTime = target;
+  // Fin du titre chez soi avant l'hôte : on attend le suivant, sans boucler.
+  if (audio.ended || (dur && target >= dur - 0.5)) return;
+  if (audio.paused) audio.play().catch(() => {});
+  if (Math.abs(audio.currentTime - target) > 1.5) audio.currentTime = target;
+}
+
+/** Invité : pause/lecture chez soi seulement (la session continue). */
+function partyToggleLocal() {
+  party.localPause = !party.localPause;
+  if (party.localPause) audio.pause();
+  else { unlockAudio(); partyFollow(); toast("De retour en synchro ✓"); }
+  renderParty();
+}
+
+async function partyCommand(action) {
+  try { partyHandle(await api(partyPath("/command"), { method: "POST", body: JSON.stringify({ action }) })); haptic(); }
+  catch (e) { toast(e.message); }
 }
 
 async function partyPropose(t) {
   if (!party.state) return;
   if (party.state.is_host) return playNext(t);
   try {
-    party.state = await api(`/party/${encodeURIComponent(party.state.code)}/queue`, { method: "POST", body: JSON.stringify({ track: cleanTrack(t) }) });
-    toast("Proposé à la session");
-    renderParty();
+    partyHandle(await api(partyPath("/queue"), { method: "POST", body: JSON.stringify({ track: cleanTrack(t) }) }));
+    toast("Proposé à la session ✓");
   } catch (e) { toast(e.message); }
 }
+
+/** Transport de l'invité (mini-lecteur, lecteur, touches) : rien ne doit le
+    désynchroniser. Renvoie vrai si l'action a été prise en charge ici. */
+function partyIntercept(action) {
+  if (!partyGuest()) return false;
+  if (action === "toggle") { partyToggleLocal(); return true; }
+  if (party.state.open_controls) { partyCommand(action === "prev" ? "previous" : action); return true; }
+  toast("C'est l'hôte qui choisit la musique : propose un titre ou vote pour passer");
+  return true;
+}
+
+// ── Page ──
 
 async function viewParty(code) {
   if (code && party.state?.code !== code.toUpperCase()) {
     try {
-      if (party.state) await partyLeave();
-      await partyEnter(await api(`/party/${encodeURIComponent(code.toUpperCase())}/join`, { method: "POST" }));
+      const fresh = await api(`/party/${encodeURIComponent(code.toUpperCase())}/join`, { method: "POST" });
+      if (party.state) partyStop();
+      await partyEnter(fresh);
     } catch (e) { toast(e.message); }
   }
   const active = party.state ? [] : await api("/party/active").catch(() => []);
+  party.renderedVersion = null;
+  onLeave(() => { party.renderedVersion = null; });
   setTimeout(renderParty);
   return page(`<h1 class="page-title">Écoute ensemble</h1><p class="page-sub">Le même son, au même moment, chacun sur son téléphone.</p>
     <div id="party-root" data-active='${esc(JSON.stringify(active))}'></div>`);
 }
 
+async function partyJoinAsk() {
+  unlockAudio();
+  const code = await askText({ title: "Rejoindre une session", placeholder: "Code (5 lettres)", confirm: "Rejoindre" });
+  if (code) go(`#/party/${code.toUpperCase().replace(/[^A-Z]/g, "")}`);
+}
+
 function renderParty() {
-  const root = $("#party-root");
   renderMini();
+  const root = $("#party-root");
   if (!root) return;
   const s = party.state;
   if (!s) {
-    const active = JSON.parse(root.dataset.active || "[]");
+    party.renderedVersion = null;
+    const active = JSON.parse(root.dataset.active || "[]").filter((p) => !p.joined);
     root.innerHTML = `<div class="pill-row"><button class="btn" data-party-create>${icons.plus} Lancer</button><button class="btn ghost" data-party-join>Rejoindre</button></div>
       ${active.map((p) => `<button class="live-pill" data-party-code="${esc(p.code)}">${icons.headphones} <b>${esc(p.host_name || "Un ami")}</b> · ${plural(p.members, "personne")}${p.track ? ` · ${esc(p.track.title)}` : ""} — rejoindre</button>`).join("")}
-      <p class="muted">Lance une session : tes amis la voient dans l'onglet Amis et peuvent la rejoindre. Toi tu choisis la musique, eux proposent et votent.</p>`;
-    $("[data-party-create]", root).onclick = async () => { try { await partyEnter(await api("/party", { method: "POST" })); } catch (e) { toast(e.message); } };
-    $("[data-party-join]", root).onclick = async () => {
-      const code = await askText({ title: "Rejoindre une session", placeholder: "Code", confirm: "Rejoindre" });
-      if (code) go(`#/party/${code.toUpperCase().replace(/\s/g, "")}`);
+      <div class="party-how">
+        <p><b>Toi</b>, tu lances la session et tu choisis la musique : tout le monde l'entend en même temps, chacun sur son téléphone.</p>
+        <p><b>Tes amis</b> proposent des titres, votent, discutent, réagissent et peuvent voter pour passer un titre.</p>
+        <p>Tu peux leur ouvrir les commandes (pause, suivant) ou passer la main à quelqu'un.</p></div>`;
+    $("[data-party-create]", root).onclick = async () => {
+      unlockAudio();
+      try { await partyEnter(await api("/party", { method: "POST" })); } catch (e) { toast(e.message); }
     };
-    $$("[data-party-code]", root).forEach((b) => (b.onclick = () => go(`#/party/${b.dataset.partyCode}`)));
+    $("[data-party-join]", root).onclick = partyJoinAsk;
+    $$("[data-party-code]", root).forEach((b) => (b.onclick = () => { unlockAudio(); go(`#/party/${b.dataset.partyCode}`); }));
     return;
   }
+  // Pas de nouveau rendu sans changement (le champ de discussion garde son texte).
+  const key = `${s.version}|${party.tab}|${party.localPause}|${party.unread}`;
+  if (party.renderedVersion === key) return;
+  party.renderedVersion = key;
+  const draft = $("#party-msg", root)?.value || "";
+  const hadFocus = document.activeElement?.id === "party-msg";
   const t = s.track;
-  root.innerHTML = `<div class="live-code"><span class="muted">${s.is_host ? "Ta session" : `Session de ${esc(s.host_name || "un ami")}`}</span><b>${esc(s.code)}</b>
-      <button class="btn ghost small" data-party-share>${icons.share} Inviter</button></div>
-    ${t ? `<div class="now-card"><img src="${esc(big(t.cover_url, 200))}" alt=""><span><span class="eyebrow">${s.paused ? "En pause" : `${bars()} En cours`}</span><span class="t">${esc(t.title)}</span><span class="s">${esc(t.artist)}</span></span></div>`
-      : `<p class="muted">${s.is_host ? "Lance un titre : il démarre chez tout le monde." : "En attente de musique…"}</p>`}
+  const host = s.is_host;
+  const canControl = host || s.open_controls;
+  const tabs = [["queue", `Propositions${s.queue.length ? ` (${s.queue.length})` : ""}`], ["chat", `Discussion${party.unread ? ` · ${party.unread}` : ""}`], ["history", "Déjà joués"]];
+  root.innerHTML = `<div class="live-code"><span class="muted">${host ? "Ta session" : `Session de ${esc(s.host_name || "un ami")}`}</span><b>${esc(s.code)}</b>
+      <div class="pill-row center tight"><button class="btn ghost small" data-party-share>${icons.share} Inviter</button><button class="btn ghost small" data-party-copy>Copier le code</button></div></div>
+    ${t ? `<div class="party-now">
+        <img src="${esc(big(t.cover_url, 300))}" alt="">
+        <div class="pn-text"><span class="eyebrow">${s.paused ? "En pause" : `${bars()} En cours`}</span><b>${esc(t.title)}</b><span class="muted">${esc(t.artist)}</span>
+          ${host ? "" : `<span class="pn-sync" id="party-sync"></span>`}</div>
+        <div class="pn-progress"><i id="party-progress"></i></div>
+        <div class="pn-actions">
+          ${canControl ? `<button class="btn ghost small" data-pc="${s.paused ? "play" : "pause"}">${s.paused ? icons.play : icons.pause} ${host ? (s.paused ? "Lecture" : "Pause") : (s.paused ? "Lecture pour tous" : "Pause pour tous")}</button><button class="btn ghost small" data-pc="next">${icons.next} ${host ? "Suivant" : "Suivant pour tous"}</button>` : ""}
+          ${host ? "" : `<button class="btn ghost small ${party.localPause ? "on" : ""}" data-local>${party.localPause ? `${icons.play} Reprendre chez moi` : `${icons.pause} Pause chez moi`}</button>`}
+          ${host ? "" : `<button class="btn ghost small ${s.skip?.voted ? "on" : ""}" data-skip>⏭️ Passer ${s.skip ? `${s.skip.votes}/${s.skip.needed}` : ""}</button>`}
+        </div></div>`
+      : `<p class="muted party-wait">${host ? "Lance un titre (recherche, playlist, radio…) : il démarre chez tout le monde." : `En attente du premier titre de ${esc(s.host_name || "l'hôte")}…`}</p>`}
+    ${host && s.skip?.votes ? `<p class="muted">⏭️ ${s.skip.votes} vote${s.skip.votes > 1 ? "s" : ""} pour passer (${s.skip.needed} nécessaire${s.skip.needed > 1 ? "s" : ""}).</p>` : ""}
     <div class="emoji-row">${PARTY_EMOJIS.map((e) => `<button data-react="${e}">${e}</button>`).join("")}</div>
-    <section class="section"><div class="section-head"><h2>Propositions</h2><button class="btn ghost small" data-party-add>${icons.plus} Proposer</button></div>
-      ${s.queue.length ? `<div class="party-queue">${s.queue.map((q) => `<div class="pq"><img src="${esc(big(q.track.cover_url, 120))}" alt=""><span class="pt"><b>${esc(q.track.title)}</b><small>${esc(q.track.artist)} · par ${esc(q.by)}</small></span>
-        <button class="vote ${q.voted ? "on" : ""}" data-vote="${q.id}">▲ ${q.votes}</button></div>`).join("")}</div>`
-        : `<p class="muted">Aucune proposition. ${s.is_host ? "" : "Propose un titre : l'hôte le passera après le titre en cours."}</p>`}</section>
+    ${host ? `<label class="switch-row card-row"><span><b>Les invités contrôlent la lecture</b><small>Pause, reprise et titre suivant pour tout le monde</small></span><input type="checkbox" data-open ${s.open_controls ? "checked" : ""}><i></i></label>` : ""}
+    <div class="segmented party-tabs">${tabs.map(([k, l]) => `<button data-ptab="${k}" class="${party.tab === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    <div id="party-tab">${partyTabHtml(s)}</div>
     <section class="section"><div class="section-head"><h2>À l'écoute (${s.members.length})</h2></div>
-      <div class="members">${s.members.map((m) => `<span class="member">${avatar(m.avatar_url, m.name)}${esc(m.name)}${m.is_host ? " 👑" : ""}</span>`).join("")}</div></section>
-    <button class="btn ghost danger" data-party-leave>${s.is_host ? "Terminer la session" : "Quitter la session"}</button>`;
-  $$("[data-react]", root).forEach((b) => (b.onclick = async () => {
+      <div class="members">${s.members.map((m) => `<button class="member" data-member="${m.id ?? ""}">${avatar(m.avatar_url, m.name)}${esc(m.name)}${m.is_host ? " 👑" : ""}${m.is_me ? " (toi)" : ""}</button>`).join("")}</div>
+      ${host && s.members.length > 1 ? `<p class="muted small-note">Touche un ami pour lui passer la main ou le retirer.</p>` : ""}</section>
+    <button class="btn ghost danger" data-party-leave>${host ? "Terminer la session" : "Quitter la session"}</button>`;
+  bindParty(root, s);
+  const input = $("#party-msg", root);
+  if (input) { input.value = draft; if (hadFocus) input.focus(); }
+  const list = $(".chat-list", root);
+  if (list) list.scrollTop = list.scrollHeight;
+  partyTick();
+}
+
+function partyTabHtml(s) {
+  if (party.tab === "chat") {
+    party.unread = 0;
+    return `<div class="chat-list">${(s.messages || []).map((m) => `<div class="msg ${m.mine ? "mine" : ""}">${m.mine ? "" : avatar(m.avatar_url, m.by)}
+        <div class="bubble">${m.mine ? "" : `<b>${esc(m.by)}</b>`}${esc(m.text)}</div></div>`).join("") || `<p class="muted">Pas encore de message. Lance la discussion !</p>`}</div>
+      <form class="chat-form"><input class="field" id="party-msg" maxlength="300" placeholder="Écris un message…" autocomplete="off" enterkeyhint="send"><button class="btn" type="submit">Envoyer</button></form>`;
+  }
+  if (party.tab === "history") {
+    return s.history?.length ? trackTable(s.history, "Écoute ensemble", { numbers: false }) : `<p class="muted">Les titres joués pendant la session apparaîtront ici.</p>`;
+  }
+  return `<button class="btn ghost small" data-party-add>${icons.plus} ${s.is_host ? "Ajouter un titre" : "Proposer un titre"}</button>
+    ${s.queue.length ? `<div class="party-queue">${s.queue.map((q) => `<div class="pq"><img src="${esc(big(q.track.cover_url, 120))}" alt=""><span class="pt"><b>${esc(q.track.title)}</b><small>${esc(q.track.artist)} · par ${esc(q.by)}</small></span>
+      <span class="pq-acts">${s.is_host ? `<button class="vote" data-playnow="${q.id}" title="Jouer maintenant">${icons.play}</button>` : ""}
+        <button class="vote ${q.voted ? "on" : ""}" data-vote="${q.id}">▲ ${q.votes}</button>
+        ${s.is_host || q.mine ? `<button class="vote" data-unpropose="${q.id}" title="Retirer">${icons.close}</button>` : ""}</span></div>`).join("")}</div>`
+      : `<p class="muted">Aucune proposition. ${s.is_host ? "Tes amis peuvent en faire depuis leur téléphone." : "Propose un titre : la plus votée passe après le titre en cours."}</p>`}`;
+}
+
+function bindParty(root, s) {
+  const post = async (path, body) => {
+    try { partyHandle(await api(partyPath(path), { method: "POST", body: body ? JSON.stringify(body) : undefined })); }
+    catch (e) { toast(e.message); }
+  };
+  $$("[data-react]", root).forEach((b) => (b.onclick = () => {
     haptic(); floatReaction(b.dataset.react);
-    const fresh = await api(`/party/${encodeURIComponent(s.code)}/react`, { method: "POST", body: JSON.stringify({ emoji: b.dataset.react }) }).catch(() => null);
-    if (fresh) { party.lastReaction = Math.max(party.lastReaction, ...fresh.reactions.map((r) => r.id)); party.state = fresh; }
+    party.ownReactions++;
+    post("/react", { emoji: b.dataset.react });
   }));
-  $$("[data-vote]", root).forEach((b) => (b.onclick = async () => {
-    try { party.state = await api(`/party/${encodeURIComponent(s.code)}/queue/${b.dataset.vote}/vote`, { method: "POST" }); renderParty(); } catch (e) { toast(e.message); }
+  $$("[data-vote]", root).forEach((b) => (b.onclick = () => { haptic(); post(`/queue/${b.dataset.vote}/vote`); }));
+  $$("[data-unpropose]", root).forEach((b) => (b.onclick = async () => {
+    try { partyHandle(await api(partyPath(`/queue/${b.dataset.unpropose}`), { method: "DELETE" })); } catch (e) { toast(e.message); }
   }));
-  $("[data-party-add]", root).onclick = () => quickSearch("Proposer un titre", partyPropose);
-  $("[data-party-leave]", root).onclick = () => partyLeave();
+  $$("[data-playnow]", root).forEach((b) => (b.onclick = () => { const item = s.queue.find((q) => String(q.id) === b.dataset.playnow); if (item) partyPlayNow(item); }));
+  $$("[data-pc]", root).forEach((b) => (b.onclick = () => {
+    haptic();
+    const action = b.dataset.pc;
+    if (s.is_host) { if (action === "next") next(); else if (audio.src) action === "play" ? audio.play().catch(() => {}) : audio.pause(); }
+    else partyCommand(action);
+  }));
+  $("[data-local]", root)?.addEventListener("click", partyToggleLocal);
+  $("[data-skip]", root)?.addEventListener("click", () => { haptic(); post("/skip"); });
+  $("[data-open]", root)?.addEventListener("change", (e) => post("/settings", { open_controls: e.target.checked }));
+  $$("[data-ptab]", root).forEach((b) => (b.onclick = () => { party.tab = b.dataset.ptab; party.renderedVersion = null; renderParty(); }));
+  $("[data-party-add]", root)?.addEventListener("click", () => quickSearch(s.is_host ? "Ajouter un titre" : "Proposer un titre", partyPropose));
+  const form = $(".chat-form", root);
+  if (form) form.onsubmit = async (e) => {
+    e.preventDefault();
+    const input = $("#party-msg", root);
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    await post("/chat", { text });
+    $("#party-msg")?.focus();
+  };
+  $$("[data-member]", root).forEach((b) => (b.onclick = () => {
+    const m = s.members.find((x) => String(x.id) === b.dataset.member);
+    if (!s.is_host || !m || m.is_me || m.id == null) return;
+    actionSheet(m.name, [
+      { icon: "👑", label: "Lui passer la main", sub: "Il ou elle choisira la musique", run: () => post("/transfer", { member_id: m.id }) },
+      { icon: icons.close, label: "Retirer de la session", danger: true, run: async () => {
+        if (await confirmSheet(`Retirer ${m.name} de la session ?`, "Retirer")) post("/kick", { member_id: m.id });
+      } },
+    ]);
+  }));
+  $("[data-party-leave]", root).onclick = async () => {
+    if (s.is_host && s.members.length > 1 && !(await confirmSheet("Terminer la session pour tout le monde ?", "Terminer"))) return;
+    partyLeave();
+  };
+  const url = `${location.origin}${location.pathname}?party=${s.code}`;
   $("[data-party-share]", root).onclick = () => {
-    const url = `${location.origin}${location.pathname}?party=${s.code}`;
     const text = `Écoute avec moi sur Sona ! Code : ${s.code}`;
     navigator.share ? navigator.share({ text, url }).catch(() => {}) : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
   };
+  $("[data-party-copy]", root).onclick = () => navigator.clipboard?.writeText(s.code).then(() => toast("Code copié")).catch(() => toast(s.code));
+}
+
+/** Barre de progression et état de synchro (chaque seconde, sans tout redessiner). */
+function partyTick() {
+  const s = party.state;
+  if (!s?.track) return;
+  const dur = s.track.duration_seconds || (sameTrack(s.track, state.queue[state.index]) && isFinite(audio.duration) ? audio.duration : 0);
+  const bar = $("#party-progress");
+  if (bar && dur) bar.style.width = `${Math.min(100, (partyTarget() / dur) * 100)}%`;
+  const sync = $("#party-sync");
+  if (!sync) return;
+  const drift = Math.abs(audio.currentTime - partyTarget());
+  const ok = sameTrack(s.track, state.queue[state.index]) && (s.paused || party.localPause || (!audio.paused && drift <= 1.5));
+  sync.className = `pn-sync ${ok ? "ok" : ""}`;
+  sync.textContent = party.localPause ? "En pause chez toi" : ok ? `✓ Synchronisé avec ${s.host_name || "l'hôte"}` : "Synchronisation…";
+}
+
+/** Après un rechargement de la page : retour dans la session en cours. */
+async function partyRestore() {
+  const code = store.get("sona.party");
+  if (!code || party.state) return;
+  try { await partyEnter(await api(`/party/${encodeURIComponent(code)}/join`, { method: "POST" })); toast("De retour dans l'écoute ensemble 🎧"); }
+  catch { store.set("sona.party", null); }
 }
 
 /** Petite recherche dans une feuille : `pick(track)` au choix. */
@@ -3656,10 +3954,16 @@ audio.addEventListener("play", () => {
 });
 audio.addEventListener("loadedmetadata", renderMoments);
 audio.addEventListener("ended", () => {
+  if (isSilence()) return;
   if (sleep.endOfTrack) { setSleep(0); toast("Bonne nuit 🌙"); return; }
   next(true);
 });
-audio.addEventListener("error", () => { if (audio.src) toast("Ce titre ne se lance pas — passage au suivant"); setTimeout(() => next(true), 1200); });
+audio.addEventListener("error", () => {
+  if (!audio.src || isSilence()) return;
+  if (partyGuest()) return toast("Ce titre ne se lance pas chez toi — l'hôte continue");
+  toast("Ce titre ne se lance pas — passage au suivant");
+  setTimeout(() => next(true), 1200);
+});
 audio.addEventListener("timeupdate", () => {
   updateProgress();
   const t = state.queue[state.index];
@@ -3689,7 +3993,9 @@ audio.addEventListener("timeupdate", () => {
 
 if ("mediaSession" in navigator) {
   const handlers = {
-    play: () => audio.play(), pause: () => audio.pause(), nexttrack: () => next(), previoustrack: () => prev(),
+    play: () => (partyGuest() ? party.localPause && partyToggleLocal() : audio.play()),
+    pause: () => (partyGuest() ? !party.localPause && partyToggleLocal() : audio.pause()),
+    nexttrack: () => next(), previoustrack: () => prev(),
     seekto: (d) => { audio.currentTime = d.seekTime; },
     seekbackward: (d) => { audio.currentTime = Math.max(0, audio.currentTime - (d.seekOffset || 10)); },
     seekforward: (d) => { audio.currentTime += d.seekOffset || 10; },
