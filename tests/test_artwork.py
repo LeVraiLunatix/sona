@@ -89,3 +89,32 @@ def test_ffmpeg_failure_means_no_thumbnail(monkeypatch, tmp_path):
     _fake_ffmpeg(monkeypatch, error=subprocess.CalledProcessError(1, ["ffmpeg"]))
     assert make_audio_thumbnail("ffmpeg", b"image", tmp_path / artwork.AUDIO_THUMBNAIL_NAME) is None
     assert not list(tmp_path.iterdir())
+
+
+def test_deezer_artist_albums_carry_the_artist_name():
+    """`/artist/{id}/albums` ne nomme pas l'artiste : les nouvelles sorties
+    s'affichaient « Artiste inconnu » au lieu de « Ziak »."""
+    import asyncio
+
+    import httpx
+
+    from app.providers.deezer import DeezerClient
+
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.path)
+        if request.url.path.endswith("/albums"):
+            return httpx.Response(200, json={"data": [
+                {"id": 10, "title": "Akimbo", "record_type": "album", "release_date": "2026-09-25"},
+                {"id": 11, "title": "Single", "record_type": "single", "release_date": "2026-09-20"},
+            ]})
+        return httpx.Response(200, json={"id": 7, "name": "Ziak"})
+
+    client = DeezerClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    albums, singles = asyncio.run(client.get_artist_albums("7"))
+    assert [(a.artist, a.artist_source_id) for a in albums + singles] == [("Ziak", "7"), ("Ziak", "7")]
+    # Nom déjà connu (nouvelles sorties) : pas de requête en plus.
+    seen.clear()
+    albums, _ = asyncio.run(client.get_artist_albums("7", "Ziak"))
+    assert albums[0].artist == "Ziak" and seen == ["/artist/7/albums"]
