@@ -102,6 +102,86 @@ def test_party_flow(client):
     assert client.get(f"/party/{code}", headers=guest).status_code == 404
 
 
+def _party_with_guests(client, *names):
+    host = login(client, "alice")
+    code = client.post("/party", headers=host).json()["code"]
+    guests = [login(client, n) for n in names]
+    for g in guests:
+        client.post(f"/party/{code}/join", headers=g)
+    return code, host, guests
+
+
+def test_party_chat_skip_and_history(client):
+    code, host, (bob, carol) = _party_with_guests(client, "bob", "carol")
+    client.post(f"/party/{code}/chat", headers=bob, json={"text": "  trop   bien  "})
+    state = client.get(f"/party/{code}", headers=carol).json()
+    assert [(m["by"], m["text"], m["mine"]) for m in state["messages"]] == [("Bob", "trop bien", False)]
+    assert client.post(f"/party/{code}/chat", headers=bob, json={"text": "   "}).status_code == 400
+
+    # Vote pour passer : rien en cours, puis la moitié des invités suffit.
+    assert client.post(f"/party/{code}/skip", headers=bob).status_code == 409
+    client.post(f"/party/{code}/state", headers=host, json={"track": TRACK, "position": 0, "paused": False})
+    state = client.post(f"/party/{code}/skip", headers=bob).json()
+    assert state["skip"] == {"votes": 1, "needed": 1, "voted": True}
+    assert client.post(f"/party/{code}/skip", headers=host).status_code == 400
+    # Nouveau titre : votes remis à zéro, titres déjà joués gardés.
+    other = {**TRACK, "source_id": "2", "title": "Akimbo"}
+    state = client.post(f"/party/{code}/state", headers=host, json={"track": other, "position": 0, "paused": False}).json()
+    assert state["skip"]["votes"] == 0
+    assert [t["title"] for t in state["history"]] == ["Akimbo", "Grabba"]
+
+
+def test_party_shared_controls_and_proposals(client):
+    code, host, (bob,) = _party_with_guests(client, "bob")
+    assert client.post(f"/party/{code}/command", headers=bob, json={"action": "pause"}).status_code == 403
+    assert client.post(f"/party/{code}/settings", headers=bob, json={"open_controls": True}).status_code == 403
+    assert client.post(f"/party/{code}/settings", headers=host, json={"open_controls": True}).json()["open_controls"]
+    assert client.post(f"/party/{code}/command", headers=bob, json={"action": "explode"}).status_code == 400
+    bob_view = client.post(f"/party/{code}/command", headers=bob, json={"action": "next"}).json()
+    assert bob_view["commands"] == []  # seul l'hôte voit (et exécute) les commandes
+    assert [(c["action"], c["by"]) for c in client.get(f"/party/{code}", headers=host).json()["commands"]] == [("next", "Bob")]
+
+    # Propositions : pas de doublon ; retirées par l'auteur ou l'hôte seulement.
+    item = client.post(f"/party/{code}/queue", headers=bob, json={"track": TRACK}).json()["queue"][0]
+    assert item["mine"] is True
+    assert client.post(f"/party/{code}/queue", headers=host, json={"track": TRACK}).status_code == 409
+    assert client.delete(f"/party/{code}/queue/{item['id']}", headers=bob).json()["queue"] == []
+
+
+def test_party_host_handover_and_kick(client):
+    code, host, (bob, carol) = _party_with_guests(client, "bob", "carol")
+    members = {m["name"]: m["id"] for m in client.get(f"/party/{code}", headers=host).json()["members"]}
+
+    # Retirer quelqu'un : il ne peut plus revenir.
+    assert client.post(f"/party/{code}/kick", headers=bob, json={"member_id": members["Carol"]}).status_code == 403
+    client.post(f"/party/{code}/kick", headers=host, json={"member_id": members["Carol"]})
+    assert client.get(f"/party/{code}", headers=carol).status_code == 403
+    assert client.post(f"/party/{code}/join", headers=carol).status_code == 403
+
+    # Passer la main.
+    state = client.post(f"/party/{code}/transfer", headers=host, json={"member_id": members["Bob"]}).json()
+    assert state["is_host"] is False and state["host_name"] == "Bob"
+    assert client.get(f"/party/{code}", headers=bob).json()["is_host"] is True
+
+    # Téléphone de l'hôte (Bob) muet : Alice reprend la main, la session continue.
+    session = party.get(code)
+    session.members[session.host_user_id].last_seen -= party.HOST_TIMEOUT + 5
+    state = client.get(f"/party/{code}", headers=host).json()
+    assert state["is_host"] is True and [m["name"] for m in state["members"]] == ["Alice"]
+
+
+def test_party_state_waits_for_a_change(client):
+    code, host, (bob,) = _party_with_guests(client, "bob")
+    version = client.get(f"/party/{code}", headers=bob).json()["version"]
+    started = time.monotonic()
+    same = client.get(f"/party/{code}", headers=bob, params={"since": version, "wait": 0.5}).json()
+    assert same["version"] == version and time.monotonic() - started >= 0.4
+    client.post(f"/party/{code}/state", headers=host, json={"track": TRACK, "position": 0})
+    started = time.monotonic()
+    changed = client.get(f"/party/{code}", headers=bob, params={"since": version, "wait": 5}).json()
+    assert changed["version"] > version and time.monotonic() - started < 1
+
+
 def test_party_needs_membership(client):
     host, stranger = login(client, "alice"), login(client, "carol")
     code = client.post("/party", headers=host).json()["code"]

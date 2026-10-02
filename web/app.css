@@ -837,6 +837,36 @@ span.chip { cursor: default; }
 
 /* Écoute ensemble */
 .party-queue { display: flex; flex-direction: column; max-width: 720px; }
+.party-how { max-width: 640px; color: var(--text-2); font-size: 14.5px; }
+.party-how b { color: var(--text); }
+.party-now { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; padding: 14px; border-radius: 20px; background: var(--fill); max-width: 720px; margin-bottom: 12px; }
+.party-now > img { width: 84px; height: 84px; border-radius: 12px; object-fit: cover; box-shadow: var(--shadow-art); }
+.pn-text { display: flex; flex-direction: column; min-width: 0; }
+.pn-text b { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pn-text .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pn-sync { font-size: 12.5px; font-weight: 600; color: var(--text-3); margin-top: 4px; }
+.pn-sync.ok { color: #30d158; }
+.pn-progress { grid-column: 1 / -1; height: 4px; border-radius: 4px; background: var(--fill-strong); overflow: hidden; }
+.pn-progress i { display: block; height: 100%; width: 0; background: var(--text); transition: width 1s linear; }
+.pn-actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.pn-actions .btn.on { background: var(--text); color: var(--bg); }
+.party-wait { max-width: 640px; }
+.card-row { border-radius: 16px; background: var(--fill); max-width: 720px; margin-bottom: 14px; }
+.party-tabs { margin-top: 18px; max-width: 720px; }
+.pq-acts { display: flex; gap: 6px; align-items: center; }
+.pq-acts .vote .icon { font-size: 13px; vertical-align: -1px; }
+.members .member { color: var(--text); }
+.small-note { font-size: 12.5px; margin-top: 8px; }
+.chat-list { display: flex; flex-direction: column; gap: 8px; max-width: 720px; max-height: 46vh; overflow-y: auto; padding: 4px 2px 8px; }
+.msg { display: flex; align-items: flex-end; gap: 8px; max-width: 85%; }
+.msg .avatar { width: 28px; height: 28px; font-size: 12px; }
+.msg.mine { align-self: flex-end; }
+.bubble { padding: 8px 12px; border-radius: 18px; background: var(--fill-strong); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.bubble b { display: block; font-size: 12px; color: var(--text-2); }
+.msg.mine .bubble { background: #0a84ff; color: #fff; border-bottom-right-radius: 6px; }
+.msg:not(.mine) .bubble { border-bottom-left-radius: 6px; }
+.chat-form { display: flex; gap: 8px; align-items: center; max-width: 720px; }
+.chat-form .field { margin: 8px 0; flex: 1; }
 .pq { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
 .pq img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; }
 .pt { display: flex; flex-direction: column; min-width: 0; }
@@ -1027,6 +1057,7 @@ span.chip { cursor: default; }
   .hero-glow img { opacity: .55; }
   .btn { height: 46px; border-radius: 14px; padding: 0 18px; font-size: 16px; background: #fff; color: #000; }
   .btn.ghost { background: var(--fill-strong); color: #fff; }
+  .btn.ghost.danger { color: #ff453a; }
   .btn.icon-only { width: 46px; font-size: 20px; }
   .btn.small { height: 34px; border-radius: 999px; font-size: 13.5px; }
   .btn.icon-only.on { color: #fff; }
