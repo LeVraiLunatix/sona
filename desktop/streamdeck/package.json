@@ -1,0 +1,23 @@
+{
+  "name": "sona-streamdeck",
+  "version": "1.0.0",
+  "description": "Plugin Stream Deck pour Sona pour Windows : lecture, pochette, j'aime, volume (molette Stream Deck +).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/icons.mjs",
+    "build": "node scripts/icons.mjs && rollup -c",
+    "validate": "streamdeck validate app.sona.remote.sdPlugin",
+    "pack": "streamdeck pack app.sona.remote.sdPlugin --output dist --force",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "^3.0.1"
+  },
+  "devDependencies": {
+    "@elgato/cli": "^1.10.1",
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "rollup": "^4.64.0"
+  }
+}

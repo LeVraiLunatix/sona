@@ -33,6 +33,16 @@ if (location.protocol === "app:" && location.host === "sona") {
     set: (key, value) => ipcRenderer.invoke("desktop:set", key, value),
     remoteInfo: () => ipcRenderer.invoke("desktop:remote-info"),
     openAuth: (url) => ipcRenderer.send("desktop:auth", url),
+    /** Onglet iPhone (installer Sona sur l'iPhone, comme CordLauncher). */
+    iphone: (name, args) => ipcRenderer.invoke("desktop:iphone", name, args),
+    iphoneState: () => ipcRenderer.invoke("desktop:iphone-state"),
+    iphonePick: () => ipcRenderer.invoke("desktop:iphone-pick"),
+    iphoneLogs: () => ipcRenderer.invoke("desktop:iphone-logs"),
+    onIphone: on("desktop:iphone"),
+    /** Mises à jour de l'app Windows. */
+    updates: (action, value) => ipcRenderer.invoke("desktop:updates", action, value),
+    onUpdates: on("desktop:updates"),
+    onOpen: on("desktop:open"),
     openExternal: (url) => ipcRenderer.send("desktop:external", url),
   });
 }

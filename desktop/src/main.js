@@ -14,13 +14,15 @@
    La page tourne sous app://sona/ : son stockage (session Sona, réglages)
    est propre à l'app et l'API est appelée à l'adresse du serveur. */
 
-const { app, BrowserWindow, protocol, net, ipcMain, Tray, Menu, nativeImage, nativeTheme, shell, Notification, screen } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, Tray, Menu, nativeImage, nativeTheme, shell, Notification, screen, dialog } = require("electron");
 const path = require("node:path");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
 const settings = require("./settings");
 const { RemoteServer } = require("./remote-server");
 const { glyph } = require("./glyphs");
+const iphone = require("./iphone");
+const updater = require("./updater");
 
 const isWin = process.platform === "win32";
 const WEB_ROOT = app.isPackaged ? path.join(process.resourcesPath, "web") : path.resolve(__dirname, "..", "..", "web");
@@ -66,6 +68,8 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
   if (settings.get("remoteEnabled")) await remote.start(settings.get("remotePort"), settings.get("remoteKey"));
+  iphone.init({ onState: (s) => send("desktop:iphone", s), onNotify: notifyDesktop });
+  updater.init({ onState: (s) => send("desktop:updates", s), onNotify: notifyDesktop, onBeforeInstall: () => { quitting = true; } });
   nativeTheme.on("updated", () => {
     send("desktop:theme", nativeTheme.shouldUseDarkColors);
     updateTray(true);
@@ -74,7 +78,15 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => { quitting = true; });
-app.on("will-quit", () => { remote.stop(); });
+app.on("will-quit", () => { remote.stop(); iphone.stop(); });
+
+/** Notification Windows ; un clic ramène Sona. */
+function notifyDesktop(title, body) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, icon: appIcon(64) });
+  n.on("click", showWindow);
+  n.show();
+}
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 
 /** Fichiers de Sona web, sous app://sona/ (et rien d'autre du disque). */
@@ -301,6 +313,11 @@ function updateTray(force) {
   items.push({ label: "Ouvrir Sona", click: showWindow });
   items.push({ label: mini ? "Fermer le mini-lecteur" : "Mini-lecteur", click: toggleMini });
   items.push({ label: "Télécommande du téléphone…", click: () => { showWindow(); send("desktop:open-remote"); } });
+  items.push({ label: "Sona sur l'iPhone…", click: () => { showWindow(); send("desktop:open", "#/iphone"); } });
+  items.push({ label: "Rechercher les mises à jour", click: () => updater.check({ manual: true }).then((m) => {
+    if (m.error) notifyDesktop("Mises à jour", m.error);
+    else if (!m.available) notifyDesktop("Sona est à jour", `Version ${m.current}.`);
+  }) });
   items.push({ type: "separator" });
   items.push({ label: "Quitter Sona", click: () => { quitting = true; app.quit(); } });
   tray.setContextMenu(Menu.buildFromTemplate(items));
@@ -423,6 +440,26 @@ ipcMain.handle("desktop:set", async (_e, key, value) => {
 });
 
 ipcMain.handle("desktop:remote-info", () => remote.info());
+
+// ── Onglet iPhone et mises à jour ─────────────────────────────────────
+
+ipcMain.handle("desktop:iphone", (_e, name, args) => iphone.action(String(name), args || {}));
+ipcMain.handle("desktop:iphone-state", () => iphone.snapshot());
+ipcMain.handle("desktop:iphone-pick", async () => {
+  const picked = await dialog.showOpenDialog(win, { title: "Choisir l'app pour l'iPhone", filters: [{ name: "App iPhone", extensions: ["ipa"] }], properties: ["openFile"] });
+  return picked.canceled ? null : picked.filePaths[0];
+});
+ipcMain.handle("desktop:iphone-logs", async () => {
+  const file = await iphone.action("logs");
+  if (file) shell.showItemInFolder(file);
+  return !!file;
+});
+ipcMain.handle("desktop:updates", async (_e, action, value) => {
+  if (action === "check") await updater.check({ manual: true });
+  else if (action === "install") await updater.install();
+  else if (action === "updatesCheck" || action === "updatesInstall") updater.setOption(action, value);
+  return updater.snapshot();
+});
 
 ipcMain.on("desktop:external", (_e, url) => { if (/^https?:\/\//.test(String(url))) shell.openExternal(url); });
 

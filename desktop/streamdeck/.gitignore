@@ -1,0 +1,4 @@
+node_modules/
+dist/
+app.sona.remote.sdPlugin/bin/
+app.sona.remote.sdPlugin/imgs/

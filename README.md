@@ -358,6 +358,10 @@ panneaux translucides). En plus du site :
   file, recherche) ;
 - mini-lecteur toujours au premier plan, boutons dans l'aperçu de la barre
   des tâches, touches multimédia du clavier, lancement avec Windows.
+- **Sona sur l'iPhone**, comme CordLauncher : l'app installe Sona sur
+  l'iPhone avec ton compte Apple (câble ou Wi-Fi), la met à jour et la
+  renouvelle avant qu'elle expire ;
+- recherche de mises à jour (Windows et iPhone) et **plugin Stream Deck**.
 
 L'installateur `.exe` est fabriqué par GitHub Actions (workflow
 `windows.yml`) et publié dans la version « Sona pour Windows » du dépôt.
