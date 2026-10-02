@@ -85,6 +85,28 @@ async def lastfm_callback(token: str = Query(...)) -> RedirectResponse:
     return RedirectResponse(str(httpx.URL(APP_CALLBACK, params={"token": token})), status_code=302)
 
 
+class LastfmTokenOut(BaseModel):
+    token: str
+    auth_url: str
+
+
+@router.post("/auth/lastfm/token", response_model=LastfmTokenOut)
+async def lastfm_login_token(deps: ApiDeps = Depends(get_deps)) -> LastfmTokenOut:
+    """Connexion depuis Sona web installé sur l'écran d'accueil : sur
+    iPhone, la page Last.fm s'ouvre dans un navigateur à part, d'où le retour
+    ne revient jamais dans l'appli. Le site demande donc ici un jeton, ouvre
+    la page d'autorisation avec, puis l'échange (`POST /auth/lastfm`) quand
+    on revient — tant qu'il n'est pas autorisé, l'échange répond 401."""
+    if deps.lastfm_auth is None or not deps.settings.lastfm_api_key:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Connexion Last.fm non configurée sur le serveur.")
+    try:
+        token = await deps.lastfm_auth.get_token()
+    except LastfmAuthError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    url = str(httpx.URL(AUTH_URL, params={"api_key": deps.settings.lastfm_api_key, "token": token}))
+    return LastfmTokenOut(token=token, auth_url=url)
+
+
 @router.post("/auth/lastfm", response_model=LoginOut)
 async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_deps)) -> LoginOut:
     """Échange le jeton renvoyé par Last.fm contre une session de l'app. Un

@@ -210,8 +210,14 @@ def create_app() -> FastAPI:
     # Sona sur ordinateur (dossier `web/` du dépôt, le même que sur Vercel),
     # qui passe ensuite par la même API.
     web_dir = Path(__file__).resolve().parents[2] / "web"
+    # Liste fermée : rien d'autre du disque n'est servi par cette route.
     web_files = {"": ("index.html", "text/html"), "app.css": ("app.css", "text/css"),
-                 "app.js": ("app.js", "application/javascript")}
+                 "app.js": ("app.js", "application/javascript"),
+                 # Appli installable (écran d'accueil du téléphone).
+                 "sw.js": ("sw.js", "application/javascript"),
+                 "manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
+    for icon in ("icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png", "favicon-64.png"):
+        web_files[f"icons/{icon}"] = (f"icons/{icon}", "image/png")
 
     @app.get("/web", include_in_schema=False)
     async def web_root() -> RedirectResponse:

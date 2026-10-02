@@ -21,6 +21,9 @@ class FakeLastfm:
         self.scrobbled = []
         self.now_playing = []
 
+    async def get_token(self):
+        return "jeton-bureau"
+
     async def get_session(self, token):
         return LastfmSession(username=token, key=f"sk-{token}")
 
@@ -73,6 +76,14 @@ def test_callback_bounces_back_to_the_app(client):
     got = client.get("/auth/lastfm/callback", params={"token": "abc"}, follow_redirects=False)
     assert got.status_code == 302
     assert got.headers["location"] == "encre://lastfm?token=abc"
+
+
+def test_installed_web_app_gets_a_login_token(client):
+    """Sona web installé : jeton demandé au serveur, page d'autorisation
+    ouverte avec ce jeton, puis échange habituel."""
+    got = client.post("/auth/lastfm/token").json()
+    assert got["token"] == "jeton-bureau"
+    assert got["auth_url"] == "https://www.last.fm/api/auth/?api_key=cle&token=jeton-bureau"
 
 
 def test_owner_is_admin_and_keeps_legacy_data(client):
@@ -150,6 +161,18 @@ def test_signature_follows_lastfm_rules():
     import hashlib
 
     assert sign(params, "s") == hashlib.md5(b"api_keykmethodauth.getSessiontokents").hexdigest()
+
+
+def test_login_token_request_is_signed():
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.url.params))
+        return httpx.Response(200, json={"token": "T0K"})
+
+    client = LastfmAuthClient("k", "s", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert asyncio.run(client.get_token()) == "T0K"
+    assert seen[0]["method"] == "auth.getToken" and seen[0]["api_sig"] == sign({"method": "auth.getToken", "api_key": "k"}, "s")
 
 
 def test_session_exchange_and_scrobble_requests():
