@@ -5,6 +5,11 @@ Flux de connexion (web auth) : l'app ouvre
 `https://www.last.fm/api/auth/?api_key=…&cb=encre://lastfm`, l'utilisateur
 accepte, Last.fm renvoie vers `encre://lastfm?token=…`, et le serveur
 échange ce jeton contre une clé de session (`auth.getSession`, signée).
+
+Variante « appli de bureau » (Sona web installé sur l'écran d'accueil) : le
+serveur demande d'abord un jeton (`auth.getToken`), le site ouvre la page
+d'autorisation avec ce jeton, puis l'échange quand on revient dans l'appli —
+aucun retour de Last.fm vers le site n'est nécessaire.
 """
 
 from __future__ import annotations
@@ -82,6 +87,13 @@ class LastfmAuthClient:
         if "error" in body:
             raise LastfmAuthError(f"Last.fm : {body.get('message') or body['error']}")
         return body
+
+    async def get_token(self) -> str:
+        body = await self._call("auth.getToken", {}, signed=True)
+        token = body.get("token")
+        if not isinstance(token, str) or not token:
+            raise LastfmAuthError("Last.fm : jeton de connexion invalide.")
+        return token
 
     async def get_session(self, token: str) -> LastfmSession:
         body = await self._call("auth.getSession", {"token": token}, signed=True)

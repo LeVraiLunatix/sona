@@ -317,6 +317,33 @@ Trois chemins, à utiliser dans cet ordre :
 Un refus explique toujours sa raison (lien inconnu, expiré, déjà utilisé) —
 jamais un simple « bot privé » qui laisserait croire à une panne.
 
+## Sona web (ordinateur et téléphone)
+
+Le dossier `web/` est servi par le serveur sur `/web/` (et peut aussi être
+hébergé sur Vercel). Même compte, mêmes playlists et mêmes stats que l'app :
+
+- **Sur ordinateur** : barre latérale, lecteur en haut, paroles et file
+  d'attente en plein écran.
+- **Sur téléphone** : la même allure que l'app iOS — onglets Écouter,
+  Bibliothèque, Amis, Stats et Rechercher en bas, mini-lecteur flottant,
+  lecteur plein écran qu'on ferme en le glissant vers le bas, menus en
+  feuilles du bas, tirer pour recharger.
+- **Installable** comme une vraie appli (PWA, `manifest.webmanifest` +
+  `sw.js`) : sur iPhone, Safari → Partager → « Sur l'écran d'accueil » ;
+  sur Android, « Installer l'appli ». Depuis l'appli installée, la connexion
+  Last.fm passe par `POST /auth/lastfm/token` (le retour de Last.fm ne
+  revient pas dans une appli installée sur iPhone).
+
+Fonctions reprises de l'app : mix, radios, radio DJ et lecture automatique,
+paroles synchronisées, karaoké, Sona Connect, diffusion TV/PS5, playlists
+(création, import, visibilité, collaboratives), bibliothèque (titres,
+albums, artistes), amis et Blend, stats, défis et badges, récaps en story,
+blind test (solo, défi du jour, paroles, en direct entre amis), écoute
+ensemble, concerts, mode sport, moments, DJ vocal, minuteur de sommeil,
+réglages et administration. Restent propres à l'app iOS : les
+téléchargements hors ligne, les widgets, les notifications et les Live
+Activities.
+
 ## API (backend pour une app iPhone)
 
 En plus du bot Telegram, Sona expose une API HTTP privée qui réutilise les

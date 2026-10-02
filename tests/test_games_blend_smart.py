@@ -79,6 +79,15 @@ def test_web_page_and_stream_token(client):
     assert client.get("/web", follow_redirects=False).status_code in (302, 307)
     assert "#/home" in client.get("/web/app.js").text or "viewHome" in client.get("/web/app.js").text
     assert client.get("/web/app.css").headers["content-type"].startswith("text/css")
+    # Appli installable : manifeste, service worker et icônes.
+    manifest = client.get("/web/manifest.webmanifest")
+    assert manifest.headers["content-type"].startswith("application/manifest+json")
+    assert manifest.json()["display"] == "standalone"
+    for icon in manifest.json()["icons"]:
+        got = client.get(f"/web/{icon['src']}")
+        assert got.status_code == 200 and got.headers["content-type"] == "image/png", icon["src"]
+    assert "addEventListener(\"fetch\"" in client.get("/web/sw.js").text
+    assert client.get("/web/icons/apple-touch-icon.png").headers["content-type"] == "image/png"
     me = login(client, "alice")
     token = me["Authorization"].split()[1]
     # Sans jeton : refusé ; jeton dans l'adresse : accepté pour un flux audio
