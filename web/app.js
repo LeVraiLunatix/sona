@@ -1438,11 +1438,13 @@ function renderTopbar() {
       <button class="tbtn" data-act="next" title="Suivant">${icons.next}</button>
       <button class="tbtn small ${state.repeat ? "on" : ""}" data-act="repeat" title="Répéter le titre">${icons.repeat}</button>
     </div>
+    ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
         <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${esc(t.artist)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
+    ${grip()}
     <div class="right-tools">
       ${desktop ? `<button class="tbtn small ${desk.clients.length ? "on" : ""}" data-act="remote" title="Télécommande : pilote ce PC depuis ton téléphone">${icons.phone}</button>
       <button class="tbtn small ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
@@ -1584,8 +1586,8 @@ function renderNowPlaying() {
   np.innerHTML = `
     <div class="np-bg"><img src="${esc(big(t.cover_url, 300))}" alt=""></div>
     <div class="np-top">
-      <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>
-      <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>
+      <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>${grip()}
+      <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>${grip()}
       <div class="np-top-right"><button class="tbtn" data-np="more" title="Plus d'options">${icons.more}</button><button class="tbtn" data-np="devices" title="Sona Connect">${icons.devices}</button></div>
     </div>
     <div class="np-body">
@@ -4049,6 +4051,13 @@ document.addEventListener("keydown", (e) => {
 // notification, aperçu de la barre des tâches, mini-lecteur, télécommande
 // du téléphone) et commandes reçues en retour. Rien de tout ça sur le web.
 
+/** Poignée pour déplacer la fenêtre : un élément vide, à côté des boutons et
+    jamais autour. Sous Windows, une zone « drag » avale les clics de tout ce
+    qu'elle contient, même marqué « no-drag ». */
+function grip() {
+  return desktop ? `<div class="grip" aria-hidden="true"></div>` : "";
+}
+
 const desk = { clients: [], mini: false, name: "", last: "", pos: 0, at: 0, timer: null, cover: null, slot: 0 };
 
 function desktopInit() {
@@ -4064,8 +4073,10 @@ function desktopInit() {
   controls.innerHTML = `<button data-w="minimize" title="Réduire"><svg viewBox="0 0 10 10"><path d="M1 5.5h8"/></svg></button>
     <button data-w="maximize" title="Agrandir"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg></button>
     <button data-w="close" class="close" title="Fermer"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>`;
+  const strip = document.createElement("div");
+  strip.className = "drag-top";
   document.body.prepend(ambient);
-  document.body.append(controls);
+  document.body.append(strip, controls);
   controls.onclick = (e) => {
     const action = e.target.closest("[data-w]")?.dataset.w;
     if (action) desktop.window[action]();
