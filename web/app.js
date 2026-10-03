@@ -2235,6 +2235,9 @@ function runCommand(c) {
     case "shuffle": state.shuffle = !state.shuffle; renderTopbar(); startConnect.now?.(); break;
     case "repeat": state.repeat = !state.repeat; renderTopbar(); startConnect.now?.(); break;
     case "like": if (state.queue[state.index]) toggleLike(state.queue[state.index]).then(() => startConnect.now?.()); break;
+    case "play_tracks":
+      if (c.queue?.length) { playList(c.queue, c.index || 0, c.name || ""); if (c.from) toast(`Lancé depuis ${c.from}`); }
+      break;
     case "play_index": {
       const i = (state.connect.windowStart || 0) + (c.index ?? -1);
       if (c.index != null && state.queue[i]) playAt(i);
@@ -2766,8 +2769,26 @@ function trackMenu(t, ctx = null, index = -1) {
       await api(`/me/playlists/${ctx.playlist.id}/tracks/${entry.entry_id}`, { method: "DELETE" });
       toast("Retiré de la playlist"); route();
     } },
+    ...otherDevices().filter((d) => d.kind !== "iphone" || d.id === state.connect.control).map((d) => ({
+      icon: d.kind === "iphone" ? icons.phone : icons.laptop, label: `Écouter sur ${d.name}`,
+      sub: "Le titre se lance sur cet appareil", run: () => playOnDevice(d, ctx?.tracks?.length ? ctx.tracks : [t], ctx?.tracks?.length ? Math.max(0, index) : 0, ctx?.name),
+    })),
     { icon: icons.share, label: "Partager", run: () => shareTrack(t) },
   ], { header });
+}
+
+/** Lance des titres sur un autre appareil (Sona Connect) et le pilote. */
+async function playOnDevice(d, tracks, index = 0, name = "") {
+  const queue = tracks.slice(0, 150).map(cleanTrack);
+  try {
+    await api("/connect/command", { method: "POST", body: JSON.stringify({
+      device_id: deviceId, target: d.id, action: "play_tracks", queue, index: Math.min(index, queue.length - 1), name: name || null,
+    }) });
+    if (audio.src && !audio.paused) audio.pause();
+    setControl(d.id);
+    toast(`Lecture sur ${d.name}`);
+    setTimeout(() => startConnect.now?.(), 700);
+  } catch (e) { toast(e.message); }
 }
 
 async function shareTrack(t) {

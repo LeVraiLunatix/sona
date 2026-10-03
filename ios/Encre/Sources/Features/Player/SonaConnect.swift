@@ -20,6 +20,10 @@ final class ConnectManager: ObservableObject {
     @Published private(set) var controlId: String? = UserDefaults.standard.string(forKey: "encre.connectControl")
     /// Appareils enregistrés du compte (PC…), allumés ou non.
     @Published private(set) var saved: [SavedDevice] = []
+    /// L'iPhone sert vraiment de télécommande (appareil choisi, ou une
+    /// commande envoyée) : écran verrouillé et boutons de volume pilotent
+    /// l'appareil (voir `RemoteNowPlaying`).
+    @Published private(set) var engaged = false
     private var receivedAt = Date()
     private var loop: Task<Void, Never>?
     private var claimPending = false
@@ -64,6 +68,40 @@ final class ConnectManager: ObservableObject {
         return devices.first { $0.id == session.deviceId && !$0.isMe }
     }
 
+    /// Les commandes du système (écran verrouillé, écouteurs, Siri) vont à
+    /// l'appareil piloté plutôt qu'au lecteur de l'iPhone.
+    var handlesRemoteCommands: Bool { engaged && remoteTarget != nil }
+
+    /// Toucher un titre lance la lecture sur l'appareil choisi dans
+    /// « Appareils » (comme Spotify Connect) tant qu'on le pilote.
+    var playsOnChosenDevice: ConnectDevice? {
+        guard engaged, let chosen = chosenDevice, !PlayerManager.shared.isPlaying else { return nil }
+        return chosen
+    }
+
+    /// Siri et Raccourcis : l'appareil à piloter quand rien ne joue sur
+    /// l'iPhone — celui choisi dans « Appareils », ou celui qui joue ailleurs.
+    func intentTarget() async -> ConnectDevice? {
+        guard !PlayerManager.shared.isPlaying else { return nil }
+        if devices.isEmpty { await sync() }
+        if let chosen = chosenDevice { return chosen }
+        guard let target = remoteTarget, target.playing else { return nil }
+        return target
+    }
+
+    /// Envoie une commande de Siri / Raccourcis à `intentTarget()`. Vrai si
+    /// elle est partie (sinon : à l'iPhone de s'en charger).
+    func intentCommand(_ action: String) async -> Bool {
+        guard let target = await intentTarget() else { return false }
+        var action = action
+        if action == "toggle" { action = now(on: target).paused ? "play" : "pause" }
+        guard (try? await APIClient.shared.connectCommand(from: deviceId, to: target.id, action: action)) != nil else {
+            return false
+        }
+        syncSoon()
+        return true
+    }
+
     /// Ce que joue un autre appareil : titre, pause, position (qui avance).
     struct RemoteNow {
         var track: Track?
@@ -95,7 +133,10 @@ final class ConnectManager: ObservableObject {
             .sink { [weak self] playing in
                 guard let self else { return }
                 // Lecture lancée ici à la main : on ne pilote plus un autre appareil.
-                if playing, Date() > self.remoteStartUntil, self.controlId != nil { self.setControl(nil) }
+                if playing, Date() > self.remoteStartUntil {
+                    if self.controlId != nil { self.setControl(nil) }
+                    self.engaged = false
+                }
                 RemoteFlag.shared.update(!playing && self.remoteTarget != nil)
                 // Lecture/pause ici : les autres appareils le savent tout de suite.
                 if playing, Date() > self.remoteStartUntil { self.claimPending = true }
@@ -204,6 +245,12 @@ final class ConnectManager: ObservableObject {
             player.toggleShuffle()
         case "repeat":
             player.cycleRepeat()
+        case "play_tracks":
+            if let queue = command.queue, !queue.isEmpty {
+                remoteStartUntil = Date().addingTimeInterval(3)
+                player.playTransferred(queue: queue, index: min(command.index ?? 0, queue.count - 1), position: 0, name: command.name)
+                if let from = command.from { show("Lancé depuis \(from)") }
+            }
         case "play_index":
             if let index = command.index {
                 remoteStartUntil = Date().addingTimeInterval(3)
@@ -235,6 +282,7 @@ final class ConnectManager: ObservableObject {
     /// Choisit l'appareil à piloter (nil : plus aucun).
     func setControl(_ id: String?) {
         controlId = id
+        if id == nil { engaged = false }
         UserDefaults.standard.set(id, forKey: "encre.connectControl")
         RemoteFlag.shared.update(remoteTarget != nil)
     }
@@ -247,6 +295,30 @@ final class ConnectManager: ObservableObject {
             PlayerManager.shared.pause()
         }
         setControl(device.id)
+        engaged = true
+        syncSoon()
+    }
+
+    /// Lance des titres sur un autre appareil (recherche, album…) et le pilote.
+    func play(_ tracks: [Track], index: Int = 0, name: String? = nil, on device: ConnectDevice) async {
+        let queue = Array(tracks.prefix(150))
+        guard !queue.isEmpty else { return }
+        do {
+            try await APIClient.shared.connectCommand(
+                from: deviceId, to: device.id, action: "play_tracks", index: min(index, queue.count - 1),
+                queue: queue, name: name
+            )
+        } catch {
+            show("\(device.name) ne répond pas")
+            return
+        }
+        if PlayerManager.shared.isPlaying {
+            remoteStartUntil = Date().addingTimeInterval(1)
+            PlayerManager.shared.pause()
+        }
+        setControl(device.id)
+        engaged = true
+        show("Lecture sur \(device.name)")
         syncSoon()
     }
 
@@ -321,6 +393,7 @@ final class ConnectManager: ObservableObject {
     /// Télécommande de l'appareil qui joue ailleurs.
     func remote(_ action: String, position: Double? = nil, volume: Double? = nil, index: Int? = nil) {
         guard let target = remoteTarget else { return }
+        engaged = true
         // Options : réponse immédiate à l'écran, l'appareil confirme ensuite.
         if let i = devices.firstIndex(where: { $0.id == target.id }) {
             switch action {

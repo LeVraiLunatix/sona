@@ -220,3 +220,18 @@ def test_full_remote_options_and_queue(client):
     assert [c["action"] for c in got["commands"]] == ["shuffle", "repeat", "like", "play_index"]
     assert got["commands"][-1]["index"] == 1
     assert client.get("/connect/devices/nope-000000/queue", headers=me).status_code == 404
+
+
+def test_play_tracks_on_another_device(client):
+    """Un titre choisi sur l'iPhone se lance sur le PC piloté."""
+    me = login(client, "alice")
+    sync(client, me, "desktop-pc1234", "PC", "desktop")
+    sync(client, me, "iphone-123", "iPhone", "iphone")
+    body = {"device_id": "iphone-123", "target": "desktop-pc1234", "action": "play_tracks",
+            "queue": [TRACK, NEXT], "index": 7, "name": "Recherche"}
+    assert client.post("/connect/command", headers=me, json=body).status_code == 204
+    got = sync(client, me, "desktop-pc1234", "PC", "desktop")["commands"][0]
+    assert got["action"] == "play_tracks" and got["index"] == 1 and got["name"] == "Recherche"
+    assert [t["title"] for t in got["queue"]] == ["Titre", "Suivant"]
+    empty = {"device_id": "iphone-123", "target": "desktop-pc1234", "action": "play_tracks"}
+    assert client.post("/connect/command", headers=me, json=empty).status_code == 422

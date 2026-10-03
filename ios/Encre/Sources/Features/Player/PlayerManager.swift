@@ -702,7 +702,11 @@ final class PlayerManager: ObservableObject {
     /// contrôle ou les boutons d'un casque/des AirPods.
     private func configureRemoteCommands() {
         let commands = MPRemoteCommandCenter.shared()
+        // L'iPhone pilote un autre appareil (PC) : l'écran verrouillé et les
+        // écouteurs le pilotent lui (voir `RemoteNowPlaying`).
+        let connect = ConnectManager.shared
         commands.playCommand.addTarget { [weak self] _ in
+            if connect.handlesRemoteCommands { connect.remote("play"); return .success }
             guard let self else { return .noSuchContent }
             if self.startRestored() { return .success }
             guard self.player != nil else { return .noSuchContent }
@@ -711,6 +715,7 @@ final class PlayerManager: ObservableObject {
             return .success
         }
         commands.pauseCommand.addTarget { [weak self] _ in
+            if connect.handlesRemoteCommands { connect.remote("pause"); return .success }
             guard let self, self.player != nil else { return .noSuchContent }
             if self.mixTask != nil { self.promoteMix() }
             self.player?.pause()
@@ -718,14 +723,20 @@ final class PlayerManager: ObservableObject {
             return .success
         }
         commands.nextTrackCommand.addTarget { [weak self] _ in
+            if connect.handlesRemoteCommands { connect.remote("next"); return .success }
             self?.next()
             return .success
         }
         commands.previousTrackCommand.addTarget { [weak self] _ in
+            if connect.handlesRemoteCommands { connect.remote("previous"); return .success }
             self?.previous()
             return .success
         }
         commands.changePlaybackPositionCommand.addTarget { [weak self] event in
+            if connect.handlesRemoteCommands, let event = event as? MPChangePlaybackPositionCommandEvent {
+                connect.remote("seek", position: event.positionTime)
+                return .success
+            }
             guard let self, let event = event as? MPChangePlaybackPositionCommandEvent,
                   let duration = self.referenceDuration()
             else { return .commandFailed }
@@ -741,6 +752,13 @@ final class PlayerManager: ObservableObject {
     /// lui-même — vide pour un morceau isolé (résultat de recherche, lien
     /// collé) : "suivant"/"précédent" n'ont alors rien à proposer.
     func play(_ track: Track, context playbackContext: [Track] = [], name: String? = nil) {
+        // On pilote le PC : le titre se lance dessus (comme Spotify Connect).
+        if let device = ConnectManager.shared.playsOnChosenDevice {
+            let list = playbackContext.isEmpty ? [track] : playbackContext
+            let index = list.firstIndex(where: { $0.id == track.id }) ?? 0
+            Task { await ConnectManager.shared.play(list, index: index, name: name, on: device) }
+            return
+        }
         guard track.id != current?.id || player == nil else {
             togglePlayPause()
             return
@@ -757,6 +775,10 @@ final class PlayerManager: ObservableObject {
         let unique = PlayerManager.withoutDuplicates(tracks, excluding: [])
         let shuffled = unique.shuffled()
         guard let first = shuffled.first else { return }
+        if let device = ConnectManager.shared.playsOnChosenDevice {
+            Task { await ConnectManager.shared.play(shuffled, name: name, on: device) }
+            return
+        }
         endStation()
         resetQueueState(name: name)
         start(first, context: shuffled)
@@ -1902,7 +1924,19 @@ final class PlayerManager: ObservableObject {
 
     // MARK: - Écran verrouillé / Centre de contrôle
 
+    /// L'écran verrouillé retrouve le titre de l'iPhone (après avoir montré
+    /// celui d'un appareil piloté).
+    func restoreNowPlayingInfo() {
+        guard let current else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            return
+        }
+        updateNowPlayingInfo(for: current)
+        updateNowPlayingElapsedTime()
+    }
+
     private func updateNowPlayingInfo(for track: Track) {
+        guard !RemoteNowPlaying.shared.isActive else { return }
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: track.title,
             MPMediaItemPropertyArtist: track.artist,
@@ -1915,6 +1949,7 @@ final class PlayerManager: ObservableObject {
     }
 
     private func updateNowPlayingElapsedTime() {
+        guard !RemoteNowPlaying.shared.isActive else { return }
         guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = positionSeconds
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
