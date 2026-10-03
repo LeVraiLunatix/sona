@@ -25,6 +25,9 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     # Lieu approximatif de l'écoute (carte des écoutes), arrondi à ~1 km.
     ("plays", "lat", "REAL"),
     ("plays", "lon", "REAL"),
+    # Appareils : nom choisi, et « oublié » (pas réenregistré tout seul).
+    ("connect_saved", "label", "TEXT"),
+    ("connect_saved", "hidden", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 

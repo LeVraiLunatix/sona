@@ -11,6 +11,8 @@ struct DevicesView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
     @State private var forgetting: SavedDevice?
+    @State private var renaming: SavedDevice?
+    @State private var newName = ""
 
     var body: some View {
         NavigationStack {
@@ -25,12 +27,14 @@ struct DevicesView: View {
                         Button {
                             pick(live, name: saved.name)
                         } label: {
-                            row(name: live?.name ?? saved.name, kind: saved.kind, live: live, seen: saved.seenSeconds)
+                            row(name: saved.name, kind: saved.kind, live: live, seen: saved.seenSeconds)
                         }
                         .swipeActions {
                             Button("Oublier", role: .destructive) { forgetting = saved }
+                            Button("Renommer") { startRenaming(saved) }.tint(.gray)
                         }
                         .contextMenu {
+                            Button("Renommer", systemImage: "pencil") { startRenaming(saved) }
                             Button("Oublier", systemImage: "trash", role: .destructive) { forgetting = saved }
                         }
                     }
@@ -38,7 +42,7 @@ struct DevicesView: View {
                     Text("Mes appareils")
                 } footer: {
                     if !connect.saved.isEmpty {
-                        Text("Touche un appareil allumé pour le piloter. Glisse vers la gauche pour l'oublier.")
+                        Text("Touche un appareil allumé pour le piloter. Glisse vers la gauche pour le renommer ou l'oublier.")
                     }
                 }
 
@@ -70,7 +74,7 @@ struct DevicesView: View {
 
                 Section {
                     Label {
-                        Text("Ouvre **Sona pour Windows** sur ton PC, connecté avec ce compte : il apparaît ici. Touche **Ajouter** pour le garder.")
+                        Text("Ouvre **Sona pour Windows** sur ton PC, connecté avec ce compte : il s'ajoute ici tout seul et y reste, même éteint. Les autres appareils s'ajoutent avec **Ajouter**.")
                             .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                     } icon: {
                         Image(systemName: "laptopcomputer").foregroundStyle(Color.accentColor)
@@ -93,6 +97,23 @@ struct DevicesView: View {
             } message: {
                 Text(error ?? "")
             }
+            .alert("Renommer", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField(renaming?.name ?? "Nom", text: $newName)
+                Button("Annuler", role: .cancel) {}
+                Button("Renommer") {
+                    guard let id = renaming?.id else { return }
+                    let name = newName
+                    Task {
+                        do {
+                            try await connect.rename(id, to: name)
+                        } catch {
+                            self.error = error.localizedDescription
+                        }
+                    }
+                }
+            } message: {
+                Text("Laisse vide pour reprendre le nom donné par l'appareil.")
+            }
             .confirmationDialog(
                 "Oublier \(forgetting?.name ?? "cet appareil") ?",
                 isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }),
@@ -105,6 +126,11 @@ struct DevicesView: View {
                 Text("Tu pourras l'ajouter de nouveau quand il sera allumé.")
             }
         }
+    }
+
+    private func startRenaming(_ saved: SavedDevice) {
+        newName = (saved.renamed ?? false) ? saved.name : ""
+        renaming = saved
     }
 
     /// L'appareil enregistré, s'il est allumé en ce moment.

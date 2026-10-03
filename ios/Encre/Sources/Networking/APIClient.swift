@@ -690,7 +690,8 @@ final class APIClient {
     }
 
     func connectCommand(
-        from deviceId: String, to target: String, action: String, position: Double? = nil, volume: Double? = nil
+        from deviceId: String, to target: String, action: String, position: Double? = nil, volume: Double? = nil,
+        index: Int? = nil
     ) async throws {
         struct Body: Encodable {
             let device_id: String
@@ -698,8 +699,11 @@ final class APIClient {
             let action: String
             let position: Double?
             let volume: Double?
+            let index: Int?
         }
-        let data = try encode(Body(device_id: deviceId, target: target, action: action, position: position, volume: volume))
+        let data = try encode(Body(
+            device_id: deviceId, target: target, action: action, position: position, volume: volume, index: index
+        ))
         try await sendNoContent(try request("/connect/command", method: "POST", bodyData: data))
     }
 
@@ -712,6 +716,17 @@ final class APIClient {
         struct Body: Encodable { let device_id: String }
         let data = try encode(Body(device_id: deviceId))
         return try await send(try request("/connect/saved", method: "POST", bodyData: data))
+    }
+
+    func connectRename(deviceId: String, name: String) async throws -> SavedDevice {
+        struct Body: Encodable { let name: String }
+        let data = try encode(Body(name: name))
+        return try await send(try request("/connect/saved/\(deviceId)", method: "PATCH", bodyData: data))
+    }
+
+    /// « À suivre » sur un autre appareil.
+    func connectQueue(deviceId: String) async throws -> ConnectQueue {
+        try await send(try request("/connect/devices/\(deviceId)/queue"))
     }
 
     func connectForget(deviceId: String) async throws {

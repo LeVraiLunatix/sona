@@ -75,8 +75,19 @@ final class PlayerManager: ObservableObject {
         let window = Array(queue[start..<min(queue.count, start + 150)])
         return ConnectPlayback(
             queue: window, index: context.isEmpty ? 0 : index - start,
-            position: positionSeconds, paused: !isPlaying, volume: SystemVolume.current, name: contextName
+            position: positionSeconds, paused: !isPlaying, volume: SystemVolume.current, name: contextName,
+            shuffle: shuffleEnabled,
+            repeatMode: repeatMode == .one ? "one" : repeatMode == .all ? "all" : "off"
         )
+    }
+
+    /// Sona Connect : « À suivre » choisi sur la télécommande d'un autre
+    /// appareil — l'index se rapporte à la fenêtre de `connectPlayback`.
+    func playConnectIndex(_ index: Int) {
+        guard let current, let at = context.firstIndex(where: { $0.id == current.id }) else { return }
+        let target = max(0, at - 20) + index
+        guard context.indices.contains(target) else { return }
+        start(context[target], context: context)
     }
 
     /// Sona Connect : reprend ici une lecture venue d'un autre appareil.

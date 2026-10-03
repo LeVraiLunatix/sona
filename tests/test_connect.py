@@ -173,3 +173,50 @@ def test_saved_devices_stay_listed_when_offline(client, monkeypatch):
     assert client.get("/connect/saved", headers=me).json()[0]["online"]
     assert client.delete("/connect/saved/desktop-pc1234", headers=me).status_code == 204
     assert client.get("/connect/saved", headers=me).json() == []
+
+
+def test_pc_registers_itself_and_stays_forgotten(client):
+    """Sona pour Windows s'inscrit tout seul dans « Appareils » ; oublié, il
+    ne revient pas tout seul (seulement si on l'ajoute de nouveau)."""
+    me = login(client, "alice")
+    sync(client, me, "web-abcdef", "Chrome")
+    assert client.get("/connect/saved", headers=me).json() == []
+    sync(client, me, "desktop-pc1234", "PC du salon", "desktop")
+    assert [d["name"] for d in client.get("/connect/saved", headers=me).json()] == ["PC du salon"]
+    assert client.delete("/connect/saved/desktop-pc1234", headers=me).status_code == 204
+    connect.autosaved.clear()  # comme après un redémarrage du serveur
+    sync(client, me, "desktop-pc1234", "PC du salon", "desktop")
+    assert client.get("/connect/saved", headers=me).json() == []
+    assert client.post("/connect/saved", headers=me, json={"device_id": "desktop-pc1234"}).status_code == 200
+    assert len(client.get("/connect/saved", headers=me).json()) == 1
+
+
+def test_rename_a_saved_device(client):
+    me = login(client, "alice")
+    sync(client, me, "desktop-pc1234", "DESKTOP-8F3K", "desktop")
+    renamed = client.patch("/connect/saved/desktop-pc1234", headers=me, json={"name": "  Bureau  "})
+    assert renamed.status_code == 200 and renamed.json()["name"] == "Bureau" and renamed.json()["renamed"]
+    assert client.get("/connect/saved", headers=me).json()[0]["name"] == "Bureau"
+    back = client.patch("/connect/saved/desktop-pc1234", headers=me, json={"name": ""}).json()
+    assert back["name"] == "DESKTOP-8F3K" and not back["renamed"]
+    assert client.patch("/connect/saved/nope-000000", headers=me, json={"name": "X"}).status_code == 404
+
+
+def test_full_remote_options_and_queue(client):
+    me = login(client, "alice")
+    state = {"queue": [TRACK, NEXT], "index": 0, "position": 3, "paused": False, "name": "Mix",
+             "shuffle": True, "repeat": "one", "liked": False}
+    sync(client, me, "desktop-pc1234", "PC", "desktop", state)
+    phone = sync(client, me, "iphone-123", "iPhone", "iphone")
+    pc = next(d for d in phone["devices"] if d["id"] == "desktop-pc1234")
+    assert pc["shuffle"] is True and pc["repeat"] == "one" and pc["liked"] is False
+    queue = client.get("/connect/devices/desktop-pc1234/queue", headers=me).json()
+    assert queue["index"] == 0 and queue["name"] == "Mix" and [t["title"] for t in queue["queue"]] == ["Titre", "Suivant"]
+    for action, extra in (("shuffle", {}), ("repeat", {}), ("like", {}), ("play_index", {"index": 1})):
+        sent = client.post("/connect/command", headers=me, json={"device_id": "iphone-123", "target": "desktop-pc1234",
+                                                                  "action": action, **extra})
+        assert sent.status_code == 204, sent.text
+    got = sync(client, me, "desktop-pc1234", "PC", "desktop", state)
+    assert [c["action"] for c in got["commands"]] == ["shuffle", "repeat", "like", "play_index"]
+    assert got["commands"][-1]["index"] == 1
+    assert client.get("/connect/devices/nope-000000/queue", headers=me).status_code == 404

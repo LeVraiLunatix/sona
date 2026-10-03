@@ -23,7 +23,9 @@ ONLINE_SECONDS = 15        # appareil considéré connecté
 FORGET_SECONDS = 24 * 3600  # appareil oublié
 MAX_QUEUE = 150
 MAX_COMMANDS = 20
-ACTIONS = {"play", "pause", "toggle", "next", "previous", "seek", "volume", "transfer"}
+ACTIONS = {"play", "pause", "toggle", "next", "previous", "seek", "volume", "transfer",
+           # Télécommande complète (Appareils) : options et file de l'appareil.
+           "shuffle", "repeat", "like", "play_index"}
 
 
 @dataclass
@@ -39,6 +41,14 @@ class Device:
     # pilote avec sa propre lecture, pas seulement celle de la session.
     position: float = 0.0
     at: float = 0.0
+    # Options de lecture telles que l'appareil les donne (None : inconnues).
+    shuffle: bool | None = None
+    repeat: str | None = None
+    liked: bool | None = None
+    # Sa file d'attente (pour « À suivre » sur la télécommande).
+    queue: list[dict] = field(default_factory=list)
+    index: int = 0
+    queue_name: str = ""
 
 
 @dataclass
@@ -62,6 +72,8 @@ class Account:
 
 
 _accounts: dict[int, Account] = {}
+# PC déjà inscrits dans « Appareils » par ce processus (voir routers/connect.py).
+autosaved: set[tuple[int, str]] = set()
 
 
 def _now() -> float:
@@ -71,6 +83,7 @@ def _now() -> float:
 def reset() -> None:
     """Pour les tests."""
     _accounts.clear()
+    autosaved.clear()
 
 
 def _account(user_id: int) -> Account:
@@ -114,6 +127,8 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
         device.track = queue[index]
         device.volume = state.get("volume")
         device.position, device.at = float(state.get("position") or 0), now
+        device.shuffle, device.repeat, device.liked = state.get("shuffle"), state.get("repeat"), state.get("liked")
+        device.queue, device.index, device.queue_name = queue, index, state.get("name") or ""
         current = account.session
         # La session suit l'appareil qui joue. Un appareil en pause ne la
         # prend jamais à un autre — même en pause lui aussi : sinon, mettre
@@ -134,6 +149,7 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
     else:
         device.playing = False
         device.track = None
+        device.queue, device.index = [], 0
 
     if _signature(account, now) != before or (state and state.get("queue") and moved):
         account.notify()
@@ -144,7 +160,10 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
 def _signature(account: Account, now: float) -> tuple:
     """Ce qui, en changeant, doit réveiller les appareils qui attendent."""
     session = account.session
-    online = tuple(sorted((d.id, d.playing) for d in account.devices.values() if _online(d, now)))
+    # Options (aléatoire, répéter, j'aime) comprises : la télécommande d'un
+    # autre appareil les voit changer tout de suite.
+    online = tuple(sorted((d.id, d.playing, d.shuffle, d.repeat, d.liked)
+                          for d in account.devices.values() if _online(d, now)))
     if session is None:
         return (None, online)
     return (session["device_id"], session["paused"], session["index"], (session["track"] or {}).get("source_id"), online)
@@ -183,6 +202,7 @@ def _device_dict(device: Device, now: float, me: str | None = None) -> dict:
         "playing": device.playing and online, "track": device.track, "volume": device.volume,
         "position": round(_device_position(device, now), 2), "online": online,
         "seen_seconds": round(now - device.last_seen, 1),
+        "shuffle": device.shuffle, "repeat": device.repeat, "liked": device.liked,
     }
 
 
@@ -190,6 +210,14 @@ def device_info(user_id: int, device_id: str) -> dict | None:
     """Ce qu'on sait d'un appareil du compte (vu dans les dernières 24 h)."""
     device = _account(user_id).devices.get(device_id)
     return None if device is None else _device_dict(device, _now())
+
+
+def device_queue(user_id: int, device_id: str) -> dict | None:
+    """File d'attente d'un appareil allumé : titre en cours et suivants."""
+    device = _account(user_id).devices.get(device_id)
+    if device is None or not _online(device, _now()):
+        return None
+    return {"index": device.index, "name": device.queue_name, "queue": device.queue}
 
 
 def _session_playing(account: Account, now: float) -> bool:

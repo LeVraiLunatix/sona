@@ -108,6 +108,17 @@ final class ConnectManager: ObservableObject {
             .dropFirst()
             .sink { [weak self] _ in self?.syncSoon() }
             .store(in: &cancellables)
+        // Aléatoire / répéter changés ici : la télécommande d'en face le voit.
+        PlayerManager.shared.$shuffleEnabled
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in self?.syncSoon() }
+            .store(in: &cancellables)
+        PlayerManager.shared.$repeatMode
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in self?.syncSoon() }
+            .store(in: &cancellables)
         // Connexion qui attend les nouvelles : le serveur répond dès qu'une
         // commande arrive ou que la lecture change sur un autre appareil.
         loop = Task { [weak self] in
@@ -189,6 +200,15 @@ final class ConnectManager: ObservableObject {
             if let position = command.position { player.seek(toSeconds: position) }
         case "volume":
             if let volume = command.volume { SystemVolume.set(volume) }
+        case "shuffle":
+            player.toggleShuffle()
+        case "repeat":
+            player.cycleRepeat()
+        case "play_index":
+            if let index = command.index {
+                remoteStartUntil = Date().addingTimeInterval(3)
+                player.playConnectIndex(index)
+            }
         case "transfer":
             guard let queue = command.queue, !queue.isEmpty else { return }
             remoteStartUntil = Date().addingTimeInterval(3)
@@ -254,6 +274,11 @@ final class ConnectManager: ObservableObject {
         saved = saved.filter { $0.id != item.id } + [item]
     }
 
+    func rename(_ id: String, to name: String) async throws {
+        let item = try await APIClient.shared.connectRename(deviceId: id, name: name)
+        saved = saved.map { $0.id == id ? item : $0 }
+    }
+
     func forget(_ id: String) async {
         try? await APIClient.shared.connectForget(deviceId: id)
         saved.removeAll { $0.id == id }
@@ -294,8 +319,17 @@ final class ConnectManager: ObservableObject {
     }
 
     /// Télécommande de l'appareil qui joue ailleurs.
-    func remote(_ action: String, position: Double? = nil, volume: Double? = nil) {
+    func remote(_ action: String, position: Double? = nil, volume: Double? = nil, index: Int? = nil) {
         guard let target = remoteTarget else { return }
+        // Options : réponse immédiate à l'écran, l'appareil confirme ensuite.
+        if let i = devices.firstIndex(where: { $0.id == target.id }) {
+            switch action {
+            case "shuffle": devices[i].shuffle = !(devices[i].shuffle ?? false)
+            case "like": devices[i].liked = !(devices[i].liked ?? false)
+            case "repeat": devices[i].repeatMode = (devices[i].repeatMode ?? "off") == "off" ? "one" : "off"
+            default: break
+            }
+        }
         var action = action
         // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs
         // appuis rapprochés ne s'annulent pas.
@@ -319,7 +353,7 @@ final class ConnectManager: ObservableObject {
         let command = action
         Task {
             try? await APIClient.shared.connectCommand(
-                from: deviceId, to: target.id, action: command, position: position, volume: volume
+                from: deviceId, to: target.id, action: command, position: position, volume: volume, index: index
             )
             syncSoon()
         }
@@ -433,6 +467,7 @@ struct RemotePlayerView: View {
     @State private var palette: [Color] = ArtworkPalette.fallback
     @State private var volume: Double?
     @State private var seeking: Double?
+    @State private var showingQueue = false
 
     var body: some View {
         ZStack {
@@ -515,6 +550,25 @@ struct RemotePlayerView: View {
                         Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(Tone.tertiary)
                     }
 
+                    // Options de l'appareil (celles qu'il donne) et sa file d'attente.
+                    if now.track != nil {
+                        HStack(spacing: 30) {
+                            if let shuffle = device.shuffle {
+                                option("shuffle", on: shuffle, label: "Aléatoire") { connect.remote("shuffle") }
+                            }
+                            if let liked = device.liked {
+                                option(liked ? "heart.fill" : "heart", on: liked, label: "J'aime") { connect.remote("like") }
+                            }
+                            if let mode = device.repeatMode {
+                                option(mode == "one" ? "repeat.1" : "repeat", on: mode != "off", label: "Répéter") {
+                                    connect.remote("repeat")
+                                }
+                            }
+                            option("list.bullet", on: false, label: "À suivre") { showingQueue = true }
+                        }
+                        .padding(.top, 16)
+                    }
+
                     HStack {
                         if now.track != nil {
                             Button {
@@ -547,6 +601,9 @@ struct RemotePlayerView: View {
                 .task(id: now.track?.coverURL) {
                     palette = await ArtworkPalette.colors(for: now.track?.coverURL)
                 }
+                .sheet(isPresented: $showingQueue) {
+                    RemoteQueueSheet(device: device).presentationDetents([.medium, .large])
+                }
             }
         }
         .animation(.easeInOut(duration: 0.9), value: palette)
@@ -578,6 +635,20 @@ struct RemotePlayerView: View {
         }
     }
 
+    private func option(_ icon: String, on: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 19, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+                .foregroundStyle(on ? Color.accentColor : Tone.secondary)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(on ? Color.white.opacity(0.16) : .clear))
+        }
+        .buttonStyle(.pressable(scale: 0.85))
+        .sensoryFeedback(.selection, trigger: on)
+        .accessibilityLabel(label)
+    }
+
     private func control(_ icon: String, _ size: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
@@ -593,6 +664,56 @@ struct RemotePlayerView: View {
     static func time(_ seconds: Double) -> String {
         let s = max(0, Int(seconds))
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// « À suivre » sur l'appareil piloté : sa file ; un appui lance le titre dessus.
+struct RemoteQueueSheet: View {
+    let device: ConnectDevice
+    @ObservedObject private var connect = ConnectManager.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var queue: ConnectQueue?
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let queue {
+                    let upcoming = Array(queue.queue.enumerated()).filter { $0.offset > queue.index }
+                    if upcoming.isEmpty {
+                        Text("Plus rien après ce titre.").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                    }
+                    ForEach(upcoming, id: \.offset) { item in
+                        Button {
+                            connect.remote("play_index", index: item.offset)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Artwork(url: item.element.coverURL, cornerRadius: 6).frame(width: 44, height: 44)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.element.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                                    Text(item.element.artist).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                                }
+                            }
+                        }
+                    }
+                } else if failed {
+                    Text("\(device.name) ne répond pas.").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                } else {
+                    ProgressView().frame(maxWidth: .infinity)
+                }
+            }
+            .navigationTitle("À suivre sur \(device.name)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
+            .task {
+                do {
+                    queue = try await APIClient.shared.connectQueue(deviceId: device.id)
+                } catch {
+                    failed = true
+                }
+            }
+        }
     }
 }
 

@@ -354,9 +354,10 @@ panneaux translucides). En plus du site :
   musique et le piloter, même fenêtre fermée (Sona reste dans la zone de
   notification) ;
 - **Appareils** (app iPhone : bouton en haut à gauche ; site : menu ou
-  en-tête) : on ajoute le PC une fois, il reste enregistré sur le compte,
-  même éteint. Un appui dessus et l'iPhone le pilote, d'où qu'on soit
-  (pas de QR code, pas besoin du même Wi-Fi) ;
+  en-tête) : le PC s'y inscrit tout seul et y reste, même éteint (on peut
+  le renommer). Un appui dessus et l'iPhone le pilote, d'où qu'on soit
+  (pas de QR code, pas besoin du même Wi-Fi) : lecture, position, volume,
+  j'aime, aléatoire, répéter, et sa file « À suivre » ;
 - **télécommande du téléphone**, à la Cider Remote : un QR code dans l'app,
   le téléphone le scanne et pilote le PC sur le Wi-Fi (pochette, paroles,
   file, recherche) ;
