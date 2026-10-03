@@ -67,7 +67,7 @@ app.whenReady().then(async () => {
   serveWeb();
   createWindow();
   createTray();
-  if (settings.get("remoteEnabled")) await remote.start(settings.get("remotePort"), settings.get("remoteKey"));
+  if (settings.get("remoteEnabled")) await startRemote();
   iphone.init({ onState: (s) => send("desktop:iphone", s), onNotify: notifyDesktop });
   updater.init({ onState: (s) => send("desktop:updates", s), onNotify: notifyDesktop, onBeforeInstall: () => { quitting = true; } });
   nativeTheme.on("updated", () => {
@@ -79,6 +79,13 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => { quitting = true; });
 app.on("will-quit", () => { remote.stop(); iphone.stop(); });
+
+/** Télécommande : le port obtenu est noté pour le plugin Stream Deck. */
+async function startRemote() {
+  const ok = await remote.start(settings.get("remotePort"), settings.get("remoteKey"));
+  settings.set("remoteActivePort", ok ? remote.port : null);
+  return ok;
+}
 
 /** Notification Windows ; un clic ramène Sona. */
 function notifyDesktop(title, body) {
@@ -426,7 +433,7 @@ ipcMain.handle("desktop:set", async (_e, key, value) => {
     }
     case "remoteEnabled":
       settings.set(key, !!value);
-      if (value) await remote.start(settings.get("remotePort"), settings.get("remoteKey"));
+      if (value) await startRemote();
       else await remote.stop();
       break;
     case "remoteKey":

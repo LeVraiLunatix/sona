@@ -23,7 +23,9 @@ test("les réglages de Sona donnent la clé et le port", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sona-sd-"));
   const file = path.join(dir, "settings.json");
   fs.writeFileSync(file, JSON.stringify({ remoteKey: "k", remotePort: 7651, remoteEnabled: false }));
-  assert.deepEqual(readSonaSettings(file), { key: "k", port: 7651, enabled: false });
+  assert.deepEqual(readSonaSettings(file), { key: "k", port: 7651, activePort: null, enabled: false });
+  fs.writeFileSync(file, JSON.stringify({ remoteKey: "k", remotePort: 7650, remoteActivePort: 7663 }));
+  assert.equal(readSonaSettings(file).activePort, 7663);
   assert.equal(readSonaSettings(path.join(dir, "absent.json")), null);
 });
 
@@ -57,6 +59,28 @@ test("le plugin trouve Sona, suit la lecture et envoie les commandes", async () 
     await server.stop();
   }
   assert.deepEqual(statuses.slice(0, 2), ["online", "offline"]);
+});
+
+test("sans clé lisible, le plugin pilote quand même Sona sur ce PC", async () => {
+  const seen = [];
+  const server = new RemoteServer({
+    getState: () => ({ track: { title: "Titre" }, paused: false }),
+    command: async (body) => { seen.push(body); return true; },
+    remoteRoot: path.join(here, "..", "..", "remote"),
+    iconsRoot: path.join(here, "..", "..", "..", "web", "icons"),
+  });
+  await server.start(0, "cle-inconnue-du-plugin");
+  // Réglages illisibles, mais Sona a noté son vrai port.
+  const client = new SonaClient({ settings: () => ({ key: "", port: 1, activePort: server.port, enabled: true, unreadable: "EPERM" }), retry: 50 });
+  client.start();
+  try {
+    assert.ok(await until(() => client.status === "online"));
+    await client.command("toggle");
+    assert.deepEqual(seen, [{ action: "toggle" }]);
+  } finally {
+    client.stop();
+    await server.stop();
+  }
 });
 
 test("télécommande coupée ou Sona absent : état clair", async () => {
