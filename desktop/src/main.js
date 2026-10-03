@@ -14,7 +14,7 @@
    La page tourne sous app://sona/ : son stockage (session Sona, réglages)
    est propre à l'app et l'API est appelée à l'adresse du serveur. */
 
-const { app, BrowserWindow, protocol, net, ipcMain, Tray, Menu, nativeImage, nativeTheme, shell, Notification, screen, dialog } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, Tray, Menu, nativeImage, nativeTheme, shell, Notification, screen, dialog, powerMonitor, session } = require("electron");
 const path = require("node:path");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
@@ -25,6 +25,7 @@ const iphone = require("./iphone");
 const updater = require("./updater");
 const { DiscordPresence } = require("./discord");
 const shortcuts = require("./shortcuts");
+const { GameMode } = require("./gamemode");
 
 const isWin = process.platform === "win32";
 const WEB_ROOT = app.isPackaged ? path.join(process.resourcesPath, "web") : path.resolve(__dirname, "..", "..", "web");
@@ -47,6 +48,12 @@ let mini = null;
 let overlay = null;        // paroles en surimpression
 let shortcutsRefused = [];
 const discord = new DiscordPresence();
+let pausedByLock = false;
+const gameMode = new GameMode({ onChange: (active) => {
+  if (overlay && !overlay.isDestroyed()) overlay.webContents.send("overlay:mode", { game: active });
+  send("desktop:gamemode", active);
+  updateTray(true);
+} });
 let tray = null;
 let quitting = false;
 let now = null;          // état de lecture envoyé par la page
@@ -76,6 +83,11 @@ app.whenReady().then(async () => {
   discord.configure(settings.get("discordEnabled"), settings.get("discordClientId"));
   applyShortcuts();
   if (settings.get("lyricsOverlay")) setOverlay(true);
+  gameMode.setEnabled(settings.get("gameMode"));
+  watchPower();
+  // Liste complète des sorties audio (casque débranché → pause), pour la page de l'app seulement.
+  session.defaultSession.setPermissionCheckHandler((wc, permission, origin) =>
+    permission === "media" ? String(origin || wc?.getURL() || "").startsWith("app://sona") : true);
   iphone.init({ onState: (s) => send("desktop:iphone", s), onNotify: notifyDesktop });
   updater.init({ onState: (s) => send("desktop:updates", s), onNotify: notifyDesktop, onBeforeInstall: () => { quitting = true; } });
   nativeTheme.on("updated", () => {
@@ -86,7 +98,25 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => { quitting = true; });
-app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); shortcuts.apply({}, () => {}); });
+app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); gameMode.stop(); shortcuts.apply({}, () => {}); });
+
+/** PC verrouillé ou en veille : pause ; déverrouillé : la musique repart (si c'est nous qui l'avions coupée). */
+function watchPower() {
+  const pause = () => {
+    if (!settings.get("pauseOnLock") || !now?.track || now.paused || now.remoteDevice) return;
+    pausedByLock = true;
+    pageCommand({ action: "pause" }).catch(() => {});
+  };
+  const resume = () => {
+    if (!pausedByLock) return;
+    pausedByLock = false;
+    if (settings.get("resumeOnUnlock")) setTimeout(() => pageCommand({ action: "play" }).catch(() => {}), 800);
+  };
+  powerMonitor.on("lock-screen", pause);
+  powerMonitor.on("suspend", pause);
+  powerMonitor.on("unlock-screen", resume);
+  powerMonitor.on("resume", resume);
+}
 
 /** Télécommande : le port obtenu est noté pour le plugin Stream Deck. */
 async function startRemote() {
@@ -97,7 +127,8 @@ async function startRemote() {
 
 /** Notification Windows ; un clic ramène Sona. */
 function notifyDesktop(title, body) {
-  if (!Notification.isSupported()) return;
+  // Mode jeu : pas de notification par-dessus le jeu.
+  if (!Notification.isSupported() || gameMode.active) return;
   const n = new Notification({ title, body, icon: appIcon(64) });
   n.on("click", showWindow);
   n.show();
@@ -315,10 +346,10 @@ function updateTray(force) {
   if (!tray) return;
   const t = now?.track;
   const light = !nativeTheme.shouldUseDarkColors;
-  const key = JSON.stringify([t?.title, t?.artist, now?.paused, now?.remoteDevice, !!mini, !!overlay, light]);
+  const key = JSON.stringify([t?.title, t?.artist, now?.paused, now?.remoteDevice, !!mini, !!overlay, gameMode.active, light]);
   if (!force && key === trayKey) return;
   trayKey = key;
-  tray.setToolTip(t ? `Sona — ${t.title} · ${t.artist}`.slice(0, 127) : "Sona");
+  tray.setToolTip(`${t ? `Sona — ${t.title} · ${t.artist}` : "Sona"}${gameMode.active ? " · mode jeu" : ""}`.slice(0, 127));
   const control = (action) => () => pageCommand({ action }).catch(() => {});
   const items = [];
   if (t) {
@@ -415,7 +446,11 @@ function setOverlay(on) {
   overlay.setVisibleOnAllWorkspaces?.(true);
   placeOverlay();
   overlay.loadFile(path.join(__dirname, "overlay", "index.html"));
-  overlay.once("ready-to-show", () => { overlay.showInactive(); overlay.webContents.send("overlay:state", liveState()); });
+  overlay.once("ready-to-show", () => {
+    overlay.showInactive();
+    overlay.webContents.send("overlay:state", liveState());
+    overlay.webContents.send("overlay:mode", { game: gameMode.active });
+  });
   overlay.on("closed", () => { overlay = null; updateTray(true); send("desktop:overlay", false); });
   updateTray(true);
   send("desktop:overlay", true);
@@ -478,6 +513,8 @@ ipcMain.handle("desktop:settings", () => {
     lyricsOverlay: !!overlay, overlayPosition: s.overlayPosition,
     discordEnabled: s.discordEnabled, discordClientId: s.discordClientId, discord: discord.status(),
     shortcuts: s.shortcuts || {}, shortcutActions: shortcuts.ACTIONS, shortcutsRefused,
+    pauseOnLock: s.pauseOnLock, resumeOnUnlock: s.resumeOnUnlock, pauseOnHeadphones: s.pauseOnHeadphones,
+    gameMode: s.gameMode, gameActive: gameMode.active,
   };
 });
 
@@ -511,6 +548,15 @@ ipcMain.handle("desktop:set", async (_e, key, value) => {
       break;
     case "mini": if (!!value !== !!mini) toggleMini(); break;
     case "lyricsOverlay": setOverlay(!!value); break;
+    case "pauseOnLock":
+    case "resumeOnUnlock":
+    case "pauseOnHeadphones":
+      settings.set(key, !!value);
+      break;
+    case "gameMode":
+      settings.set(key, !!value);
+      gameMode.setEnabled(!!value);
+      break;
     case "overlayPosition":
       settings.set(key, value === "top" ? "top" : "bottom");
       placeOverlay();
@@ -547,6 +593,7 @@ ipcMain.handle("desktop:status", () => {
     discord: { ...discord.status(), configured: !!settings.get("discordClientId"), wanted: !!settings.get("discordEnabled") },
     shortcuts: { count: Object.keys(settings.get("shortcuts") || {}).length, refused: shortcutsRefused },
     overlay: !!overlay,
+    gameMode: { enabled: !!settings.get("gameMode"), active: gameMode.active, supported: isWin },
     iphone: { available: iph.available !== false, devices: (iph.devices || []).length, apps: (iph.apps || []).length },
     updates: updater.snapshot(),
   };

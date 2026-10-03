@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/remote-server.js && node --check src/glyphs.js && node --check src/settings.js && node --check src/mini/mini.js && node --check remote/remote.js && node --check src/iphone.js && node --check src/updater.js && node --check src/discord.js && node --check src/shortcuts.js && node --check src/overlay/overlay.js && node --check src/overlay/preload.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/remote-server.js && node --check src/glyphs.js && node --check src/settings.js && node --check src/mini/mini.js && node --check remote/remote.js && node --check src/iphone.js && node --check src/updater.js && node --check src/discord.js && node --check src/shortcuts.js && node --check src/gamemode.js && node --check src/overlay/overlay.js && node --check src/overlay/preload.js",
     "test": "node --test \"test/**/*.test.js\"",
     "dist": "electron-builder --win --x64 --publish never"
   },

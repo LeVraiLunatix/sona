@@ -41,6 +41,13 @@ ce qu'un navigateur ne sait pas faire.
      Réglages → Statut Discord → Application Discord → colle-le.
   4. Discord (l'app d'ordinateur) ouvert sur le PC ; dans Discord,
      Paramètres → Confidentialité de l'activité → « Partager mon activité ».
+- **Pause automatique** : PC verrouillé ou en veille (la musique repart au
+  déverrouillage), casque ou enceinte débranché.
+- **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
+  notifications de Sona, paroles en surimpression sur une ligne, discrètes.
+  Windows le signale lui-même (SHQueryUserNotificationState).
+- **Visualiseur** (bouton ondes en haut) : spectre plein écran aux couleurs
+  de la pochette ; F pour le plein écran, Échap pour fermer.
 - **Raccourcis clavier globaux** (Réglages → Raccourcis clavier) : lecture,
   suivant, précédent, volume, j'aime, paroles, afficher Sona — même quand
   Sona est en arrière-plan.
