@@ -91,3 +91,32 @@ test("télécommande coupée ou Sona absent : état clair", async () => {
   await absent.connect();
   assert.equal(absent.status, "absent");
 });
+
+test("un appui juste après l'ouverture de Sona n'attend pas le prochain essai", async () => {
+  const seen = [];
+  const server = new RemoteServer({
+    getState: () => ({ track: null }),
+    command: async (body) => { seen.push(body); return true; },
+    remoteRoot: path.join(here, "..", "..", "remote"),
+    iconsRoot: path.join(here, "..", "..", "..", "web", "icons"),
+  });
+  await server.start(0, "cle-0123456789");
+  const port = server.port;
+  await server.stop();
+  // Sona fermé, prochain essai dans une minute.
+  const client = new SonaClient({ settings: () => ({ key: "cle-0123456789", port, activePort: port, enabled: true }), retry: 60_000 });
+  client.start();
+  try {
+    assert.ok(await until(() => client.lastLog?.startsWith("Sona injoignable")));
+    assert.equal(await client.ready(200), false);
+    await server.start(port, "cle-0123456789");
+    const t0 = Date.now();
+    assert.equal(await client.ready(3000), true);
+    assert.ok(Date.now() - t0 < 3000);
+    await client.command("toggle");
+    assert.deepEqual(seen, [{ action: "toggle" }]);
+  } finally {
+    client.stop();
+    await server.stop();
+  }
+});

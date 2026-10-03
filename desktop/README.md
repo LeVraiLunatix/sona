@@ -111,7 +111,7 @@ automatique de l'onglet Sona sur l'iPhone.
 ## Plugin Stream Deck
 
 `Sona-StreamDeck.streamDeckPlugin` (dans la version « Sona pour Windows ») :
-double-clic pour l'installer dans le logiciel Stream Deck (7.1 ou plus).
+double-clic pour l'installer dans le logiciel Stream Deck (6.5 ou plus).
 Rien à configurer : il lit la clé de la télécommande dans les réglages de
 Sona sur le même PC et lui parle en local.
 
@@ -123,8 +123,10 @@ Sona sur le même PC et lui parle en local.
 | Volume +, Volume − | ±10 % |
 | Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
 
-Sona fermé, ou télécommande coupée dans Sona : les touches l'indiquent et un
-appui affiche l'alerte du Stream Deck. Le code est dans `streamdeck/`
+Sona fermé, ou télécommande coupée dans Sona : les touches l'indiquent. Un
+appui qui échoue affiche l'alerte du Stream Deck et écrit la raison sur la
+touche pendant 4 s ; le détail est dans le journal du plugin
+(`%APPDATA%\Elgato\StreamDeck\Plugins\app.sona.remote.sdPlugin\logs`). Le code est dans `streamdeck/`
 (`npm run build`, `npm test`, `npm run pack`).
 
 ## Connexion

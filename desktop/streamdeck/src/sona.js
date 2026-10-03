@@ -64,6 +64,24 @@ export class SonaClient extends EventEmitter {
     clearTimeout(this.timer);
   }
 
+  /** Coupe l'attente entre deux essais : on cherche Sona tout de suite. */
+  wake() {
+    clearTimeout(this.timer);
+    this.wakeUp?.();
+  }
+
+  /** En ligne, ou le devient dans `ms` (appui sur une touche juste après l'ouverture de Sona). */
+  ready(ms = 2500) {
+    if (this.status === "online") return Promise.resolve(true);
+    this.wake();
+    return new Promise((resolve) => {
+      const done = (ok) => { clearTimeout(timer); this.off("status", onStatus); resolve(ok); };
+      const onStatus = (s) => s === "online" && done(true);
+      const timer = setTimeout(() => done(this.status === "online"), ms);
+      this.on("status", onStatus);
+    });
+  }
+
   setStatus(status) {
     if (status === this.status) return;
     this.status = status;
@@ -78,11 +96,14 @@ export class SonaClient extends EventEmitter {
         // Fermé ou injoignable : on réessaie.
       }
       if (this.stopped) return;
-      await new Promise((r) => (this.timer = setTimeout(r, this.retry)));
+      await new Promise((r) => {
+        this.wakeUp = r;
+        this.timer = setTimeout(r, this.retry);
+      });
+      this.wakeUp = null;
     }
   }
 
-  /** Trouve Sona (port réglé, ou l'un des suivants s'il était pris) puis suit l'état. */
   /** Journal (relayé dans les logs du plugin par Stream Deck), sans doublons. */
   log(message) {
     if (message === this.lastLog) return;
@@ -95,6 +116,7 @@ export class SonaClient extends EventEmitter {
     return { "X-Sona-Local": "streamdeck", ...(this.key ? { "X-Sona-Key": this.key } : {}), ...extra };
   }
 
+  /** Trouve Sona (port réglé, ou l'un des suivants s'il était pris) puis suit l'état. */
   async connect() {
     // Réglages illisibles ou absents : on essaie quand même, en local, sans clé.
     const s = this.readSettings() || { key: "", port: 7650, activePort: null, enabled: true, missing: true };
@@ -167,9 +189,12 @@ export class SonaClient extends EventEmitter {
       headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ action, ...extra }),
       signal: AbortSignal.timeout(8000),
+    }).catch((e) => {
+      this.wake();
+      throw new Error(e.name === "TimeoutError" ? "Sona ne répond pas" : `Sona injoignable (${e.cause?.code || e.name})`);
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `Erreur ${res.status}`);
+    if (!res.ok) throw new Error(`${body.error || "Erreur"} (${res.status})`);
     return body.result;
   }
 }
