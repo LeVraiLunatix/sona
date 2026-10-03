@@ -13,6 +13,11 @@ struct EncreApp: App {
         // Notifications (récaps, défi du jour, parties des amis).
         NotificationManager.registerBackgroundTask()
         NotificationManager.shared.setUp()
+        // Widget « Mon PC » et Centre de contrôle : leurs boutons passent
+        // par l'app (voir `PCRemoteButtonIntent`), même lancée en arrière-plan.
+        RemoteIntentBridge.handler = { command in
+            _ = await ConnectManager.shared.intentCommand(command)
+        }
     }
 
     var body: some Scene {

@@ -364,7 +364,10 @@ panneaux translucides). En plus du site :
   pilote, l'écran verrouillé de l'iPhone montre le titre du PC (et ses
   boutons le pilotent), les boutons de volume règlent le PC, un titre
   touché se lance sur le PC, et Siri (« Pause Sona », « Titre suivant
-  Sona ») ou l'action « Piloter mon PC » (Raccourcis, bouton Action) aussi ;
+  Sona ») ou l'action « Piloter mon PC » (Raccourcis, bouton Action) aussi,
+  tout comme le widget « Mon PC » (⏮ ⏯ ⏭ sur l'écran d'accueil) et les
+  commandes « Lecture/pause » et « Suivant sur mon PC » du Centre de
+  contrôle ;
 - **télécommande du téléphone**, à la Cider Remote : un QR code dans l'app,
   le téléphone le scanne et pilote le PC sur le Wi-Fi (pochette, paroles,
   file, recherche) ;
