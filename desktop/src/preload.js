@@ -23,6 +23,7 @@ if (location.protocol === "app:" && location.host === "sona") {
     onOpenRemote: on("desktop:open-remote"),
     onWindow: on("desktop:window"),
     onMini: on("desktop:mini"),
+    onOverlay: on("desktop:overlay"),
     onTheme: on("desktop:theme"),
     window: {
       minimize: () => ipcRenderer.send("desktop:window", "minimize"),

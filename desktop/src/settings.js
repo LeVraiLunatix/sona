@@ -24,6 +24,14 @@ const DEFAULTS = {
   maximized: false,
   miniBounds: null,
   trayHintShown: false,
+  // Paroles en surimpression sur le bureau (en bas ou en haut de l'écran).
+  lyricsOverlay: false,
+  overlayPosition: "bottom",
+  // Discord : « Écoute Sona » sur le profil (identifiant d'application Discord).
+  discordEnabled: false,
+  discordClientId: "",
+  // Raccourcis clavier globaux : { action: "CommandOrControl+Alt+Right" }.
+  shortcuts: {},
 };
 
 let cache = null;

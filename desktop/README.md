@@ -23,6 +23,17 @@ ce qu'un navigateur ne sait pas faire.
   position, volume, paroles synchronisées, file d'attente et recherche (le
   titre choisi se lance sur le PC). Aucune app à installer : c'est une page
   servie par le PC ; on peut l'ajouter à l'écran d'accueil.
+- **Paroles en surimpression** : les paroles synchronisées par-dessus les
+  autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
+  clique au travers. Réglages, zone de notification ou raccourci clavier.
+- **Statut Discord** : « Écoute Sona » sur ton profil, avec le titre, la
+  pochette et la progression. Discord exige une « application » à ton nom :
+  sur discord.com/developers/applications, crée-en une nommée « Sona »
+  (New Application), copie son Application ID dans Réglages → Statut
+  Discord → Application Discord. Discord doit être ouvert sur le PC.
+- **Raccourcis clavier globaux** (Réglages → Raccourcis clavier) : lecture,
+  suivant, précédent, volume, j'aime, paroles, afficher Sona — même quand
+  Sona est en arrière-plan.
 - **Mini-lecteur** : une petite fenêtre en verre (le vrai verre acrylique de
   Windows 11), toujours au premier plan.
 - **Barre des tâches** : boutons précédent / lecture / suivant dans l'aperçu

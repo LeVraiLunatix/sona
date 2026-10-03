@@ -4477,6 +4477,7 @@ function desktopInit() {
     if ($("#desk-settings")) renderDesktopSettings();
   });
   desktop.onOpenRemote(() => account && openRemotePairing());
+  desktop.onOverlay?.(() => { if ($("#desk-settings")) renderDesktopSettings(); });
   desktop.onMini((on) => { desk.mini = on; if (account) renderTopbar(); if ($("#desk-settings")) renderDesktopSettings(); });
   desktop.settings().then((s) => { desk.mini = s.mini; desk.name = s.deviceNameShown; }).catch(() => {});
   for (const ev of ["play", "pause", "seeked", "volumechange", "loadedmetadata"]) audio.addEventListener(ev, () => desktopReport());
@@ -4663,13 +4664,35 @@ async function renderDesktopSettings() {
     ${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
     ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : Sona reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
     ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
+    ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
+    ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
+    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression.", s.discordEnabled)}
+    ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Application Discord", discordStatusText(s)) : ""}
+    ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}
     ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
-  for (const key of ["mini", "closeToTray", "launchAtLogin"]) {
+  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
-    input.onchange = () => { haptic(); desktop.set(key, input.checked).catch((e) => { input.checked = !input.checked; toast(e.message); }); };
+    input.onchange = () => {
+      haptic();
+      desktop.set(key, input.checked)
+        .then(() => ["lyricsOverlay", "discordEnabled"].includes(key) && setTimeout(renderDesktopSettings, key === "discordEnabled" ? 900 : 0))
+        .catch((e) => { input.checked = !input.checked; toast(e.message); });
+    };
   }
+  $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
+    await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
+    renderDesktopSettings();
+  });
+  $("[data-desk-discord]", box)?.addEventListener("click", async () => {
+    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "123456789012345678", confirm: "Enregistrer",
+      hint: "Discord demande une « application » à ton nom : sur discord.com/developers/applications, crée-en une nommée « Sona » (New Application), puis copie son Application ID ici. Discord doit être ouvert sur ce PC." });
+    if (id == null) return;
+    await desktop.set("discordClientId", id).catch((e) => toast(deskErr(e)));
+    setTimeout(renderDesktopSettings, 900);
+  });
+  $("[data-desk-shortcuts]", box).onclick = () => shortcutsSheet();
   $("[data-desk-name]", box).onclick = async () => {
     const name = await askText({ title: "Nom dans Sona Connect", value: s.deviceName || s.deviceNameShown, placeholder: "PC du salon", confirm: "Enregistrer", hint: "C'est le nom que tu verras sur l'iPhone pour envoyer la musique sur ce PC." });
     if (name == null) return;
@@ -4683,6 +4706,76 @@ async function renderDesktopSettings() {
     if (url == null) return;
     try { await desktop.set("serverUrl", url === SERVER ? "" : url); } catch (e) { toast(e.message); }
   };
+}
+
+function discordStatusText(s) {
+  if (!s.discordClientId) return "Ajoute l'identifiant de ton application Discord";
+  if (s.discord?.connected) return "Connecté à Discord";
+  return s.discord?.error || "Connexion à Discord…";
+}
+
+// ── Raccourcis clavier globaux (app Windows) ─────────────────────────────
+
+const KEY_NAMES = { ArrowRight: "Right", ArrowLeft: "Left", ArrowUp: "Up", ArrowDown: "Down", " ": "Space", "+": "Plus" };
+
+/** Combinaison appuyée → raccourci au format d'Electron (avec Ctrl, Alt ou Maj). */
+function acceleratorFrom(e) {
+  if (["Control", "Shift", "Alt", "Meta", "AltGraph"].includes(e.key)) return null;
+  const code = /^Key([A-Z])$/.exec(e.code)?.[1] || /^Digit(\d)$/.exec(e.code)?.[1];
+  const key = code || KEY_NAMES[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  if (!/^(F\d{1,2}|[A-Z0-9]|Right|Left|Up|Down|Space|Plus|Home|End|PageUp|PageDown|Insert|Delete|[,./;'`=\-])$/.test(key)) return null;
+  const mods = [e.ctrlKey && "CommandOrControl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
+  return mods.length ? [...mods, key].join("+") : null;
+}
+
+const prettyAccel = (a) => a.replace("CommandOrControl", "Ctrl").replace("Super", "Win").replace("Shift", "Maj")
+  .replace(/\+Right$/, "+→").replace(/\+Left$/, "+←").replace(/\+Up$/, "+↑").replace(/\+Down$/, "+↓").replace(/\+Space$/, "+Espace");
+
+function shortcutsSummary(s) {
+  const n = Object.keys(s.shortcuts || {}).length;
+  if (s.shortcutsRefused?.length) return `${plural(s.shortcutsRefused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`;
+  return n ? plural(n, "raccourci actif", "raccourcis actifs") : "Contrôler Sona depuis n'importe quelle app";
+}
+
+async function shortcutsSheet() {
+  const s = await desktop.settings();
+  const map = { ...(s.shortcuts || {}) };
+  let refused = s.shortcutsRefused || [];
+  let capture = null;
+  const onKey = (e) => {
+    if (!capture) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") { capture = null; return paint(); }
+    const accelerator = acceleratorFrom(e);
+    if (!accelerator) return;
+    for (const [id, acc] of Object.entries(map)) if (acc === accelerator) delete map[id];
+    map[capture] = accelerator;
+    capture = null;
+    save();
+  };
+  document.addEventListener("keydown", onKey, true);
+  const wrap = openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2>
+    <p class="muted">Ils marchent même quand Sona est en arrière-plan. Touche un bouton, puis appuie sur la combinaison (avec Ctrl, Alt ou Maj). Les touches multimédia du clavier marchent déjà sans rien régler.</p>
+    <div class="set-group" id="sc-list"></div>`, { onClose: () => { document.removeEventListener("keydown", onKey, true); renderDesktopSettings(); } });
+  const list = $("#sc-list", wrap);
+  function paint() {
+    list.innerHTML = Object.entries(s.shortcutActions || {}).map(([id, label]) => `<div class="set-row sc-row">
+      <span class="set-text"><b>${esc(label)}</b>${refused.includes(id) ? `<small class="sc-bad">Déjà pris par une autre app : choisis-en un autre</small>` : ""}</span>
+      <button class="btn ghost small ${capture === id ? "capturing" : ""}" data-sc="${id}">${capture === id ? "Appuie sur la combinaison…" : map[id] ? esc(prettyAccel(map[id])) : "Définir"}</button>
+      ${map[id] ? `<button class="dev-more" data-sc-clear="${id}" aria-label="Retirer">${icons.close}</button>` : ""}</div>`).join("");
+  }
+  async function save() {
+    try { refused = (await desktop.set("shortcuts", map)) || []; } catch (e) { toast(deskErr(e)); }
+    paint();
+  }
+  list.onclick = (e) => {
+    const clear = e.target.closest("[data-sc-clear]")?.dataset.scClear;
+    if (clear) { delete map[clear]; capture = null; return save(); }
+    const id = e.target.closest("[data-sc]")?.dataset.sc;
+    if (id) { capture = capture === id ? null : id; paint(); }
+  };
+  paint();
 }
 
 // ── Sona sur l'iPhone (app Windows) ──────────────────────────────────────
