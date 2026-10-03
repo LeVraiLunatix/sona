@@ -25,7 +25,9 @@ MAX_QUEUE = 150
 MAX_COMMANDS = 20
 ACTIONS = {"play", "pause", "toggle", "next", "previous", "seek", "volume", "transfer",
            # Télécommande complète (Appareils) : options et file de l'appareil.
-           "shuffle", "repeat", "like", "play_index"}
+           "shuffle", "repeat", "like", "play_index",
+           # Lancer une liste de titres sur l'appareil (recherche, album…).
+           "play_tracks"}
 
 
 @dataclass

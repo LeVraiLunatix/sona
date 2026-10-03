@@ -120,7 +120,10 @@ struct RootTabView: View {
         .overlay(alignment: .top) {
             ConnectToast().padding(.top, 8)
         }
-        .task { ConnectManager.shared.start() }
+        .task {
+            ConnectManager.shared.start()
+            RemoteNowPlaying.shared.start()
+        }
         .task {
             // Écran TV / PS5 choisi avant la fermeture de l'appli : on le reprend.
             await CastManager.shared.restore()

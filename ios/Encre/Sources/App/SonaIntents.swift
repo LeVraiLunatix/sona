@@ -87,6 +87,8 @@ struct PauseIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        // On pilote le PC : c'est lui qui se met en pause.
+        if await ConnectManager.shared.intentCommand("pause") { return .result() }
         PlayerManager.shared.pause()
         return .result()
     }
@@ -97,6 +99,7 @@ struct ResumeIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        if await ConnectManager.shared.intentCommand("play") { return .result() }
         PlayerManager.shared.resume()
         return .result()
     }
@@ -107,8 +110,43 @@ struct NextTrackIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        if await ConnectManager.shared.intentCommand("next") { return .result() }
         PlayerManager.shared.next()
         return .result()
+    }
+}
+
+// MARK: - Piloter le PC (Raccourcis, bouton Action)
+
+/// Commande pour l'appareil piloté (choisi dans « Appareils », ou celui
+/// qui joue ailleurs), sans ouvrir l'app.
+enum RemoteAction: String, AppEnum {
+    case toggle, next, previous
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Commande"
+    static let caseDisplayRepresentations: [RemoteAction: DisplayRepresentation] = [
+        .toggle: "Lecture / pause",
+        .next: "Titre suivant",
+        .previous: "Titre précédent",
+    ]
+}
+
+struct RemoteDeviceIntent: AppIntent {
+    static let title: LocalizedStringResource = "Piloter mon PC"
+    static let description = IntentDescription("Lecture/pause, suivant ou précédent sur l'appareil choisi dans « Appareils » (ton PC).")
+
+    @Parameter(title: "Commande", default: .toggle)
+    var action: RemoteAction
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let device = await ConnectManager.shared.intentTarget() else {
+            return .result(dialog: "Aucun appareil à piloter : choisis ton PC dans Appareils, et vérifie que Sona y est ouvert.")
+        }
+        guard await ConnectManager.shared.intentCommand(action.rawValue) else {
+            return .result(dialog: "\(device.name) ne répond pas.")
+        }
+        return .result(dialog: "C'est fait sur \(device.name).")
     }
 }
 

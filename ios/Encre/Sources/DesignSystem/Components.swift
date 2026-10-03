@@ -71,6 +71,14 @@ struct TrackRow: View {
             Button { PlayerManager.shared.playNext([track]) } label: {
                 Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
+            // Sona Connect : lancer le titre sur un PC allumé.
+            ForEach(ConnectManager.shared.otherDevices.filter { $0.kind != "iphone" }) { device in
+                Button {
+                    Task { await ConnectManager.shared.play([track], on: device) }
+                } label: {
+                    Label("Écouter sur \(device.name)", systemImage: "laptopcomputer")
+                }
+            }
             Button { PlayerManager.shared.playLater([track]) } label: {
                 Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
             }

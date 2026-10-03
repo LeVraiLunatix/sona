@@ -357,7 +357,11 @@ panneaux translucides). En plus du site :
   en-tête) : le PC s'y inscrit tout seul et y reste, même éteint (on peut
   le renommer). Un appui dessus et l'iPhone le pilote, d'où qu'on soit
   (pas de QR code, pas besoin du même Wi-Fi) : lecture, position, volume,
-  j'aime, aléatoire, répéter, et sa file « À suivre » ;
+  j'aime, aléatoire, répéter, et sa file « À suivre ». Pendant qu'on le
+  pilote, l'écran verrouillé de l'iPhone montre le titre du PC (et ses
+  boutons le pilotent), les boutons de volume règlent le PC, un titre
+  touché se lance sur le PC, et Siri (« Pause Sona », « Titre suivant
+  Sona ») ou l'action « Piloter mon PC » (Raccourcis, bouton Action) aussi ;
 - **télécommande du téléphone**, à la Cider Remote : un QR code dans l'app,
   le téléphone le scanne et pilote le PC sur le Wi-Fi (pochette, paroles,
   file, recherche) ;

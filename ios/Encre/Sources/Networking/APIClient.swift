@@ -691,7 +691,7 @@ final class APIClient {
 
     func connectCommand(
         from deviceId: String, to target: String, action: String, position: Double? = nil, volume: Double? = nil,
-        index: Int? = nil
+        index: Int? = nil, queue: [Track]? = nil, name: String? = nil
     ) async throws {
         struct Body: Encodable {
             let device_id: String
@@ -700,9 +700,12 @@ final class APIClient {
             let position: Double?
             let volume: Double?
             let index: Int?
+            let queue: [Track]?
+            let name: String?
         }
         let data = try encode(Body(
-            device_id: deviceId, target: target, action: action, position: position, volume: volume, index: index
+            device_id: deviceId, target: target, action: action, position: position, volume: volume, index: index,
+            queue: queue, name: name
         ))
         try await sendNoContent(try request("/connect/command", method: "POST", bodyData: data))
     }

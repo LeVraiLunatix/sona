@@ -12,6 +12,7 @@ from app.api.state import ApiDeps
 from app.services import connect
 
 router = APIRouter(prefix="/connect", tags=["sona connect"])
+MAX_QUEUE = 150
 
 
 class PlaybackIn(BaseModel):
@@ -56,6 +57,9 @@ class CommandIn(BaseModel):
     position: float | None = Field(None, ge=0)
     volume: float | None = Field(None, ge=0, le=1)
     index: int | None = Field(None, ge=0, le=500)
+    # `play_tracks` : les titres à lancer sur l'appareil, et le nom de la liste.
+    queue: list[Track] | None = Field(None, min_length=1, max_length=MAX_QUEUE)
+    name: str | None = Field(None, max_length=200)
 
 
 @router.post("/sync")
@@ -77,8 +81,13 @@ async def sync(payload: SyncIn, deps: ApiDeps = Depends(require_token)) -> dict:
 
 @router.post("/command", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def send_command(payload: CommandIn, deps: ApiDeps = Depends(require_token)) -> None:
-    extra = {k: v for k, v in (("position", payload.position), ("volume", payload.volume), ("index", payload.index))
-             if v is not None}
+    extra = {k: v for k, v in (("position", payload.position), ("volume", payload.volume), ("index", payload.index),
+                               ("name", payload.name)) if v is not None}
+    if payload.action == "play_tracks":
+        if not payload.queue:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Aucun titre à lancer.")
+        extra["queue"] = [t.model_dump() for t in payload.queue]
+        extra["index"] = min(payload.index or 0, len(payload.queue) - 1)
     try:
         sent = connect.command(deps.user_id, payload.device_id, payload.target, payload.action, extra)
     except ValueError:
