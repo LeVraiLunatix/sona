@@ -536,6 +536,22 @@ ipcMain.handle("desktop:set", async (_e, key, value) => {
 
 ipcMain.handle("desktop:remote-info", () => remote.info());
 
+/** Page « État » : ce que l'app sait d'elle-même (télécommande, Stream Deck, Discord…). */
+ipcMain.handle("desktop:status", () => {
+  const clients = [...remote.clients].map((c) => ({ name: c.name, since: c.since }));
+  const iph = iphone.snapshot();
+  return {
+    version: app.getVersion(),
+    remote: { enabled: settings.get("remoteEnabled"), running: remote.running, port: remote.port, error: remote.error, clients },
+    streamDeck: clients.find((c) => c.name === "Stream Deck") || null,
+    discord: { ...discord.status(), configured: !!settings.get("discordClientId"), wanted: !!settings.get("discordEnabled") },
+    shortcuts: { count: Object.keys(settings.get("shortcuts") || {}).length, refused: shortcutsRefused },
+    overlay: !!overlay,
+    iphone: { available: iph.available !== false, devices: (iph.devices || []).length, apps: (iph.apps || []).length },
+    updates: updater.snapshot(),
+  };
+});
+
 // ── Onglet iPhone et mises à jour ─────────────────────────────────────
 
 ipcMain.handle("desktop:iphone", (_e, name, args) => iphone.action(String(name), args || {}));

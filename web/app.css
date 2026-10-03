@@ -571,6 +571,13 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .dev-vol { display: flex; align-items: center; gap: 10px; color: var(--text-3); margin: 4px 6px 12px; }
 .dev-vol input { flex: 1; }
 
+/* État de Sona */
+.st-row { display: grid; grid-template-columns: 12px 1fr; gap: 14px; align-items: center; }
+.st-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-3); }
+.st-dot.ok { background: #30d158; box-shadow: 0 0 0 3px rgba(48, 209, 88, .18); }
+.st-dot.warn { background: #ff9f0a; box-shadow: 0 0 0 3px rgba(255, 159, 10, .18); }
+.st-dot.bad { background: #ff453a; box-shadow: 0 0 0 3px rgba(255, 69, 58, .2); }
+
 .tabbar, .mhead, .mp, .ptr { display: none; }
 .muted { color: var(--text-2); }
 .center { text-align: center; justify-content: center; }

@@ -353,6 +353,9 @@ panneaux translucides). En plus du site :
 - **Sona Connect** : le PC apparaît sur l'iPhone, qui peut y envoyer la
   musique et le piloter, même fenêtre fermée (Sona reste dans la zone de
   notification) ;
+- **État de Sona** (Réglages → État de Sona) : serveur, lecture, Sona
+  Connect et, sur Windows, télécommande, Stream Deck, Discord, raccourcis,
+  paroles et iPhone — chacun en vert, orange ou rouge, avec la raison ;
 - **Appareils** (app iPhone : bouton en haut à gauche ; site : menu ou
   en-tête) : le PC s'y inscrit tout seul et y reste, même éteint (on peut
   le renommer). Un appui dessus et l'iPhone le pilote, d'où qu'on soit
