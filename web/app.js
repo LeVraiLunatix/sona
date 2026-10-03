@@ -1409,7 +1409,7 @@ async function toggleLike(t, button) {
     }
   } catch (e) { toast(e.message); return; }
   if (button) { button.classList.toggle("liked", !liked); button.innerHTML = !liked ? icons.heartFill : icons.heart; }
-  if (sameTrack(t, state.queue[state.index])) { renderTopbar(); renderNowPlaying(); }
+  if (sameTrack(t, state.queue[state.index])) { renderTopbar(); renderNowPlaying(); startConnect.now?.(); }
 }
 
 function refreshCurrentMarks() {
@@ -1470,8 +1470,8 @@ function renderTopbar() {
     if (act === "toggle") toggle();
     if (act === "prev") prev();
     if (act === "next") next();
-    if (act === "shuffle") { state.shuffle = !state.shuffle; renderTopbar(); }
-    if (act === "repeat") { state.repeat = !state.repeat; renderTopbar(); }
+    if (act === "shuffle") { state.shuffle = !state.shuffle; renderTopbar(); startConnect.now?.(); }
+    if (act === "repeat") { state.repeat = !state.repeat; renderTopbar(); startConnect.now?.(); }
     if (act === "like" && t) toggleLike(t);
     if (act === "open") openNowPlaying(state.npTab);
     if (act === "lyrics") openNowPlaying("lyrics", true);
@@ -2134,12 +2134,18 @@ function setControl(id) {
 function localState() {
   if (!state.queue.length || state.index < 0) return null;
   const start = Math.max(0, state.index - 20);
+  // Début de la fenêtre envoyée : « play_index » s'y rapporte.
+  state.connect.windowStart = start;
   const queue = state.queue.slice(start, start + 150).map((t) => ({
     source: t.source, source_id: t.source_id, title: t.title, artist: t.artist, album: t.album || null,
     duration_seconds: t.duration_seconds || null, cover_url: t.cover_url || null,
     artist_source_id: t.artist_source_id || null, album_source_id: t.album_source_id || null,
   }));
-  return { queue, index: state.index - start, position: audio.currentTime || 0, paused: audio.paused, volume: audio.volume, name: state.name || null };
+  const t = state.queue[state.index];
+  return {
+    queue, index: state.index - start, position: audio.currentTime || 0, paused: audio.paused, volume: audio.volume, name: state.name || null,
+    shuffle: state.shuffle, repeat: state.repeat ? "one" : "off", liked: t ? state.liked.has(trackKey(t)) : null,
+  };
 }
 
 async function connectSync(wait = 0) {
@@ -2225,6 +2231,15 @@ function runCommand(c) {
     case "seek": if (c.position != null) audio.currentTime = c.position; break;
     case "volume": if (c.volume != null) { audio.volume = c.volume; renderTopbar(); } break;
     case "transfer": playFrom(c.queue, c.index, c.position, c.name); if (c.from) toast(`Musique reprise ici depuis ${c.from}`); break;
+    // Télécommande complète (« Appareils » sur le téléphone).
+    case "shuffle": state.shuffle = !state.shuffle; renderTopbar(); startConnect.now?.(); break;
+    case "repeat": state.repeat = !state.repeat; renderTopbar(); startConnect.now?.(); break;
+    case "like": if (state.queue[state.index]) toggleLike(state.queue[state.index]).then(() => startConnect.now?.()); break;
+    case "play_index": {
+      const i = (state.connect.windowStart || 0) + (c.index ?? -1);
+      if (c.index != null && state.queue[i]) playAt(i);
+      break;
+    }
   }
 }
 
@@ -2359,7 +2374,7 @@ function renderDevices() {
 // liste même éteints ; allumés, un appui suffit pour les piloter, d'ici ou
 // de n'importe où (via Sona Connect, sans QR code ni même Wi-Fi commun).
 
-const devs = { saved: [], loaded: false, busy: false };
+const devs = { saved: [], loaded: false, busy: false, queue: null };
 
 async function viewDevices() {
   devs.saved = await api("/connect/saved").catch(() => devs.saved);
@@ -2367,7 +2382,7 @@ async function viewDevices() {
   startConnect.now?.();
   setTimeout(() => bindDevicesPage());
   return page(`<h1 class="page-title">Appareils</h1>
-    <p class="page-sub">Ajoute ton PC une fois : il reste ici. Touche-le pour le piloter, d'où que tu sois.</p>
+    <p class="page-sub">Tes PC restent ici, même éteints. Touche-en un pour le piloter, d'où que tu sois.</p>
     <div id="devices-root">${devicesBody()}</div>`);
 }
 
@@ -2377,7 +2392,8 @@ function devicesList() {
   const known = state.connect.receivedAt > 0;
   const saved = devs.saved.map((sv) => {
     const l = live.find((d) => d.id === sv.id && !d.is_me);
-    return l ? { ...sv, ...l, saved: true, online: true } : { ...sv, saved: true, online: known ? false : sv.online, playing: known ? false : sv.playing };
+    // Le nom enregistré (éventuellement renommé) passe avant celui de l'appareil.
+    return l ? { ...sv, ...l, name: sv.name, saved: true, online: true } : { ...sv, saved: true, online: known ? false : sv.online, playing: known ? false : sv.playing };
   });
   const ids = new Set(saved.map((d) => d.id));
   const others = live.filter((d) => !d.is_me && !ids.has(d.id)).map((d) => ({ ...d, online: true }));
@@ -2404,7 +2420,7 @@ function deviceRow(d) {
     <span class="dev-text"><b>${esc(d.name)}</b><small>${deviceStatus(d)}</small></span>
     ${d.saved
       ? `${chosen ? `<span class="dev-tag">${icons.check} Piloté</span>` : d.online ? `<span class="dev-go">Piloter</span>` : ""}
-         <button class="dev-more" data-dev-forget="${esc(d.id)}" aria-label="Oublier ${esc(d.name)}">${icons.trash}</button>`
+         <button class="dev-more" data-dev-menu="${esc(d.id)}" aria-label="Options de ${esc(d.name)}">${icons.more}</button>`
       : `<button class="btn small" data-dev-save="${esc(d.id)}">${icons.plus} Ajouter</button>`}
   </div>`;
 }
@@ -2429,18 +2445,87 @@ function deviceRemote(d) {
       <button class="big" data-dev-cmd="toggle" aria-label="Lecture/Pause" ${t ? "" : "disabled"}>${now.paused ? icons.play : icons.pause}</button>
       <button data-dev-cmd="next" aria-label="Suivant" ${t ? "" : "disabled"}>${icons.next}</button>
     </div>
+    ${t ? deviceOptions(d) : ""}
     <label class="dev-vol">${icons.speaker}<input type="range" class="slider" data-dev-vol min="0" max="1" step="0.02" value="${volume}" style="--p:${volume * 100}%" aria-label="Volume de ${esc(d.name)}"></label>
     <div class="pill-row center">
       ${t ? `<button class="btn ghost" data-dev-here>${isMobile() ? icons.phone : icons.laptop} Écouter ici</button>` : ""}
       ${sendable ? `<button class="btn" data-dev-send>Envoyer « ${esc(session.track.title)} » sur ${esc(d.name)}</button>` : ""}
     </div>
+    ${t ? deviceUpNext(d) : ""}
   </div>`;
+}
+
+/** J'aime, aléatoire, répéter — tels que l'appareil les donne (absents s'il ne les donne pas). */
+function deviceOptions(d) {
+  const opts = [
+    d.shuffle != null && `<button class="${d.shuffle ? "on" : ""}" data-dev-opt="shuffle" aria-label="Aléatoire">${icons.shuffle}</button>`,
+    d.liked != null && `<button class="${d.liked ? "on" : ""}" data-dev-opt="like" aria-label="J'aime">${d.liked ? icons.heartFill : icons.heart}</button>`,
+    d.repeat != null && `<button class="${d.repeat !== "off" ? "on" : ""}" data-dev-opt="repeat" aria-label="Répéter">${icons.repeat}</button>`,
+  ].filter(Boolean);
+  return opts.length ? `<div class="dev-opts">${opts.join("")}</div>` : "";
+}
+
+/** « À suivre » sur l'appareil : sa file, un appui lance le titre dessus. */
+function deviceUpNext(d) {
+  const q = devs.queue;
+  const key = `${d.id}:${trackKey(deviceNow(d).track || {})}`;
+  if (!q || q.key !== key) {
+    if (!devs.queueLoading || devs.queueLoading !== key) {
+      devs.queueLoading = key;
+      api(`/connect/devices/${encodeURIComponent(d.id)}/queue`)
+        .then((data) => { devs.queue = { key, data }; })
+        .catch(() => { devs.queue = { key, data: null }; })
+        .finally(() => { devs.queueLoading = null; renderDevicesPage(); });
+    }
+    return q?.data ? upNextHtml(d, q.data) : "";
+  }
+  return q.data ? upNextHtml(d, q.data) : "";
+}
+
+function upNextHtml(d, data) {
+  const next = (data.queue || []).map((t, i) => ({ t, i })).slice(data.index + 1, data.index + 9);
+  if (!next.length) return "";
+  return `<div class="dev-next"><h4>À suivre sur ${esc(d.name)}${data.name ? ` · ${esc(data.name)}` : ""}</h4>
+    ${next.map(({ t, i }) => `<button class="dev-next-row" data-dev-index="${i}">
+      <img src="${esc(big(t.cover_url, 120))}" alt="" loading="lazy"><span><b>${esc(t.title)}</b><small>${esc(t.artist)}</small></span></button>`).join("")}</div>`;
+}
+
+/** Options d'un appareil enregistré : le renommer, l'oublier. */
+function deviceMenu(id) {
+  const d = devs.saved.find((x) => x.id === id);
+  if (!d) return;
+  const wrap = openSheet(`<h2 class="sheet-title">${esc(d.name)}</h2>
+    <form class="ask" id="dev-rename">
+      <input class="field" name="name" maxlength="40" value="${esc(d.renamed ? d.name : "")}" placeholder="${esc(d.name)}" aria-label="Nom de l'appareil">
+      <p class="muted">Laisse vide pour reprendre le nom donné par l'appareil.</p>
+      <div class="pill-row"><button type="button" class="btn ghost" data-cancel>Annuler</button><button class="btn" type="submit">Renommer</button></div>
+    </form>
+    <button class="btn ghost danger wide" data-forget>${icons.trash} Oublier cet appareil</button>`);
+  const form = $("#dev-rename", wrap);
+  $("[data-cancel]", wrap).onclick = () => wrap.close();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const item = await api(`/connect/saved/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ name: form.name.value.trim() }) });
+      devs.saved = devs.saved.map((x) => (x.id === id ? item : x));
+      wrap.close();
+      renderDevicesPage();
+    } catch (err) { toast(err.message); }
+  };
+  $("[data-forget]", wrap).onclick = async () => {
+    wrap.close();
+    if (!(await confirmSheet(`Oublier ${d.name} ? Il ne reviendra pas tout seul : tu pourras l'ajouter de nouveau quand il sera allumé.`, "Oublier"))) return;
+    await api(`/connect/saved/${encodeURIComponent(id)}`, { method: "DELETE" }).catch((err) => toast(err.message));
+    devs.saved = devs.saved.filter((x) => x.id !== id);
+    if (state.connect.control === id) setControl(null);
+    renderDevicesPage();
+  };
 }
 
 function devicesBody() {
   const { saved, others } = devicesList();
   const chosen = chosenDevice();
-  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>Sona pour Windows</b> sur ton PC, connecté avec ce compte : il apparaît ici. Touche <b>Ajouter</b> pour le garder.</span></p>`;
+  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>Sona pour Windows</b> sur ton PC, connecté avec ce compte : il s'ajoute ici tout seul et y reste, même éteint. Les autres appareils (navigateur, iPhone) s'ajoutent avec <b>Ajouter</b>.</span></p>`;
   return `${chosen ? deviceRemote(chosen) : ""}
     <h3 class="set-head">Mes appareils</h3>
     ${saved.length ? `<div class="dev-list">${saved.map(deviceRow).join("")}</div>` : `<div class="dev-empty">Aucun appareil enregistré pour l'instant.</div>`}
@@ -2503,15 +2588,9 @@ function bindDevicesPage() {
       } catch (err) { toast(err.message); b.disabled = false; }
       return renderDevicesPage();
     }
-    if (el("[data-dev-forget]")) {
+    if (el("[data-dev-menu]")) {
       e.stopPropagation();
-      const id = el("[data-dev-forget]").dataset.devForget;
-      const d = devs.saved.find((x) => x.id === id);
-      if (!(await confirmSheet(`Oublier ${d?.name || "cet appareil"} ? Tu pourras l'ajouter de nouveau quand il sera allumé.`, "Oublier"))) return;
-      await api(`/connect/saved/${encodeURIComponent(id)}`, { method: "DELETE" }).catch((err) => toast(err.message));
-      devs.saved = devs.saved.filter((x) => x.id !== id);
-      if (state.connect.control === id) setControl(null);
-      return renderDevicesPage();
+      return deviceMenu(el("[data-dev-menu]").dataset.devMenu);
     }
     if (el("[data-dev-stop]")) { setControl(null); return renderDevicesPage(); }
     const target = chosenDevice();
@@ -2519,6 +2598,22 @@ function bindDevicesPage() {
       haptic();
       const cmd = el("[data-dev-cmd]").dataset.devCmd;
       return sendCommand(target.id, cmd === "toggle" ? (deviceNow(target).paused ? "play" : "pause") : cmd);
+    }
+    if (el("[data-dev-opt]") && target) {
+      haptic();
+      const opt = el("[data-dev-opt]").dataset.devOpt;
+      // Réponse immédiate à l'écran ; l'appareil confirme à son prochain relevé.
+      if (opt === "shuffle") { target.shuffle = !target.shuffle; devs.queue = null; }
+      if (opt === "like") target.liked = !target.liked;
+      if (opt === "repeat") target.repeat = target.repeat === "off" ? "one" : "off";
+      renderDevicesPage();
+      return sendCommand(target.id, opt);
+    }
+    if (el("[data-dev-index]") && target) {
+      haptic();
+      const index = Number(el("[data-dev-index]").dataset.devIndex);
+      devs.queue = null;
+      return sendCommand(target.id, "play_index", { index });
     }
     if (el("[data-dev-seek]") && target) {
       const dur = deviceNow(target).track?.duration_seconds;

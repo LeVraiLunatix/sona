@@ -1253,11 +1253,23 @@ struct ConnectDevice: Codable, Hashable, Identifiable {
     var volume: Double?
     /// Position dans son titre au relevé (chaque appareil a sa lecture).
     var position: Double?
+    /// Options de lecture de l'appareil (nil : il ne les donne pas).
+    var shuffle: Bool?
+    var repeatMode: String?
+    var liked: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, playing, track, volume, position
+        case id, name, kind, playing, track, volume, position, shuffle, liked
         case isMe = "is_me"
+        case repeatMode = "repeat"
     }
+}
+
+/// File d'attente d'un autre appareil (« À suivre » de la télécommande).
+struct ConnectQueue: Codable, Hashable {
+    var index: Int
+    var name: String?
+    var queue: [Track]
 }
 
 /// Appareil enregistré dans « Appareils » (PC…) : gardé sur le compte,
@@ -1272,9 +1284,11 @@ struct SavedDevice: Codable, Hashable, Identifiable {
     var volume: Double?
     var position: Double?
     var seenSeconds: Double?
+    /// Nom choisi dans « Appareils » (sinon celui que donne l'appareil).
+    var renamed: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, online, playing, track, volume, position
+        case id, name, kind, online, playing, track, volume, position, renamed
         case seenSeconds = "seen_seconds"
     }
 }
@@ -1327,6 +1341,13 @@ struct ConnectPlayback: Codable {
     var paused: Bool
     var volume: Double?
     var name: String?
+    var shuffle: Bool?
+    var repeatMode: String?
+
+    enum CodingKeys: String, CodingKey {
+        case queue, index, position, paused, volume, name, shuffle
+        case repeatMode = "repeat"
+    }
 }
 
 // MARK: - Santé de la lecture

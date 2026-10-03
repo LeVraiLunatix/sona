@@ -241,6 +241,10 @@ CREATE TABLE IF NOT EXISTS connect_saved (
     name TEXT NOT NULL,
     kind TEXT NOT NULL,
     saved_at TEXT NOT NULL,
+    -- Nom choisi par l'utilisateur (sinon celui que donne l'appareil).
+    label TEXT,
+    -- Oublié : plus listé, et un PC ne s'y réinscrit plus tout seul.
+    hidden INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, device_id)
 );
 

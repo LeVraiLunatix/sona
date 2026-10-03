@@ -729,20 +729,40 @@ class Repository:
 
     async def connect_saved(self, user_id: int) -> list[dict]:
         cursor = await self._db.conn.execute(
-            "SELECT device_id, name, kind, saved_at FROM connect_saved WHERE user_id=? ORDER BY saved_at", (user_id,)
+            """SELECT device_id, name, kind, saved_at, label FROM connect_saved
+               WHERE user_id=? AND hidden=0 ORDER BY saved_at""",
+            (user_id,),
         )
         return [dict(r) for r in await cursor.fetchall()]
 
     async def connect_save(self, user_id: int, device_id: str, name: str, kind: str) -> None:
         await self._db.conn.execute(
             """INSERT INTO connect_saved (user_id, device_id, name, kind, saved_at) VALUES (?, ?, ?, ?, ?)
-               ON CONFLICT (user_id, device_id) DO UPDATE SET name=excluded.name, kind=excluded.kind""",
+               ON CONFLICT (user_id, device_id) DO UPDATE SET name=excluded.name, kind=excluded.kind, hidden=0""",
             (user_id, device_id, name, kind, _now()),
         )
         await self._db.conn.commit()
 
+    async def connect_autosave(self, user_id: int, device_id: str, name: str, kind: str) -> None:
+        """Enregistre un appareil s'il ne l'est pas déjà — jamais un appareil oublié."""
+        await self._db.conn.execute(
+            """INSERT INTO connect_saved (user_id, device_id, name, kind, saved_at) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (user_id, device_id) DO UPDATE SET name=excluded.name""",
+            (user_id, device_id, name, kind, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def connect_rename(self, user_id: int, device_id: str, label: str | None) -> bool:
+        cursor = await self._db.conn.execute(
+            "UPDATE connect_saved SET label=? WHERE user_id=? AND device_id=? AND hidden=0", (label, user_id, device_id)
+        )
+        await self._db.conn.commit()
+        return cursor.rowcount > 0
+
     async def connect_forget(self, user_id: int, device_id: str) -> None:
-        await self._db.conn.execute("DELETE FROM connect_saved WHERE user_id=? AND device_id=?", (user_id, device_id))
+        await self._db.conn.execute(
+            "UPDATE connect_saved SET hidden=1, label=NULL WHERE user_id=? AND device_id=?", (user_id, device_id)
+        )
         await self._db.conn.commit()
 
     async def known_track(self, source: str, source_id: str) -> TrackInfo | None:

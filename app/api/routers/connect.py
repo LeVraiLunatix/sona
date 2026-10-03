@@ -21,6 +21,10 @@ class PlaybackIn(BaseModel):
     paused: bool = False
     volume: float | None = Field(None, ge=0, le=1)
     name: str | None = Field(None, max_length=200)
+    # Options de lecture, montrées et pilotées par la télécommande.
+    shuffle: bool | None = None
+    repeat: str | None = Field(None, pattern="^(off|all|one)$")
+    liked: bool | None = None
 
 
 class SyncIn(BaseModel):
@@ -40,16 +44,28 @@ class SaveIn(BaseModel):
     device_id: str = Field(min_length=6, max_length=64)
 
 
+class RenameIn(BaseModel):
+    # Vide : l'appareil reprend son propre nom.
+    name: str = Field("", max_length=40)
+
+
 class CommandIn(BaseModel):
     device_id: str = Field(min_length=6, max_length=64)
     target: str = Field(min_length=6, max_length=64)
     action: str
     position: float | None = Field(None, ge=0)
     volume: float | None = Field(None, ge=0, le=1)
+    index: int | None = Field(None, ge=0, le=500)
 
 
 @router.post("/sync")
 async def sync(payload: SyncIn, deps: ApiDeps = Depends(require_token)) -> dict:
+    # Sona pour Windows s'inscrit tout seul dans « Appareils » (sauf s'il y
+    # a été oublié) : rien à ajouter à la main pour le piloter du téléphone.
+    # Une seule écriture en base par PC, pas une à chaque relevé.
+    if payload.kind == "desktop" and (deps.user_id, payload.device_id) not in connect.autosaved:
+        await deps.repo.connect_autosave(deps.user_id, payload.device_id, payload.name, payload.kind)
+        connect.autosaved.add((deps.user_id, payload.device_id))
     state = None
     if payload.state is not None:
         state = payload.state.model_dump()
@@ -61,7 +77,8 @@ async def sync(payload: SyncIn, deps: ApiDeps = Depends(require_token)) -> dict:
 
 @router.post("/command", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def send_command(payload: CommandIn, deps: ApiDeps = Depends(require_token)) -> None:
-    extra = {k: v for k, v in (("position", payload.position), ("volume", payload.volume)) if v is not None}
+    extra = {k: v for k, v in (("position", payload.position), ("volume", payload.volume), ("index", payload.index))
+             if v is not None}
     try:
         sent = connect.command(deps.user_id, payload.device_id, payload.target, payload.action, extra)
     except ValueError:
@@ -77,10 +94,12 @@ def _saved_item(user_id: int, row: dict) -> dict:
     """Un appareil enregistré, avec sa lecture s'il est allumé."""
     live = connect.device_info(user_id, row["device_id"]) or {}
     return {
-        "id": row["device_id"], "name": live.get("name") or row["name"], "kind": live.get("kind") or row["kind"],
+        "id": row["device_id"], "name": row.get("label") or live.get("name") or row["name"],
+        "kind": live.get("kind") or row["kind"], "renamed": bool(row.get("label")),
         "saved_at": row["saved_at"], "online": bool(live.get("online")), "playing": bool(live.get("playing")),
         "track": live.get("track"), "volume": live.get("volume"), "position": live.get("position", 0),
-        "seen_seconds": live.get("seen_seconds"),
+        "seen_seconds": live.get("seen_seconds"), "shuffle": live.get("shuffle"), "repeat": live.get("repeat"),
+        "liked": live.get("liked"),
     }
 
 
@@ -108,3 +127,22 @@ async def save_device(payload: SaveIn, deps: ApiDeps = Depends(require_token)) -
 @router.delete("/saved/{device_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def forget_device(device_id: str, deps: ApiDeps = Depends(require_token)) -> None:
     await deps.repo.connect_forget(deps.user_id, device_id)
+
+
+@router.patch("/saved/{device_id}")
+async def rename_device(device_id: str, payload: RenameIn, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Renomme un appareil enregistré (nom vide : son propre nom)."""
+    label = payload.name.strip() or None
+    if not await deps.repo.connect_rename(deps.user_id, device_id, label):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Appareil inconnu.")
+    row = next(r for r in await deps.repo.connect_saved(deps.user_id) if r["device_id"] == device_id)
+    return _saved_item(deps.user_id, row)
+
+
+@router.get("/devices/{device_id}/queue")
+async def device_queue(device_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    """« À suivre » sur un autre appareil : sa file, pour y choisir un titre."""
+    queue = connect.device_queue(deps.user_id, device_id)
+    if queue is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cet appareil n'est plus connecté.")
+    return queue
