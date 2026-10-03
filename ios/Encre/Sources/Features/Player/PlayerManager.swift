@@ -157,7 +157,7 @@ final class PlayerManager: ObservableObject {
             guard let self else { return }
             self.analysisCache[track.id] = found
             // Titre en cours : volume égalisé dès que l'analyse arrive.
-            if self.crossfadeEnabled, self.current?.id == track.id, self.mixTask == nil, !self.isFadingIn,
+            if self.levelsVolume, self.current?.id == track.id, self.mixTask == nil, !self.isFadingIn,
                let player = self.player, player.volume > 0.99 {
                 player.volume = self.gain(for: track)
             }
@@ -166,13 +166,15 @@ final class PlayerManager: ObservableObject {
 
     /// Volume qui ramène le titre à la sonie visée (jamais au-dessus de 1).
     private func gain(for track: Track?) -> Float {
-        guard crossfadeEnabled, let loudness = analysis(of: track)?.loudness else { return 1 }
+        guard levelsVolume, let loudness = analysis(of: track)?.loudness else { return 1 }
         return Float(min(1, pow(10, (targetLoudness - loudness) / 20)))
     }
 
     /// Durée d'enchaînement : l'outro de A (4 à 12 s), arrondie à des
     /// mesures entières quand le tempo est connu.
     private func mixDuration(for track: Track, position: Double, end: Double) -> Double {
+        // Durée choisie dans les réglages : elle prime sur l'analyse.
+        if fadeSeconds > 0 { return max(1, min(fadeSeconds, end - position)) }
         var length = mixLength
         if analysis(of: track) != nil { length = min(12, max(4, end - position)) }
         if let bpm = bpm(of: track), bpm > 0 {
@@ -211,7 +213,9 @@ final class PlayerManager: ObservableObject {
         // Fin réelle (silence final ignoré) et moment où le titre retombe.
         let end = min(info?.end ?? duration, duration)
         // Pas plus de 16 s avant la fin : on coupe l'outro, pas le morceau.
-        let mixStart = info.map { max($0.mixOut, $0.end - 16, $0.start) } ?? (duration - mixLength)
+        let mixStart = fadeSeconds > 0
+            ? min(info?.end ?? duration, duration) - fadeSeconds
+            : info.map { max($0.mixOut, $0.end - 16, $0.start) } ?? (duration - mixLength)
         let canMix = !followsParty && repeatMode != .one && sleepTimer != .endOfTrack
         if canMix, let next = upNext.first, position < end {
             if mixIncoming != nil, mixIncomingTrack?.id != next.id, mixTask == nil { cancelMix() }
@@ -539,7 +543,27 @@ final class PlayerManager: ObservableObject {
     func toggleCrossfade() {
         crossfadeEnabled.toggle()
         UserDefaults.standard.set(crossfadeEnabled, forKey: "encre.crossfade")
-        if !crossfadeEnabled { player?.volume = 1 }
+        if !crossfadeEnabled { player?.volume = gain(for: current) }
+    }
+
+    /// Volume égalisé : tous les titres au même niveau sonore (la sonie
+    /// mesurée par le serveur), même sans AutoMix.
+    @Published private(set) var normalizeEnabled = UserDefaults.standard.bool(forKey: "encre.normalize")
+
+    func toggleNormalize() {
+        normalizeEnabled.toggle()
+        UserDefaults.standard.set(normalizeEnabled, forKey: "encre.normalize")
+        if let current { fetchAnalysis(current) }
+        if mixTask == nil, !isFadingIn { player?.volume = gain(for: current) }
+    }
+
+    /// AutoMix égalise toujours ; sinon, selon le réglage « Volume égalisé ».
+    private var levelsVolume: Bool { crossfadeEnabled || normalizeEnabled }
+
+    /// Durée du fondu de l'AutoMix, en secondes (0 : automatique, d'après
+    /// l'outro et le tempo du titre).
+    @Published var fadeSeconds: Double = UserDefaults.standard.double(forKey: "encre.fadeSeconds") {
+        didSet { UserDefaults.standard.set(fadeSeconds, forKey: "encre.fadeSeconds") }
     }
 
     /// Réordonne « Poursuivre la lecture » (glisser-déposer dans la file).
@@ -981,7 +1005,7 @@ final class PlayerManager: ObservableObject {
                 item = stems
                 stemsItem = stems
                 player = AVPlayer(playerItem: item)
-                player.volume = crossfadeEnabled ? 0 : 1
+                player.volume = crossfadeEnabled ? 0 : gain(for: track)
             } else {
                 let asset: AVURLAsset
                 if preferLocal, let local = DownloadManager.shared.localURL(for: track) {
@@ -996,9 +1020,9 @@ final class PlayerManager: ObservableObject {
                 // boutons physiques et le curseur du Centre de contrôle (voir
                 // `SystemVolumeView` dans `NowPlayingSheet`), pas un curseur
                 // interne à l'app désynchronisé du reste de l'iPhone.
-                player.volume = crossfadeEnabled ? 0 : 1
+                player.volume = crossfadeEnabled ? 0 : gain(for: track)
             }
-            if crossfadeEnabled { fetchAnalysis(track) }
+            if levelsVolume { fetchAnalysis(track) }
             prepareItem(item)
             self.player = player
             if singAlong { startSinging(track) }

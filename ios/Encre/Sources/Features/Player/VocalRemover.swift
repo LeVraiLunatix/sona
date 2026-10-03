@@ -133,6 +133,7 @@ struct EQPreset: Identifiable, Hashable {
         EQPreset(name: "Voix", gains: [-2, -1, 3, 4, 1]),
         EQPreset(name: "Soirée", gains: [5, 2, -1, 2, 4]),
         EQPreset(name: "Voiture", gains: [4, 1, 0, 2, 3]),
+        EQPreset(name: "Casque", gains: [3, 1, 0, 1, 2]),
         EQPreset(name: "Aigus", gains: [0, 0, 0, 3, 6]),
         EQPreset(name: "Doux", gains: [2, 1, 0, -2, -3]),
     ]

@@ -56,6 +56,7 @@ targets:
         NSMotionUsageDescription: Sona suit ta foulée en mode sport et reconnaît les gestes de la tête avec tes AirPods.
         # Live Activity de l'écoute ensemble (écran verrouillé, Dynamic Island).
         NSSupportsLiveActivities: true
+        NSAlarmKitUsageDescription: Sona te réveille en musique, à l'heure que tu choisis.
         # Liens `encre://` : ouverture depuis les widgets (blind test, récap…).
         CFBundleURLTypes:
           - CFBundleURLName: com.sona.encre

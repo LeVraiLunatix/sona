@@ -578,6 +578,16 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .st-dot.warn { background: #ff9f0a; box-shadow: 0 0 0 3px rgba(255, 159, 10, .18); }
 .st-dot.bad { background: #ff453a; box-shadow: 0 0 0 3px rgba(255, 69, 58, .2); }
 
+/* Son : égaliseur */
+.eq-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 18px; }
+.sound-sheet .eq-presets .chip.on { background: var(--accent); color: var(--on-accent, #fff); }
+.eq-bands { display: flex; justify-content: space-between; gap: 6px; height: 190px; margin: 0 4px 18px; }
+.eq-band { flex: 1; display: grid; grid-template-rows: 18px 1fr 18px; justify-items: center; align-items: center; font-size: 12px; color: var(--text-2); }
+.eq-band input { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 140px; accent-color: var(--accent); }
+.eq-band b { color: var(--text); font-weight: 600; }
+.eq-val { font-variant-numeric: tabular-nums; }
+.field.small { width: auto; height: 34px; margin: 0; font-size: 14px; padding: 0 10px; }
+
 .tabbar, .mhead, .mp, .ptr { display: none; }
 .muted { color: var(--text-2); }
 .center { text-align: center; justify-content: center; }

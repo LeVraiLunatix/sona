@@ -353,6 +353,12 @@ panneaux translucides). En plus du site :
 - **Sona Connect** : le PC apparaît sur l'iPhone, qui peut y envoyer la
   musique et le piloter, même fenêtre fermée (Sona reste dans la zone de
   notification) ;
+- **Son** (iPhone : lecteur › Son ; ordinateur : Réglages › Son) :
+  égaliseur 5 bandes avec préréglages (Basses, Voix, Voiture, Casque,
+  Soirée…), volume égalisé (tous les titres au même niveau), fondu entre
+  les titres ; sur ordinateur, Sona reprend au démarrage le dernier titre
+  à la seconde près. **Réveil musical** sur l'iPhone (vraie alarme, le mix
+  du jour qui monte doucement) ;
 - **État de Sona** (Réglages → État de Sona) : serveur, lecture, Sona
   Connect et, sur Windows, télécommande, Stream Deck, Discord, raccourcis,
   paroles et iPhone — chacun en vert, orange ou rouge, avec la raison ;

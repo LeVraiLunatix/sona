@@ -206,6 +206,7 @@ async function startApp() {
   }
   document.body.style.overflow = "";
   renderShell();
+  restoreResume();
   startConnect();
   loadSidebar();
   loadLiked();
@@ -2066,6 +2067,218 @@ audio.addEventListener("timeupdate", checkStemsDrift);
 audio.addEventListener("volumechange", () => {
   if (sing.playing) sing.playing.master.gain.setTargetAtTime(audio.volume, sing.ctx.currentTime, 0.02);
 });
+
+// ── Son : égaliseur, volume égalisé, fondu, reprise ─────────────────────
+// Sur ordinateur (site, Sona pour Windows). Pas sur iPhone : le traitement
+// audio du navigateur y coupe le son écran verrouillé — l'app iPhone a
+// tout cela, en natif.
+
+const EQ_BANDS = [60, 250, 1000, 4000, 12000];
+const EQ_LABELS = ["60", "250", "1k", "4k", "12k"];
+const EQ_PRESETS = [
+  ["Normal", [0, 0, 0, 0, 0]], ["Basses", [6, 3, 0, 0, 1]], ["Grosses basses", [9, 5, -1, 0, 2]], ["Voix", [-2, -1, 3, 4, 1]],
+  ["Soirée", [5, 2, -1, 2, 4]], ["Voiture", [4, 1, 0, 2, 3]], ["Casque", [3, 1, 0, 1, 2]], ["Aigus", [0, 0, 0, 3, 6]], ["Doux", [2, 1, 0, -2, -3]],
+];
+const TARGET_LOUDNESS = -10; // LUFS, comme l'app iPhone
+
+const sound = {
+  eq: (() => { try { const v = JSON.parse(store.get("sona.eq")); return Array.isArray(v) && v.length === 5 ? v.map(Number) : [0, 0, 0, 0, 0]; } catch { return [0, 0, 0, 0, 0]; } })(),
+  normalize: store.get("sona.normalize") === "1",
+  fade: Number(store.get("sona.fade")) || 0,
+  visual: false, // visualiseur ouvert (il lit le son analysé)
+  ctx: null, filters: [], level: null, fader: null, analyser: null,
+  loudness: new Map(), fadingOut: false, trackKey: "",
+};
+const soundAvailable = !isIOS;
+
+function soundWanted() {
+  return soundAvailable && (sound.eq.some((g) => Math.abs(g) > 0.05) || sound.normalize || sound.fade > 0 || sound.visual);
+}
+
+/** Branche le lecteur sur l'égaliseur (une fois, à la première option activée). */
+function ensureSound() {
+  if (sound.ctx || !soundWanted()) return sound.ctx;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Le flux doit être lu « en CORS » pour passer par l'égaliseur : le
+    // titre en cours est rechargé à la même seconde.
+    if (audio.crossOrigin !== "anonymous") {
+      audio.crossOrigin = "anonymous";
+      if (audio.src && !isSilence()) {
+        const position = audio.currentTime, playing = !audio.paused, src = audio.src;
+        audio.src = src;
+        audio.addEventListener("loadedmetadata", () => { audio.currentTime = position; if (playing) audio.play().catch(() => {}); }, { once: true });
+      }
+    }
+    const input = ctx.createMediaElementSource(audio);
+    sound.filters = EQ_BANDS.map((freq, i) => {
+      const f = ctx.createBiquadFilter();
+      f.type = i === 0 ? "lowshelf" : i === EQ_BANDS.length - 1 ? "highshelf" : "peaking";
+      f.frequency.value = freq;
+      f.Q.value = 1;
+      f.gain.value = sound.eq[i];
+      return f;
+    });
+    sound.level = ctx.createGain();
+    sound.fader = ctx.createGain();
+    sound.analyser = ctx.createAnalyser();
+    sound.analyser.fftSize = 512;
+    sound.analyser.smoothingTimeConstant = 0.78;
+    [input, ...sound.filters, sound.level, sound.fader, sound.analyser, ctx.destination].reduce((a, b) => (a.connect(b), b));
+    sound.ctx = ctx;
+    audio.addEventListener("play", () => { if (ctx.state === "suspended") ctx.resume(); });
+    if (!audio.paused) ctx.resume();
+    soundTrackChanged();
+  } catch (e) { console.warn("Égaliseur indisponible", e); }
+  return sound.ctx;
+}
+
+function setEq(gains) {
+  sound.eq = gains.map((g) => Math.max(-12, Math.min(12, Number(g) || 0)));
+  store.set("sona.eq", JSON.stringify(sound.eq));
+  ensureSound();
+  sound.filters.forEach((f, i) => f.gain.setTargetAtTime(sound.eq[i], sound.ctx.currentTime, 0.05));
+}
+
+function setNormalize(on) {
+  sound.normalize = !!on;
+  store.set("sona.normalize", on ? "1" : null);
+  ensureSound();
+  soundTrackChanged();
+}
+
+function setFade(seconds) {
+  sound.fade = Math.max(0, Math.min(12, Number(seconds) || 0));
+  store.set("sona.fade", sound.fade ? String(sound.fade) : null);
+  ensureSound();
+}
+
+/** Nouveau titre : sonie (volume égalisé) et fondu d'entrée. */
+async function soundTrackChanged() {
+  const t = state.queue[state.index];
+  if (!sound.ctx || !t || isSilence()) return;
+  const key = trackKey(t);
+  const now = sound.ctx.currentTime;
+  if (key !== sound.trackKey) {
+    sound.trackKey = key;
+    sound.fadingOut = false;
+    sound.fader.gain.cancelScheduledValues(now);
+    if (sound.fade > 0 && audio.currentTime < 1) {
+      sound.fader.gain.setValueAtTime(0, now);
+      sound.fader.gain.linearRampToValueAtTime(1, now + Math.min(sound.fade, 6));
+    } else sound.fader.gain.setValueAtTime(1, now);
+  }
+  let gain = 1;
+  if (sound.normalize) {
+    if (!sound.loudness.has(key)) {
+      sound.loudness.set(key, null);
+      const found = await api(`/analysis/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}`).catch(() => null);
+      if (found?.loudness != null) sound.loudness.set(key, found.loudness);
+      else sound.loudness.delete(key); // pas encore analysé : on redemandera
+    }
+    const loudness = sound.loudness.get(key);
+    if (loudness != null) gain = Math.min(1, Math.pow(10, (TARGET_LOUDNESS - loudness) / 20));
+  }
+  if (sound.trackKey === key) sound.level.gain.setTargetAtTime(gain, sound.ctx.currentTime, 0.3);
+}
+
+/** Fondu de sortie : les dernières secondes du titre. */
+function soundTick() {
+  if (!sound.ctx || !(sound.fade > 0) || isSilence()) return;
+  const dur = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
+  if (!dur) return;
+  const remaining = dur - audio.currentTime;
+  const now = sound.ctx.currentTime;
+  if (!sound.fadingOut && remaining > 0.2 && remaining <= sound.fade && !state.repeat) {
+    sound.fadingOut = true;
+    sound.fader.gain.cancelScheduledValues(now);
+    sound.fader.gain.setValueAtTime(sound.fader.gain.value, now);
+    sound.fader.gain.linearRampToValueAtTime(0.0001, now + remaining);
+  } else if (sound.fadingOut && remaining > sound.fade + 0.5) {
+    // Retour en arrière : le son revient.
+    sound.fadingOut = false;
+    sound.fader.gain.cancelScheduledValues(now);
+    sound.fader.gain.setTargetAtTime(1, now, 0.1);
+  }
+}
+
+audio.addEventListener("loadedmetadata", () => soundTrackChanged());
+audio.addEventListener("timeupdate", soundTick);
+// Options activées à une visite précédente : le lecteur passe par
+// l'égaliseur dès le premier titre (lecture « en CORS » d'emblée).
+if (soundWanted()) audio.crossOrigin = "anonymous";
+document.addEventListener("pointerdown", () => ensureSound(), { once: true });
+
+/** Feuille « Son » : égaliseur, volume égalisé, fondu. */
+function soundSheet() {
+  if (!soundAvailable) return toast("Sur iPhone, ces réglages sont dans l'app Sona");
+  const wrap = openSheet(`<h2 class="sheet-title">Son</h2>
+    <div class="eq-presets">${EQ_PRESETS.map(([name, gains]) => `<button class="chip" data-eq-preset="${esc(name)}">${esc(name)}</button>`).join("")}</div>
+    <div class="eq-bands">${EQ_BANDS.map((_, i) => `<label class="eq-band"><span class="eq-val" id="eq-val-${i}"></span>
+      <input type="range" min="-12" max="12" step="1" value="${sound.eq[i]}" data-eq="${i}" aria-label="${EQ_LABELS[i]} Hz"><b>${EQ_LABELS[i]}</b></label>`).join("")}</div>
+    <div class="set-group">
+      ${toggleRow("snd-normalize", "Volume égalisé", "Tous les titres au même niveau sonore.", sound.normalize)}
+      <label class="set-row"><span class="set-text"><b>Fondu entre les titres</b><small>Le titre s'efface en douceur, le suivant arrive en fondu.</small></span>
+        <select class="field small" data-fade>${[0, 2, 4, 6, 8, 10, 12].map((v) => `<option value="${v}" ${sound.fade === v ? "selected" : ""}>${v ? `${v} s` : "Aucun"}</option>`).join("")}</select></label>
+    </div>`, { cls: "sound-sheet" });
+  const paint = () => {
+    $$("[data-eq]", wrap).forEach((input) => {
+      const i = Number(input.dataset.eq);
+      input.value = sound.eq[i];
+      $(`#eq-val-${i}`, wrap).textContent = `${sound.eq[i] > 0 ? "+" : ""}${sound.eq[i]}`;
+    });
+    $$("[data-eq-preset]", wrap).forEach((b) => b.classList.toggle("on", JSON.stringify(EQ_PRESETS.find(([n]) => n === b.dataset.eqPreset)[1]) === JSON.stringify(sound.eq)));
+  };
+  wrap.addEventListener("input", (e) => {
+    if (!e.target.matches("[data-eq]")) return;
+    const gains = [...sound.eq];
+    gains[Number(e.target.dataset.eq)] = Number(e.target.value);
+    setEq(gains);
+    paint();
+  });
+  $$("[data-eq-preset]", wrap).forEach((b) => (b.onclick = () => { setEq(EQ_PRESETS.find(([n]) => n === b.dataset.eqPreset)[1]); paint(); }));
+  $('[data-setting="snd-normalize"]', wrap).onchange = (e) => setNormalize(e.target.checked);
+  $("[data-fade]", wrap).onchange = (e) => setFade(e.target.value);
+  paint();
+}
+
+// Reprise : la file, le titre et la seconde, d'une visite à l'autre.
+let resumeSavedAt = 0;
+function saveResume(force = false) {
+  if (!state.queue.length || state.index < 0 || isSilence() || partyGuest()) return;
+  if (!force && Date.now() - resumeSavedAt < 5000) return;
+  resumeSavedAt = Date.now();
+  const start = Math.max(0, state.index - 20);
+  store.set("sona.resume", JSON.stringify({
+    queue: state.queue.slice(start, start + 150).map(cleanTrack), index: state.index - start,
+    position: Math.floor(audio.currentTime || 0), name: state.name || "", at: Date.now(),
+  }));
+}
+audio.addEventListener("timeupdate", () => saveResume());
+audio.addEventListener("pause", () => saveResume(true));
+window.addEventListener("pagehide", () => saveResume(true));
+
+/** Au démarrage : le dernier titre, en pause, prêt à repartir où on l'avait laissé. */
+function restoreResume() {
+  if (state.queue.length) return;
+  let saved = null;
+  try { saved = JSON.parse(store.get("sona.resume")); } catch {}
+  if (!saved?.queue?.length || Date.now() - (saved.at || 0) > 14 * 86400e3) return;
+  const t = saved.queue[saved.index];
+  if (!t) return;
+  state.queue = saved.queue;
+  state.index = saved.index;
+  state.name = saved.name || "";
+  audio.preload = "metadata";
+  audio.src = `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
+  if (saved.position > 1) audio.addEventListener("loadedmetadata", () => { audio.currentTime = saved.position; }, { once: true });
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album || "",
+      artwork: t.cover_url ? [{ src: big(t.cover_url, 512), sizes: "512x512", type: "image/jpeg" }] : [] });
+  }
+  renderTopbar();
+  loadLyrics(t);
+}
 
 // ── Sona Connect ─────────────────────────────────────────────────────────
 // Un seul lecteur pour tous tes appareils : reprendre ici ce qui jouait sur
@@ -4331,6 +4544,7 @@ async function viewSettings() {
     <h3 class="set-head">Appli</h3><div class="set-group">
       ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
         : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
+      ${soundAvailable ? linkRow("data-sound", icons.wave, "Son", "Égaliseur, volume égalisé, fondu entre les titres") : ""}
       ${linkRow('href="#/devices"', icons.devices, "Appareils", "Tes PC enregistrés, à piloter d'un appui")}
       ${linkRow('href="#/status"', icons.pulse, "État de Sona", "Serveur, Sona Connect, télécommande, Stream Deck…")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
@@ -4397,6 +4611,7 @@ function bindSettings() {
     await api("/history", { method: "DELETE" }).then(() => toast("Historique effacé")).catch((e) => toast(e.message));
   });
   $("[data-install-app]")?.addEventListener("click", installApp);
+  $("[data-sound]")?.addEventListener("click", soundSheet);
   if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
