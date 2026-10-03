@@ -80,7 +80,8 @@ const state = {
   npOpen: false, npTab: "lyrics", smart: [], playlists: [], settings: null,
   // Radio en cours (station Deezer, radio DJ…) : la file se remplit toute seule.
   station: null,
-  connect: { devices: [], session: null, active: null, receivedAt: 0, claim: false, open: false },
+  // `control` : l'appareil choisi dans « Appareils » pour le piloter.
+  connect: { devices: [], session: null, active: null, receivedAt: 0, claim: false, open: false, control: store.get("sona.control") || null },
 };
 
 async function api(path, options = {}) {
@@ -363,6 +364,7 @@ const SIDE_NAV = [
   ["library", "Bibliothèque", icons.library],
   ["friends", "Amis", icons.friends],
   ["stats", "Stats", icons.stats],
+  ["devices", "Appareils", icons.devices],
 ];
 const SIDE_MORE = [
   ["radios", "Radios", icons.radio],
@@ -540,7 +542,7 @@ async function route() {
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
     stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
     blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
-    settings: viewSettings, admin: viewAdmin, health: viewHealth,
+    settings: viewSettings, admin: viewAdmin, health: viewHealth, devices: viewDevices,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -575,11 +577,12 @@ function renderHeader(parts, isRoot) {
   head.className = "mhead";
   head.innerHTML = `<div class="mh-left">${isRoot ? "" : `<button class="mh-back" data-mh="back">${icons.left}<span>${esc(backLabel.length > 14 ? "Retour" : backLabel)}</span></button>`}</div>
     <div class="mh-title"></div>
-    <div class="mh-right">${parts[0] === "settings" ? "" : `<button class="mh-btn" data-mh="settings" aria-label="Réglages">${icons.gear}</button>`}</div>`;
+    <div class="mh-right">${parts[0] === "devices" ? "" : `<button class="mh-btn ${chosenDevice() ? "on" : ""}" data-mh="devices" aria-label="Appareils">${icons.devices}</button>`}${parts[0] === "settings" ? "" : `<button class="mh-btn" data-mh="settings" aria-label="Réglages">${icons.gear}</button>`}</div>`;
   head.onclick = (e) => {
     const act = e.target.closest("[data-mh]")?.dataset.mh;
     if (act === "back") goBack();
     if (act === "settings") go("#/settings");
+    if (act === "devices") go("#/devices");
   };
 }
 
@@ -1386,7 +1389,7 @@ function toggle() {
   const remote = remoteDevice();
   // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs appuis
   // rapprochés ne s'annulent pas.
-  if (remote) return sendCommand(remote.id, state.connect.session?.paused ? "play" : "pause");
+  if (remote) return sendCommand(remote.id, deviceNow(remote).paused ? "play" : "pause");
   if (!audio.src) return state.connect.session ? resumeHere() : null;
   if (audio.paused) { state.connect.claim = true; audio.play(); } else audio.pause();
 }
@@ -1429,9 +1432,10 @@ function renderTopbar() {
   const bar = $("#topbar");
   if (!bar) return;
   const remote = remoteDevice();
-  const t = remote ? state.connect.session?.track : state.queue[state.index];
+  const rnow = deviceNow(remote);
+  const t = remote ? rnow.track : state.queue[state.index];
   const liked = t && state.liked.has(`${t.source}:${t.source_id}`);
-  const playingIcon = remote ? (state.connect.session?.paused ? icons.play : icons.pause) : audio.paused ? icons.play : icons.pause;
+  const playingIcon = remote ? (rnow.paused ? icons.play : icons.pause) : audio.paused ? icons.play : icons.pause;
   const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : audio.volume;
   bar.innerHTML = `
     <div class="transport">
@@ -1506,10 +1510,11 @@ function renderMini() {
   const mp = $("#mp");
   if (!mp) return;
   const remote = remoteDevice();
-  const t = remote ? state.connect.session?.track : state.queue[state.index];
+  const rnow = deviceNow(remote);
+  const t = remote ? rnow.track : state.queue[state.index];
   document.body.classList.toggle("has-mini", !!t);
   if (!t) { mp.innerHTML = ""; return; }
-  const paused = remote ? state.connect.session?.paused : audio.paused;
+  const paused = remote ? rnow.paused : audio.paused;
   mp.innerHTML = `<div class="mp-inner" data-mp="open">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
@@ -1521,16 +1526,17 @@ function renderMini() {
     const act = e.target.closest("[data-mp]")?.dataset.mp;
     if (act === "toggle") { e.stopPropagation(); haptic(); toggle(); }
     else if (act === "next") { e.stopPropagation(); haptic(); next(); }
-    else if (act === "open") remote ? toggleDevices() : openNowPlaying("art");
+    else if (act === "open") remote ? (chosenDevice() ? go("#/devices") : toggleDevices()) : openNowPlaying("art");
   };
 }
 
 function updateProgress() {
   const remote = remoteDevice();
+  updateDevicesProgress();
   if (remote) {
-    const session = state.connect.session;
-    const dur = session?.track?.duration_seconds || 0;
-    const pctRemote = dur ? `${Math.min(100, (remotePosition() / dur) * 100)}%` : "0%";
+    const rnow = deviceNow(remote);
+    const dur = rnow.track?.duration_seconds || 0;
+    const pctRemote = dur ? `${Math.min(100, (rnow.position / dur) * 100)}%` : "0%";
     const fill = $("#lcd-fill");
     if (fill) fill.style.width = pctRemote;
     const mini = $("#mp-fill");
@@ -2082,12 +2088,21 @@ function deviceName() {
 
 const otherDevices = () => state.connect.devices.filter((d) => !d.is_me);
 
-/** L'appareil de la dernière lecture du compte, quand rien ne joue ici —
-    qu'il joue ou soit en pause : les commandes du lecteur (lecture,
-    suivant…) le pilotent à distance. */
+/** L'appareil choisi dans « Appareils » s'il est allumé (pas celui-ci). */
+function chosenDevice() {
+  const id = state.connect.control;
+  return (id && state.connect.devices.find((d) => d.id === id && !d.is_me)) || null;
+}
+
+/** L'appareil piloté par le lecteur quand rien ne joue ici : celui choisi
+    dans « Appareils », sinon celui de la dernière lecture du compte — qu'il
+    joue ou soit en pause : lecture, suivant… le pilotent à distance. */
 function remoteDevice() {
+  if (audio.src && !audio.paused) return null;
+  const chosen = chosenDevice();
+  if (chosen) return chosen;
   const { session, devices } = state.connect;
-  if (!session || session.device_id === deviceId || (audio.src && !audio.paused)) return null;
+  if (!session || session.device_id === deviceId) return null;
   return devices.find((d) => d.id === session.device_id && !d.is_me) || null;
 }
 
@@ -2096,6 +2111,24 @@ function remotePosition() {
   if (!session) return 0;
   const drift = session.paused ? 0 : (Date.now() - state.connect.receivedAt) / 1000;
   return session.position + drift;
+}
+
+/** Ce que joue un autre appareil : titre, pause, position (qui avance). */
+function deviceNow(d) {
+  if (!d) return { track: null, paused: true, position: 0 };
+  const session = state.connect.session;
+  if (session && session.device_id === d.id) return { track: session.track, paused: !!session.paused, position: remotePosition() };
+  const drift = d.playing ? (Date.now() - state.connect.receivedAt) / 1000 : 0;
+  const dur = d.track?.duration_seconds || 0;
+  const position = (d.position || 0) + drift;
+  return { track: d.track || null, paused: !d.playing, position: dur ? Math.min(position, dur) : position };
+}
+
+/** Choisit l'appareil à piloter (null : plus aucun). Gardé d'une visite à l'autre. */
+function setControl(id) {
+  state.connect.control = id || null;
+  store.set("sona.control", id || null);
+  renderTopbar();
 }
 
 function localState() {
@@ -2123,14 +2156,19 @@ async function connectSync(wait = 0) {
   // Lecture/pause demandée à l'instant : on garde l'état voulu le temps que
   // l'autre appareil le confirme (une réponse partie avant ne l'annule pas).
   const expected = state.connect.expected;
-  if (expected && data.session) {
-    if (Date.now() > expected.until || data.session.paused === expected.paused) state.connect.expected = null;
-    else data.session.paused = expected.paused;
+  if (expected) {
+    const dev = data.devices.find((d) => d.id === expected.target);
+    const confirmed = dev ? dev.playing === !expected.paused : data.session?.paused === expected.paused;
+    if (Date.now() > expected.until || confirmed) state.connect.expected = null;
+    else {
+      if (data.session?.device_id === expected.target) data.session.paused = expected.paused;
+      if (dev) dev.playing = !expected.paused;
+    }
   }
   Object.assign(state.connect, { devices: data.devices, session: data.session, active: data.active_device_id, receivedAt: Date.now() });
   for (const command of data.commands || []) runCommand(command);
   // Pas de rafraîchissement pendant qu'on fait glisser un curseur de volume.
-  const dragging = document.activeElement?.matches?.('#vol, input[data-dc="volume"]') && state.connect.pointerDown;
+  const dragging = document.activeElement?.matches?.('#vol, input[data-dc="volume"], input[data-dev-vol]') && state.connect.pointerDown;
   if (!dragging && (wasRemote !== remoteDevice()?.id || remoteDevice())) renderTopbar();
   const resume = $("#resume");
   if (resume) {
@@ -2138,6 +2176,7 @@ async function connectSync(wait = 0) {
     if (resume.innerHTML !== html) resume.innerHTML = html;
   }
   if (state.connect.open && !dragging) renderDevices();
+  if (!dragging) renderDevicesPage();
   return true;
 }
 
@@ -2159,6 +2198,8 @@ function startConnect() {
   const report = () => { clearTimeout(pending); pending = setTimeout(() => connectSync(0), 150); };
   document.addEventListener("visibilitychange", () => !document.hidden && report());
   audio.addEventListener("play", report);
+  // Lecture lancée ici : on ne pilote plus un autre appareil.
+  audio.addEventListener("play", () => { if (state.connect.control) setControl(null); });
   audio.addEventListener("pause", report);
   audio.addEventListener("seeked", report);
   startConnect.now = report;
@@ -2208,13 +2249,17 @@ function resumeHere() {
 async function sendCommand(target, action, extra = {}) {
   // Réponse immédiate à l'écran, confirmée par le serveur juste après.
   const session = state.connect.session;
-  if ((action === "toggle" || action === "play" || action === "pause") && session && session.device_id === target) {
-    session.position = remotePosition();
-    session.paused = action === "toggle" ? !session.paused : action === "pause";
+  const dev = state.connect.devices.find((d) => d.id === target);
+  if ((action === "toggle" || action === "play" || action === "pause") && (dev || session?.device_id === target)) {
+    const now = deviceNow(dev || { id: target });
+    const paused = action === "toggle" ? !now.paused : action === "pause";
+    if (session?.device_id === target) { session.position = remotePosition(); session.paused = paused; }
+    if (dev) { dev.position = now.position; dev.playing = !paused; }
     state.connect.receivedAt = Date.now();
-    state.connect.expected = { paused: session.paused, until: Date.now() + 4000 };
+    state.connect.expected = { target, paused, until: Date.now() + 4000 };
     renderTopbar();
     if (state.connect.open) renderDevices();
+    renderDevicesPage();
   }
   try {
     await api("/connect/command", { method: "POST", body: JSON.stringify({ device_id: deviceId, target, action, ...extra }) });
@@ -2276,11 +2321,12 @@ function renderDevices() {
   const devices = state.connect.devices.length ? state.connect.devices : [{ id: deviceId, name: deviceName(), kind: desktop ? "desktop" : "web", is_me: true }];
   const remote = remoteDevice();
   const session = state.connect.session;
+  const rnow = deviceNow(remote);
   pop.innerHTML = `<div class="dp-head">Sona Connect</div>
-    ${remote && session ? `<div class="dp-remote">
-      <img src="${esc(big(session.track.cover_url, 120))}" alt="">
-      <div style="min-width:0"><div class="t">${esc(session.track.title)}</div><div class="s">${esc(session.track.artist)}</div></div>
-      <div class="dp-ctl"><button data-dc="previous">${icons.prev}</button><button data-dc="toggle">${session.paused ? icons.play : icons.pause}</button><button data-dc="next">${icons.next}</button></div>
+    ${remote && rnow.track ? `<div class="dp-remote">
+      <img src="${esc(big(rnow.track.cover_url, 120))}" alt="">
+      <div style="min-width:0"><div class="t">${esc(rnow.track.title)}</div><div class="s">${esc(rnow.track.artist)}</div></div>
+      <div class="dp-ctl"><button data-dc="previous">${icons.prev}</button><button data-dc="toggle">${rnow.paused ? icons.play : icons.pause}</button><button data-dc="next">${icons.next}</button></div>
       <input type="range" class="slider" data-dc="volume" min="0" max="1" step="0.05" value="${remote.volume ?? 1}" style="--p:${(remote.volume ?? 1) * 100}%" aria-label="Volume à distance">
     </div>` : ""}
     ${devices.map((d) => `<button class="dp-device ${d.playing ? "playing" : ""}" data-device="${esc(d.id)}">
@@ -2289,13 +2335,16 @@ function renderDevices() {
         <span class="st">${d.playing ? `${bars()} ${esc(d.track?.title || "En lecture")}` : d.is_me ? esc(d.name) : "Connecté"}</span></span>
       <span class="go">${d.is_me ? (remote || (session && !audio.src) ? "Écouter ici" : "") : "Écouter dessus"}</span></button>`).join("")}
     ${devices.length < 2 ? `<p class="dp-hint">Ouvre Sona sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}
+    <a class="dp-device" href="#/devices" data-dp-all><span class="dp-icon">${icons.devices}</span><span style="min-width:0"><span class="n">Mes appareils</span>
+      <span class="st">Tes PC enregistrés, à piloter d'un appui</span></span><span class="go">${icons.right}</span></a>
     <button class="dp-device" data-cast><span class="dp-icon">${icons.tv}</span><span style="min-width:0"><span class="n">TV ou PS5</span>
       <span class="st">${cast.screen ? `Diffusion sur ${esc(cast.screen.name)}` : "Via l'appli YouTube de l'écran"}</span></span><span class="go">${cast.screen ? "Télécommande" : "Choisir"}</span></button>`;
   $("[data-cast]", pop).onclick = () => { closeDevices(); openCast(); };
+  $("[data-dp-all]", pop).onclick = () => closeDevices();
   $$("[data-device]", pop).forEach((b) => (b.onclick = () => listenOn(devices.find((d) => d.id === b.dataset.device))));
   $$("button[data-dc]", pop).forEach((b) => (b.onclick = () => {
     if (!remote) return;
-    const action = b.dataset.dc === "toggle" ? (state.connect.session?.paused ? "play" : "pause") : b.dataset.dc;
+    const action = b.dataset.dc === "toggle" ? (deviceNow(remote).paused ? "play" : "pause") : b.dataset.dc;
     sendCommand(remote.id, action);
   }));
   const vol = $('input[data-dc="volume"]', pop);
@@ -2303,6 +2352,211 @@ function renderDevices() {
   const anchor = $('.right-tools [data-act="devices"]')?.getBoundingClientRect();
   if (!isMobile() && anchor && anchor.width) { pop.style.top = `${anchor.bottom + 8}px`; pop.style.right = `${Math.max(12, innerWidth - anchor.right - 8)}px`; }
   else { pop.style.top = ""; pop.style.right = ""; }
+}
+
+// ── Appareils : tes PC enregistrés, pilotés d'un appui ───────────────────
+// Enregistrés sur le compte (pas sur ce téléphone) : ils restent dans la
+// liste même éteints ; allumés, un appui suffit pour les piloter, d'ici ou
+// de n'importe où (via Sona Connect, sans QR code ni même Wi-Fi commun).
+
+const devs = { saved: [], loaded: false, busy: false };
+
+async function viewDevices() {
+  devs.saved = await api("/connect/saved").catch(() => devs.saved);
+  devs.loaded = true;
+  startConnect.now?.();
+  setTimeout(() => bindDevicesPage());
+  return page(`<h1 class="page-title">Appareils</h1>
+    <p class="page-sub">Ajoute ton PC une fois : il reste ici. Touche-le pour le piloter, d'où que tu sois.</p>
+    <div id="devices-root">${devicesBody()}</div>`);
+}
+
+/** Les appareils enregistrés, avec ce qu'ils jouent s'ils sont allumés. */
+function devicesList() {
+  const live = state.connect.devices;
+  const known = state.connect.receivedAt > 0;
+  const saved = devs.saved.map((sv) => {
+    const l = live.find((d) => d.id === sv.id && !d.is_me);
+    return l ? { ...sv, ...l, saved: true, online: true } : { ...sv, saved: true, online: known ? false : sv.online, playing: known ? false : sv.playing };
+  });
+  const ids = new Set(saved.map((d) => d.id));
+  const others = live.filter((d) => !d.is_me && !ids.has(d.id)).map((d) => ({ ...d, online: true }));
+  return { saved, others };
+}
+
+const deviceIcon = (d) => (d.kind === "iphone" ? icons.phone : icons.laptop);
+
+function deviceStatus(d) {
+  if (!d.online) {
+    const seen = d.seen_seconds != null ? ` · vu ${since(new Date(Date.now() - d.seen_seconds * 1000).toISOString())}` : "";
+    return `Éteint${seen}`;
+  }
+  const now = deviceNow(d);
+  if (now.track && !now.paused) return `<span class="bars"><i></i><i></i><i></i></span> ${esc(now.track.title)}`;
+  if (now.track) return `En pause · ${esc(now.track.title)}`;
+  return "Allumé · rien en lecture";
+}
+
+function deviceRow(d) {
+  const chosen = state.connect.control === d.id && d.online;
+  return `<div class="dev-row ${d.online ? "" : "off"} ${chosen ? "chosen" : ""}" data-dev-pick="${esc(d.id)}" role="button" tabindex="0">
+    <span class="dev-icon">${deviceIcon(d)}</span>
+    <span class="dev-text"><b>${esc(d.name)}</b><small>${deviceStatus(d)}</small></span>
+    ${d.saved
+      ? `${chosen ? `<span class="dev-tag">${icons.check} Piloté</span>` : d.online ? `<span class="dev-go">Piloter</span>` : ""}
+         <button class="dev-more" data-dev-forget="${esc(d.id)}" aria-label="Oublier ${esc(d.name)}">${icons.trash}</button>`
+      : `<button class="btn small" data-dev-save="${esc(d.id)}">${icons.plus} Ajouter</button>`}
+  </div>`;
+}
+
+/** Télécommande de l'appareil choisi : pochette, commandes, volume. */
+function deviceRemote(d) {
+  const now = deviceNow(d);
+  const t = now.track;
+  const session = state.connect.session;
+  const sendable = session && session.device_id !== d.id && session.track;
+  const volume = state.connect.pendingVolume ?? d.volume ?? 1;
+  return `<div class="dev-remote">
+    <div class="dev-remote-head"><span class="dev-badge">${deviceIcon(d)} ${esc(d.name)}</span>
+      <button class="dev-stop" data-dev-stop>Ne plus piloter</button></div>
+    ${t ? `<div class="dev-now"><img class="dev-art ${now.paused ? "paused" : ""}" src="${esc(big(t.cover_url, 600))}" alt="">
+        <div class="dev-meta"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div>
+        <div class="dev-progress" data-dev-seek><div class="fill" id="dev-fill"></div></div>
+        <div class="dev-times"><span id="dev-cur">${fmt(now.position)}</span><span id="dev-rem">-${fmt(Math.max(0, (t.duration_seconds || 0) - now.position))}</span></div></div>`
+      : `<div class="dev-idle">${icons.note}<b>Rien en lecture sur ${esc(d.name)}</b><small>Envoie-lui ta musique, ou lance un titre sur le PC.</small></div>`}
+    <div class="dev-ctl">
+      <button data-dev-cmd="previous" aria-label="Précédent" ${t ? "" : "disabled"}>${icons.prev}</button>
+      <button class="big" data-dev-cmd="toggle" aria-label="Lecture/Pause" ${t ? "" : "disabled"}>${now.paused ? icons.play : icons.pause}</button>
+      <button data-dev-cmd="next" aria-label="Suivant" ${t ? "" : "disabled"}>${icons.next}</button>
+    </div>
+    <label class="dev-vol">${icons.speaker}<input type="range" class="slider" data-dev-vol min="0" max="1" step="0.02" value="${volume}" style="--p:${volume * 100}%" aria-label="Volume de ${esc(d.name)}"></label>
+    <div class="pill-row center">
+      ${t ? `<button class="btn ghost" data-dev-here>${isMobile() ? icons.phone : icons.laptop} Écouter ici</button>` : ""}
+      ${sendable ? `<button class="btn" data-dev-send>Envoyer « ${esc(session.track.title)} » sur ${esc(d.name)}</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function devicesBody() {
+  const { saved, others } = devicesList();
+  const chosen = chosenDevice();
+  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>Sona pour Windows</b> sur ton PC, connecté avec ce compte : il apparaît ici. Touche <b>Ajouter</b> pour le garder.</span></p>`;
+  return `${chosen ? deviceRemote(chosen) : ""}
+    <h3 class="set-head">Mes appareils</h3>
+    ${saved.length ? `<div class="dev-list">${saved.map(deviceRow).join("")}</div>` : `<div class="dev-empty">Aucun appareil enregistré pour l'instant.</div>`}
+    ${others.length ? `<h3 class="set-head">Allumés en ce moment</h3><div class="dev-list">${others.map(deviceRow).join("")}</div>` : ""}
+    ${saved.length && !others.length ? "" : hint}`;
+}
+
+function renderDevicesPage() {
+  const root = $("#devices-root");
+  if (!root) return;
+  if (document.activeElement?.matches?.("input[data-dev-vol]") && state.connect.pointerDown) return;
+  const html = devicesBody();
+  if (root._html === html) return;
+  root._html = html;
+  root.innerHTML = html;
+  updateDevicesProgress();
+}
+
+function updateDevicesProgress() {
+  const fill = $("#dev-fill");
+  if (!fill) return;
+  const now = deviceNow(chosenDevice());
+  const dur = now.track?.duration_seconds || 0;
+  fill.style.width = dur ? `${Math.min(100, (now.position / dur) * 100)}%` : "0%";
+  const cur = $("#dev-cur"), rem = $("#dev-rem");
+  if (cur) cur.textContent = fmt(now.position);
+  if (rem) rem.textContent = `-${fmt(Math.max(0, dur - now.position))}`;
+}
+
+/** Choisit un appareil allumé : la télécommande s'affiche en haut. */
+function pickDevice(id) {
+  const { saved, others } = devicesList();
+  const d = [...saved, ...others].find((x) => x.id === id);
+  if (!d) return;
+  if (!d.online) return toast(`${d.name} est éteint : ouvre Sona dessus pour le piloter.`);
+  haptic();
+  // Il joue déjà : un seul lecteur à la fois, la musique d'ici s'arrête.
+  if (d.playing && audio.src && !audio.paused) audio.pause();
+  setControl(d.id);
+  renderDevicesPage();
+  $("#content")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function bindDevicesPage() {
+  const root = $("#devices-root");
+  if (!root) return;
+  updateDevicesProgress();
+  const timer = setInterval(updateDevicesProgress, 500);
+  onLeave(() => clearInterval(timer));
+  root.onclick = async (e) => {
+    const el = (sel) => e.target.closest(sel);
+    if (el("[data-dev-save]")) {
+      e.stopPropagation();
+      const b = el("[data-dev-save]");
+      b.disabled = true;
+      try {
+        const item = await api("/connect/saved", { method: "POST", body: JSON.stringify({ device_id: b.dataset.devSave }) });
+        devs.saved = [...devs.saved.filter((x) => x.id !== item.id), item];
+        toast(`${item.name} ajouté à tes appareils`);
+      } catch (err) { toast(err.message); b.disabled = false; }
+      return renderDevicesPage();
+    }
+    if (el("[data-dev-forget]")) {
+      e.stopPropagation();
+      const id = el("[data-dev-forget]").dataset.devForget;
+      const d = devs.saved.find((x) => x.id === id);
+      if (!(await confirmSheet(`Oublier ${d?.name || "cet appareil"} ? Tu pourras l'ajouter de nouveau quand il sera allumé.`, "Oublier"))) return;
+      await api(`/connect/saved/${encodeURIComponent(id)}`, { method: "DELETE" }).catch((err) => toast(err.message));
+      devs.saved = devs.saved.filter((x) => x.id !== id);
+      if (state.connect.control === id) setControl(null);
+      return renderDevicesPage();
+    }
+    if (el("[data-dev-stop]")) { setControl(null); return renderDevicesPage(); }
+    const target = chosenDevice();
+    if (el("[data-dev-cmd]") && target) {
+      haptic();
+      const cmd = el("[data-dev-cmd]").dataset.devCmd;
+      return sendCommand(target.id, cmd === "toggle" ? (deviceNow(target).paused ? "play" : "pause") : cmd);
+    }
+    if (el("[data-dev-seek]") && target) {
+      const dur = deviceNow(target).track?.duration_seconds;
+      if (!dur) return;
+      const rect = el("[data-dev-seek]").getBoundingClientRect();
+      return sendCommand(target.id, "seek", { position: ((e.clientX - rect.left) / rect.width) * dur });
+    }
+    if (el("[data-dev-here]") && target) {
+      const now = deviceNow(target);
+      setControl(null);
+      if (state.connect.session?.device_id === target.id) resumeHere();
+      else if (now.track) { playFrom([now.track], 0, now.position, ""); sendCommand(target.id, "pause"); }
+      return toast(`Musique reprise ici depuis ${target.name}`);
+    }
+    if (el("[data-dev-send]") && target) {
+      await connectSync();
+      await sendCommand(target.id, "transfer");
+      audio.pause();
+      return toast(`Musique envoyée sur ${target.name}`);
+    }
+    const row = el("[data-dev-pick]");
+    if (row) pickDevice(row.dataset.devPick);
+  };
+  root.onkeydown = (e) => {
+    const row = e.target.closest("[data-dev-pick]");
+    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pickDevice(row.dataset.devPick); }
+  };
+  root.oninput = (e) => {
+    if (!e.target.matches("[data-dev-vol]")) return;
+    e.target.style.setProperty("--p", `${e.target.value * 100}%`);
+    state.connect.pendingVolume = +e.target.value;
+  };
+  root.onchange = (e) => {
+    const target = chosenDevice();
+    if (!e.target.matches("[data-dev-vol]") || !target) return;
+    sendCommand(target.id, "volume", { volume: +e.target.value });
+    setTimeout(() => { state.connect.pendingVolume = null; }, 6000);
+  };
 }
 
 // ── Feuilles et menus (comme les feuilles d'iOS) ─────────────────────────
@@ -3870,6 +4124,7 @@ async function viewSettings() {
     <h3 class="set-head">Appli</h3><div class="set-group">
       ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
         : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
+      ${linkRow('href="#/devices"', icons.devices, "Appareils", "Tes PC enregistrés, à piloter d'un appui")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
       ${linkRow('href="#/concerts"', icons.calendar, "Concerts")}
     </div>
@@ -4116,15 +4371,15 @@ function desktopInit() {
 /** Ce que joue Sona (ici, ou l'appareil Sona Connect piloté depuis le PC). */
 function desktopSnapshot() {
   const remote = remoteDevice();
-  const session = state.connect.session;
-  const t = remote ? session?.track : state.queue[state.index];
+  const rnow = deviceNow(remote);
+  const t = remote ? rnow.track : state.queue[state.index];
   if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat };
   const start = Math.max(0, state.index - 15);
   const ly = !remote && sameTrack(t, state.queue[state.index]) ? state.lyrics : null;
   return {
     track: cleanTrack(t),
-    paused: remote ? !!session.paused : audio.paused,
-    position: remote ? remotePosition() : audio.currentTime || 0,
+    paused: remote ? rnow.paused : audio.paused,
+    position: remote ? rnow.position : audio.currentTime || 0,
     duration: remote ? t.duration_seconds || 0 : (audio.duration && isFinite(audio.duration) ? audio.duration : t.duration_seconds || 0),
     volume: remote ? remote.volume ?? 1 : audio.volume,
     shuffle: state.shuffle, repeat: state.repeat,
@@ -4171,8 +4426,8 @@ function updateAmbient(t) {
 /** Commande de la télécommande, du mini-lecteur ou de la barre des tâches. */
 async function desktopCommand(c) {
   const remote = remoteDevice();
-  const t = remote ? state.connect.session?.track : state.queue[state.index];
-  const paused = remote ? !!state.connect.session?.paused : audio.paused;
+  const t = remote ? deviceNow(remote).track : state.queue[state.index];
+  const paused = remote ? deviceNow(remote).paused : audio.paused;
   const track = c.track && c.track.source && c.track.source_id ? cleanTrack(c.track) : null;
   let result = true;
   switch (c.action) {

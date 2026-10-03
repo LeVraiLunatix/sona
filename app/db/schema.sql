@@ -233,6 +233,17 @@ CREATE TABLE IF NOT EXISTS tv_screens (
     PRIMARY KEY (user_id, screen_id)
 );
 
+-- Sona Connect : appareils enregistrés (PC…), gardés dans « Appareils »
+-- même quand ils sont éteints ; un appui les pilote (voir services/connect.py).
+CREATE TABLE IF NOT EXISTS connect_saved (
+    user_id INTEGER NOT NULL,
+    device_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    saved_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, device_id)
+);
+
 -- Blind test : un score par partie ; le défi du jour (mode 'daily') est le
 -- même pour tout le monde, classement du jour.
 CREATE TABLE IF NOT EXISTS blindtest_scores (

@@ -703,6 +703,22 @@ final class APIClient {
         try await sendNoContent(try request("/connect/command", method: "POST", bodyData: data))
     }
 
+    /// « Appareils » : les appareils enregistrés du compte.
+    func connectSaved() async throws -> [SavedDevice] {
+        try await send(try request("/connect/saved"))
+    }
+
+    func connectSave(deviceId: String) async throws -> SavedDevice {
+        struct Body: Encodable { let device_id: String }
+        let data = try encode(Body(device_id: deviceId))
+        return try await send(try request("/connect/saved", method: "POST", bodyData: data))
+    }
+
+    func connectForget(deviceId: String) async throws {
+        // Identifiants de Sona Connect : lettres, chiffres et tirets.
+        try await sendNoContent(try request("/connect/saved/\(deviceId)", method: "DELETE"))
+    }
+
     func smartPlaylists() async throws -> [SmartPlaylist] {
         try await send(try request("/smart", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
     }

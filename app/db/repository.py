@@ -727,6 +727,24 @@ class Repository:
         await self._db.conn.execute("DELETE FROM tv_screens WHERE user_id=? AND screen_id=?", (user_id, screen_id))
         await self._db.conn.commit()
 
+    async def connect_saved(self, user_id: int) -> list[dict]:
+        cursor = await self._db.conn.execute(
+            "SELECT device_id, name, kind, saved_at FROM connect_saved WHERE user_id=? ORDER BY saved_at", (user_id,)
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def connect_save(self, user_id: int, device_id: str, name: str, kind: str) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO connect_saved (user_id, device_id, name, kind, saved_at) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (user_id, device_id) DO UPDATE SET name=excluded.name, kind=excluded.kind""",
+            (user_id, device_id, name, kind, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def connect_forget(self, user_id: int, device_id: str) -> None:
+        await self._db.conn.execute("DELETE FROM connect_saved WHERE user_id=? AND device_id=?", (user_id, device_id))
+        await self._db.conn.commit()
+
     async def known_track(self, source: str, source_id: str) -> TrackInfo | None:
         """Fiche d'un titre déjà rencontré (playlist, écoutes) : de quoi le
         lire quand sa source d'origine ne le retrouve plus."""

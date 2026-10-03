@@ -513,6 +513,51 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 
 /* ── Composants partagés (ordinateur et téléphone) ─────────────────────── */
 
+/* Appareils : PC enregistrés et télécommande de celui qu'on pilote */
+.dev-list { display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 14px; background: var(--bg-elevated); }
+.dev-row { display: grid; grid-template-columns: 42px 1fr auto auto; gap: 12px; align-items: center; padding: 9px 8px; border-radius: 10px; cursor: pointer; transition: background .15s; }
+.dev-row:hover { background: var(--fill); }
+.dev-row:active { transform: scale(.99); }
+.dev-row.off { cursor: default; }
+.dev-row.off .dev-icon, .dev-row.off .dev-text b { opacity: .5; }
+.dev-icon { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; font-size: 20px; background: var(--fill-strong); color: var(--text-2); }
+.dev-row.chosen .dev-icon { background: var(--accent); color: #fff; }
+.dev-text { min-width: 0; }
+.dev-text b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-text small { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-go, .dev-tag { font-size: 13px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+.dev-more { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--text-3); font-size: 16px; }
+.dev-more:hover { background: var(--fill); color: #ff453a; }
+.dev-row .btn.small { grid-column: 3 / -1; }
+.dev-empty { padding: 18px; border-radius: 14px; background: var(--bg-elevated); color: var(--text-2); font-size: 14px; }
+.dev-hint { display: flex; gap: 12px; align-items: flex-start; margin: 18px 4px 0; color: var(--text-2); font-size: 13.5px; line-height: 1.45; }
+.dev-hint .icon { font-size: 22px; flex: none; color: var(--accent); }
+.dev-remote { position: relative; overflow: hidden; padding: 16px; border-radius: 22px; margin-bottom: 8px;
+  background: linear-gradient(160deg, var(--accent-soft), var(--fill)); border: .5px solid var(--hairline); }
+.dev-remote-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.dev-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--fill-strong); }
+.dev-stop { font-size: 13px; color: var(--text-2); padding: 4px 6px; border-radius: 8px; }
+.dev-stop:hover { color: var(--text); }
+.dev-now { display: grid; grid-template-columns: 1fr; justify-items: center; gap: 12px; }
+.dev-art { width: min(260px, 62vw); aspect-ratio: 1; border-radius: 14px; object-fit: cover; box-shadow: var(--shadow-art); transition: transform .45s var(--spring); }
+.dev-art.paused { transform: scale(.88); }
+.dev-meta { width: 100%; text-align: center; min-width: 0; }
+.dev-meta b { display: block; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-meta span { display: block; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-progress { width: 100%; height: 6px; border-radius: 3px; background: var(--fill-strong); cursor: pointer; overflow: hidden; }
+.dev-progress .fill { height: 100%; width: 0; background: var(--text); border-radius: 3px; transition: width .45s linear; }
+.dev-times { width: 100%; display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; margin-top: -6px; }
+.dev-idle { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 20px 10px; text-align: center; }
+.dev-idle .icon { font-size: 34px; color: var(--text-3); margin-bottom: 6px; }
+.dev-idle small { color: var(--text-2); }
+.dev-ctl { display: flex; justify-content: center; align-items: center; gap: 26px; margin: 10px 0 6px; }
+.dev-ctl button { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; }
+.dev-ctl button.big { width: 66px; height: 66px; font-size: 40px; }
+.dev-ctl button:active { transform: scale(.88); }
+.dev-ctl button[disabled] { opacity: .35; pointer-events: none; }
+.dev-vol { display: flex; align-items: center; gap: 10px; color: var(--text-3); margin: 4px 6px 12px; }
+.dev-vol input { flex: 1; }
+
 .tabbar, .mhead, .mp, .ptr { display: none; }
 .muted { color: var(--text-2); }
 .center { text-align: center; justify-content: center; }
@@ -968,6 +1013,7 @@ span.chip { cursor: default; }
   .mh-back span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mh-btn { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; background: rgba(255,255,255,.1); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
   .mh-back:active, .mh-btn:active { transform: scale(.92); }
+  .mh-btn.on { color: var(--accent); }
 
   /* Barre d'onglets flottante (Liquid Glass) */
   .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; z-index: 30; left: 12px; right: 12px; bottom: var(--tab-gap); height: var(--tab-h);
