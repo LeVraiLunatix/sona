@@ -24,6 +24,7 @@ if (location.protocol === "app:" && location.host === "sona") {
     onWindow: on("desktop:window"),
     onMini: on("desktop:mini"),
     onOverlay: on("desktop:overlay"),
+    onGameMode: on("desktop:gamemode"),
     onTheme: on("desktop:theme"),
     window: {
       minimize: () => ipcRenderer.send("desktop:window", "minimize"),

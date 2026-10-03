@@ -32,6 +32,12 @@ const DEFAULTS = {
   discordClientId: "",
   // Raccourcis clavier globaux : { action: "CommandOrControl+Alt+Right" }.
   shortcuts: {},
+  // Pause automatique : PC verrouillé ou en veille, casque débranché.
+  pauseOnLock: true,
+  resumeOnUnlock: true,
+  pauseOnHeadphones: true,
+  // Mode jeu : discret quand une app est en plein écran.
+  gameMode: true,
 };
 
 let cache = null;
