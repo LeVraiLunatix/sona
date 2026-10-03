@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Sona</title>
+<style>
+  /* Panneau de la touche « Ajouter à une playlist » : la playlist visée. */
+  body { margin: 0; padding: 10px 14px; background: #2d2d2d; color: #d8d8d8; font: 13px "Segoe UI", system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
+  label { color: #969696; text-align: right; }
+  select { width: 100%; height: 26px; background: #3d3d3d; color: #d8d8d8; border: 1px solid #555; border-radius: 3px; padding: 0 6px; font: inherit; }
+  p { margin: 4px 0 0 104px; color: #969696; font-size: 12px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="playlist">Playlist</label>
+    <select id="playlist"><option value="">Chargement…</option></select>
+  </div>
+  <p id="hint">Un appui ajoute le titre en cours dans Sona pour Windows à cette playlist.</p>
+<script>
+  // Protocole du logiciel Stream Deck pour les panneaux de réglages.
+  let socket, context, settings = {}, playlists = [];
+  const select = document.getElementById("playlist");
+  const clean = (s) => String(s).replace(/[<&]/g, "");
+
+  function paint() {
+    const list = [...playlists];
+    if (settings.playlist && !list.some((p) => p.id === settings.playlist)) list.push({ id: settings.playlist, name: settings.playlistName || "Playlist" });
+    select.innerHTML = `<option value="">Choisir une playlist…</option>` + list.map((p) => `<option value="${clean(p.id)}">${clean(p.name)}</option>`).join("");
+    select.value = settings.playlist || "";
+  }
+
+  select.onchange = () => {
+    const p = playlists.find((x) => x.id === select.value);
+    settings = select.value ? { playlist: select.value, playlistName: p ? p.name : settings.playlistName || "" } : {};
+    socket.send(JSON.stringify({ event: "setSettings", context, payload: settings }));
+  };
+
+  function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
+    context = uuid;
+    const action = JSON.parse(actionInfo);
+    settings = (action.payload && action.payload.settings) || {};
+    paint();
+    socket = new WebSocket(`ws://127.0.0.1:${port}`);
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ event: registerEvent, uuid }));
+      socket.send(JSON.stringify({ event: "sendToPlugin", action: action.action, context: uuid, payload: { want: "playlists" } }));
+    };
+    socket.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+      if (data.event === "sendToPropertyInspector" && data.payload && data.payload.playlists) {
+        playlists = data.payload.playlists;
+        if (data.payload.error) document.getElementById("hint").textContent = `Sona ne répond pas (${data.payload.error}) : ouvre Sona pour Windows.`;
+        else if (!playlists.length) document.getElementById("hint").textContent = "Aucune playlist modifiable : crée-en une dans Sona.";
+        paint();
+      }
+      if (data.event === "didReceiveSettings") { settings = data.payload.settings || {}; paint(); }
+    };
+  }
+</script>
+</body>
+</html>

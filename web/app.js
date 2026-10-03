@@ -5022,6 +5022,22 @@ async function desktopCommand(c) {
     case "playTrack": if (track) playList([track], 0, ""); break;
     case "playNext": if (track) playNext(track); break;
     case "addToQueue": if (track) addToQueue(track); break;
+    // Touches Stream Deck.
+    case "playlists":
+      result = ((await api("/me/playlists").catch(() => state.playlists)) || [])
+        .filter((p) => p.can_edit !== false && p.import_status !== "importing").map((p) => ({ id: String(p.id), name: p.name }));
+      break;
+    case "addToPlaylist": {
+      if (!t) throw new Error("Rien en lecture");
+      if (!c.playlist) throw new Error("Choisis la playlist (réglage de la touche)");
+      await api(`/me/playlists/${encodeURIComponent(c.playlist)}/tracks`, { method: "POST", body: JSON.stringify({ tracks: [cleanTrack(t)] }) });
+      toast(`« ${t.title} » ajouté à la playlist`);
+      break;
+    }
+    case "djradio":
+      if (!t) throw new Error("Rien en lecture");
+      await startDJRadio(t);
+      break;
     default: throw new Error("Action inconnue");
   }
   desktopReport(true);

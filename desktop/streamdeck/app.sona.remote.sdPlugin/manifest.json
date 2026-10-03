@@ -166,6 +166,58 @@
       "SupportedInMultiActions": true
     },
     {
+      "Name": "Ajouter à une playlist",
+      "UUID": "app.sona.remote.addtoplaylist",
+      "Icon": "imgs/actions/addtoplaylist/icon",
+      "Tooltip": "Ajoute le titre en cours à la playlist choisie dans le panneau de la touche.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/addtoplaylist/key",
+          "TitleAlignment": "bottom",
+          "FontSize": 9
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "PropertyInspectorPath": "ui/playlist.html"
+    },
+    {
+      "Name": "Radio DJ",
+      "UUID": "app.sona.remote.djradio",
+      "Icon": "imgs/actions/djradio/icon",
+      "Tooltip": "Lance une radio DJ à partir du titre en cours.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/djradio/key",
+          "TitleAlignment": "bottom",
+          "FontSize": 9
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Paroles",
+      "UUID": "app.sona.remote.lyricsoverlay",
+      "Icon": "imgs/actions/lyricsoverlay/icon",
+      "Tooltip": "Affiche ou masque les paroles en surimpression sur le bureau.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/lyricsoverlay/key",
+          "TitleAlignment": "bottom",
+          "FontSize": 9
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
       "Name": "Molette Sona",
       "UUID": "app.sona.remote.dial",
       "Icon": "imgs/actions/dial/icon",

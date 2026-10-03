@@ -157,6 +157,9 @@ Sona sur le même PC et lui parle en local.
 | Volume +, Volume − | ±10 % |
 | Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
 | Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
+| Ajouter à une playlist | Le titre en cours dans la playlist choisie (panneau de la touche) |
+| Radio DJ | Une radio à partir du titre en cours |
+| Paroles | Affiche ou masque les paroles en surimpression |
 
 Chaque touche a un réglage **Appareil** (panneau de la touche dans le
 logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du

@@ -284,13 +284,21 @@ function pageCommand(body, timeout = 15000) {
 }
 
 const REMOTE_ACTIONS = new Set(["toggle", "play", "pause", "next", "previous", "seek", "volume", "like", "shuffle", "repeat",
+  // Touches Stream Deck : playlists, ajout du titre en cours, radio DJ, paroles en surimpression.
+  "playlists", "addToPlaylist", "djradio", "lyricsOverlay",
   "playIndex", "removeIndex", "search", "playTrack", "playNext", "addToQueue", "lyrics", "home"]);
 
 async function remoteCommand(body) {
   if (!REMOTE_ACTIONS.has(body.action)) throw new Error("Action inconnue.");
+  // Les paroles en surimpression sont une fenêtre de l'app, pas de la page.
+  if (body.action === "lyricsOverlay") {
+    setOverlay(typeof body.on === "boolean" ? body.on : !overlay);
+    return { on: !!overlay };
+  }
   const clean = { action: body.action };
   for (const k of ["position", "volume", "index"]) if (Number.isFinite(body[k])) clean[k] = body[k];
   if (typeof body.query === "string") clean.query = body.query.slice(0, 200);
+  if (typeof body.playlist === "string" && /^[\w-]{1,64}$/.test(body.playlist)) clean.playlist = body.playlist;
   // Un autre appareil Sona Connect (l'iPhone…) plutôt que ce PC.
   if (typeof body.target === "string" && /^[\w-]{6,64}$/.test(body.target)) clean.target = body.target;
   if (body.track && typeof body.track === "object") clean.track = body.track;
@@ -320,12 +328,12 @@ ipcMain.on("desktop:state", (_e, state) => {
 
 /** L'état, position remise à l'heure (elle avance toute seule pendant la lecture). */
 function liveState() {
-  if (!now) return { track: null, device: deviceName() };
+  if (!now) return { track: null, device: deviceName(), overlay: !!overlay };
   const { at, ...rest } = now;
   let position = rest.position || 0;
   if (!rest.paused) position += (Date.now() - at) / 1000;
   if (rest.duration) position = Math.min(position, rest.duration);
-  return { ...rest, position, device: deviceName() };
+  return { ...rest, position, device: deviceName(), overlay: !!overlay };
 }
 
 // ── Zone de notification ───────────────────────────────────────────────
@@ -451,9 +459,10 @@ function setOverlay(on) {
     overlay.webContents.send("overlay:state", liveState());
     overlay.webContents.send("overlay:mode", { game: gameMode.active });
   });
-  overlay.on("closed", () => { overlay = null; updateTray(true); send("desktop:overlay", false); });
+  overlay.on("closed", () => { overlay = null; updateTray(true); send("desktop:overlay", false); remote.broadcast(liveState()); });
   updateTray(true);
   send("desktop:overlay", true);
+  remote.broadcast(liveState());
 }
 
 function placeOverlay() {
