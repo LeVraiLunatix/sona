@@ -35,6 +35,10 @@ class Device:
     playing: bool = False
     track: dict | None = None
     volume: float | None = None
+    # Position dans le titre au dernier relevé (`at`) : chaque appareil se
+    # pilote avec sa propre lecture, pas seulement celle de la session.
+    position: float = 0.0
+    at: float = 0.0
 
 
 @dataclass
@@ -109,6 +113,7 @@ def sync(user_id: int, device_id: str, name: str, kind: str, state: dict | None,
         device.playing = not paused
         device.track = queue[index]
         device.volume = state.get("volume")
+        device.position, device.at = float(state.get("position") or 0), now
         current = account.session
         # La session suit l'appareil qui joue. Un appareil en pause ne la
         # prend jamais à un autre — même en pause lui aussi : sinon, mettre
@@ -165,6 +170,28 @@ async def sync_wait(user_id: int, device_id: str, name: str, kind: str, state: d
     return snapshot(user_id, device_id) | {"commands": account.commands.pop(device_id, [])}
 
 
+def _device_position(device: Device, now: float) -> float:
+    position = device.position + (now - device.at if device.playing else 0)
+    duration = (device.track or {}).get("duration_seconds")
+    return max(0.0, min(position, float(duration)) if duration else position)
+
+
+def _device_dict(device: Device, now: float, me: str | None = None) -> dict:
+    online = _online(device, now)
+    return {
+        "id": device.id, "name": device.name, "kind": device.kind, "is_me": device.id == me,
+        "playing": device.playing and online, "track": device.track, "volume": device.volume,
+        "position": round(_device_position(device, now), 2), "online": online,
+        "seen_seconds": round(now - device.last_seen, 1),
+    }
+
+
+def device_info(user_id: int, device_id: str) -> dict | None:
+    """Ce qu'on sait d'un appareil du compte (vu dans les dernières 24 h)."""
+    device = _account(user_id).devices.get(device_id)
+    return None if device is None else _device_dict(device, _now())
+
+
 def _session_playing(account: Account, now: float) -> bool:
     session = account.session
     if not session or session["paused"]:
@@ -183,10 +210,7 @@ def snapshot(user_id: int, device_id: str | None = None) -> dict:
         key=lambda d: (d.id != device_id, d.name.casefold()),
     )
     return {
-        "devices": [{
-            "id": d.id, "name": d.name, "kind": d.kind, "is_me": d.id == device_id,
-            "playing": d.playing and _online(d, now), "track": d.track, "volume": d.volume,
-        } for d in devices],
+        "devices": [_device_dict(d, now, device_id) for d in devices],
         "active_device_id": active,
         "session": None if session is None else {
             "device_id": session["device_id"], "device_name": session["device_name"],
@@ -235,6 +259,7 @@ def command(user_id: int, from_device: str, target: str, action: str, payload: d
         }
         device.playing = True
         device.track = session["track"]
+        device.position, device.at = body["position"], now
     _push(account, target, body)
     account.notify()
     return True

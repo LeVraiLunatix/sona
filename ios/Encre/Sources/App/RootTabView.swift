@@ -26,6 +26,7 @@ struct RootTabView: View {
     @State private var friendsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var showingSettings = false
+    @State private var showingDevices = false
     @State private var showingPlayer = false
     @State private var playlistPick: PlaylistPickRequest?
     // Ouvertures depuis les widgets (liens `encre://`).
@@ -83,6 +84,16 @@ struct RootTabView: View {
             NavigationStack { SettingsView() }
                 .environmentObject(AuthManager.shared)
         }
+        // « Appareils » : un PC choisi, et hop, le lecteur le pilote.
+        .sheet(isPresented: $showingDevices) {
+            DevicesView {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(450))
+                    showingPlayer = true
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .fullScreenCover(isPresented: $showingBlindTest) {
             BlindTestView()
         }
@@ -126,6 +137,7 @@ struct RootTabView: View {
         guard url.scheme == "encre" else { return }
         showingPlayer = false
         showingSettings = false
+        showingDevices = false
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let code = query.first { $0.name == "code" }?.value
         switch url.host() {
@@ -152,6 +164,8 @@ struct RootTabView: View {
             } else {
                 showingParty = true
             }
+        case "devices":
+            showingDevices = true
         case "player":
             if player.current != nil || remote.isRemote { showingPlayer = true }
         case "djradio":
@@ -184,6 +198,12 @@ struct RootTabView: View {
         NavigationStack(path: path) {
             content()
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showingDevices = true } label: {
+                            Image(systemName: "laptopcomputer.and.iphone")
+                        }
+                        .accessibilityLabel("Appareils")
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showingSettings = true } label: {
                             Image(systemName: "gearshape")

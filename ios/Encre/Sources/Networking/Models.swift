@@ -1251,10 +1251,31 @@ struct ConnectDevice: Codable, Hashable, Identifiable {
     var playing: Bool
     var track: Track?
     var volume: Double?
+    /// Position dans son titre au relevé (chaque appareil a sa lecture).
+    var position: Double?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, playing, track, volume
+        case id, name, kind, playing, track, volume, position
         case isMe = "is_me"
+    }
+}
+
+/// Appareil enregistré dans « Appareils » (PC…) : gardé sur le compte,
+/// même éteint ; un appui le pilote quand il est allumé.
+struct SavedDevice: Codable, Hashable, Identifiable {
+    var id: String
+    var name: String
+    var kind: String
+    var online: Bool
+    var playing: Bool
+    var track: Track?
+    var volume: Double?
+    var position: Double?
+    var seenSeconds: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, kind, online, playing, track, volume, position
+        case seenSeconds = "seen_seconds"
     }
 }
 

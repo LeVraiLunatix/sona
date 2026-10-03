@@ -15,6 +15,11 @@ final class ConnectManager: ObservableObject {
     @Published private(set) var session: ConnectSession?
     @Published private(set) var activeDeviceId: String?
     @Published private(set) var lastMessage: String?
+    /// Appareil choisi dans « Appareils » pour le piloter (gardé d'un
+    /// lancement à l'autre).
+    @Published private(set) var controlId: String? = UserDefaults.standard.string(forKey: "encre.connectControl")
+    /// Appareils enregistrés du compte (PC…), allumés ou non.
+    @Published private(set) var saved: [SavedDevice] = []
     private var receivedAt = Date()
     private var loop: Task<Void, Never>?
     private var claimPending = false
@@ -23,7 +28,7 @@ final class ConnectManager: ObservableObject {
     /// Lecture/pause demandée à l'instant à l'autre appareil : gardée à
     /// l'écran jusqu'à sa confirmation (une réponse partie avant ne
     /// l'annule pas).
-    private var expectedPaused: (value: Bool, until: Date)?
+    private var expectedPaused: (target: String, value: Bool, until: Date)?
     private var cancellables = Set<AnyCancellable>()
 
     let deviceId: String = {
@@ -43,12 +48,36 @@ final class ConnectManager: ObservableObject {
         return devices.first { $0.id == activeDeviceId && $0.playing }
     }
 
-    /// L'appareil à piloter depuis le lecteur : celui de la dernière lecture
-    /// du compte, s'il est connecté — qu'il joue ou soit en pause —, tant
-    /// que rien ne joue sur cet iPhone.
+    /// L'appareil choisi dans « Appareils », s'il est allumé.
+    var chosenDevice: ConnectDevice? {
+        guard let controlId else { return nil }
+        return devices.first { $0.id == controlId && !$0.isMe }
+    }
+
+    /// L'appareil à piloter depuis le lecteur, tant que rien ne joue sur cet
+    /// iPhone : celui choisi dans « Appareils », sinon celui de la dernière
+    /// lecture du compte, s'il est connecté — qu'il joue ou soit en pause.
     var remoteTarget: ConnectDevice? {
-        guard let session, session.deviceId != deviceId, !PlayerManager.shared.isPlaying else { return nil }
+        guard !PlayerManager.shared.isPlaying else { return nil }
+        if let chosen = chosenDevice { return chosen }
+        guard let session, session.deviceId != deviceId else { return nil }
         return devices.first { $0.id == session.deviceId && !$0.isMe }
+    }
+
+    /// Ce que joue un autre appareil : titre, pause, position (qui avance).
+    struct RemoteNow {
+        var track: Track?
+        var paused: Bool
+        var position: Double
+    }
+
+    func now(on device: ConnectDevice) -> RemoteNow {
+        if let session, session.deviceId == device.id {
+            return RemoteNow(track: session.track, paused: session.paused, position: remotePosition)
+        }
+        var position = (device.position ?? 0) + (device.playing ? Date().timeIntervalSince(receivedAt) : 0)
+        if let duration = device.track?.durationSeconds, duration > 0 { position = min(position, Double(duration)) }
+        return RemoteNow(track: device.track, paused: !device.playing, position: position)
     }
 
     /// Position de la lecture distante (elle avance entre deux relevés).
@@ -65,6 +94,8 @@ final class ConnectManager: ObservableObject {
             .dropFirst()
             .sink { [weak self] playing in
                 guard let self else { return }
+                // Lecture lancée ici à la main : on ne pilote plus un autre appareil.
+                if playing, Date() > self.remoteStartUntil, self.controlId != nil { self.setControl(nil) }
                 RemoteFlag.shared.update(!playing && self.remoteTarget != nil)
                 // Lecture/pause ici : les autres appareils le savent tout de suite.
                 if playing, Date() > self.remoteStartUntil { self.claimPending = true }
@@ -112,16 +143,23 @@ final class ConnectManager: ObservableObject {
             deviceId: deviceId, name: UIDevice.current.name, state: player.connectPlayback, claim: claim, wait: wait
         ) else { return false }
         receivedAt = Date()
-        devices = response.devices
+        var freshDevices = response.devices
         var fresh = response.session
-        if let expected = expectedPaused, var current = fresh {
-            if Date() > expected.until || current.paused == expected.value {
+        if let expected = expectedPaused {
+            let index = freshDevices.firstIndex { $0.id == expected.target }
+            let confirmed = index.map { freshDevices[$0].playing == !expected.value }
+                ?? (fresh?.paused == expected.value)
+            if Date() > expected.until || confirmed {
                 expectedPaused = nil
             } else {
-                current.paused = expected.value
-                fresh = current
+                if var current = fresh, current.deviceId == expected.target {
+                    current.paused = expected.value
+                    fresh = current
+                }
+                if let index { freshDevices[index].playing = !expected.value }
             }
         }
+        devices = freshDevices
         session = fresh
         activeDeviceId = response.activeDeviceId
         for command in response.commands { run(command) }
@@ -174,6 +212,54 @@ final class ConnectManager: ObservableObject {
 
     // MARK: Actions
 
+    /// Choisit l'appareil à piloter (nil : plus aucun).
+    func setControl(_ id: String?) {
+        controlId = id
+        UserDefaults.standard.set(id, forKey: "encre.connectControl")
+        RemoteFlag.shared.update(remoteTarget != nil)
+    }
+
+    /// Choisi dans « Appareils » : l'iPhone devient sa télécommande (sa
+    /// propre musique s'arrête ; « Envoyer » la fait continuer dessus).
+    func control(_ device: ConnectDevice) {
+        if PlayerManager.shared.isPlaying {
+            remoteStartUntil = Date().addingTimeInterval(1)
+            PlayerManager.shared.pause()
+        }
+        setControl(device.id)
+        syncSoon()
+    }
+
+    /// « Écouter sur cet iPhone » depuis la télécommande d'un appareil.
+    func listenHere(from device: ConnectDevice) {
+        setControl(nil)
+        if session?.deviceId == device.id {
+            resumeHere()
+            return
+        }
+        let playing = self.now(on: device)
+        guard let track = playing.track else { return }
+        PlayerManager.shared.playTransferred(queue: [track], index: 0, position: playing.position, name: nil)
+        Task { try? await APIClient.shared.connectCommand(from: deviceId, to: device.id, action: "pause") }
+    }
+
+    // MARK: Appareils enregistrés
+
+    func refreshSaved() async {
+        if let list = try? await APIClient.shared.connectSaved() { saved = list }
+    }
+
+    func save(_ device: ConnectDevice) async throws {
+        let item = try await APIClient.shared.connectSave(deviceId: device.id)
+        saved = saved.filter { $0.id != item.id } + [item]
+    }
+
+    func forget(_ id: String) async {
+        try? await APIClient.shared.connectForget(deviceId: id)
+        saved.removeAll { $0.id == id }
+        if controlId == id { setControl(nil) }
+    }
+
     /// Reprend ici la dernière lecture du compte (sur un autre appareil).
     func resumeHere() {
         guard let session else { return }
@@ -185,6 +271,7 @@ final class ConnectManager: ObservableObject {
     /// « Écouter sur… » : la musique continue sur cet appareil, à la même seconde.
     func listen(on device: ConnectDevice) async {
         if device.isMe {
+            setControl(nil)
             resumeHere()
             return
         }
@@ -212,14 +299,22 @@ final class ConnectManager: ObservableObject {
         var action = action
         // « lecture » ou « pause » explicite (pas « bascule ») : plusieurs
         // appuis rapprochés ne s'annulent pas.
-        if action == "toggle" { action = (session?.paused ?? true) ? "play" : "pause" }
+        if action == "toggle" { action = now(on: target).paused ? "play" : "pause" }
         // Réponse immédiate à l'écran, confirmée par l'autre appareil.
-        if action == "play" || action == "pause", var current = session {
-            current.position = remotePosition
-            current.paused = action == "pause"
-            session = current
+        if action == "play" || action == "pause" {
+            let paused = action == "pause"
+            let current = now(on: target)
+            if var session, session.deviceId == target.id {
+                session.position = current.position
+                session.paused = paused
+                self.session = session
+            }
+            if let index = devices.firstIndex(where: { $0.id == target.id }) {
+                devices[index].position = current.position
+                devices[index].playing = !paused
+            }
             receivedAt = Date()
-            expectedPaused = (current.paused, Date().addingTimeInterval(4))
+            expectedPaused = (target.id, paused, Date().addingTimeInterval(4))
         }
         let command = action
         Task {
@@ -341,9 +436,10 @@ struct RemotePlayerView: View {
 
     var body: some View {
         ZStack {
-            LivingBackground(colors: palette, animated: !(connect.session?.paused ?? true))
+            LivingBackground(colors: palette, animated: !(connect.remoteTarget.map { connect.now(on: $0).paused } ?? true))
                 .id(palette)
-            if let session = connect.session, let device = connect.remoteTarget {
+            if let device = connect.remoteTarget {
+                let now = connect.now(on: device)
                 VStack(spacing: 0) {
                     HStack {
                         Button(action: onClose) {
@@ -364,32 +460,47 @@ struct RemotePlayerView: View {
                     .padding(.top, 8)
 
                     Spacer(minLength: 16)
-                    Artwork(url: session.track.coverURL, cornerRadius: 14)
-                        .aspectRatio(1, contentMode: .fit)
-                        .scaleEffect(session.paused ? 0.82 : 1)
-                        .shadow(color: .black.opacity(0.4), radius: 26, y: 16)
-                        .animation(Motion.bouncy, value: session.paused)
-                        .id(session.track.id)
-                    Spacer(minLength: 24)
+                    if let track = now.track {
+                        Artwork(url: track.coverURL, cornerRadius: 14)
+                            .aspectRatio(1, contentMode: .fit)
+                            .scaleEffect(now.paused ? 0.82 : 1)
+                            .shadow(color: .black.opacity(0.4), radius: 26, y: 16)
+                            .animation(Motion.bouncy, value: now.paused)
+                            .id(track.id)
+                        Spacer(minLength: 24)
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(session.track.title).font(.system(size: 22, weight: .bold)).foregroundStyle(Tone.primary).lineLimit(1)
-                        Text(session.track.artist).font(.system(size: 19)).foregroundStyle(Tone.secondary).lineLimit(1)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(track.title).font(.system(size: 22, weight: .bold)).foregroundStyle(Tone.primary).lineLimit(1)
+                            Text(track.artist).font(.system(size: 19)).foregroundStyle(Tone.secondary).lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 18)
+
+                        progress(device, track: track)
+                    } else {
+                        VStack(spacing: 10) {
+                            Image(systemName: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+                                .font(.system(size: 54, weight: .light)).foregroundStyle(Tone.tertiary)
+                            Text("Rien en lecture sur \(device.name)").font(Typo.headline).foregroundStyle(Tone.primary)
+                            Text("Envoie-lui ta musique, ou lance un titre dessus.")
+                                .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                        }
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        Spacer(minLength: 24)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 18)
-
-                    progress(session)
 
                     HStack {
                         Spacer()
                         control("backward.fill", 30) { connect.remote("previous") }
                         Spacer()
-                        control(session.paused ? "play.fill" : "pause.fill", 46) { connect.remote("toggle") }
+                        control(now.paused ? "play.fill" : "pause.fill", 46) { connect.remote("toggle") }
                         Spacer()
                         control("forward.fill", 30) { connect.remote("next") }
                         Spacer()
                     }
+                    .disabled(now.track == nil)
+                    .opacity(now.track == nil ? 0.35 : 1)
                     .padding(.vertical, 20)
 
                     HStack(spacing: 12) {
@@ -405,15 +516,27 @@ struct RemotePlayerView: View {
                     }
 
                     HStack {
-                        Button {
-                            connect.resumeHere()
-                        } label: {
-                            Label("Écouter sur cet iPhone", systemImage: "iphone")
-                                .font(Typo.rowTitle).foregroundStyle(.black)
-                                .padding(.horizontal, 16).frame(height: 38)
-                                .background(Capsule().fill(.white))
+                        if now.track != nil {
+                            Button {
+                                connect.listenHere(from: device)
+                            } label: {
+                                Label("Écouter sur cet iPhone", systemImage: "iphone")
+                                    .font(Typo.rowTitle).foregroundStyle(.black)
+                                    .padding(.horizontal, 16).frame(height: 38)
+                                    .background(Capsule().fill(.white))
+                            }
+                            .buttonStyle(.pressable(scale: 0.95))
+                        } else if let session = connect.session, session.deviceId != device.id {
+                            Button {
+                                Task { await connect.listen(on: device) }
+                            } label: {
+                                Label("Envoyer « \(session.track.title) »", systemImage: "laptopcomputer.and.arrow.down")
+                                    .font(Typo.rowTitle).foregroundStyle(.black).lineLimit(1)
+                                    .padding(.horizontal, 16).frame(height: 38)
+                                    .background(Capsule().fill(.white))
+                            }
+                            .buttonStyle(.pressable(scale: 0.95))
                         }
-                        .buttonStyle(.pressable(scale: 0.95))
                         Spacer()
                         OutputButton()
                     }
@@ -421,18 +544,18 @@ struct RemotePlayerView: View {
                 }
                 .padding(.horizontal, 26)
                 .padding(.bottom, 8)
-                .task(id: session.track.coverURL) {
-                    palette = await ArtworkPalette.colors(for: session.track.coverURL)
+                .task(id: now.track?.coverURL) {
+                    palette = await ArtworkPalette.colors(for: now.track?.coverURL)
                 }
             }
         }
         .animation(.easeInOut(duration: 0.9), value: palette)
     }
 
-    private func progress(_ session: ConnectSession) -> some View {
-        let duration = Double(session.track.durationSeconds ?? 0)
+    private func progress(_ device: ConnectDevice, track: Track) -> some View {
+        let duration = Double(track.durationSeconds ?? 0)
         return TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-            let position = seeking ?? min(connect.remotePosition, duration)
+            let position = seeking ?? min(connect.now(on: device).position, duration)
             VStack(spacing: 6) {
                 Slider(value: Binding(
                     get: { duration > 0 ? position / duration : 0 },
@@ -479,11 +602,12 @@ struct RemoteMiniPlayer: View {
     @ObservedObject private var connect = ConnectManager.shared
 
     var body: some View {
-        if let session = connect.session, let device = connect.remoteTarget {
+        if let device = connect.remoteTarget {
+            let now = connect.now(on: device)
             HStack(spacing: 12) {
-                Artwork(url: session.track.coverURL, cornerRadius: 7).frame(width: 34, height: 34)
+                Artwork(url: now.track?.coverURL, cornerRadius: 7).frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(session.track.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                    Text(now.track?.title ?? "Rien en lecture").font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
                     Label("Sur \(device.name)", systemImage: device.kind == "iphone" ? "iphone" : "laptopcomputer")
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor).lineLimit(1)
                 }
@@ -491,7 +615,7 @@ struct RemoteMiniPlayer: View {
                 Button {
                     connect.remote("toggle")
                 } label: {
-                    Image(systemName: session.paused ? "play.fill" : "pause.fill")
+                    Image(systemName: now.paused ? "play.fill" : "pause.fill")
                         .contentTransition(.symbolEffect(.replace.downUp))
                         .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(Tone.primary)

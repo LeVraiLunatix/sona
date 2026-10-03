@@ -129,3 +129,47 @@ def test_waiting_device_is_woken_when_playback_moves():
 
     result = asyncio.run(scenario())
     assert result["session"]["device_id"] == "web-abcdef" and result["active_device_id"] == "web-abcdef"
+
+
+def test_each_device_reports_its_own_position(client, monkeypatch):
+    """Le PC se pilote avec sa propre lecture, même quand la session du
+    compte est celle de l'iPhone."""
+    me = login(client, "alice")
+    clock = [1000.0]
+    monkeypatch.setattr(connect, "_now", lambda: clock[0])
+    sync(client, me, "desktop-pc1234", "PC du salon", "desktop", {"queue": [TRACK], "position": 50, "paused": False})
+    sync(client, me, "iphone-123", "iPhone", "iphone", {"queue": [NEXT], "position": 5, "paused": False}, claim=True)
+    clock[0] += 4
+    seen = sync(client, me, "iphone-123", "iPhone", "iphone", {"queue": [NEXT], "position": 9, "paused": False})
+    pc = next(d for d in seen["devices"] if d["id"] == "desktop-pc1234")
+    assert seen["session"]["device_id"] == "iphone-123"
+    # Mis en pause par la prise de main de l'iPhone : position figée.
+    assert pc["track"]["title"] == "Titre" and pc["position"] == 50 and pc["online"]
+
+
+def test_saved_devices_stay_listed_when_offline(client, monkeypatch):
+    me, bob = login(client, "alice"), login(client, "bob")
+    clock = [1000.0]
+    monkeypatch.setattr(connect, "_now", lambda: clock[0])
+    # Jamais vu sur ce compte : refusé.
+    assert client.post("/connect/saved", headers=me, json={"device_id": "desktop-pc1234"}).status_code == 404
+    sync(client, me, "desktop-pc1234", "PC du salon", "desktop", {"queue": [TRACK], "position": 10, "paused": False})
+    saved = client.post("/connect/saved", headers=me, json={"device_id": "desktop-pc1234"})
+    assert saved.status_code == 200, saved.text
+    item = saved.json()
+    assert item["name"] == "PC du salon" and item["kind"] == "desktop" and item["online"] and item["playing"]
+    # Un autre compte ne le voit pas et ne peut pas l'enregistrer.
+    assert client.get("/connect/saved", headers=bob).json() == []
+    assert client.post("/connect/saved", headers=bob, json={"device_id": "desktop-pc1234"}).status_code == 404
+    # PC éteint : toujours là, hors ligne ; même après l'oubli de Sona Connect (24 h).
+    clock[0] += 60
+    listed = client.get("/connect/saved", headers=me).json()
+    assert [d["id"] for d in listed] == ["desktop-pc1234"] and not listed[0]["online"] and not listed[0]["playing"]
+    clock[0] += 2 * 24 * 3600
+    listed = client.get("/connect/saved", headers=me).json()
+    assert listed[0]["name"] == "PC du salon" and listed[0]["seen_seconds"] is None
+    # Rallumé : de nouveau en ligne et pilotable.
+    sync(client, me, "desktop-pc1234", "PC du salon", "desktop")
+    assert client.get("/connect/saved", headers=me).json()[0]["online"]
+    assert client.delete("/connect/saved/desktop-pc1234", headers=me).status_code == 204
+    assert client.get("/connect/saved", headers=me).json() == []

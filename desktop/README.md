@@ -11,6 +11,10 @@ ce qu'un navigateur ne sait pas faire.
   musique (« Écouter dessus ») et le pilote : lecture, pause, suivant,
   volume, position. Ça marche aussi fenêtre fermée : Sona reste dans la zone
   de notification et la musique continue.
+- **Appareils** : sur l'iPhone (bouton en haut à gauche) ou le site, le PC
+  s'ajoute une fois (« Ajouter ») et reste enregistré sur le compte, même
+  éteint. Ensuite, un appui dessus et le téléphone le pilote — via le
+  serveur Sona, donc aussi en 4G, sans QR code.
 - **Télécommande du téléphone** (à la Cider Remote) : bouton téléphone en
   haut de la fenêtre (ou Réglages → Télécommande du téléphone) → un QR code.
   Le téléphone le scanne et ouvre Sona Remote : pochette en grand, lecture,

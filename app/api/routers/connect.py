@@ -36,6 +36,10 @@ class SyncIn(BaseModel):
     wait: float = Field(0, ge=0, le=30)
 
 
+class SaveIn(BaseModel):
+    device_id: str = Field(min_length=6, max_length=64)
+
+
 class CommandIn(BaseModel):
     device_id: str = Field(min_length=6, max_length=64)
     target: str = Field(min_length=6, max_length=64)
@@ -64,3 +68,43 @@ async def send_command(payload: CommandIn, deps: ApiDeps = Depends(require_token
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Commande inconnue.")
     if not sent:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cet appareil n'est plus connecté.")
+
+
+MAX_SAVED = 20
+
+
+def _saved_item(user_id: int, row: dict) -> dict:
+    """Un appareil enregistré, avec sa lecture s'il est allumé."""
+    live = connect.device_info(user_id, row["device_id"]) or {}
+    return {
+        "id": row["device_id"], "name": live.get("name") or row["name"], "kind": live.get("kind") or row["kind"],
+        "saved_at": row["saved_at"], "online": bool(live.get("online")), "playing": bool(live.get("playing")),
+        "track": live.get("track"), "volume": live.get("volume"), "position": live.get("position", 0),
+        "seen_seconds": live.get("seen_seconds"),
+    }
+
+
+@router.get("/saved")
+async def saved_devices(deps: ApiDeps = Depends(require_token)) -> list[dict]:
+    """« Appareils » : les appareils enregistrés (PC…), allumés ou non."""
+    return [_saved_item(deps.user_id, row) for row in await deps.repo.connect_saved(deps.user_id)]
+
+
+@router.post("/saved")
+async def save_device(payload: SaveIn, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Enregistre un appareil du compte (vu récemment) : il reste dans la
+    liste même éteint, et un appui le pilote dès qu'il est allumé."""
+    live = connect.device_info(deps.user_id, payload.device_id)
+    if live is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Appareil introuvable : ouvre Sona dessus, avec ce compte.")
+    rows = await deps.repo.connect_saved(deps.user_id)
+    if len(rows) >= MAX_SAVED and all(r["device_id"] != payload.device_id for r in rows):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{MAX_SAVED} appareils au plus : oublies-en un d'abord.")
+    await deps.repo.connect_save(deps.user_id, payload.device_id, live["name"], live["kind"])
+    row = next(r for r in await deps.repo.connect_saved(deps.user_id) if r["device_id"] == payload.device_id)
+    return _saved_item(deps.user_id, row)
+
+
+@router.delete("/saved/{device_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def forget_device(device_id: str, deps: ApiDeps = Depends(require_token)) -> None:
+    await deps.repo.connect_forget(deps.user_id, device_id)
