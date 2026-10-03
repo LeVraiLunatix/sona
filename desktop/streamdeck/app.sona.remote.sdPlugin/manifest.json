@@ -186,12 +186,34 @@
           "Touch": "Suivant"
         }
       }
+    },
+    {
+      "Name": "Position Sona",
+      "UUID": "app.sona.remote.seekdial",
+      "Icon": "imgs/actions/seekdial/icon",
+      "Tooltip": "Stream Deck + : tourner pour avancer ou reculer dans le titre (5 s par cran), appuyer pour lecture/pause.",
+      "Controllers": [
+        "Encoder"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/seekdial/key"
+        }
+      ],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Avancer / reculer",
+          "Push": "Lecture / pause",
+          "Touch": "Lecture / pause"
+        }
+      }
     }
   ],
   "Category": "Sona",
   "CategoryIcon": "imgs/plugin/category-icon",
   "CodePath": "bin/plugin.js",
-  "Description": "Pilote Sona pour Windows : lecture, pochette du titre en cours, j'aime, aléatoire, volume, molette du Stream Deck +. Rien à configurer : le plugin retrouve Sona sur ce PC.",
+  "Description": "Pilote Sona pour Windows (et tes autres appareils Sona, comme l'iPhone) : lecture, pochette du titre en cours, j'aime, aléatoire, volume, molettes du Stream Deck +. Rien à configurer : le plugin retrouve Sona sur ce PC.",
   "Icon": "imgs/plugin/marketplace",
   "SDKVersion": 2,
   "Software": {
@@ -212,5 +234,6 @@
     "Debug": "disabled"
   },
   "UUID": "app.sona.remote",
-  "URL": "https://github.com/LeVraiLunatix/sona"
+  "URL": "https://github.com/LeVraiLunatix/sona",
+  "PropertyInspectorPath": "ui/device.html"
 }

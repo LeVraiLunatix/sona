@@ -13,7 +13,7 @@ const write = (rel, svg) => {
 
 const actions = {
   playpause: "play", nowplaying: "note", next: "next", previous: "previous", like: "heart",
-  shuffle: "shuffle", repeat: "repeat", volumeup: "volumeUp", volumedown: "volumeDown", dial: "speaker",
+  shuffle: "shuffle", repeat: "repeat", volumeup: "volumeUp", volumedown: "volumeDown", dial: "speaker", seekdial: "next",
 };
 for (const [id, glyph] of Object.entries(actions)) {
   write(`actions/${id}/icon`, iconSvg(glyph));

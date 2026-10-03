@@ -4489,7 +4489,13 @@ function desktopSnapshot() {
   const remote = remoteDevice();
   const rnow = deviceNow(remote);
   const t = remote ? rnow.track : state.queue[state.index];
-  if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat };
+  // Les autres appareils Sona Connect : le Stream Deck peut les piloter.
+  const devices = otherDevices().map((d) => {
+    const n = deviceNow(d);
+    return { id: d.id, name: d.name, kind: d.kind, playing: !n.paused, track: n.track ? cleanTrack(n.track) : null,
+      position: Math.round(n.position), volume: d.volume ?? null, shuffle: d.shuffle ?? null, repeat: d.repeat ?? null, liked: d.liked ?? null };
+  });
+  if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat, devices };
   const start = Math.max(0, state.index - 15);
   const ly = !remote && sameTrack(t, state.queue[state.index]) ? state.lyrics : null;
   return {
@@ -4501,6 +4507,7 @@ function desktopSnapshot() {
     shuffle: state.shuffle, repeat: state.repeat,
     liked: state.liked.has(trackKey(t)),
     remoteDevice: remote ? remote.name : null,
+    devices,
     index: remote ? -1 : state.index,
     queueName: remote ? "" : state.station ? `${state.station.name} · radio` : state.name || "",
     queue: remote ? [] : state.queue.slice(start, state.index + 40).map((q, k) => ({ i: start + k, title: q.title, artist: q.artist, cover_url: q.cover_url || null })),
@@ -4540,7 +4547,22 @@ function updateAmbient(t) {
 }
 
 /** Commande de la télécommande, du mini-lecteur ou de la barre des tâches. */
+/** Commande pour un autre appareil Sona Connect (touche Stream Deck réglée sur l'iPhone…). */
+async function deviceCommand(c) {
+  const d = state.connect.devices.find((x) => x.id === c.target && !x.is_me);
+  if (!d) throw new Error("Cet appareil n'est pas allumé.");
+  const action = c.action === "toggle" ? (deviceNow(d).paused ? "play" : "pause") : c.action;
+  if (!["play", "pause", "next", "previous", "seek", "volume", "shuffle", "repeat", "like"].includes(action)) throw new Error("Action inconnue");
+  const extra = {};
+  if (Number.isFinite(c.position)) extra.position = c.position;
+  if (Number.isFinite(c.volume)) extra.volume = Math.max(0, Math.min(1, c.volume));
+  await api("/connect/command", { method: "POST", body: JSON.stringify({ device_id: deviceId, target: d.id, action, ...extra }) });
+  setTimeout(() => startConnect.now?.(), 500);
+  return true;
+}
+
 async function desktopCommand(c) {
+  if (c.target) return deviceCommand(c);
   const remote = remoteDevice();
   const t = remote ? deviceNow(remote).track : state.queue[state.index];
   const paused = remote ? deviceNow(remote).paused : audio.paused;

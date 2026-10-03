@@ -252,6 +252,8 @@ async function remoteCommand(body) {
   const clean = { action: body.action };
   for (const k of ["position", "volume", "index"]) if (Number.isFinite(body[k])) clean[k] = body[k];
   if (typeof body.query === "string") clean.query = body.query.slice(0, 200);
+  // Un autre appareil Sona Connect (l'iPhone…) plutôt que ce PC.
+  if (typeof body.target === "string" && /^[\w-]{6,64}$/.test(body.target)) clean.target = body.target;
   if (body.track && typeof body.track === "object") clean.track = body.track;
   return pageCommand(clean);
 }

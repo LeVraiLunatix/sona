@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Sona</title>
+<style>
+  /* Panneau d'une touche Sona dans le logiciel Stream Deck : l'appareil à piloter. */
+  body { margin: 0; padding: 10px 14px; background: #2d2d2d; color: #d8d8d8; font: 13px "Segoe UI", system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
+  label { color: #969696; text-align: right; }
+  select { width: 100%; height: 26px; background: #3d3d3d; color: #d8d8d8; border: 1px solid #555; border-radius: 3px; padding: 0 6px; font: inherit; }
+  p { margin: 4px 0 0 104px; color: #969696; font-size: 12px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="device">Appareil</label>
+    <select id="device"><option value="">Ce PC</option></select>
+  </div>
+  <p id="hint">« Ce PC » : Sona pour Windows. Les autres appareils Sona Connect (iPhone…) apparaissent quand Sona y est ouvert.</p>
+<script>
+  // Protocole du logiciel Stream Deck pour les panneaux de réglages.
+  let socket, context, settings = {}, devices = [];
+  const select = document.getElementById("device");
+
+  function paint() {
+    const known = new Map(devices.map((d) => [d.id, d.name]));
+    // L'appareil réglé reste dans la liste même éteint.
+    if (settings.device && !known.has(settings.device)) known.set(settings.device, `${settings.deviceName || "Appareil"} (éteint)`);
+    select.innerHTML = `<option value="">Ce PC</option>` + [...known].map(([id, name]) => `<option value="${id}">${name.replace(/[<&]/g, "")}</option>`).join("");
+    select.value = settings.device || "";
+  }
+
+  select.onchange = () => {
+    const d = devices.find((x) => x.id === select.value);
+    settings = select.value ? { device: select.value, deviceName: d ? d.name : settings.deviceName || "" } : {};
+    socket.send(JSON.stringify({ event: "setSettings", context, payload: settings }));
+  };
+
+  // Appelée par le logiciel Stream Deck à l'ouverture du panneau.
+  function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
+    context = uuid;
+    const action = JSON.parse(actionInfo);
+    settings = (action.payload && action.payload.settings) || {};
+    paint();
+    socket = new WebSocket(`ws://127.0.0.1:${port}`);
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ event: registerEvent, uuid }));
+      socket.send(JSON.stringify({ event: "sendToPlugin", action: action.action, context: uuid, payload: { want: "devices" } }));
+    };
+    socket.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+      if (data.event === "sendToPropertyInspector" && data.payload && data.payload.devices) {
+        devices = data.payload.devices;
+        if (!data.payload.online) document.getElementById("hint").textContent = "Sona pour Windows est fermé : ouvre-le pour voir tes appareils.";
+        paint();
+      }
+      if (data.event === "didReceiveSettings") { settings = data.payload.settings || {}; paint(); }
+    };
+  }
+</script>
+</body>
+</html>

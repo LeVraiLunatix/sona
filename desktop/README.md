@@ -128,6 +128,12 @@ Sona sur le même PC et lui parle en local.
 | J'aime, Aléatoire, Répéter | En rose quand c'est activé |
 | Volume +, Volume − | ±10 % |
 | Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
+| Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
+
+Chaque touche a un réglage **Appareil** (panneau de la touche dans le
+logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du
+compte (l'iPhone, un autre ordinateur) allumé. Sona pour Windows relaie
+alors les commandes à cet appareil ; éteint, la touche l'indique.
 
 Sona fermé, ou télécommande coupée dans Sona : les touches l'indiquent. Un
 appui qui échoue affiche l'alerte du Stream Deck et écrit la raison sur la
