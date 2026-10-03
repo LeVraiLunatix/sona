@@ -38,7 +38,8 @@ class SonaKey extends SingletonAction {
     if (sona.status !== "online") return ev.action.showAlert();
     try {
       await this.run(sona.state || {});
-    } catch {
+    } catch (e) {
+      streamDeck.logger.warn(`${this.manifestId} : ${e.message}`);
       await ev.action.showAlert();
     }
   }
@@ -169,6 +170,7 @@ function renderAll() {
 
 for (const singleton of all) streamDeck.actions.registerAction(singleton);
 sona.on("state", renderAll);
+sona.on("log", (message) => streamDeck.logger.info(message));
 sona.on("status", (status) => {
   streamDeck.logger.info(`Sona : ${status}`);
   renderAll();

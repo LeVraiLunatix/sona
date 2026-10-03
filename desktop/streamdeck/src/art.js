@@ -1,6 +1,10 @@
 /* Images des touches : du SVG, dessiné ici (les mêmes formes que les icônes
    de Sona web), en verre sombre avec la touche de rose de Sona. La touche
-   « En cours » montre la pochette du titre. */
+   « En cours » montre la pochette du titre.
+
+   Stream Deck dessine le SVG avec Qt (SVG Tiny 1.2), bien plus limité qu'un
+   navigateur : pas de couleurs `rgba()` (opacité à part, `fill-opacity`),
+   pas de filtres, images intégrées en `xlink:href`. Envoyé en base64. */
 
 const ICON = {
   play: "M7 4.8v14.4c0 .8.9 1.3 1.6.9l11.2-7.2c.6-.4.6-1.4 0-1.8L8.6 3.9C7.9 3.5 7 4 7 4.8z",
@@ -20,41 +24,43 @@ const ICON = {
 
 const ACCENT = "#fa2d6c";
 
-export const dataUrl = (svg) => `data:image/svg+xml;charset=utf8,${encodeURIComponent(svg)}`;
+export const dataUrl = (svg) => `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+const NS = `xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.2" baseProfile="tiny"`;
 const escapeXml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
 
-const glyphPath = (name, fill) => name === "sona"
-  ? `<path d="${ICON.sona}" stroke="${fill}" stroke-width="2.3" stroke-linecap="round" fill="none"/>`
-  : `<path d="${ICON[name]}" fill="${fill}"/>`;
+const glyphPath = (name, fill, opacity = 1) => name === "sona"
+  ? `<path d="${ICON.sona}" stroke="${fill}" stroke-opacity="${opacity}" stroke-width="2.3" stroke-linecap="round" fill="none"/>`
+  : `<path d="${ICON[name]}" fill="${fill}" fill-opacity="${opacity}"/>`;
 
 /**
  * Touche en verre : fond sombre, reflet en haut, icône blanche (rose quand
  * l'option est active). `dim` : Sona fermé ou rien en lecture.
  */
 export function keySvg(name, { on = false, dim = false, size = 144 } = {}) {
-  const fill = dim ? "rgba(255,255,255,.35)" : on ? ACCENT : "#ffffff";
-  const glow = on && !dim ? `<circle cx="72" cy="72" r="46" fill="${ACCENT}" opacity=".22" filter="url(#b)"/>` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 144 144">
+  const fill = on && !dim ? ACCENT : "#ffffff";
+  // Halo rose sous une option active : un dégradé radial (pas de filtre de flou).
+  const glow = on && !dim ? `<circle cx="72" cy="72" r="62" fill="url(#o)"/>` : "";
+  return `<svg ${NS} width="${size}" height="${size}" viewBox="0 0 144 144">
 <defs>
 <linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2633"/><stop offset="1" stop-color="#121016"/></linearGradient>
-<radialGradient id="h" cx=".25" cy="0" r="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></radialGradient>
-<filter id="b"><feGaussianBlur stdDeviation="12"/></filter>
+<radialGradient id="h" cx="36" cy="0" r="144" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffffff" stop-opacity=".22"/><stop offset=".55" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+<radialGradient id="o" cx="72" cy="72" r="62" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${ACCENT}" stop-opacity=".35"/><stop offset="1" stop-color="${ACCENT}" stop-opacity="0"/></radialGradient>
 </defs>
 <rect width="144" height="144" fill="url(#g)"/>
 <rect width="144" height="144" fill="url(#h)"/>
 ${glow}
-<g transform="translate(36 36) scale(3)">${glyphPath(name, fill)}</g>
+<g transform="translate(36 36) scale(3)">${glyphPath(name, fill, dim ? 0.35 : 1)}</g>
 </svg>`;
 }
 
 /** Icône de la liste des actions (blanche sur fond transparent). */
 export function iconSvg(name, size = 20) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">${glyphPath(name, "#ffffff")}</svg>`;
+  return `<svg ${NS} width="${size}" height="${size}" viewBox="0 0 24 24">${glyphPath(name, "#ffffff")}</svg>`;
 }
 
 /** Icône du plugin (boutique et catégorie) : le logo de Sona. */
 export function pluginSvg(size = 288) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
+  return `<svg ${NS} width="${size}" height="${size}" viewBox="0 0 24 24">
 <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a06bff"/><stop offset="1" stop-color="#ff4f8b"/></linearGradient></defs>
 <rect width="24" height="24" rx="5.4" fill="url(#g)"/>${glyphPath("sona", "#ffffff")}</svg>`;
 }
@@ -65,17 +71,17 @@ export function pluginSvg(size = 288) {
  */
 export function coverSvg({ image, paused, title, artist }) {
   const art = image
-    ? `<image href="${image}" width="144" height="144" preserveAspectRatio="xMidYMid slice"/>`
-    : `<rect width="144" height="144" fill="#1b1820"/><g transform="translate(48 30) scale(2)">${glyphPath("note", "rgba(255,255,255,.4)")}</g>`;
+    ? `<image xlink:href="${image}" x="0" y="0" width="144" height="144" preserveAspectRatio="xMidYMid slice"/>`
+    : `<rect width="144" height="144" fill="#1b1820"/><g transform="translate(48 30) scale(2)">${glyphPath("note", "#ffffff", 0.4)}</g>`;
   const label = title
     ? `<rect y="88" width="144" height="56" fill="url(#s)"/>
 <text x="10" y="118" font-family="Segoe UI, Arial" font-weight="700" font-size="17" fill="#fff">${escapeXml(truncate(title, 14))}</text>
-<text x="10" y="136" font-family="Segoe UI, Arial" font-size="14" fill="rgba(255,255,255,.75)">${escapeXml(truncate(artist, 16))}</text>`
+<text x="10" y="136" font-family="Segoe UI, Arial" font-size="14" fill="#ffffff" fill-opacity=".75">${escapeXml(truncate(artist, 16))}</text>`
     : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".78"/></linearGradient></defs>
+  return `<svg ${NS} width="144" height="144" viewBox="0 0 144 144">
+<defs><linearGradient id="s" x1="0" y1="88" x2="0" y2="144" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity=".78"/></linearGradient></defs>
 ${art}${label}
-<circle cx="120" cy="24" r="17" fill="rgba(20,20,26,.55)" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+<circle cx="120" cy="24" r="17" fill="#14141a" fill-opacity=".55" stroke="#ffffff" stroke-opacity=".35" stroke-width="1"/>
 <g transform="translate(110.5 14.5) scale(.8)">${glyphPath(paused ? "play" : "pause", "#ffffff")}</g>
 </svg>`;
 }
