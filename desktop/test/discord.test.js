@@ -42,6 +42,10 @@ test("l'activité montre le titre, l'artiste, la pochette et la progression", ()
   assert.equal(a.state, "PNL");
   assert.equal(a.assets.large_image, "https://e-cdns/1.jpg");
   assert.deepEqual(a.timestamps, { start: 950_000, end: 1_150_000 });
+  assert.equal(a.assets.small_image, "sona");
+  assert.equal(a.assets.small_text, "Sur Sona pour Windows");
+  // Lecture sur l'iPhone, montrée par le PC (Sona Connect).
+  assert.equal(activityFor({ track: { title: "T", artist: "A" }, remoteDevice: "iPhone de Lucas" }).assets.small_text, "Sur iPhone de Lucas");
   const paused = activityFor({ track: { title: "T", artist: "A" }, paused: true });
   assert.equal(paused.state, "A · en pause");
   assert.equal(paused.timestamps, undefined);
@@ -86,4 +90,28 @@ test("identifiant invalide ou Discord fermé : erreur claire", async () => {
   presence.configure(true, "123456789012345678");
   assert.ok(await until(() => /pas ouvert/.test(presence.status().error || "")));
   presence.configure(false, "");
+});
+
+test("en pause depuis un moment : le statut disparaît", async (t) => {
+  if (process.platform === "win32") return t.skip("socket Unix");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sona-discord-"));
+  const file = path.join(dir, "discord-ipc-0");
+  const { server, frames } = await fakeDiscord(file);
+  const presence = new DiscordPresence({ connectTo: () => file, retry: 100, pauseHide: 150 });
+  presence.configure(true, "123456789012345678");
+  try {
+    assert.ok(await until(() => presence.status().connected));
+    presence.update({ track: { title: "T", artist: "A" }, paused: true });
+    assert.ok(await until(() => frames.length === 2));
+    assert.equal(frames[1].msg.args.activity.state, "A · en pause");
+    assert.ok(await until(() => frames.length === 3));
+    assert.equal(frames[2].msg.args.activity, undefined);
+    // Reprise : le statut revient.
+    presence.update({ track: { title: "T", artist: "A", duration_seconds: 100 }, paused: false, position: 1 });
+    assert.ok(await until(() => frames.length === 4));
+    assert.equal(frames[3].msg.args.activity.details, "T");
+  } finally {
+    presence.configure(false, "");
+    server.close();
+  }
 });

@@ -27,10 +27,20 @@ ce qu'un navigateur ne sait pas faire.
   autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
   clique au travers. Réglages, zone de notification ou raccourci clavier.
 - **Statut Discord** : « Écoute Sona » sur ton profil, avec le titre, la
-  pochette et la progression. Discord exige une « application » à ton nom :
-  sur discord.com/developers/applications, crée-en une nommée « Sona »
-  (New Application), copie son Application ID dans Réglages → Statut
-  Discord → Application Discord. Discord doit être ouvert sur le PC.
+  pochette et la progression — aussi pour ce qui joue sur l'iPhone ou le
+  site (Sona Connect), tant que Sona tourne sur le PC, même réduit près de
+  l'horloge : Discord ne laisse que son app d'ordinateur recevoir un
+  statut, un iPhone ou une page web ne peuvent pas lui parler. En pause
+  plus de 5 min, le statut disparaît. Mise en place (une fois) :
+  1. discord.com/developers/applications → **New Application**, nom
+     « Sona » (c'est lui qui s'affiche : « Écoute Sona ») ; icône : le logo
+     de Sona (`ios/Encre/Assets.xcassets/AppIcon.appiconset/AppIcon.png`).
+  2. **Rich Presence → Art Assets** → ajoute ce même logo sous le nom
+     `sona` (petite image et image quand un titre n'a pas de pochette).
+  3. **General Information** → copie l'**Application ID**, puis dans Sona :
+     Réglages → Statut Discord → Application Discord → colle-le.
+  4. Discord (l'app d'ordinateur) ouvert sur le PC ; dans Discord,
+     Paramètres → Confidentialité de l'activité → « Partager mon activité ».
 - **Raccourcis clavier globaux** (Réglages → Raccourcis clavier) : lecture,
   suivant, précédent, volume, j'aime, paroles, afficher Sona — même quand
   Sona est en arrière-plan.

@@ -4758,7 +4758,7 @@ async function renderDesktopSettings() {
     ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
     ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
     ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
-    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression.", s.discordEnabled)}
+    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant que Sona tourne sur ce PC.", s.discordEnabled)}
     ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Application Discord", discordStatusText(s)) : ""}
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}

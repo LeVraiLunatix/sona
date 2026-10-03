@@ -1,6 +1,11 @@
 /* Discord Rich Presence : « Écoute Sona » sur le profil Discord, avec le
    titre, l'artiste, la pochette et la progression.
 
+   Pour tout le compte : ce qui joue sur l'iPhone ou le site s'affiche
+   aussi (Sona Connect donne au PC la lecture des autres appareils). Discord
+   ne laisse en effet que son app d'ordinateur recevoir un statut : un
+   iPhone ou une page web ne peuvent pas lui parler directement.
+
    Parle directement au client Discord du PC, par son canal local (tube
    nommé `discord-ipc-N` sous Windows, socket ailleurs) : pas de dépendance,
    pas de réseau. Discord exige l'identifiant d'une « application » (créée
@@ -12,6 +17,8 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 
 const OP = { HANDSHAKE: 0, FRAME: 1, CLOSE: 2, PING: 3, PONG: 4 };
+// En pause depuis 5 min : plus de statut (comme Spotify).
+const PAUSE_HIDE_MS = 5 * 60 * 1000;
 
 function pipePath(i) {
   if (process.platform === "win32") return `\\\\?\\pipe\\discord-ipc-${i}`;
@@ -33,6 +40,8 @@ function activityFor(state, now = Date.now()) {
   const t = state?.track;
   if (!t) return null;
   const cover = /^https:\/\//.test(t.cover_url || "") ? t.cover_url : null;
+  // Lecture sur un autre appareil (iPhone, site) : son nom au survol du logo.
+  const where = state.remoteDevice ? `Sur ${state.remoteDevice}` : "Sur Sona pour Windows";
   const activity = {
     type: 2, // « Écoute »
     details: String(t.title || "").slice(0, 128) || "Sona",
@@ -40,6 +49,9 @@ function activityFor(state, now = Date.now()) {
     assets: {
       large_image: cover || "sona",
       large_text: String(t.album || t.title || "Sona").slice(0, 128),
+      // Image « sona » : le logo, ajouté aux Art Assets de l'application Discord.
+      small_image: "sona",
+      small_text: where.slice(0, 128),
     },
     instance: false,
   };
@@ -52,9 +64,10 @@ function activityFor(state, now = Date.now()) {
 }
 
 class DiscordPresence {
-  constructor({ connectTo = pipePath, retry = 15000 } = {}) {
+  constructor({ connectTo = pipePath, retry = 15000, pauseHide = PAUSE_HIDE_MS } = {}) {
     this.connectTo = connectTo;
     this.retry = retry;
+    this.pauseHide = pauseHide;
     this.clientId = "";
     this.enabled = false;
     this.socket = null;
@@ -129,7 +142,16 @@ class DiscordPresence {
 
   /** Nouvel état de lecture : envoyé à Discord s'il a vraiment changé. */
   update(state) {
-    this.activity = activityFor(state);
+    const paused = !!state?.track && !!state.paused;
+    if (!paused) {
+      clearTimeout(this.pauseTimer);
+      this.pausedAt = null;
+    } else if (!this.pausedAt) {
+      this.pausedAt = Date.now();
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = setTimeout(() => { this.activity = null; this.push(false); }, this.pauseHide ?? PAUSE_HIDE_MS);
+    }
+    this.activity = paused && Date.now() - this.pausedAt >= (this.pauseHide ?? PAUSE_HIDE_MS) ? null : activityFor(state);
     this.push(false);
   }
 
@@ -151,6 +173,8 @@ class DiscordPresence {
 
   close() {
     clearTimeout(this.timer);
+    clearTimeout(this.pauseTimer);
+    this.pausedAt = null;
     this.ready = false;
     this.sentKey = null;
     const socket = this.socket;
