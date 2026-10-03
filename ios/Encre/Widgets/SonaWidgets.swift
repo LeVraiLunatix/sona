@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -13,7 +14,10 @@ import WidgetKit
 struct SonaWidgetBundle: WidgetBundle {
     var body: some Widget {
         ShortcutsWidget()
+        RemotePCWidget()
         LockScreenWidget()
+        RemoteToggleControl()
+        RemoteNextControl()
         PartyLiveActivity()
         LyricsLiveActivity()
     }
@@ -111,6 +115,83 @@ private struct ShortcutsView: View {
             .frame(maxWidth: .infinity, minHeight: 64)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.15)))
         }
+    }
+}
+
+// MARK: - Mon PC (Sona Connect)
+
+/// Lecture/pause, précédent et suivant sur le PC piloté, sans ouvrir l'app.
+/// Le widget ne connaît pas le titre en cours (voir plus haut) : juste les
+/// commandes, exécutées par l'app.
+struct RemotePCWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "sona.remote", provider: StaticProvider()) { _ in
+            RemotePCView()
+                .containerBackground(for: .widget) { sonaGradient }
+        }
+        .configurationDisplayName("Mon PC")
+        .description("Lecture, pause, suivant et précédent sur le PC piloté dans « Appareils ».")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+private struct RemotePCView: View {
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: family == .systemSmall ? 8 : 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "laptopcomputer").font(.system(size: 15, weight: .semibold))
+                Text("Mon PC").font(.system(size: 15, weight: .heavy))
+                Spacer(minLength: 0)
+                LogoShape().fill(.white.opacity(0.8)).frame(width: 16, height: 16)
+            }
+            .foregroundStyle(.white)
+            Spacer(minLength: 0)
+            HStack(spacing: family == .systemSmall ? 6 : 10) {
+                button("backward.fill", "previous", size: 17)
+                button("playpause.fill", "toggle", size: 22)
+                button("forward.fill", "next", size: 17)
+            }
+        }
+        .widgetURL(URL(string: "encre://devices"))
+    }
+
+    private func button(_ icon: String, _ command: String, size: CGFloat) -> some View {
+        Button(intent: PCRemoteButtonIntent(command)) {
+            Image(systemName: icon)
+                .font(.system(size: size, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: family == .systemSmall ? 46 : 56)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.16)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Centre de contrôle (et bouton Action) : lecture/pause sur le PC piloté.
+struct RemoteToggleControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "sona.control.pc.toggle") {
+            ControlWidgetButton(action: PCRemoteButtonIntent("toggle")) {
+                Label("Lecture/pause sur mon PC", systemImage: "playpause.fill")
+            }
+        }
+        .displayName("Lecture/pause sur mon PC")
+        .description("Sona Connect : le PC choisi dans « Appareils ».")
+    }
+}
+
+/// Centre de contrôle : titre suivant sur le PC piloté.
+struct RemoteNextControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "sona.control.pc.next") {
+            ControlWidgetButton(action: PCRemoteButtonIntent("next")) {
+                Label("Suivant sur mon PC", systemImage: "forward.fill")
+            }
+        }
+        .displayName("Suivant sur mon PC")
+        .description("Sona Connect : le PC choisi dans « Appareils ».")
     }
 }
 
