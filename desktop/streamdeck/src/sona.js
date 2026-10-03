@@ -78,17 +78,27 @@ export class SonaClient extends EventEmitter {
   }
 
   /** Trouve Sona (port réglé, ou l'un des suivants s'il était pris) puis suit l'état. */
+  /** Journal (relayé dans les logs du plugin par Stream Deck), sans doublons. */
+  log(message) {
+    if (message === this.lastLog) return;
+    this.lastLog = message;
+    this.emit("log", message);
+  }
+
   async connect() {
     const s = this.readSettings();
-    if (!s) return this.setStatus("absent");
-    if (!s.enabled) return this.setStatus("off");
+    if (!s) { this.log(`Réglages de Sona introuvables (${settingsFile()}) : Sona pour Windows est-il installé et lancé une fois ?`); return this.setStatus("absent"); }
+    if (!s.enabled) { this.log("Télécommande coupée dans Sona (Réglages › Télécommande du téléphone)."); return this.setStatus("off"); }
     this.key = s.key;
+    const tried = [];
     for (let port = s.port; port < s.port + 6; port++) {
       const base = `http://${this.host}:${port}`;
-      const res = await fetch(`${base}/api/state`, { headers: { "X-Sona-Key": s.key }, signal: AbortSignal.timeout(1500) }).catch(() => null);
+      const res = await fetch(`${base}/api/state`, { headers: { "X-Sona-Key": s.key }, signal: AbortSignal.timeout(1500) }).catch((e) => { tried.push(`${port} : ${e.cause?.code || e.name}`); return null; });
       if (!res) continue;
+      tried.push(`${port} : ${res.status}`);
       if (res.status === 401) continue; // une autre app sur ce port, ou une clé périmée
       if (!res.ok) continue;
+      this.log(`Sona trouvé sur ${base}`);
       this.base = base;
       this.update(await res.json());
       this.setStatus("online");
@@ -96,6 +106,7 @@ export class SonaClient extends EventEmitter {
       this.setStatus("offline");
       return;
     }
+    this.log(`Sona injoignable (${tried.join(", ")}) : l'app est-elle ouverte ?`);
     this.setStatus("offline");
   }
 
