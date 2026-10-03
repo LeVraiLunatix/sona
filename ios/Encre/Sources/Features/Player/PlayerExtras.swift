@@ -149,6 +149,28 @@ struct SoundSettingsSheet: View {
                 }
 
                 Section {
+                    Toggle(isOn: Binding(get: { player.normalizeEnabled }, set: { _ in player.toggleNormalize() })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Volume égalisé", systemImage: "speaker.wave.2")
+                            Text("Tous les titres au même niveau sonore : fini les morceaux bien plus forts que d'autres.")
+                                .font(Typo.caption).foregroundStyle(Tone.secondary)
+                        }
+                    }
+                    Picker(selection: $player.fadeSeconds) {
+                        Text("Automatique").tag(0.0)
+                        ForEach([2.0, 4.0, 6.0, 8.0, 10.0, 12.0], id: \.self) { Text("\(Int($0)) s").tag($0) }
+                    } label: {
+                        Label("Fondu enchaîné", systemImage: "arrow.triangle.merge")
+                    }
+                } header: {
+                    Text("Enchaînement")
+                } footer: {
+                    Text(player.crossfadeEnabled
+                         ? "AutoMix est activé : les titres s'enchaînent en fondu de la durée choisie."
+                         : "Le fondu s'applique quand AutoMix est activé (bouton ⇄ du lecteur).")
+                }
+
+                Section {
                     Toggle(isOn: $player.spatialAudio) {
                         Label("Audio spatial", systemImage: "airpods.gen3")
                     }

@@ -85,6 +85,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        WakeAlarmView()
+                    } label: {
+                        Label("Réveil musical", systemImage: "alarm")
+                    }
+                }
+
+                Section {
                     Toggle("Récaps de la semaine et du mois", isOn: $notifications.recaps)
                     Toggle("Rappel du défi du jour", isOn: $notifications.dailyChallenge)
                     Toggle("Parties lancées par mes amis", isOn: $notifications.friends)
