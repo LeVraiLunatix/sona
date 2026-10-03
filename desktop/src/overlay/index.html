@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Sona — paroles</title>
+<style>
+  /* Fenêtre transparente, au premier plan, qu'on traverse au clic : seules
+     les lignes de paroles se voient, lisibles sur n'importe quel fond. */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; cursor: default; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding-bottom: 6px;
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: #fff; text-align: center; }
+  .line { max-width: 96vw; padding: 4px 18px; border-radius: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, .85), 0 0 2px rgba(0, 0, 0, .9); transition: opacity .35s ease, transform .35s ease; }
+  #now { font-size: 34px; font-weight: 700; background: rgba(12, 12, 16, .42); }
+  #next { font-size: 21px; font-weight: 600; opacity: .62; }
+  #now:empty, #next:empty { display: none; }
+  .swap #now { opacity: 0; transform: translateY(8px); }
+</style>
+</head>
+<body>
+  <div class="line" id="now"></div>
+  <div class="line" id="next"></div>
+  <script src="overlay.js"></script>
+</body>
+</html>

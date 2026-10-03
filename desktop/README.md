@@ -23,6 +23,17 @@ ce qu'un navigateur ne sait pas faire.
   position, volume, paroles synchronisées, file d'attente et recherche (le
   titre choisi se lance sur le PC). Aucune app à installer : c'est une page
   servie par le PC ; on peut l'ajouter à l'écran d'accueil.
+- **Paroles en surimpression** : les paroles synchronisées par-dessus les
+  autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
+  clique au travers. Réglages, zone de notification ou raccourci clavier.
+- **Statut Discord** : « Écoute Sona » sur ton profil, avec le titre, la
+  pochette et la progression. Discord exige une « application » à ton nom :
+  sur discord.com/developers/applications, crée-en une nommée « Sona »
+  (New Application), copie son Application ID dans Réglages → Statut
+  Discord → Application Discord. Discord doit être ouvert sur le PC.
+- **Raccourcis clavier globaux** (Réglages → Raccourcis clavier) : lecture,
+  suivant, précédent, volume, j'aime, paroles, afficher Sona — même quand
+  Sona est en arrière-plan.
 - **Mini-lecteur** : une petite fenêtre en verre (le vrai verre acrylique de
   Windows 11), toujours au premier plan.
 - **Barre des tâches** : boutons précédent / lecture / suivant dans l'aperçu
@@ -128,6 +139,12 @@ Sona sur le même PC et lui parle en local.
 | J'aime, Aléatoire, Répéter | En rose quand c'est activé |
 | Volume +, Volume − | ±10 % |
 | Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
+| Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
+
+Chaque touche a un réglage **Appareil** (panneau de la touche dans le
+logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du
+compte (l'iPhone, un autre ordinateur) allumé. Sona pour Windows relaie
+alors les commandes à cet appareil ; éteint, la touche l'indique.
 
 Sona fermé, ou télécommande coupée dans Sona : les touches l'indiquent. Un
 appui qui échoue affiche l'alerte du Stream Deck et écrit la raison sur la

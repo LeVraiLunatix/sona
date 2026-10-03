@@ -23,6 +23,8 @@ const { RemoteServer } = require("./remote-server");
 const { glyph } = require("./glyphs");
 const iphone = require("./iphone");
 const updater = require("./updater");
+const { DiscordPresence } = require("./discord");
+const shortcuts = require("./shortcuts");
 
 const isWin = process.platform === "win32";
 const WEB_ROOT = app.isPackaged ? path.join(process.resourcesPath, "web") : path.resolve(__dirname, "..", "..", "web");
@@ -42,6 +44,9 @@ if (isWin) app.setAppUserModelId("app.sona.desktop");
 
 let win = null;
 let mini = null;
+let overlay = null;        // paroles en surimpression
+let shortcutsRefused = [];
+const discord = new DiscordPresence();
 let tray = null;
 let quitting = false;
 let now = null;          // état de lecture envoyé par la page
@@ -68,6 +73,9 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
   if (settings.get("remoteEnabled")) await startRemote();
+  discord.configure(settings.get("discordEnabled"), settings.get("discordClientId"));
+  applyShortcuts();
+  if (settings.get("lyricsOverlay")) setOverlay(true);
   iphone.init({ onState: (s) => send("desktop:iphone", s), onNotify: notifyDesktop });
   updater.init({ onState: (s) => send("desktop:updates", s), onNotify: notifyDesktop, onBeforeInstall: () => { quitting = true; } });
   nativeTheme.on("updated", () => {
@@ -78,7 +86,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => { quitting = true; });
-app.on("will-quit", () => { remote.stop(); iphone.stop(); });
+app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); shortcuts.apply({}, () => {}); });
 
 /** Télécommande : le port obtenu est noté pour le plugin Stream Deck. */
 async function startRemote() {
@@ -252,6 +260,8 @@ async function remoteCommand(body) {
   const clean = { action: body.action };
   for (const k of ["position", "volume", "index"]) if (Number.isFinite(body[k])) clean[k] = body[k];
   if (typeof body.query === "string") clean.query = body.query.slice(0, 200);
+  // Un autre appareil Sona Connect (l'iPhone…) plutôt que ce PC.
+  if (typeof body.target === "string" && /^[\w-]{6,64}$/.test(body.target)) clean.target = body.target;
   if (body.track && typeof body.track === "object") clean.track = body.track;
   return pageCommand(clean);
 }
@@ -267,8 +277,11 @@ ipcMain.on("desktop:reply", (_e, { id, result, error }) => {
 
 ipcMain.on("desktop:state", (_e, state) => {
   now = state ? { ...state, at: Date.now() } : null;
-  remote.broadcast(liveState());
-  if (mini && !mini.isDestroyed()) mini.webContents.send("mini:state", liveState());
+  const live = liveState();
+  remote.broadcast(live);
+  if (mini && !mini.isDestroyed()) mini.webContents.send("mini:state", live);
+  if (overlay && !overlay.isDestroyed()) overlay.webContents.send("overlay:state", live);
+  discord.update(live);
   updateTray();
   updateThumbar();
   if (win) win.setTitle(now?.track ? `${now.track.title} · ${now.track.artist} — Sona` : "Sona");
@@ -302,7 +315,7 @@ function updateTray(force) {
   if (!tray) return;
   const t = now?.track;
   const light = !nativeTheme.shouldUseDarkColors;
-  const key = JSON.stringify([t?.title, t?.artist, now?.paused, now?.remoteDevice, !!mini, light]);
+  const key = JSON.stringify([t?.title, t?.artist, now?.paused, now?.remoteDevice, !!mini, !!overlay, light]);
   if (!force && key === trayKey) return;
   trayKey = key;
   tray.setToolTip(t ? `Sona — ${t.title} · ${t.artist}`.slice(0, 127) : "Sona");
@@ -319,6 +332,7 @@ function updateTray(force) {
   }
   items.push({ label: "Ouvrir Sona", click: showWindow });
   items.push({ label: mini ? "Fermer le mini-lecteur" : "Mini-lecteur", click: toggleMini });
+  items.push({ label: "Paroles en surimpression", type: "checkbox", checked: !!overlay, click: () => setOverlay(!overlay) });
   items.push({ label: "Télécommande du téléphone…", click: () => { showWindow(); send("desktop:open-remote"); } });
   items.push({ label: "Sona sur l'iPhone…", click: () => { showWindow(); send("desktop:open", "#/iphone"); } });
   items.push({ label: "Rechercher les mises à jour", click: () => updater.check({ manual: true }).then((m) => {
@@ -383,6 +397,58 @@ ipcMain.on("mini:command", (_e, action) => {
 });
 ipcMain.on("mini:seek", (_e, position) => { if (Number.isFinite(position)) pageCommand({ action: "seek", position }).catch(() => {}); });
 
+// ── Paroles en surimpression ────────────────────────────────────────────
+
+/** Une fenêtre transparente, au premier plan, qu'on traverse au clic. */
+function setOverlay(on) {
+  settings.set("lyricsOverlay", !!on);
+  if (!on) { overlay?.close(); return; }
+  if (overlay) { placeOverlay(); return; }
+  overlay = new BrowserWindow({
+    width: 900, height: 130, show: false, frame: false, transparent: true, resizable: false, movable: false,
+    focusable: false, skipTaskbar: true, hasShadow: false, alwaysOnTop: true, fullscreenable: false,
+    title: "Sona — paroles", backgroundColor: "#00000000",
+    webPreferences: { preload: path.join(__dirname, "overlay", "preload.js"), contextIsolation: true, sandbox: true, backgroundThrottling: false },
+  });
+  overlay.setAlwaysOnTop(true, "screen-saver");
+  overlay.setIgnoreMouseEvents(true);
+  overlay.setVisibleOnAllWorkspaces?.(true);
+  placeOverlay();
+  overlay.loadFile(path.join(__dirname, "overlay", "index.html"));
+  overlay.once("ready-to-show", () => { overlay.showInactive(); overlay.webContents.send("overlay:state", liveState()); });
+  overlay.on("closed", () => { overlay = null; updateTray(true); send("desktop:overlay", false); });
+  updateTray(true);
+  send("desktop:overlay", true);
+}
+
+function placeOverlay() {
+  if (!overlay) return;
+  const work = screen.getPrimaryDisplay().workArea;
+  const width = Math.min(1100, Math.round(work.width * 0.8));
+  const height = 130;
+  const top = settings.get("overlayPosition") === "top";
+  overlay.setBounds({
+    x: Math.round(work.x + (work.width - width) / 2),
+    y: top ? work.y + 24 : work.y + work.height - height - 36,
+    width, height,
+  });
+}
+
+// ── Raccourcis clavier globaux ─────────────────────────────────────────
+
+function applyShortcuts() {
+  shortcutsRefused = shortcuts.apply(settings.get("shortcuts"), (action) => {
+    if (action === "show") return showWindow();
+    if (action === "lyrics") return setOverlay(!overlay);
+    if (action === "volumeUp" || action === "volumeDown") {
+      const volume = Math.max(0, Math.min(1, (now?.volume ?? 1) + (action === "volumeUp" ? 0.05 : -0.05)));
+      return pageCommand({ action: "volume", volume }).catch(() => {});
+    }
+    pageCommand({ action }).catch(() => {});
+  });
+  return shortcutsRefused;
+}
+
 // ── Pont avec la page ──────────────────────────────────────────────────
 
 ipcMain.on("desktop:info", (event) => {
@@ -409,6 +475,9 @@ ipcMain.handle("desktop:settings", () => {
     closeToTray: s.closeToTray, launchAtLogin: s.launchAtLogin, remoteEnabled: s.remoteEnabled,
     remotePort: s.remotePort, serverUrl: s.serverUrl, deviceName: s.deviceName, deviceNameShown: deviceName(),
     mini: !!mini, version: app.getVersion(),
+    lyricsOverlay: !!overlay, overlayPosition: s.overlayPosition,
+    discordEnabled: s.discordEnabled, discordClientId: s.discordClientId, discord: discord.status(),
+    shortcuts: s.shortcuts || {}, shortcutActions: shortcuts.ACTIONS, shortcutsRefused,
   };
 });
 
@@ -441,12 +510,47 @@ ipcMain.handle("desktop:set", async (_e, key, value) => {
       remote.setKey(settings.get("remoteKey"));
       break;
     case "mini": if (!!value !== !!mini) toggleMini(); break;
+    case "lyricsOverlay": setOverlay(!!value); break;
+    case "overlayPosition":
+      settings.set(key, value === "top" ? "top" : "bottom");
+      placeOverlay();
+      break;
+    case "discordEnabled":
+    case "discordClientId":
+      settings.set(key, key === "discordEnabled" ? !!value : String(value || "").trim().slice(0, 30));
+      discord.configure(settings.get("discordEnabled"), settings.get("discordClientId"));
+      if (now) discord.update(liveState());
+      break;
+    case "shortcuts": {
+      const map = {};
+      for (const [action, accelerator] of Object.entries(value || {})) {
+        if (shortcuts.ACTIONS[action] && shortcuts.valid(accelerator)) map[action] = accelerator;
+      }
+      settings.set(key, map);
+      return applyShortcuts();
+    }
     default: throw new Error("Réglage inconnu");
   }
   return true;
 });
 
 ipcMain.handle("desktop:remote-info", () => remote.info());
+
+/** Page « État » : ce que l'app sait d'elle-même (télécommande, Stream Deck, Discord…). */
+ipcMain.handle("desktop:status", () => {
+  const clients = [...remote.clients].map((c) => ({ name: c.name, since: c.since }));
+  const iph = iphone.snapshot();
+  return {
+    version: app.getVersion(),
+    remote: { enabled: settings.get("remoteEnabled"), running: remote.running, port: remote.port, error: remote.error, clients },
+    streamDeck: clients.find((c) => c.name === "Stream Deck") || null,
+    discord: { ...discord.status(), configured: !!settings.get("discordClientId"), wanted: !!settings.get("discordEnabled") },
+    shortcuts: { count: Object.keys(settings.get("shortcuts") || {}).length, refused: shortcutsRefused },
+    overlay: !!overlay,
+    iphone: { available: iph.available !== false, devices: (iph.devices || []).length, apps: (iph.apps || []).length },
+    updates: updater.snapshot(),
+  };
+});
 
 // ── Onglet iPhone et mises à jour ─────────────────────────────────────
 

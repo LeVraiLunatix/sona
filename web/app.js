@@ -542,7 +542,7 @@ async function route() {
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
     stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
     blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
-    settings: viewSettings, admin: viewAdmin, health: viewHealth, devices: viewDevices,
+    settings: viewSettings, admin: viewAdmin, health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -2157,7 +2157,12 @@ async function connectSync(wait = 0) {
       method: "POST",
       body: JSON.stringify({ device_id: deviceId, name: deviceName(), kind: desktop ? "desktop" : "web", state: localState(), claim, wait }),
     });
-  } catch { return false; }
+  } catch (e) {
+    // Pour la page « État ».
+    Object.assign(state.connect, { lastError: e.message || "Serveur injoignable", lastErrorAt: Date.now() });
+    return false;
+  }
+  state.connect.lastOk = Date.now();
   const wasRemote = remoteDevice()?.id;
   // Lecture/pause demandée à l'instant : on garde l'état voulu le temps que
   // l'autre appareil le confirme (une réponse partie avant ne l'annule pas).
@@ -2655,6 +2660,92 @@ function bindDevicesPage() {
     sendCommand(target.id, "volume", { volume: +e.target.value });
     setTimeout(() => { state.connect.pendingVolume = null; }, 6000);
   };
+}
+
+// ── État de Sona : ce qui marche, et sinon pourquoi ───────────────────────
+
+async function viewStatus() {
+  setTimeout(() => {
+    // Un relevé tout de suite (celui en cours peut attendre 25 s une nouveauté).
+    startConnect.now?.();
+    refreshStatus();
+    setTimeout(refreshStatus, 1200);
+    const timer = setInterval(refreshStatus, 5000);
+    onLeave(() => clearInterval(timer));
+  });
+  return page(`<h1 class="page-title">État de Sona</h1>
+    <p class="page-sub">Chaque élément en vert marche ; sinon, la raison est juste en dessous.</p>
+    <div id="status-root"><p class="muted">Vérification…</p></div>`);
+}
+
+const statusRow = (level, title, detail = "") => `<div class="set-row st-row"><span class="st-dot ${level}" aria-label="${{ ok: "OK", warn: "Attention", bad: "Problème", off: "Inactif" }[level]}"></span>
+  <span class="set-text"><b>${esc(title)}</b>${detail ? `<small>${esc(detail)}</small>` : ""}</span></div>`;
+
+const agoText = (ms) => (ms < 5000 ? "à l'instant" : since(new Date(Date.now() - ms).toISOString()));
+
+async function refreshStatus() {
+  if (!$("#status-root")) return;
+  const [health, saved, ds] = await Promise.all([
+    api("/health").catch((e) => ({ error: e.message || "Injoignable" })),
+    api("/connect/saved").catch(() => null),
+    desktop?.status ? desktop.status().catch(() => null) : null,
+  ]);
+  const root = $("#status-root");
+  if (!root) return;
+  const c = state.connect;
+  const groups = [];
+
+  groups.push(["Sona", [
+    health.error ? statusRow("bad", "Serveur Sona", `Injoignable : ${health.error}`) : statusRow("ok", "Serveur Sona", `En ligne · version ${health.version || "?"}`),
+    !health.error && ({
+      ok: statusRow("ok", "Lecture", "Tout fonctionne"),
+      degraded: statusRow("warn", "Lecture", "Perturbée : certains titres peuvent mettre du temps à se lancer"),
+      down: statusRow("bad", "Lecture", "En panne côté serveur"),
+    }[health.streaming] || statusRow("off", "Lecture", "État inconnu")),
+    statusRow("ok", "Compte", `Connecté : ${account.display_name || account.username}`),
+  ]]);
+
+  const others = otherDevices();
+  const chosen = chosenDevice();
+  const fresh = c.lastOk && Date.now() - c.lastOk < 45000;
+  groups.push(["Sona Connect", [
+    fresh ? statusRow("ok", "Synchronisation", `À jour (${agoText(Date.now() - c.lastOk)})`)
+      : c.lastError ? statusRow("bad", "Synchronisation", `${c.lastError} (${agoText(Date.now() - c.lastErrorAt)})`)
+      : statusRow("warn", "Synchronisation", "En attente du serveur…"),
+    others.length ? statusRow("ok", "Appareils allumés", others.map((d) => d.name).join(", ")) : statusRow("off", "Appareils allumés", "Aucun autre appareil Sona ouvert en ce moment"),
+    saved ? statusRow(saved.length ? "ok" : "off", "Appareils enregistrés", saved.length
+      ? `${plural(saved.length, "appareil")} · ${saved.filter((d) => others.some((o) => o.id === d.id)).length} allumé(s)` : "Aucun pour l'instant") : "",
+    c.control ? (chosen ? statusRow("ok", "Appareil piloté", `Tu pilotes ${chosen.name}`)
+      : statusRow("warn", "Appareil piloté", `${(saved || []).find((d) => d.id === c.control)?.name || "L'appareil choisi"} est éteint : ouvre Sona dessus`)) : "",
+  ]]);
+
+  if (ds) {
+    const u = ds.updates || {};
+    const r = ds.remote || {};
+    const phones = (r.clients || []).filter((x) => x.name !== "Stream Deck");
+    const d = ds.discord || {};
+    groups.push([`Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}`, [
+      u.available && u.latest ? statusRow("warn", "Version", `${ds.version} · la ${u.latest.version} est disponible (Réglages → Mises à jour)`)
+        : u.error ? statusRow("warn", "Version", `${ds.version} · vérification impossible : ${u.error}`)
+        : statusRow("ok", "Version", `${ds.version} · à jour`),
+      !r.enabled ? statusRow("off", "Télécommande du téléphone", "Désactivée")
+        : r.running ? statusRow("ok", "Télécommande du téléphone", `Port ${r.port}${phones.length ? ` · ${phones.map((x) => x.name).join(", ")}` : " · aucun téléphone connecté"}`)
+        : statusRow("bad", "Télécommande du téléphone", r.error || "Arrêtée"),
+      ds.streamDeck ? statusRow("ok", "Stream Deck", `Plugin connecté ${agoText(Date.now() - ds.streamDeck.since)}`)
+        : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre Sona")
+        : statusRow("off", "Stream Deck", "Plugin non connecté : installe-le (version Windows, fichier .streamDeckPlugin) et ouvre le logiciel Stream Deck"),
+      !d.wanted ? statusRow("off", "Statut Discord", "Désactivé")
+        : !d.configured ? statusRow("warn", "Statut Discord", "Identifiant d'application Discord manquant (Réglages)")
+        : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute Sona » sur ton profil")
+        : statusRow("warn", "Statut Discord", d.error || "Connexion à Discord…"),
+      ds.shortcuts?.refused?.length ? statusRow("warn", "Raccourcis clavier", `${plural(ds.shortcuts.refused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`)
+        : statusRow(ds.shortcuts?.count ? "ok" : "off", "Raccourcis clavier", ds.shortcuts?.count ? plural(ds.shortcuts.count, "raccourci actif", "raccourcis actifs") : "Aucun"),
+      statusRow(ds.overlay ? "ok" : "off", "Paroles en surimpression", ds.overlay ? "Affichées" : "Masquées"),
+      ds.iphone?.available ? statusRow("ok", "Sona sur l'iPhone", ds.iphone.devices ? plural(ds.iphone.devices, "iPhone vu", "iPhone vus") : "Aucun iPhone branché ou sur le Wi-Fi")
+        : statusRow("warn", "Sona sur l'iPhone", "Module iPhone absent de cette version"),
+    ]]);
+  }
+  root.innerHTML = groups.map(([title, rows]) => `<h3 class="set-head">${esc(title)}</h3><div class="set-group">${rows.filter(Boolean).join("")}</div>`).join("");
 }
 
 // ── Feuilles et menus (comme les feuilles d'iOS) ─────────────────────────
@@ -4241,6 +4332,7 @@ async function viewSettings() {
       ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
         : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
       ${linkRow('href="#/devices"', icons.devices, "Appareils", "Tes PC enregistrés, à piloter d'un appui")}
+      ${linkRow('href="#/status"', icons.pulse, "État de Sona", "Serveur, Sona Connect, télécommande, Stream Deck…")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
       ${linkRow('href="#/concerts"', icons.calendar, "Concerts")}
     </div>
@@ -4477,6 +4569,7 @@ function desktopInit() {
     if ($("#desk-settings")) renderDesktopSettings();
   });
   desktop.onOpenRemote(() => account && openRemotePairing());
+  desktop.onOverlay?.(() => { if ($("#desk-settings")) renderDesktopSettings(); });
   desktop.onMini((on) => { desk.mini = on; if (account) renderTopbar(); if ($("#desk-settings")) renderDesktopSettings(); });
   desktop.settings().then((s) => { desk.mini = s.mini; desk.name = s.deviceNameShown; }).catch(() => {});
   for (const ev of ["play", "pause", "seeked", "volumechange", "loadedmetadata"]) audio.addEventListener(ev, () => desktopReport());
@@ -4489,7 +4582,13 @@ function desktopSnapshot() {
   const remote = remoteDevice();
   const rnow = deviceNow(remote);
   const t = remote ? rnow.track : state.queue[state.index];
-  if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat };
+  // Les autres appareils Sona Connect : le Stream Deck peut les piloter.
+  const devices = otherDevices().map((d) => {
+    const n = deviceNow(d);
+    return { id: d.id, name: d.name, kind: d.kind, playing: !n.paused, track: n.track ? cleanTrack(n.track) : null,
+      position: Math.round(n.position), volume: d.volume ?? null, shuffle: d.shuffle ?? null, repeat: d.repeat ?? null, liked: d.liked ?? null };
+  });
+  if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat, devices };
   const start = Math.max(0, state.index - 15);
   const ly = !remote && sameTrack(t, state.queue[state.index]) ? state.lyrics : null;
   return {
@@ -4501,6 +4600,7 @@ function desktopSnapshot() {
     shuffle: state.shuffle, repeat: state.repeat,
     liked: state.liked.has(trackKey(t)),
     remoteDevice: remote ? remote.name : null,
+    devices,
     index: remote ? -1 : state.index,
     queueName: remote ? "" : state.station ? `${state.station.name} · radio` : state.name || "",
     queue: remote ? [] : state.queue.slice(start, state.index + 40).map((q, k) => ({ i: start + k, title: q.title, artist: q.artist, cover_url: q.cover_url || null })),
@@ -4540,7 +4640,22 @@ function updateAmbient(t) {
 }
 
 /** Commande de la télécommande, du mini-lecteur ou de la barre des tâches. */
+/** Commande pour un autre appareil Sona Connect (touche Stream Deck réglée sur l'iPhone…). */
+async function deviceCommand(c) {
+  const d = state.connect.devices.find((x) => x.id === c.target && !x.is_me);
+  if (!d) throw new Error("Cet appareil n'est pas allumé.");
+  const action = c.action === "toggle" ? (deviceNow(d).paused ? "play" : "pause") : c.action;
+  if (!["play", "pause", "next", "previous", "seek", "volume", "shuffle", "repeat", "like"].includes(action)) throw new Error("Action inconnue");
+  const extra = {};
+  if (Number.isFinite(c.position)) extra.position = c.position;
+  if (Number.isFinite(c.volume)) extra.volume = Math.max(0, Math.min(1, c.volume));
+  await api("/connect/command", { method: "POST", body: JSON.stringify({ device_id: deviceId, target: d.id, action, ...extra }) });
+  setTimeout(() => startConnect.now?.(), 500);
+  return true;
+}
+
 async function desktopCommand(c) {
+  if (c.target) return deviceCommand(c);
   const remote = remoteDevice();
   const t = remote ? deviceNow(remote).track : state.queue[state.index];
   const paused = remote ? deviceNow(remote).paused : audio.paused;
@@ -4641,13 +4756,35 @@ async function renderDesktopSettings() {
     ${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
     ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : Sona reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
     ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
+    ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
+    ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
+    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression.", s.discordEnabled)}
+    ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Application Discord", discordStatusText(s)) : ""}
+    ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}
     ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
-  for (const key of ["mini", "closeToTray", "launchAtLogin"]) {
+  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
-    input.onchange = () => { haptic(); desktop.set(key, input.checked).catch((e) => { input.checked = !input.checked; toast(e.message); }); };
+    input.onchange = () => {
+      haptic();
+      desktop.set(key, input.checked)
+        .then(() => ["lyricsOverlay", "discordEnabled"].includes(key) && setTimeout(renderDesktopSettings, key === "discordEnabled" ? 900 : 0))
+        .catch((e) => { input.checked = !input.checked; toast(e.message); });
+    };
   }
+  $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
+    await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
+    renderDesktopSettings();
+  });
+  $("[data-desk-discord]", box)?.addEventListener("click", async () => {
+    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "123456789012345678", confirm: "Enregistrer",
+      hint: "Discord demande une « application » à ton nom : sur discord.com/developers/applications, crée-en une nommée « Sona » (New Application), puis copie son Application ID ici. Discord doit être ouvert sur ce PC." });
+    if (id == null) return;
+    await desktop.set("discordClientId", id).catch((e) => toast(deskErr(e)));
+    setTimeout(renderDesktopSettings, 900);
+  });
+  $("[data-desk-shortcuts]", box).onclick = () => shortcutsSheet();
   $("[data-desk-name]", box).onclick = async () => {
     const name = await askText({ title: "Nom dans Sona Connect", value: s.deviceName || s.deviceNameShown, placeholder: "PC du salon", confirm: "Enregistrer", hint: "C'est le nom que tu verras sur l'iPhone pour envoyer la musique sur ce PC." });
     if (name == null) return;
@@ -4661,6 +4798,76 @@ async function renderDesktopSettings() {
     if (url == null) return;
     try { await desktop.set("serverUrl", url === SERVER ? "" : url); } catch (e) { toast(e.message); }
   };
+}
+
+function discordStatusText(s) {
+  if (!s.discordClientId) return "Ajoute l'identifiant de ton application Discord";
+  if (s.discord?.connected) return "Connecté à Discord";
+  return s.discord?.error || "Connexion à Discord…";
+}
+
+// ── Raccourcis clavier globaux (app Windows) ─────────────────────────────
+
+const KEY_NAMES = { ArrowRight: "Right", ArrowLeft: "Left", ArrowUp: "Up", ArrowDown: "Down", " ": "Space", "+": "Plus" };
+
+/** Combinaison appuyée → raccourci au format d'Electron (avec Ctrl, Alt ou Maj). */
+function acceleratorFrom(e) {
+  if (["Control", "Shift", "Alt", "Meta", "AltGraph"].includes(e.key)) return null;
+  const code = /^Key([A-Z])$/.exec(e.code)?.[1] || /^Digit(\d)$/.exec(e.code)?.[1];
+  const key = code || KEY_NAMES[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  if (!/^(F\d{1,2}|[A-Z0-9]|Right|Left|Up|Down|Space|Plus|Home|End|PageUp|PageDown|Insert|Delete|[,./;'`=\-])$/.test(key)) return null;
+  const mods = [e.ctrlKey && "CommandOrControl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
+  return mods.length ? [...mods, key].join("+") : null;
+}
+
+const prettyAccel = (a) => a.replace("CommandOrControl", "Ctrl").replace("Super", "Win").replace("Shift", "Maj")
+  .replace(/\+Right$/, "+→").replace(/\+Left$/, "+←").replace(/\+Up$/, "+↑").replace(/\+Down$/, "+↓").replace(/\+Space$/, "+Espace");
+
+function shortcutsSummary(s) {
+  const n = Object.keys(s.shortcuts || {}).length;
+  if (s.shortcutsRefused?.length) return `${plural(s.shortcutsRefused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`;
+  return n ? plural(n, "raccourci actif", "raccourcis actifs") : "Contrôler Sona depuis n'importe quelle app";
+}
+
+async function shortcutsSheet() {
+  const s = await desktop.settings();
+  const map = { ...(s.shortcuts || {}) };
+  let refused = s.shortcutsRefused || [];
+  let capture = null;
+  const onKey = (e) => {
+    if (!capture) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") { capture = null; return paint(); }
+    const accelerator = acceleratorFrom(e);
+    if (!accelerator) return;
+    for (const [id, acc] of Object.entries(map)) if (acc === accelerator) delete map[id];
+    map[capture] = accelerator;
+    capture = null;
+    save();
+  };
+  document.addEventListener("keydown", onKey, true);
+  const wrap = openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2>
+    <p class="muted">Ils marchent même quand Sona est en arrière-plan. Touche un bouton, puis appuie sur la combinaison (avec Ctrl, Alt ou Maj). Les touches multimédia du clavier marchent déjà sans rien régler.</p>
+    <div class="set-group" id="sc-list"></div>`, { onClose: () => { document.removeEventListener("keydown", onKey, true); renderDesktopSettings(); } });
+  const list = $("#sc-list", wrap);
+  function paint() {
+    list.innerHTML = Object.entries(s.shortcutActions || {}).map(([id, label]) => `<div class="set-row sc-row">
+      <span class="set-text"><b>${esc(label)}</b>${refused.includes(id) ? `<small class="sc-bad">Déjà pris par une autre app : choisis-en un autre</small>` : ""}</span>
+      <button class="btn ghost small ${capture === id ? "capturing" : ""}" data-sc="${id}">${capture === id ? "Appuie sur la combinaison…" : map[id] ? esc(prettyAccel(map[id])) : "Définir"}</button>
+      ${map[id] ? `<button class="dev-more" data-sc-clear="${id}" aria-label="Retirer">${icons.close}</button>` : ""}</div>`).join("");
+  }
+  async function save() {
+    try { refused = (await desktop.set("shortcuts", map)) || []; } catch (e) { toast(deskErr(e)); }
+    paint();
+  }
+  list.onclick = (e) => {
+    const clear = e.target.closest("[data-sc-clear]")?.dataset.scClear;
+    if (clear) { delete map[clear]; capture = null; return save(); }
+    const id = e.target.closest("[data-sc]")?.dataset.sc;
+    if (id) { capture = capture === id ? null : id; paint(); }
+  };
+  paint();
 }
 
 // ── Sona sur l'iPhone (app Windows) ──────────────────────────────────────

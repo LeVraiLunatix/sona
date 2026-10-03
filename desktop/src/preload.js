@@ -23,6 +23,7 @@ if (location.protocol === "app:" && location.host === "sona") {
     onOpenRemote: on("desktop:open-remote"),
     onWindow: on("desktop:window"),
     onMini: on("desktop:mini"),
+    onOverlay: on("desktop:overlay"),
     onTheme: on("desktop:theme"),
     window: {
       minimize: () => ipcRenderer.send("desktop:window", "minimize"),
@@ -32,6 +33,7 @@ if (location.protocol === "app:" && location.host === "sona") {
     settings: () => ipcRenderer.invoke("desktop:settings"),
     set: (key, value) => ipcRenderer.invoke("desktop:set", key, value),
     remoteInfo: () => ipcRenderer.invoke("desktop:remote-info"),
+    status: () => ipcRenderer.invoke("desktop:status"),
     openAuth: (url) => ipcRenderer.send("desktop:auth", url),
     /** Onglet iPhone (installer Sona sur l'iPhone, comme CordLauncher). */
     iphone: (name, args) => ipcRenderer.invoke("desktop:iphone", name, args),
