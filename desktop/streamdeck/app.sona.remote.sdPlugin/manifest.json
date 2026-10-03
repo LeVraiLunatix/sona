@@ -193,9 +193,9 @@
   "CodePath": "bin/plugin.js",
   "Description": "Pilote Sona pour Windows : lecture, pochette du titre en cours, j'aime, aléatoire, volume, molette du Stream Deck +. Rien à configurer : le plugin retrouve Sona sur ce PC.",
   "Icon": "imgs/plugin/marketplace",
-  "SDKVersion": 3,
+  "SDKVersion": 2,
   "Software": {
-    "MinimumVersion": "7.1"
+    "MinimumVersion": "6.5"
   },
   "OS": [
     {
@@ -208,7 +208,7 @@
     }
   ],
   "Nodejs": {
-    "Version": "24",
+    "Version": "20",
     "Debug": "disabled"
   },
   "UUID": "app.sona.remote",

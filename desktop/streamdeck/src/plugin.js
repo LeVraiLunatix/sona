@@ -11,6 +11,50 @@ const UUID = "app.sona.remote";
 
 const OFFLINE_TITLE = { absent: "Sona\nabsent", off: "Télé-\ncommande\ncoupée", offline: "Sona\nfermé" };
 
+/** Texte court sur 3 lignes au plus, pour le titre d'une touche. */
+function keyText(message) {
+  const lines = [];
+  for (const word of String(message || "Erreur").split(/\s+/)) {
+    const last = lines[lines.length - 1];
+    if (last && (last + " " + word).length <= 9) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+  return lines.slice(0, 3).join("\n");
+}
+
+/** Touches qui affichent une erreur : l'état en direct ne l'efface pas. */
+const flashes = new Map();
+
+/**
+ * Un appui : attend Sona un instant s'il vient d'ouvrir, lance l'action, et
+ * en cas d'échec écrit la raison sur la touche pendant 4 s (en plus de
+ * l'alerte), pour savoir ce qui cloche sans fouiller les journaux.
+ */
+async function press(singleton, action, run) {
+  let problem = null;
+  if (!(await sona.ready())) problem = OFFLINE_TITLE[sona.status] || "Sona\nfermé";
+  else {
+    try {
+      await run();
+      return;
+    } catch (e) {
+      streamDeck.logger.warn(`${singleton.manifestId} : ${e.message}`);
+      problem = keyText(e.message);
+    }
+  }
+  await action.showAlert().catch(() => {});
+  if (action.isDial()) {
+    await action.setFeedback({ title: problem.replace(/\n/g, " ") }).catch(() => {});
+  } else {
+    await action.setTitle(problem).catch(() => {});
+  }
+  clearTimeout(flashes.get(action.id));
+  flashes.set(action.id, setTimeout(() => {
+    flashes.delete(action.id);
+    singleton.render(action, true).catch(() => {});
+  }, 4000));
+}
+
 /** Les touches, chacune avec son dessin selon l'état de Sona. */
 class SonaKey extends SingletonAction {
   constructor(id, { glyph, on, run }) {
@@ -27,21 +71,15 @@ class SonaKey extends SingletonAction {
     const st = sona.state || {};
     const glyph = typeof this.glyph === "function" ? this.glyph(st) : this.glyph;
     await action.setImage(dataUrl(keySvg(glyph, { on: online && this.on(st), dim: !online || (!st.track && this.needsTrack) })));
-    await action.setTitle(online ? "" : OFFLINE_TITLE[sona.status] || "");
+    if (!flashes.has(action.id)) await action.setTitle(online ? "" : OFFLINE_TITLE[sona.status] || "");
   }
 
   onWillAppear(ev) {
     return this.render(ev.action);
   }
 
-  async onKeyDown(ev) {
-    if (sona.status !== "online") return ev.action.showAlert();
-    try {
-      await this.run(sona.state || {});
-    } catch (e) {
-      streamDeck.logger.warn(`${this.manifestId} : ${e.message}`);
-      await ev.action.showAlert();
-    }
+  onKeyDown(ev) {
+    return press(this, ev.action, () => this.run(sona.state || {}));
   }
 }
 
@@ -101,16 +139,15 @@ class NowPlaying extends SingletonAction {
     this.last = key;
     const image = t ? await cover(t.cover_url) : null;
     await action.setImage(dataUrl(coverSvg({ image, paused: !t || st.paused, title: t?.title, artist: t?.artist })));
-    await action.setTitle(online ? "" : OFFLINE_TITLE[sona.status] || "");
+    if (!flashes.has(action.id)) await action.setTitle(online ? "" : OFFLINE_TITLE[sona.status] || "");
   }
 
   onWillAppear(ev) {
     return this.render(ev.action, true);
   }
 
-  async onKeyDown(ev) {
-    if (sona.status !== "online") return ev.action.showAlert();
-    await command("toggle").catch(() => ev.action.showAlert());
+  onKeyDown(ev) {
+    return press(this, ev.action, () => command("toggle"));
   }
 }
 
@@ -121,7 +158,7 @@ class Dial extends SingletonAction {
   timer = null;
 
   async render(action) {
-    if (!action.isDial()) return;
+    if (!action.isDial() || flashes.has(action.id)) return;
     const st = sona.state || {};
     const online = sona.status === "online";
     const volume = Math.round((st.volume ?? 1) * 100);
@@ -138,7 +175,7 @@ class Dial extends SingletonAction {
   }
 
   onDialRotate(ev) {
-    if (sona.status !== "online") return ev.action.showAlert();
+    if (sona.status !== "online") return press(this, ev.action, async () => {});
     // Les crans s'accumulent : un envoi toutes les 80 ms au plus.
     this.pending += ev.payload.ticks;
     if (sona.state) sona.state.volume = Math.max(0, Math.min(1, (sona.state.volume ?? 1) + ev.payload.ticks * 0.02));
@@ -147,14 +184,12 @@ class Dial extends SingletonAction {
     this.timer = setTimeout(() => { this.pending = 0; setVolume(sona.state?.volume ?? 1).catch(() => {}); }, 80);
   }
 
-  async onDialDown(ev) {
-    if (sona.status !== "online") return ev.action.showAlert();
-    await command("toggle").catch(() => ev.action.showAlert());
+  onDialDown(ev) {
+    return press(this, ev.action, () => command("toggle"));
   }
 
-  async onTouchTap(ev) {
-    if (sona.status !== "online") return ev.action.showAlert();
-    await command("next").catch(() => ev.action.showAlert());
+  onTouchTap(ev) {
+    return press(this, ev.action, () => command("next"));
   }
 }
 
@@ -169,6 +204,7 @@ function renderAll() {
 }
 
 for (const singleton of all) streamDeck.actions.registerAction(singleton);
+streamDeck.logger.info(`Plugin Sona démarré (Node ${process.version}, Stream Deck ${streamDeck.info.application.version})`);
 sona.on("state", renderAll);
 sona.on("log", (message) => streamDeck.logger.info(message));
 sona.on("status", (status) => {
@@ -176,5 +212,8 @@ sona.on("status", (status) => {
   renderAll();
 });
 
-streamDeck.connect();
+// Sans ça, le SDK refuse de démarrer sous Stream Deck 7.1 (plugin mort :
+// icônes par défaut et ⚠ à chaque appui). Les touches n'ont pas de réglages.
+streamDeck.settings.useLegacySettingsBehavior = true;
+streamDeck.connect().catch((e) => streamDeck.logger.error(`Connexion à Stream Deck impossible : ${e.stack || e}`));
 sona.start();
