@@ -21,10 +21,15 @@ export function settingsFile() {
 export function readSonaSettings(file = settingsFile()) {
   try {
     const s = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (!s.remoteKey) return null;
-    return { key: s.remoteKey, port: Number(s.remotePort) || 7650, enabled: s.remoteEnabled !== false };
-  } catch {
-    return null;
+    return {
+      key: s.remoteKey || "",
+      port: Number(s.remotePort) || 7650,
+      // Port réellement obtenu par Sona (il en prend un autre si le sien est réservé).
+      activePort: Number(s.remoteActivePort) || null,
+      enabled: s.remoteEnabled !== false,
+    };
+  } catch (e) {
+    return e.code === "ENOENT" ? null : { key: "", port: 7650, activePort: null, enabled: true, unreadable: e.code || e.message };
   }
 }
 
@@ -85,15 +90,22 @@ export class SonaClient extends EventEmitter {
     this.emit("log", message);
   }
 
+  /** En-têtes : la clé si on l'a, et l'indication « app de ce PC » (acceptée sans clé en local). */
+  headers(extra = {}) {
+    return { "X-Sona-Local": "streamdeck", ...(this.key ? { "X-Sona-Key": this.key } : {}), ...extra };
+  }
+
   async connect() {
-    const s = this.readSettings();
-    if (!s) { this.log(`Réglages de Sona introuvables (${settingsFile()}) : Sona pour Windows est-il installé et lancé une fois ?`); return this.setStatus("absent"); }
+    // Réglages illisibles ou absents : on essaie quand même, en local, sans clé.
+    const s = this.readSettings() || { key: "", port: 7650, activePort: null, enabled: true, missing: true };
+    if (s.unreadable) this.log(`Réglages de Sona illisibles (${settingsFile()} : ${s.unreadable}) : connexion locale sans clé.`);
     if (!s.enabled) { this.log("Télécommande coupée dans Sona (Réglages › Télécommande du téléphone)."); return this.setStatus("off"); }
     this.key = s.key;
+    const ports = [...new Set([s.activePort, ...Array.from({ length: 20 }, (_, i) => s.port + i)].filter(Boolean))];
     const tried = [];
-    for (let port = s.port; port < s.port + 6; port++) {
+    for (const port of ports) {
       const base = `http://${this.host}:${port}`;
-      const res = await fetch(`${base}/api/state`, { headers: { "X-Sona-Key": s.key }, signal: AbortSignal.timeout(1500) }).catch((e) => { tried.push(`${port} : ${e.cause?.code || e.name}`); return null; });
+      const res = await fetch(`${base}/api/state`, { headers: this.headers(), signal: AbortSignal.timeout(1500) }).catch((e) => { tried.push(`${port} : ${e.cause?.code || e.name}`); return null; });
       if (!res) continue;
       tried.push(`${port} : ${res.status}`);
       if (res.status === 401) continue; // une autre app sur ce port, ou une clé périmée
@@ -106,13 +118,14 @@ export class SonaClient extends EventEmitter {
       this.setStatus("offline");
       return;
     }
-    this.log(`Sona injoignable (${tried.join(", ")}) : l'app est-elle ouverte ?`);
-    this.setStatus("offline");
+    const refused = tried.filter((t) => /ECONNREFUSED/.test(t)).length;
+    this.log(`Sona injoignable (${refused === tried.length ? `aucune réponse sur les ports ${ports[0]}–${ports[ports.length - 1]}` : tried.join(", ")}) : l'app est-elle ouverte ?`);
+    this.setStatus(s.missing ? "absent" : "offline");
   }
 
   async follow() {
     this.abort = new AbortController();
-    const res = await fetch(`${this.base}/api/events?k=${encodeURIComponent(this.key)}`, { signal: this.abort.signal });
+    const res = await fetch(`${this.base}/api/events?name=${encodeURIComponent("Stream Deck")}${this.key ? `&k=${encodeURIComponent(this.key)}` : ""}`, { headers: this.headers(), signal: this.abort.signal });
     if (!res.ok || !res.body) return;
     const decoder = new TextDecoder();
     let buffer = "";
@@ -151,7 +164,7 @@ export class SonaClient extends EventEmitter {
     if (this.status !== "online" || !this.base) throw new Error("Sona n'est pas ouvert");
     const res = await fetch(`${this.base}/api/command`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Sona-Key": this.key },
+      headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ action, ...extra }),
       signal: AbortSignal.timeout(8000),
     });

@@ -11,16 +11,17 @@ const KEY = "cle-de-test-0123456789";
 async function withServer(fn, { command = async () => true } = {}) {
   const seen = [];
   const clients = [];
+  const names = [];
   const server = new RemoteServer({
     getState: () => ({ track: { title: "Titre", artist: "Artiste" }, paused: false }),
     command: async (body) => { seen.push(body); return command(body); },
-    onClients: (list) => clients.push(list.length),
+    onClients: (list) => { clients.push(list.length); names.push(...list.map((c) => c.name)); },
     remoteRoot: path.join(__dirname, "..", "remote"),
     iconsRoot: path.join(__dirname, "..", "..", "web", "icons"),
   });
   assert.equal(await server.start(0, KEY), true);
   try {
-    await fn(`http://127.0.0.1:${server.port}`, { server, seen, clients });
+    await fn(`http://127.0.0.1:${server.port}`, { server, seen, clients, names });
   } finally {
     await server.stop();
   }
@@ -83,5 +84,41 @@ test("l'état arrive en direct, et une nouvelle clé déconnecte le téléphone"
   assert.equal(done, true);
   assert.equal(clients.at(-1), 0);
   assert.equal((await fetch(`${base}/api/state`, { headers: { "X-Sona-Key": KEY } })).status, 401);
+  controller.abort();
+}));
+
+test("port réservé par Windows (EACCES) : la télécommande prend le suivant", async () => {
+  const server = new RemoteServer({ getState: () => ({}), command: async () => true, remoteRoot: path.join(__dirname, "..", "remote"), iconsRoot: path.join(__dirname, "..", "..", "web", "icons") });
+  const real = server.listen.bind(server);
+  let calls = 0;
+  server.listen = (port) => (++calls === 1 ? Promise.reject(Object.assign(new Error("listen EACCES"), { code: "EACCES" })) : real(0));
+  try {
+    assert.equal(await server.start(47650, KEY), true);
+    assert.equal(calls, 2);
+    assert.ok(server.port > 0);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("une app de ce PC (Stream Deck) passe sans clé, une page web non", () => withServer(async (base, { names }) => {
+  const local = await fetch(`${base}/api/state`, { headers: { "X-Sona-Local": "streamdeck" } });
+  assert.equal(local.status, 200);
+  // Sans l'en-tête (ce qu'enverrait une page web) : refusé.
+  assert.equal((await fetch(`${base}/api/state`)).status, 401);
+  // Avec l'en-tête mais une autre adresse (DNS rebinding) : refusé.
+  const http = require("node:http");
+  const port = new URL(base).port;
+  const status = await new Promise((resolve) => {
+    http.get({ host: "127.0.0.1", port, path: "/api/state", headers: { Host: `evil.example:${port}`, "X-Sona-Local": "1" } }, (res) => { res.resume(); resolve(res.statusCode); });
+  });
+  assert.equal(status, 401);
+  // Le client se présente sous son nom dans Sona.
+  const controller = new AbortController();
+  const res = await fetch(`${base}/api/events?name=Stream%20Deck`, { headers: { "X-Sona-Local": "streamdeck" }, signal: controller.signal });
+  assert.equal(res.status, 200);
+  const reader = res.body.getReader();
+  await reader.read();
+  assert.ok(names.includes("Stream Deck"));
   controller.abort();
 }));

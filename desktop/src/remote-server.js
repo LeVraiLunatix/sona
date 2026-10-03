@@ -92,17 +92,24 @@ class RemoteServer {
     await this.stop();
     this.key = key;
     this.error = null;
-    for (let p = port; p < port + 6; p++) {
+    // Port réglé, puis les suivants, puis un port libre au hasard : sous
+    // Windows, Hyper-V, WSL ou Docker réservent souvent des plages entières
+    // (erreur EACCES, pas EADDRINUSE). Le port obtenu est gardé dans les
+    // réglages (`remoteActivePort`), où le plugin Stream Deck le lit.
+    const candidates = port ? [...Array.from({ length: 20 }, (_, i) => port + i), 0] : [0];
+    let last = null;
+    for (const p of candidates) {
       try {
         this.server = await this.listen(p);
         this.port = this.server.address().port;
         return true;
       } catch (e) {
         this.server = null;
-        if (e.code !== "EADDRINUSE") { this.error = e.message; return false; }
+        last = e;
+        if (!["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"].includes(e.code)) break;
       }
     }
-    this.error = `Ports ${port} à ${port + 5} déjà utilisés`;
+    this.error = `Impossible d'ouvrir la télécommande : ${last?.code || last?.message || "port indisponible"}`;
     return false;
   }
 
@@ -178,7 +185,7 @@ class RemoteServer {
 
     if (route.startsWith("/api/")) {
       const given = req.headers["x-sona-key"] || url.searchParams.get("k");
-      if (!sameKey(given, this.key)) return this.json(res, 401, { error: "Association requise : scanne le QR code affiché par Sona sur le PC." });
+      if (!sameKey(given, this.key) && !this.isLocalApp(req)) return this.json(res, 401, { error: "Association requise : scanne le QR code affiché par Sona sur le PC." });
       if (route === "/api/state" && req.method === "GET") return this.json(res, 200, this.getState() || {});
       if (route === "/api/events" && req.method === "GET") return this.events(req, res);
       if (route === "/api/command" && req.method === "POST") {
@@ -198,6 +205,20 @@ class RemoteServer {
     return this.file(res, route);
   }
 
+  /**
+   * Une app de ce PC (le plugin Stream Deck) : acceptée sans clé, au cas où
+   * elle ne peut pas lire les réglages de Sona. Seulement depuis la machine
+   * elle-même, avec l'en-tête `X-Sona-Local` (une page web ne peut pas
+   * l'envoyer sans autorisation préalable, que ce serveur ne donne jamais)
+   * et l'adresse 127.0.0.1 / localhost (pas de « DNS rebinding »).
+   */
+  isLocalApp(req) {
+    const addr = String(req.socket.remoteAddress || "").replace(/^::ffff:/, "");
+    const loopback = addr === "::1" || /^127\./.test(addr);
+    const host = String(req.headers.host || "").replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+    return loopback && !!req.headers["x-sona-local"] && ["127.0.0.1", "localhost", "::1"].includes(host);
+  }
+
   events(req, res) {
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
@@ -209,7 +230,9 @@ class RemoteServer {
     // tardive ne doit jamais faire tomber l'app.
     res.on("error", () => {});
     res.write("retry: 2000\n\n");
-    const client = { res, name: phoneName(req.headers["user-agent"]), since: Date.now(), ip: String(req.socket.remoteAddress || "").replace(/^::ffff:/, "") };
+    const named = new URL(req.url, "http://local").searchParams.get("name");
+    const name = named ? named.replace(/[^\p{L}\p{N} ._'-]/gu, "").slice(0, 30) : phoneName(req.headers["user-agent"]);
+    const client = { res, name: name || "Appareil", since: Date.now(), ip: String(req.socket.remoteAddress || "").replace(/^::ffff:/, "") };
     this.clients.add(client);
     this.notifyClients();
     const state = this.getState();
