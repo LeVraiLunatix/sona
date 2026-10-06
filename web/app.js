@@ -766,7 +766,7 @@ function tile({ href, icon, title, subtitle, tone = "", data = "" }) {
 
 async function viewHome() {
   $("#content").innerHTML = skeleton("Écouter");
-  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties] = await Promise.all([
+  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, daily] = await Promise.all([
     api("/home/mixes").catch(() => []),
     api("/plays/recent?limit=80").catch(() => []),
     api("/releases").catch(() => []),
@@ -775,6 +775,7 @@ async function viewHome() {
     api("/me/playlists").catch(() => state.playlists),
     radioGroups().catch(() => []),
     api("/party/active").catch(() => []),
+    api("/home/daily").catch(() => null),
   ]);
   const recentTracks = playsToTracks(recent);
   const name = (account.display_name || account.username || "").split(" ")[0];
@@ -793,6 +794,7 @@ async function viewHome() {
   return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
     <div id="install">${installBanner()}</div>
     <div id="resume">${resumeCard()}</div>
+    ${daily?.track ? dailyCard(daily) : ""}
     ${party.state ? `<a class="live-pill" href="#/party">${bars()} Écoute ensemble en cours · ${esc(party.state.code)}</a>` : ""}
     ${parties.map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} ${esc(p.host_name || "Un ami")} écoute en groupe — rejoindre</a>`).join("")}
     ${heroTrack ? `<button class="home-hero" data-play="${heroList}">
@@ -827,6 +829,15 @@ async function viewHome() {
     ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${t.source}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
     ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
     ${!mixes.length && !recentTracks.length ? empty("♫", "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
+}
+
+/** « Titre du jour » : une découverte par jour, la même toute la journée. */
+function dailyCard({ track, reason }) {
+  return `<button class="daily" data-play="${register([track], "Titre du jour")}">
+    <img src="${esc(big(track.cover_url, 300))}" alt="">
+    <span class="daily-text"><span class="eyebrow">✨ Titre du jour</span><span class="t">${esc(track.title)}</span>
+    <span class="s">${esc(track.artist)}</span><span class="why">${esc(reason)}</span></span>
+    <span class="fab">${icons.play}</span></button>`;
 }
 
 const radioCard = (r) => `<a class="card radio-card" href="#" data-radio="${esc(r.id)}" data-title="${esc(r.title)}">
@@ -4638,6 +4649,7 @@ async function viewSettings() {
 
     <h3 class="set-head">Compte</h3><div class="set-group">
       ${toggleRow("share_listening", "Partager mon écoute", "Tes amis voient ce que tu écoutes en direct et tes dernières écoutes.", me.share_listening)}
+      ${linkRow("data-public-link", icons.globe, "Page « J'écoute » publique", "Un lien qui montre en direct ce que tu écoutes")}
       ${toggleRow("scrobble_to_lastfm", "Scrobbler sur Last.fm", "Chaque morceau écouté au moins à moitié est ajouté à ton profil Last.fm ; un titre aimé devient ♥ sur Last.fm.", me.scrobble_to_lastfm)}
       <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque Sona"}</small></span>${icons.right}</a>
       <a class="set-row" data-history><span class="mi-icon">${icons.download}</span><span class="set-text"><b>Importer mon historique Last.fm</b><small id="history-status">Pour des stats complètes</small></span>${icons.right}</a>
@@ -4718,12 +4730,44 @@ function bindSettings() {
   });
   $("[data-install-app]")?.addEventListener("click", installApp);
   $("[data-sound]")?.addEventListener("click", soundSheet);
+  $("[data-public-link]")?.addEventListener("click", publicLinkSheet);
   if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
     try { await api("/auth/logout", { method: "POST" }); } catch {}
     signOut();
   });
+}
+
+// ── Page publique « J'écoute » ───────────────────────────────────────────
+
+const publicUrl = (token) => `${SERVER || location.origin}/p/${token}`;
+
+async function publicLinkSheet() {
+  const { token } = await api("/me/public-link");
+  const share = (url) => navigator.share
+    ? navigator.share({ title: "J'écoute sur Sona", url }).catch(() => {})
+    : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
+  if (!token) {
+    if (!(await confirmSheet("Créer ta page « J'écoute » ? Toute personne qui a le lien verra ce que tu écoutes, en direct (à mettre sur ton profil Discord, Instagram…).", "Créer le lien"))) return;
+    await api("/me/public-link", { method: "POST" });
+    toast("Lien créé");
+    return publicLinkSheet();
+  }
+  const url = publicUrl(token);
+  actionSheet("Page « J'écoute »", [
+    { icon: icons.share, label: "Partager le lien", sub: url.replace(/^https?:\/\//, ""), run: () => share(url) },
+    { icon: icons.globe, label: "Ouvrir la page", run: () => window.open(url, "_blank", "noopener") },
+    { icon: icons.repeat, label: "Changer de lien", sub: "L'ancien ne marchera plus", run: async () => {
+      await api("/me/public-link", { method: "POST" });
+      toast("Nouveau lien créé");
+      publicLinkSheet();
+    } },
+    { icon: icons.trash, label: "Supprimer la page", danger: true, run: async () => {
+      await api("/me/public-link", { method: "DELETE" });
+      toast("Page supprimée");
+    } },
+  ], { header: `<h2 class="sheet-title">Page « J'écoute »</h2><p class="muted">Ce que tu écoutes en direct, sinon ta dernière écoute. Rien n'apparaît quand « Partager mon écoute » est coupé.</p>` });
 }
 
 async function viewAdmin() {

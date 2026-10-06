@@ -9,6 +9,7 @@ import UserNotifications
 ///
 /// - récap de la semaine (lundi) et du mois (le 1er), prévus à l'avance ;
 /// - défi du jour du blind test, en fin de journée ;
+/// - titre du jour (une découverte), le matin à l'ouverture ou en arrière-plan ;
 /// - un ami lance un blind test en direct ou une écoute ensemble : vérifié
 ///   toutes les 90 s tant que l'app tourne (au premier plan ou en lecture),
 ///   et de temps en temps en arrière-plan quand iOS le permet.
@@ -21,6 +22,7 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published var dailyChallenge: Bool { didSet { save("daily", dailyChallenge) } }
     @Published var friends: Bool { didSet { save("friends", friends) } }
     @Published var releases: Bool { didSet { save("releases", releases) } }
+    @Published var dailyTrack: Bool { didSet { save("dailyTrack", dailyTrack) } }
 
     private let center = UNUserNotificationCenter.current()
     private var polling: Task<Void, Never>?
@@ -31,6 +33,7 @@ final class NotificationManager: NSObject, ObservableObject {
         dailyChallenge = defaults.object(forKey: "notifications.daily") as? Bool ?? true
         friends = defaults.object(forKey: "notifications.friends") as? Bool ?? true
         releases = defaults.object(forKey: "notifications.releases") as? Bool ?? true
+        dailyTrack = defaults.object(forKey: "notifications.dailyTrack") as? Bool ?? true
         super.init()
     }
 
@@ -48,6 +51,7 @@ final class NotificationManager: NSObject, ObservableObject {
                 let work = Task {
                     await NotificationManager.shared.checkFriends()
                     await NotificationManager.shared.checkReleases()
+                    await NotificationManager.shared.checkDailyTrack()
                 }
                 task.expirationHandler = { work.cancel() }
                 await work.value
@@ -70,8 +74,8 @@ final class NotificationManager: NSObject, ObservableObject {
     private func save(_ key: String, _ value: Bool) {
         UserDefaults.standard.set(value, forKey: "notifications.\(key)")
         reschedule()
-        if key == "friends" {
-            if value {
+        if key == "friends" || key == "dailyTrack" {
+            if friends || dailyTrack {
                 startPolling()
             } else {
                 polling?.cancel()
@@ -117,11 +121,12 @@ final class NotificationManager: NSObject, ObservableObject {
     // MARK: Amis
 
     private func startPolling() {
-        guard friends, polling == nil || polling?.isCancelled == true else { return }
+        guard friends || dailyTrack, polling == nil || polling?.isCancelled == true else { return }
         polling = Task {
             while !Task.isCancelled {
                 await checkFriends()
                 await checkReleases()
+                await checkDailyTrack()
                 try? await Task.sleep(for: .seconds(90))
             }
         }
@@ -195,9 +200,28 @@ final class NotificationManager: NSObject, ObservableObject {
         defaults.set(Array(seen.suffix(300)), forKey: "notifications.releasesSeen")
     }
 
+    /// Titre du jour : une notification par jour, à partir de 9 h (le titre
+    /// change chaque jour, d'où une vérification plutôt qu'un rappel prévu).
+    func checkDailyTrack() async {
+        guard dailyTrack, APIConfig.shared.isConfigured else { return }
+        let defaults = UserDefaults.standard
+        let day = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        let today = "\(day.year ?? 0)-\(day.month ?? 0)-\(day.day ?? 0)"
+        guard Calendar.current.component(.hour, from: Date()) >= 9,
+              defaults.string(forKey: "notifications.dailyTrackDay") != today,
+              let daily = try? await APIClient.shared.dailyTrack(), let track = daily.track else { return }
+        defaults.set(today, forKey: "notifications.dailyTrackDay")
+        let content = UNMutableNotificationContent()
+        content.title = "Ton titre du jour ✨"
+        content.body = "\(track.title) — \(track.artist). \(daily.reason)."
+        content.sound = .default
+        content.userInfo = ["url": "encre://daily"]
+        try? await center.add(UNNotificationRequest(identifier: "daily-track-\(today)", content: content, trigger: nil))
+    }
+
     /// Prochaine vérification en arrière-plan (iOS choisit le moment).
     func scheduleRefresh() {
-        guard friends else { return }
+        guard friends || dailyTrack else { return }
         let request = BGAppRefreshTaskRequest(identifier: Self.refreshTaskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         try? BGTaskScheduler.shared.submit(request)

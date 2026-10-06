@@ -233,6 +233,14 @@ CREATE TABLE IF NOT EXISTS tv_screens (
     PRIMARY KEY (user_id, screen_id)
 );
 
+-- Page publique « J'écoute » : un lien secret par compte, qui montre en
+-- direct le titre en cours (voir routers/public.py).
+CREATE TABLE IF NOT EXISTS public_links (
+    user_id INTEGER PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+
 -- Sona Connect : appareils enregistrés (PC…), gardés dans « Appareils »
 -- même quand ils sont éteints ; un appui les pilote (voir services/connect.py).
 CREATE TABLE IF NOT EXISTS connect_saved (

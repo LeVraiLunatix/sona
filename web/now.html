@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>J'écoute · Sona</title>
+<meta name="theme-color" content="#000000">
+<link rel="icon" type="image/png" sizes="64x64" href="/web/icons/favicon-64.png">
+<!-- Page publique « J'écoute » (servie par le serveur sur /p/<lien>) : ce
+     que le compte écoute en ce moment, rafraîchi toutes les 10 secondes. -->
+<style>
+  :root { color-scheme: dark; --text: #fff; --soft: rgba(255,255,255,.62); --faint: rgba(255,255,255,.14); --accent: #ff375f; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #000; color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Helvetica Neue", system-ui, sans-serif; }
+  body { display: grid; place-items: center; padding: 24px 16px; overflow-x: hidden; }
+  .bg { position: fixed; inset: -20%; background-size: cover; background-position: center;
+    filter: blur(70px) saturate(1.6) brightness(.55); transform: scale(1.1); transition: background-image .6s; z-index: 0; }
+  .card { position: relative; z-index: 1; width: min(380px, 100%); text-align: center; }
+  .who { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--soft); font-size: 15px; font-weight: 600; margin-bottom: 22px; }
+  .who img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--faint); }
+  .cover { width: 100%; aspect-ratio: 1; border-radius: 18px; object-fit: cover; background: var(--faint);
+    box-shadow: 0 24px 60px rgba(0,0,0,.55); display: block; }
+  .state { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; font-size: 12px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .state.off { color: var(--soft); }
+  .bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
+  .bars i { width: 3px; background: currentColor; border-radius: 1px; animation: eq 1s ease-in-out infinite; }
+  .bars i:nth-child(2) { animation-delay: -.3s; } .bars i:nth-child(3) { animation-delay: -.6s; }
+  @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+  h1 { font-size: 26px; font-weight: 800; margin-top: 8px; line-height: 1.15; overflow-wrap: anywhere; }
+  .artist { color: var(--soft); font-size: 17px; font-weight: 500; margin-top: 4px; overflow-wrap: anywhere; }
+  .progress { margin-top: 20px; }
+  .track { height: 4px; border-radius: 2px; background: var(--faint); overflow: hidden; }
+  .fill { height: 100%; width: 0; background: #fff; border-radius: 2px; transition: width 1s linear; }
+  .times { display: flex; justify-content: space-between; color: var(--soft); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .foot { margin-top: 32px; color: var(--soft); font-size: 12px; }
+  .foot b { color: var(--text); }
+  .empty { color: var(--soft); font-size: 16px; padding: 40px 0; }
+  @media (prefers-reduced-motion: reduce) { .bars i { animation: none; height: 8px; } .fill { transition: none; } }
+</style>
+</head>
+<body>
+<div class="bg" id="bg"></div>
+<main class="card" id="card"><p class="empty">Chargement…</p></main>
+<script>
+"use strict";
+const base = location.pathname.replace(/\/+$/, "");
+const card = document.getElementById("card");
+const bg = document.getElementById("bg");
+let data = null, fetchedAt = 0;
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clock = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const ago = (iso) => {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (!(min >= 0)) return "";
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? "hier" : `il y a ${d} jours`;
+};
+
+function render() {
+  if (!data) return;
+  const t = data.playing || data.last;
+  const who = `<div class="who">${data.avatar_url ? `<img src="${esc(data.avatar_url)}" alt="">` : ""}${esc(data.name)}</div>`;
+  if (!t) {
+    bg.style.backgroundImage = "";
+    card.innerHTML = `${who}<p class="empty">Rien en ce moment.</p><p class="foot">Écoute avec <b>Sona</b></p>`;
+    return;
+  }
+  bg.style.backgroundImage = t.cover_url ? `url("${t.cover_url.replace(/"/g, "%22")}")` : "";
+  const state = data.playing
+    ? `<p class="state"><span class="bars"><i></i><i></i><i></i></span>En écoute</p>`
+    : `<p class="state off">Dernière écoute${t.played_at ? ` · ${esc(ago(t.played_at))}` : ""}</p>`;
+  const bar = data.playing && data.playing.duration
+    ? `<div class="progress"><div class="track"><div class="fill" id="fill"></div></div><div class="times"><span id="pos"></span><span>${clock(data.playing.duration)}</span></div></div>`
+    : "";
+  card.innerHTML = `${who}
+    ${t.cover_url ? `<img class="cover" src="${esc(t.cover_url)}" alt="">` : `<div class="cover"></div>`}
+    ${state}
+    <h1>${esc(t.title)}</h1>
+    <p class="artist">${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</p>
+    ${bar}
+    <p class="foot">Écoute avec <b>Sona</b></p>`;
+  document.title = `${t.title} — ${t.artist} · Sona`;
+  tick();
+}
+
+function tick() {
+  const p = data?.playing;
+  if (!p || !p.duration) return;
+  const pos = Math.min(p.duration, p.position + (Date.now() - fetchedAt) / 1000);
+  const fill = document.getElementById("fill"), label = document.getElementById("pos");
+  if (fill) fill.style.width = `${(pos / p.duration) * 100}%`;
+  if (label) label.textContent = clock(pos);
+}
+
+async function load() {
+  try {
+    const res = await fetch(`${base}/now`, { cache: "no-store" });
+    if (res.status === 404) {
+      card.innerHTML = `<p class="empty">Ce lien n'existe plus.</p>`;
+      return;
+    }
+    if (!res.ok) throw new Error(res.status);
+    const next = await res.json();
+    const changed = JSON.stringify({ ...next, playing: next.playing && { ...next.playing, position: 0 } })
+      !== JSON.stringify(data && { ...data, playing: data.playing && { ...data.playing, position: 0 } });
+    data = next;
+    fetchedAt = Date.now();
+    if (changed) render(); else tick();
+  } catch {}
+  setTimeout(load, document.hidden ? 30000 : 10000);
+}
+
+setInterval(tick, 1000);
+load();
+</script>
+</body>
+</html>

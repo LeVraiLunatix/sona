@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var releases: [Release] = []
     @State private var memories: [Memory] = []
     @State private var showingSport = false
+    @State private var daily: DailyTrack?
 
     var body: some View {
         ScrollView {
@@ -17,6 +18,10 @@ struct HomeView: View {
 
                 if let hero = viewModel.heroTrack {
                     heroCard(hero).padding(.horizontal, 20).reveal(0)
+                }
+
+                if let daily, let track = daily.track {
+                    dailyCard(track, reason: daily.reason).padding(.horizontal, 20).reveal(1)
                 }
 
                 if !viewModel.mixes.isEmpty {
@@ -155,8 +160,42 @@ struct HomeView: View {
     private func loadExtras() async {
         async let fresh = try? APIClient.shared.releases()
         async let past = try? APIClient.shared.memories()
+        async let pick = try? APIClient.shared.dailyTrack()
         releases = await fresh ?? releases
         memories = await past ?? memories
+        daily = await pick ?? daily
+    }
+
+    /// « Titre du jour » : une découverte, la même toute la journée.
+    private func dailyCard(_ track: Track, reason: String) -> some View {
+        Button {
+            player.play(track, context: [track], name: "Titre du jour")
+        } label: {
+            HStack(spacing: 14) {
+                Artwork(url: track.coverURL, cornerRadius: 10)
+                    .frame(width: 64, height: 64)
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("✨ TITRE DU JOUR").font(Typo.caption).foregroundStyle(.white.opacity(0.75))
+                    Text(track.title).font(Typo.headline).foregroundStyle(.white).lineLimit(1)
+                    Text(track.artist).font(Typo.rowSubtitle).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                    Text(reason).font(Typo.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "play.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.black)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(.white))
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(red: 0.18, green: 0.11, blue: 0.36), Color(red: 0.06, green: 0.13, blue: 0.25)],
+                                         startPoint: .leading, endPoint: .trailing))
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.98))
     }
 
     /// Mode sport : la musique au rythme de ta course.

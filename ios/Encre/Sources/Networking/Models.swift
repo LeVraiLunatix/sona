@@ -1420,3 +1420,14 @@ struct AdminResult: Codable {
         case loggedIn = "logged_in"
     }
 }
+
+/// « Titre du jour » (`/home/daily`).
+struct DailyTrack: Decodable {
+    let track: Track?
+    let reason: String
+}
+
+/// Lien de la page publique « J'écoute » (`/me/public-link`).
+struct PublicLink: Decodable {
+    let token: String?
+}

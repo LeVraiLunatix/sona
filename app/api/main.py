@@ -15,6 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
     accounts, blindlive, blindtest, browse, connect, extras, catalog, concerts, friends, history, home, karaoke, library, lyrics, party,
+    public,
     playlists,
     search, stats, stream, tv, user_settings,
 )
@@ -195,6 +196,7 @@ def create_app() -> FastAPI:
     app.include_router(extras.router)
     app.include_router(blindtest.router)
     app.include_router(concerts.router)
+    app.include_router(public.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:

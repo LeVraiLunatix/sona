@@ -441,6 +441,8 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `GET /admin/accounts` · `POST /admin/accounts/{id}/approve\|reject\|promote\|demote` | Panel d'admin : accorder, refuser/révoquer l'accès, droits d'admin. Chaque nouvelle demande est signalée aux admins du bot Telegram. |
 | `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
 | `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
+| `GET /home/daily` | Titre du jour : une découverte (artiste proche de tes favoris, sinon ton mix du jour), la même toute la journée. Carte sur l'accueil (web, iPhone) et notification le matin sur l'iPhone. |
+| `GET/POST/DELETE /me/public-link` · `GET /p/{lien}` · `GET /p/{lien}/now` | Page publique « J'écoute » : un lien secret (à mettre sur un profil Discord, Instagram…) qui montre en direct le titre en cours, sinon la dernière écoute. Rien n'apparaît quand « Partager mon écoute » est coupé ; changer de lien ou le supprimer coupe l'ancien. Réglages → Page « J'écoute » publique. |
 | `GET/DELETE /history` | Historique. |
 | `GET/PUT /settings` | Qualité, format, lecture automatique. |
 
