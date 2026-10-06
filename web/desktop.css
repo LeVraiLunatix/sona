@@ -160,7 +160,30 @@ html.desktop .lcd .progress { left: 56px; right: 14px; bottom: 5px; height: 3px;
 html.desktop .lcd .progress .fill { border-radius: 3px; background: linear-gradient(90deg, rgba(255, 255, 255, .55), #fff); box-shadow: 0 0 10px rgba(255, 255, 255, .45); }
 html.desktop .lcd.remote { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 22%, transparent); }
 html.desktop .right-tools { gap: 4px; }
-html.desktop .volume { width: 120px; }
+html.desktop .volume { width: 168px; }
+/* Fenêtre plus étroite (petit écran, zoom Windows) : la barre se resserre,
+   les boutons qui n'y tiennent plus passent dans « ⋯ » — rien ne glisse
+   sous les boutons de fenêtre. */
+@media (max-width: 1500px) {
+  html.desktop { --sidebar-w: 236px; }
+  html.desktop .volume { width: 124px; }
+  html.desktop .volume .vol-pct { display: none; }
+}
+@media (max-width: 1380px) {
+  html.desktop .topbar { grid-template-columns: auto minmax(8px, 1fr) minmax(170px, 620px) minmax(8px, 1fr) auto; }
+  html.desktop .topbar .opt-1 { display: none; }
+  html.desktop .topbar .more-tools { display: grid !important; }
+}
+@media (max-width: 1180px) {
+  html.desktop { --sidebar-w: 212px; }
+  html.desktop .topbar .opt-2 { display: none; }
+  html.desktop .volume { width: 96px; }
+}
+@media (max-width: 1020px) {
+  html.desktop { --sidebar-w: 176px; }
+  html.desktop .topbar { grid-template-columns: auto minmax(6px, 1fr) minmax(136px, 620px) minmax(6px, 1fr) auto; }
+  html.desktop .volume { width: 80px; }
+}
 
 /* Curseurs : un tube de verre et une perle de lumière. */
 html.desktop input[type="range"].slider {

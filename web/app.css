@@ -163,7 +163,30 @@ img { display: block; }
 .lcd .progress::before { content: ""; position: absolute; inset: -6px 0 0; }
 
 .right-tools { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-.volume { display: flex; align-items: center; gap: 6px; width: 130px; color: var(--text-2); font-size: 16px; }
+.volume { display: flex; align-items: center; gap: 6px; width: 170px; color: var(--text-2); font-size: 16px; }
+.volume .slider { flex: 1; min-width: 0; }
+.vol-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: inherit; flex: none; }
+.vol-icon:hover { background: var(--fill); color: var(--text); }
+.more-tools { display: none !important; }
+.vol-pct { font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; color: var(--text-3); }
+/* Feuille « Volume » */
+.vs-main { display: grid; grid-template-columns: 40px 1fr 40px auto; align-items: center; gap: 12px; margin: 8px 0 4px; }
+.vs-main .slider { height: 8px; }
+.vs-step { width: 40px; height: 40px; border-radius: 50%; background: var(--fill); font-size: 22px; font-weight: 600; color: var(--text); }
+.vs-step:hover { background: var(--fill-strong); }
+.vs-main output { font-size: 20px; font-weight: 700; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.vs-hint { font-size: 12.5px; margin: 6px 0 12px; }
+.vs-hint svg { width: 12px; height: 12px; vertical-align: -1px; }
+.vs-presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.vs-preset { display: flex; gap: 4px; }
+.vs-apply { flex: 1; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--fill); color: var(--text); text-align: left; transition: background .2s; }
+.vs-apply small { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.vs-apply:hover { background: var(--fill-strong); }
+.vs-apply.on { background: var(--accent-soft, rgba(250,45,108,.2)); box-shadow: inset 0 0 0 1px var(--accent); }
+.vs-save { width: 38px; border-radius: 12px; background: var(--fill); color: var(--text-2); display: grid; place-items: center; }
+.vs-save:hover { background: var(--fill-strong); color: var(--text); }
+.vs-save svg { width: 15px; height: 15px; }
+@media (max-width: 1400px) { .topbar .volume { width: 140px; } .topbar .vol-pct { display: none; } }
 
 input[type="range"].slider {
   -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 4px;
@@ -361,6 +384,18 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .np-body { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(300px, 460px) minmax(0, 1fr); gap: 7vw; padding: 0 7vw 5vh; min-height: 0; align-items: center; }
 .np-left { display: flex; flex-direction: column; gap: 22px; }
 .np-art { width: 100%; aspect-ratio: 1; border-radius: 14px; object-fit: cover; box-shadow: 0 30px 80px rgba(0,0,0,.5); transition: transform .5s var(--spring); }
+/* Lecteur plein écran sur ordinateur : la pochette rapetisse avec la hauteur
+   de la fenêtre, pour que commandes et volume restent toujours visibles. */
+.np:not(.mobile) .np-art { width: min(100%, max(140px, calc(100vh - 520px))); align-self: center; }
+.np:not(.mobile) .np-volume { color: rgba(255,255,255,.7); }
+.np:not(.mobile) .np-volume .slider { flex: 1; background: linear-gradient(to right, rgba(255,255,255,.85) var(--p, 0%), rgba(255,255,255,.22) var(--p, 0%)); }
+.np:not(.mobile) .np-volume .vol-icon { color: rgba(255,255,255,.75); width: 34px; height: 34px; font-size: 18px; }
+.np:not(.mobile) .np-volume .vol-pct { color: rgba(255,255,255,.6); }
+@media (max-height: 760px) {
+  .np:not(.mobile) .np-left { gap: 12px; }
+  .np:not(.mobile) .np-transport .tbtn.big { width: 60px; height: 60px; }
+  .np:not(.mobile) .np-body { padding-bottom: 2vh; }
+}
 .np.paused .np-art { transform: scale(.88); }
 .np-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .np-meta .t { font-size: 22px; font-weight: 700; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

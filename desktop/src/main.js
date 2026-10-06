@@ -26,6 +26,7 @@ const updater = require("./updater");
 const { DiscordPresence } = require("./discord");
 const shortcuts = require("./shortcuts");
 const { GameMode } = require("./gamemode");
+const { MicWatch } = require("./micwatch");
 
 const isWin = process.platform === "win32";
 const WEB_ROOT = app.isPackaged ? path.join(process.resourcesPath, "web") : path.resolve(__dirname, "..", "..", "web");
@@ -54,6 +55,8 @@ const gameMode = new GameMode({ onChange: (active) => {
   send("desktop:gamemode", active);
   updateTray(true);
 } });
+// Mode vocal : une autre app (Discord…) prend le micro → la page baisse la musique.
+const micWatch = new MicWatch({ onChange: (state) => send("desktop:mic", state) });
 let tray = null;
 let quitting = false;
 let now = null;          // état de lecture envoyé par la page
@@ -84,6 +87,8 @@ app.whenReady().then(async () => {
   applyShortcuts();
   if (settings.get("lyricsOverlay")) setOverlay(true);
   gameMode.setEnabled(settings.get("gameMode"));
+  micWatch.setEnabled(settings.get("micWatch"));
+  for (const ev of ["display-metrics-changed", "display-added", "display-removed"]) screen.on(ev, fitMinimumSize);
   watchPower();
   // Liste complète des sorties audio (casque débranché → pause), pour la page de l'app seulement.
   session.defaultSession.setPermissionCheckHandler((wc, permission, origin) =>
@@ -98,7 +103,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => { quitting = true; });
-app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); gameMode.stop(); shortcuts.apply({}, () => {}); });
+app.on("will-quit", () => { remote.stop(); iphone.stop(); discord.close(); gameMode.stop(); micWatch.stop(); shortcuts.apply({}, () => {}); });
 
 /** PC verrouillé ou en veille : pause ; déverrouillé : la musique repart (si c'est nous qui l'avions coupée). */
 function watchPower() {
@@ -173,6 +178,19 @@ function appIcon(size) {
 
 // ── Fenêtre principale ─────────────────────────────────────────────────
 
+/** Taille minimale jamais plus grande que l'écran (petit écran ou zoom Windows
+ *  à 125-150 %) : sinon la fenêtre agrandie déborde et le bas est coupé. */
+function fitMinimumSize() {
+  if (!win || win.isDestroyed()) return;
+  const area = screen.getDisplayMatching(win.getBounds()).workArea;
+  win.setMinimumSize(Math.min(940, area.width), Math.min(620, area.height));
+}
+
+/** Redessine toute la page après un changement de taille brusque. */
+function repaint() {
+  for (const delay of [30, 250]) setTimeout(() => { if (win && !win.isDestroyed()) win.webContents.invalidate(); }, delay);
+}
+
 function createWindow() {
   const saved = settings.get("bounds");
   const bounds = saved && visibleOnSomeScreen(saved) ? saved : { width: 1320, height: 860 };
@@ -197,6 +215,7 @@ function createWindow() {
       autoplayPolicy: "no-user-gesture-required",
     },
   });
+  fitMinimumSize();
   if (settings.get("maximized")) win.maximize();
   win.loadURL(APP_URL);
 
@@ -215,13 +234,33 @@ function createWindow() {
     if (input.type !== "keyDown") return;
     if (input.control && input.shift && input.key.toLowerCase() === "i") win.webContents.toggleDevTools();
     else if (input.key === "F5" || (input.control && input.key.toLowerCase() === "r")) win.webContents.reload();
-    else if (input.key === "F11") win.setFullScreen(!win.isFullScreen());
+    else if (input.key === "F11") {
+      if (!win.isFullScreen()) beforeFull = { maximized: win.isMaximized(), bounds: win.isMaximized() ? settings.get("bounds") : win.getBounds() };
+      win.setFullScreen(!win.isFullScreen());
+    }
   });
   // La page se recharge : plus de commande en attente de réponse.
   win.webContents.on("did-start-loading", () => { for (const p of pending.values()) p.reject(new Error("Sona redémarre")); pending.clear(); });
 
   const sendWindowState = () => send("desktop:window", { maximized: win.isMaximized(), fullscreen: win.isFullScreen(), focused: win.isFocused() });
   for (const ev of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen", "focus", "blur"]) win.on(ev, sendWindowState);
+  // Agrandir, plein écran, revenir : la page est redessinée en entier (sinon
+  // Windows laisse parfois une bande vide ou coupée), et le plein écran
+  // ressort exactement comme on y était entré (agrandie ou à sa taille).
+  let beforeFull = null;
+  win.on("enter-full-screen", () => { beforeFull = beforeFull || { maximized: win.isMaximized(), bounds: settings.get("bounds") }; repaint(); });
+  win.on("leave-full-screen", () => {
+    const was = beforeFull;
+    beforeFull = null;
+    setTimeout(() => {
+      if (!win || win.isDestroyed() || win.isFullScreen()) return;
+      if (was?.maximized) win.maximize();
+      else if (was?.bounds && visibleOnSomeScreen(was.bounds)) win.setBounds(was.bounds);
+      repaint();
+    }, 60);
+  });
+  for (const ev of ["maximize", "unmaximize", "restore"]) win.on(ev, repaint);
+  win.on("moved", fitMinimumSize);
   win.on("show", () => updateThumbar(true));
 
   let saveTimer;
@@ -285,7 +324,7 @@ function pageCommand(body, timeout = 15000) {
 
 const REMOTE_ACTIONS = new Set(["toggle", "play", "pause", "next", "previous", "seek", "volume", "like", "shuffle", "repeat",
   // Touches Stream Deck : playlists, ajout du titre en cours, radio DJ, paroles en surimpression.
-  "playlists", "addToPlaylist", "djradio", "lyricsOverlay",
+  "playlists", "addToPlaylist", "djradio", "lyricsOverlay", "volumePreset",
   "playIndex", "removeIndex", "search", "playTrack", "playNext", "addToQueue", "lyrics", "home"]);
 
 async function remoteCommand(body) {
@@ -485,9 +524,10 @@ function applyShortcuts() {
     if (action === "show") return showWindow();
     if (action === "lyrics") return setOverlay(!overlay);
     if (action === "volumeUp" || action === "volumeDown") {
-      const volume = Math.max(0, Math.min(1, (now?.volume ?? 1) + (action === "volumeUp" ? 0.05 : -0.05)));
+      const volume = Math.max(0, Math.min(1, (now?.volume ?? 1) + (action === "volumeUp" ? 0.02 : -0.02)));
       return pageCommand({ action: "volume", volume }).catch(() => {});
     }
+    if (action === "volumePreset") return pageCommand({ action, preset: "next" }).catch(() => {});
     pageCommand({ action }).catch(() => {});
   });
   return shortcutsRefused;
@@ -509,7 +549,12 @@ ipcMain.on("desktop:info", (event) => {
 ipcMain.on("desktop:window", (_e, action) => {
   if (!win) return;
   if (action === "minimize") win.minimize();
-  else if (action === "maximize") (win.isMaximized() ? win.unmaximize() : win.maximize());
+  else if (action === "maximize") {
+    // En plein écran (F11), le bouton en sort au lieu d'agrandir par-dessus.
+    if (win.isFullScreen()) win.setFullScreen(false);
+    else if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  }
   else if (action === "close") win.close();
 });
 
@@ -524,6 +569,7 @@ ipcMain.handle("desktop:settings", () => {
     shortcuts: s.shortcuts || {}, shortcutActions: shortcuts.ACTIONS, shortcutsRefused,
     pauseOnLock: s.pauseOnLock, resumeOnUnlock: s.resumeOnUnlock, pauseOnHeadphones: s.pauseOnHeadphones,
     gameMode: s.gameMode, gameActive: gameMode.active,
+    micWatch: s.micWatch, micInUse: micWatch.inUse, micApps: micWatch.apps,
   };
 });
 
@@ -566,6 +612,10 @@ ipcMain.handle("desktop:set", async (_e, key, value) => {
       settings.set(key, !!value);
       gameMode.setEnabled(!!value);
       break;
+    case "micWatch":
+      settings.set(key, !!value);
+      micWatch.setEnabled(!!value);
+      break;
     case "overlayPosition":
       settings.set(key, value === "top" ? "top" : "bottom");
       placeOverlay();
@@ -603,6 +653,7 @@ ipcMain.handle("desktop:status", () => {
     shortcuts: { count: Object.keys(settings.get("shortcuts") || {}).length, refused: shortcutsRefused },
     overlay: !!overlay,
     gameMode: { enabled: !!settings.get("gameMode"), active: gameMode.active, supported: isWin },
+    mic: { enabled: !!settings.get("micWatch"), inUse: micWatch.inUse, apps: micWatch.apps, supported: isWin },
     iphone: { available: iph.available !== false, devices: (iph.devices || []).length, apps: (iph.apps || []).length },
     updates: updater.snapshot(),
   };

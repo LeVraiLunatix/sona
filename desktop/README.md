@@ -38,6 +38,20 @@ ce qu'un navigateur ne sait pas faire.
   Réglages → Discord permet de mettre ta propre application à la place.
 - **Pause automatique** : PC verrouillé ou en veille (la musique repart au
   déverrouillage), casque ou enceinte débranché.
+- **Volume fin et préréglages** : le curseur suit l'oreille (beaucoup de
+  finesse dans les volumes bas), molette ou flèches au pour cent près (5 %
+  avec Maj), pourcentage affiché ; clic sur le haut-parleur → feuille
+  « Volume » avec −/+ et quatre préréglages modifiables (En vocal, Calme,
+  Normal, Fort ; le crayon enregistre le volume actuel). Aussi dans le
+  lecteur plein écran, et en raccourci « Volume : préréglage suivant ».
+- **Mode vocal automatique** : quand Discord (ou une autre app) prend le
+  micro, la musique passe sur « En vocal », puis revient au volume d'avant
+  à la fin de l'appel. Windows le note lui-même (l'icône de micro près de
+  l'horloge, CapabilityAccessManager) : relu toutes les 3 s.
+- **Fenêtre** : la taille minimale s'adapte à l'écran (zoom Windows
+  125-150 %), le plein écran (F11) ressort comme on y était entré, le
+  lecteur plein écran garde commandes et volume visibles à toute hauteur,
+  et la barre du haut range dans « ⋯ » les boutons qui ne tiennent plus.
 - **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
   notifications de Sona, paroles en surimpression sur une ligne, discrètes.
   Windows le signale lui-même (SHQueryUserNotificationState).
