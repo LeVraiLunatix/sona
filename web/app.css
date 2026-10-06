@@ -672,6 +672,15 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .memory .eyebrow { color: rgba(255,255,255,.75); }
 .memory .t { font-weight: 700; font-size: 16px; }
 .memory .s { font-size: 13px; opacity: .75; }
+.daily { position: relative; display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; align-items: center; width: 100%; max-width: 720px; margin-top: 14px; padding: 12px; border-radius: 18px; text-align: left; color: #fff; background: linear-gradient(120deg, #2d1b5c, #10213f); }
+.daily img { width: 76px; height: 76px; border-radius: 10px; object-fit: cover; box-shadow: 0 6px 16px rgba(0,0,0,.45); background: rgba(255,255,255,.08); }
+.daily-text { display: flex; flex-direction: column; min-width: 0; }
+.daily .eyebrow { color: rgba(255,255,255,.75); }
+.daily .t { font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daily .s { font-size: 14px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daily .why { font-size: 12px; opacity: .6; margin-top: 2px; }
+.daily .fab { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #000; }
+.daily .fab svg { width: 18px; height: 18px; }
 .live-pill { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 720px; margin: 10px 0 0; padding: 12px 14px; border-radius: 14px; background: linear-gradient(120deg, rgba(31,111,229,.35), rgba(31,111,229,.12)); border: 1px solid rgba(31,111,229,.4); font-size: 14px; text-align: left; color: var(--text); }
 .live-pill.violet { background: linear-gradient(120deg, rgba(123,63,242,.35), rgba(123,63,242,.12)); border-color: rgba(123,63,242,.45); }
 .live-pill .icon { font-size: 18px; flex: none; }

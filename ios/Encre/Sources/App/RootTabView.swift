@@ -167,6 +167,13 @@ struct RootTabView: View {
             } else {
                 showingParty = true
             }
+        case "daily":
+            // Notification « Titre du jour » : il se lance.
+            Task {
+                guard let track = try? await APIClient.shared.dailyTrack().track else { return }
+                player.play(track, context: [track], name: "Titre du jour")
+                showingPlayer = true
+            }
         case "devices":
             showingDevices = true
         case "player":

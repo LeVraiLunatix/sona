@@ -126,6 +126,11 @@ struct StatsView: View {
                     colors: [Color(red: 0.55, green: 0.2, blue: 0.95), Color(red: 0.95, green: 0.3, blue: 0.5)]
                 ) { recap = RecapLaunch(period: "month", offset: -1) }
             }
+            recapTile(
+                title: "Ton \(String(calendar.component(.year, from: now) - 1))",
+                subtitle: "Ton année en musique : tops, découvertes, profil d'écoute",
+                colors: [Color(red: 0.95, green: 0.55, blue: 0.15), Color(red: 0.85, green: 0.2, blue: 0.35)]
+            ) { recap = RecapLaunch(period: "year", offset: -1) }
             Text("Prochains récaps : \(nextMonday.formatted(.dateTime.weekday(.wide).day().month())) pour la semaine, le \(nextMonth.formatted(.dateTime.day().month(.wide))) pour le mois.")
                 .font(Typo.caption)
                 .foregroundStyle(Tone.tertiary)

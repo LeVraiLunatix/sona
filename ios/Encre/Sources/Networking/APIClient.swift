@@ -443,6 +443,31 @@ final class APIClient {
         try await send(try request("/home/mixes", query: refresh ? [URLQueryItem(name: "refresh", value: "true")] : []))
     }
 
+    /// Titre du jour : une découverte, la même toute la journée.
+    func dailyTrack() async throws -> DailyTrack {
+        try await send(try request("/home/daily"))
+    }
+
+    // MARK: - Page publique « J'écoute »
+
+    func publicLink() async throws -> PublicLink {
+        try await send(try request("/me/public-link"))
+    }
+
+    /// Crée le lien (ou en change : l'ancien ne marche plus).
+    func createPublicLink() async throws -> PublicLink {
+        try await send(try request("/me/public-link", method: "POST"))
+    }
+
+    func deletePublicLink() async throws {
+        try await sendNoContent(try request("/me/public-link", method: "DELETE"))
+    }
+
+    /// Adresse de la page publique d'un lien.
+    func publicPageURL(_ token: String) -> URL? {
+        APIConfig.shared.baseURL?.appendingPathComponent("p/\(token)")
+    }
+
     func friends() async throws -> [Friend] {
         try await send(try request("/friends"))
     }

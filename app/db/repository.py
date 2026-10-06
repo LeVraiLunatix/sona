@@ -727,6 +727,28 @@ class Repository:
         await self._db.conn.execute("DELETE FROM tv_screens WHERE user_id=? AND screen_id=?", (user_id, screen_id))
         await self._db.conn.commit()
 
+    async def public_link(self, user_id: int) -> str | None:
+        cursor = await self._db.conn.execute("SELECT token FROM public_links WHERE user_id=?", (user_id,))
+        row = await cursor.fetchone()
+        return row["token"] if row else None
+
+    async def public_link_set(self, user_id: int, token: str) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO public_links (user_id, token, created_at) VALUES (?, ?, ?)
+               ON CONFLICT (user_id) DO UPDATE SET token=excluded.token, created_at=excluded.created_at""",
+            (user_id, token, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def public_link_delete(self, user_id: int) -> None:
+        await self._db.conn.execute("DELETE FROM public_links WHERE user_id=?", (user_id,))
+        await self._db.conn.commit()
+
+    async def public_link_user(self, token: str) -> int | None:
+        cursor = await self._db.conn.execute("SELECT user_id FROM public_links WHERE token=?", (token,))
+        row = await cursor.fetchone()
+        return row["user_id"] if row else None
+
     async def connect_saved(self, user_id: int) -> list[dict]:
         cursor = await self._db.conn.execute(
             """SELECT device_id, name, kind, saved_at, label FROM connect_saved
