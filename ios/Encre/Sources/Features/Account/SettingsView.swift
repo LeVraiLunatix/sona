@@ -95,6 +95,11 @@ struct SettingsView: View {
                     } label: {
                         Label("Page « J'écoute » publique", systemImage: "globe")
                     }
+                    NavigationLink {
+                        CarModeSettingsView()
+                    } label: {
+                        Label("Mode voiture", systemImage: "car.fill")
+                    }
                 }
 
                 Section {

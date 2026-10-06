@@ -359,6 +359,24 @@ panneaux translucides). En plus du site :
   les titres ; sur ordinateur, Sona reprend au démarrage le dernier titre
   à la seconde près. **Réveil musical** sur l'iPhone (vraie alarme, le mix
   du jour qui monte doucement) ;
+- **iPhone, au quotidien** :
+  - **minuteur de sommeil intelligent** : à l'heure dite, le titre en cours
+    se termine en fondu au lieu d'être coupé ; aussi « fin du titre » et
+    « fin de l'album » (lecteur › ⋯ › Minuteur de sommeil) ;
+  - **widget « Titre du jour »** (écran d'accueil et écran verrouillé) : un
+    appui lance la découverte du jour ;
+  - **mode voiture** (accueil, lecteur › ⋯, Réglages) : écran à très gros
+    boutons, et la musique qui repart en se connectant au Bluetooth de la
+    voiture (choisie une fois dans Réglages › Mode voiture ; pour que ça
+    marche à chaque fois, automatisation Raccourcis « Bluetooth → Mode
+    voiture Sona ») ;
+  - **Siri / bouton Action** : « Lance le titre du jour sur Sona », « Mets
+    ma playlist Sport sur Sona », « Envoie la musique sur le PC avec Sona »,
+    plus Mode voiture et Reconnaître un titre dans Raccourcis ;
+  - **reconnaître un titre** (accueil) : ShazamKit écoute quelques
+    secondes, retrouve le titre dans Sona et le range dans la playlist
+    « Entendu dehors » (ShazamKit doit être autorisé pour l'identifiant de
+    l'app : une installation re-signée peut ne pas y avoir droit) ;
 - **État de Sona** (Réglages → État de Sona) : serveur, lecture, Sona
   Connect et, sur Windows, télécommande, Stream Deck, Discord, raccourcis,
   paroles et iPhone — chacun en vert, orange ou rouge, avec la raison ;

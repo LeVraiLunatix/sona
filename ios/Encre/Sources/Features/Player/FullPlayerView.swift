@@ -206,6 +206,8 @@ struct FullPlayerView: View {
                 Image(systemName: "moon.zzz.fill")
                 if timer == .endOfTrack {
                     Text("Fin du titre")
+                } else if timer == .endOfAlbum {
+                    Text("Fin de l'album")
                 } else if let deadline = player.sleepDeadline {
                     // Borne haute jamais avant la basse : une plage inversée plante.
                     let now = Date()
@@ -932,11 +934,15 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
             item("\(minutes) minutes", "timer") { actions.setSleepTimer(.minutes(minutes)) }
         }
         sleep.append(item("Fin du titre", "music.note") { actions.setSleepTimer(.endOfTrack) })
+        if track.album != nil || track.albumSourceId != nil {
+            sleep.append(item("Fin de l'album", "square.stack") { actions.setSleepTimer(.endOfAlbum) })
+        }
         if sleepTimer != nil {
             sleep.append(item("Désactiver", "xmark.circle", attributes: .destructive) { actions.setSleepTimer(nil) })
         }
         main.append(UIMenu(title: sleepTimer == nil ? "Minuteur de sommeil" : "Minuteur activé",
                            image: UIImage(systemName: "moon.zzz"), children: sleep))
+        main.append(item("Mode voiture", "car.fill") { Task { @MainActor in CarMode.shared.enter(play: false) } })
 
         var navigation: [UIMenuElement] = []
         if let artistId = track.artistSourceId {

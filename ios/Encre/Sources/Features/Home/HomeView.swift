@@ -51,6 +51,12 @@ struct HomeView: View {
 
                 sportCard.padding(.horizontal, 20).reveal(1)
 
+                HStack(spacing: 12) {
+                    quickButton("Reconnaître un titre", "shazam.logo.fill", "encre://shazam")
+                    quickButton("Mode voiture", "car.fill", "encre://car")
+                }
+                .padding(.horizontal, 20).reveal(1)
+
                 if !viewModel.playlists.isEmpty {
                     section("Tes playlists", index: 1) {
                         Carousel(items: viewModel.playlists) { playlist in
@@ -196,6 +202,23 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.pressable(scale: 0.98))
+    }
+
+    /// Petit raccourci de l'accueil (reconnaître un titre, mode voiture).
+    private func quickButton(_ title: String, _ icon: String, _ link: String) -> some View {
+        Button {
+            if let url = URL(string: link) { UIApplication.shared.open(url) }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon).font(.system(size: 18, weight: .bold))
+                Text(title).font(Typo.rowTitle).lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Tone.primary)
+            .padding(.horizontal, 14).frame(height: 54)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Tone.surfaceStrong))
+        }
+        .buttonStyle(.pressable(scale: 0.97))
     }
 
     /// Mode sport : la musique au rythme de ta course.

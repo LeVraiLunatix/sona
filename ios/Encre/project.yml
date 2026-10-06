@@ -57,6 +57,8 @@ targets:
         # Live Activity de l'écoute ensemble (écran verrouillé, Dynamic Island).
         NSSupportsLiveActivities: true
         NSAlarmKitUsageDescription: Sona te réveille en musique, à l'heure que tu choisis.
+        # « Reconnaître un titre » (ShazamKit) : quelques secondes d'écoute.
+        NSMicrophoneUsageDescription: Sona écoute quelques secondes pour reconnaître le titre qui passe autour de toi.
         # Liens `encre://` : ouverture depuis les widgets (blind test, récap…).
         CFBundleURLTypes:
           - CFBundleURLName: com.sona.encre

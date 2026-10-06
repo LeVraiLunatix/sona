@@ -34,6 +34,8 @@ struct RootTabView: View {
     @State private var showingParty = false
     @State private var recap: RecapLaunch?
     @State private var live: LiveLaunch?
+    @State private var showingRecognize = false
+    @ObservedObject private var carMode = CarMode.shared
     @Namespace private var zoomNamespace
     @Namespace private var playerNamespace
 
@@ -106,6 +108,12 @@ struct RootTabView: View {
         .fullScreenCover(item: $live) { launch in
             BlindLiveView(joinCode: launch.code)
         }
+        .fullScreenCover(isPresented: $carMode.requested) {
+            CarModeView()
+        }
+        .sheet(isPresented: $showingRecognize) {
+            RecognizeView()
+        }
         .onOpenURL { url in open(url) }
         // Raccourcis Siri qui ouvrent l'app (défi du jour, récap…).
         .onReceive(AppRouter.shared.$pendingURL.compactMap { $0 }.receive(on: DispatchQueue.main)) { url in
@@ -123,6 +131,7 @@ struct RootTabView: View {
         .task {
             ConnectManager.shared.start()
             RemoteNowPlaying.shared.start()
+            CarMode.shared.start()
         }
         .task {
             // Écran TV / PS5 choisi avant la fermeture de l'appli : on le reprend.
@@ -174,6 +183,10 @@ struct RootTabView: View {
                 player.play(track, context: [track], name: "Titre du jour")
                 showingPlayer = true
             }
+        case "car":
+            CarMode.shared.enter(play: query.first { $0.name == "play" }?.value == "1")
+        case "shazam":
+            showingRecognize = true
         case "devices":
             showingDevices = true
         case "player":
