@@ -418,3 +418,134 @@ html.desktop .set-group.flat { background: none; box-shadow: none; border-radius
 
 /* Visualiseur : ses boutons sous ceux de la fenêtre */
 html.desktop .viz-tools { top: 62px; }
+
+/* ══ Habillage « Cider » ═══════════════════════════════════════════════════
+   Comme Cider (et Musique d'Apple) : la fenêtre entière est utilisée, sans
+   panneaux flottants. Barre latérale sur toute la hauteur, barre du lecteur
+   à plat en haut (commandes à gauche, écran du titre au centre, volume et
+   outils à droite), boutons de fenêtre façon Windows dans le coin, page en
+   pleine largeur, et un tiroir à droite pour les paroles et la file. */
+
+html.desktop {
+  --gap: 0px;
+  --topbar-h: 62px;
+  --sidebar-w: 260px;
+  --drawer-w: 380px;
+  --wctl-w: 138px;
+  --c-line: rgba(255, 255, 255, .075);
+  --c-side: rgba(22, 22, 28, .68);
+  --c-bar: rgba(20, 20, 26, .55);
+  --c-page: rgba(12, 12, 16, .42);
+}
+html.desktop .ambient img { filter: blur(110px) saturate(1.5) brightness(.42); }
+
+html.desktop .app {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 0;
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
+  gap: 0; padding: 0;
+  transition: grid-template-columns .38s var(--ease);
+}
+html.desktop.drawer-open .app { grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--drawer-w); }
+
+/* Barre latérale : à plat, sur toute la hauteur. */
+html.desktop .sidebar {
+  grid-row: 1 / -1; border-radius: 0; padding: 12px 10px 10px;
+  background: var(--c-side); box-shadow: none; border-right: 1px solid var(--c-line);
+}
+html.desktop .sidebar::before, html.desktop .topbar::before { display: none; }
+html.desktop .brand { padding: 8px 10px 14px; font-size: 20px; }
+html.desktop .side-search input { height: 32px; border-radius: 8px; background: rgba(255, 255, 255, .07); box-shadow: inset 0 0 0 1px var(--c-line); }
+html.desktop .side-search input:focus { background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 0 3px var(--accent-soft); }
+html.desktop .side-link { border-radius: 7px; padding: 6px 10px; font-size: 14px; }
+html.desktop .side-link:hover { background: rgba(255, 255, 255, .06); }
+html.desktop .side-link.active { background: rgba(255, 255, 255, .1); box-shadow: none; }
+html.desktop .side-link:active { transform: none; }
+html.desktop .side-user { border-radius: 8px; background: transparent; box-shadow: none; border-top: 1px solid var(--c-line); margin-top: 4px; border-radius: 0; padding: 10px 8px 2px; }
+html.desktop .side-user:hover { background: rgba(255, 255, 255, .04); }
+
+/* Barre du lecteur : à plat, de la barre latérale jusqu'au bord. */
+html.desktop .topbar {
+  grid-column: 2 / -1; border-radius: 0; box-shadow: none;
+  background: var(--c-bar); border-bottom: 1px solid var(--c-line);
+  padding: 0 calc(var(--wctl-w) + 10px) 0 14px;
+}
+html.desktop .tbtn:hover { background: rgba(255, 255, 255, .08); }
+html.desktop .topbar .tbtn.big { width: 42px; height: 42px; font-size: 27px; background: none; box-shadow: none; }
+html.desktop .topbar .tbtn.big::after { display: none; }
+html.desktop .topbar .tbtn.big:hover { background: rgba(255, 255, 255, .08); }
+
+/* Écran du titre : pochette carrée à gauche, progression fine en bas. */
+html.desktop .lcd {
+  height: 48px; border-radius: 8px; padding: 0 12px 0 0; grid-template-columns: 48px 1fr; gap: 12px;
+  background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--c-line);
+}
+html.desktop .lcd .art { width: 48px; height: 48px; border-radius: 8px 0 0 8px; box-shadow: none; }
+html.desktop .lcd .progress { left: 48px; right: 0; bottom: 0; height: 3px; border-radius: 0 0 8px 0; background: rgba(255, 255, 255, .06); }
+html.desktop .lcd .progress .fill { border-radius: 0; background: rgba(255, 255, 255, .7); box-shadow: none; }
+html.desktop .lcd.remote { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* Boutons de fenêtre façon Windows, collés dans le coin. */
+html.desktop .wctl { top: 0; right: 0; gap: 0; }
+html.desktop .wctl button {
+  width: 46px; height: 34px; border-radius: 0; background: transparent; box-shadow: none; color: var(--text-2);
+}
+html.desktop .wctl button:hover { background: rgba(255, 255, 255, .09); color: #fff; }
+html.desktop .wctl button:active { transform: none; background: rgba(255, 255, 255, .05); }
+html.desktop .wctl .close:hover { background: #c42b1c; box-shadow: none; }
+html.desktop:not(:has(.app)) .wctl { top: 0; right: 0; }
+html.desktop .drag-top { height: 4px; }
+
+/* Page : pleine largeur, plus de panneau arrondi. */
+html.desktop .content {
+  grid-column: 2; grid-row: 2; border-radius: 0; box-shadow: none; background: var(--c-page);
+}
+html.desktop .page { max-width: none; padding: 30px 36px 64px; }
+html.desktop .scroll::-webkit-scrollbar-track { margin: 0; }
+
+/* Contenu : arrondis sobres, boutons rectangulaires. */
+html.desktop .btn { border-radius: 8px; height: 36px; padding: 0 18px; box-shadow: none; }
+html.desktop .btn.ghost { background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px var(--c-line); }
+html.desktop .btn.ghost:hover { background: rgba(255, 255, 255, .12); }
+html.desktop .hero-art { border-radius: 10px; box-shadow: 0 22px 50px rgba(0, 0, 0, .5), 0 0 0 .5px rgba(255, 255, 255, .1); }
+html.desktop .card .art-wrap { border-radius: 10px; }
+html.desktop .card:hover .art-wrap { transform: none; }
+html.desktop .feature, html.desktop .home-hero { border-radius: 12px; }
+html.desktop .tr { border-radius: 8px; }
+html.desktop .tr:nth-child(odd) { background: rgba(255, 255, 255, .025); }
+html.desktop .tr:hover { background: rgba(255, 255, 255, .07); }
+html.desktop .tr.current { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: none; }
+html.desktop :is(.chip, .top-card, .set-group, .install-card, .health-card, .health-hero, .cast-remote) {
+  background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--c-line);
+}
+html.desktop .set-group { border-radius: 10px; }
+html.desktop .sheet { border-radius: 14px; }
+html.desktop .devices-pop { border-radius: 12px; }
+html.desktop .toast { border-radius: 10px; }
+
+/* Tiroir « Paroles / À suivre » à droite. */
+html.desktop .drawer {
+  grid-column: 3; grid-row: 2; min-width: 0; overflow: hidden; display: flex; flex-direction: column;
+  background: var(--c-side); border-left: 1px solid var(--c-line);
+  -webkit-backdrop-filter: blur(30px) saturate(160%); backdrop-filter: blur(30px) saturate(160%);
+}
+html.desktop:not(.drawer-open) .drawer { visibility: hidden; }
+.drawer-head { display: flex; align-items: center; gap: 4px; padding: 12px 10px 8px 14px; width: var(--drawer-w); }
+.drawer-tabs { flex: 1; display: flex; gap: 2px; padding: 3px; border-radius: 9px; background: rgba(255, 255, 255, .07); }
+.drawer-tabs button { flex: 1; padding: 6px 8px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.drawer-tabs button.on { background: rgba(255, 255, 255, .15); color: var(--text); }
+.drawer-body { flex: 1; min-height: 0; width: var(--drawer-w); position: relative; }
+.drawer-body .lyrics { padding: 30vh 24px 40vh; }
+.drawer-body .lyrics p { font-size: 22px; line-height: 1.25; }
+.drawer-body .lyrics.plain p { font-size: 17px; }
+.drawer-body .lyrics .none { font-size: 16px; padding: 0 4px; }
+.drawer-body .queue { padding: 6px 10px 20px; }
+.drawer-body .queue h3 { padding: 0 8px; color: var(--text-2); font-size: 13px; }
+.drawer-empty { color: var(--text-3); text-align: center; margin-top: 40%; }
+@media (max-width: 1180px) { html.desktop { --drawer-w: 320px; } }
+/* Largeurs réduites (après les valeurs Cider ci-dessus, pour les écraser). */
+@media (max-width: 1500px) { html.desktop { --sidebar-w: 236px; } }
+@media (max-width: 1180px) { html.desktop { --sidebar-w: 212px; } }
+@media (max-width: 1020px) { html.desktop { --sidebar-w: 184px; } }
+/* Le halo de la pochette (en-tête d'album, de playlist) couvre toute la largeur de la page, sans déborder. */
+html.desktop .hero-glow { inset: -30px -36px auto; }
+html.desktop .profile-head .hero-glow { inset: -30px -36px auto; }

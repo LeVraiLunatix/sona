@@ -206,6 +206,7 @@ async function startApp() {
   }
   document.body.style.overflow = "";
   renderShell();
+  bindDrawer();
   restoreResume();
   if (focus.phase) focusLoop();
   startConnect();
@@ -405,6 +406,10 @@ function renderShell() {
     <header class="topbar" id="topbar"></header>
     <header class="mhead" id="mhead"></header>
     <main class="content scroll" id="content"></main>
+    ${desktop ? `<aside class="drawer" id="drawer" aria-label="Paroles et file d'attente">
+      <div class="drawer-head"><div class="drawer-tabs"><button data-dtab="lyrics">Paroles</button><button data-dtab="queue">À suivre</button></div>
+        <button class="tbtn small" data-dfull title="Lecteur plein écran">${icons.miniPlayer}</button><button class="tbtn small" data-dclose title="Fermer">${icons.close}</button></div>
+      <div class="drawer-body" id="drawer-body"></div></aside>` : ""}
     <div class="mp" id="mp"></div>
     <nav class="tabbar">${TABS.map(([id, label, icon]) => `<button data-tab="${id}">${icon}<span>${label}</span></button>`).join("")}</nav>
   </div>
@@ -1359,7 +1364,7 @@ async function extendQueue() {
     if (!fresh.length) return false;
     state.queue.push(...fresh);
     if (!state.station) state.name = state.name || "Lecture automatique";
-    if (state.npOpen && state.npTab === "queue") renderQueue();
+    if (panelTab() === "queue") renderQueue();
     return true;
   } catch { return false; }
 }
@@ -1368,14 +1373,14 @@ function playNext(track) {
   if (state.index < 0) return playList([track], 0, "");
   state.queue.splice(state.index + 1, 0, track);
   toast(`« ${track.title} » sera lu ensuite`);
-  if (state.npOpen && state.npTab === "queue") renderQueue();
+  if (panelTab() === "queue") renderQueue();
 }
 
 function addToQueue(track) {
   if (state.index < 0) return playList([track], 0, "");
   state.queue.push(track);
   toast(`« ${track.title} » ajouté à la file`);
-  if (state.npOpen && state.npTab === "queue") renderQueue();
+  if (panelTab() === "queue") renderQueue();
 }
 
 function playAt(index, { position = 0 } = {}) {
@@ -1511,9 +1516,9 @@ function renderTopbar() {
       <button class="tbtn small opt-1 ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
       <button class="tbtn small ${remote || otherDevices().length ? "on" : ""}" data-act="devices" title="Sona Connect : tes appareils">${icons.devices}</button>
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
-      <button class="tbtn small opt-2 ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
+      <button class="tbtn small opt-2 ${panelTab() === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
       ${soundAvailable && !isMobile() ? `<button class="tbtn small opt-1 ${viz.el ? "on" : ""}" data-act="viz" title="Visualiseur">${icons.wave}</button>` : ""}
-      <button class="tbtn small opt-2 ${state.npOpen && state.npTab === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
+      <button class="tbtn small opt-2 ${panelTab() === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
       <button class="tbtn small more-tools" data-act="tools" title="Plus">${icons.more}</button>
       <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : `Volume : ${volLabel(volumeShown)} — molette pour régler finement`}"><button class="vol-icon" data-act="volume" title="Volume et préréglages">${volIcon(volumeShown)}</button><input type="range" class="slider" id="vol" min="0" max="1" step="0.005" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume">${remote ? "" : `<span class="vol-pct" id="vol-pct">${volLabel(volumeShown)}</span>`}</div>
     </div>`;
@@ -1532,9 +1537,9 @@ function renderTopbar() {
     if (act === "repeat") { state.repeat = !state.repeat; renderTopbar(); startConnect.now?.(); }
     if (act === "like" && t) toggleLike(t);
     if (act === "open") openNowPlaying(state.npTab);
-    if (act === "lyrics") openNowPlaying("lyrics", true);
+    if (act === "lyrics") return drawerMode() ? toggleDrawer("lyrics") : openNowPlaying("lyrics", true);
     if (act === "viz") viz.el ? closeVisualizer() : openVisualizer();
-    if (act === "queue") openNowPlaying("queue", true);
+    if (act === "queue") return drawerMode() ? toggleDrawer("queue") : openNowPlaying("queue", true);
     if (act === "seek" && remote && t?.duration_seconds) {
       const rect = e.target.closest(".progress").getBoundingClientRect();
       sendCommand(remote.id, "seek", { position: ((e.clientX - rect.left) / rect.width) * t.duration_seconds });
@@ -1621,6 +1626,49 @@ function updateProgress() {
 // l'app — la pochette en grand, que les paroles ou la file remplacent, et on
 // le ferme en le faisant glisser vers le bas.
 
+// ── Tiroir « Paroles / À suivre » (PC, comme Cider) ────────────────────
+// Sur ordinateur, paroles et file s'ouvrent dans un tiroir à droite de la
+// page (on continue de naviguer) ; le lecteur plein écran reste à un clic
+// sur la pochette du haut.
+
+const drawerMode = () => !!desktop && !isMobile();
+
+/** Où s'affichent paroles et file : le lecteur plein écran, sinon le tiroir. */
+const panelBox = () => (state.npOpen ? $("#np-right") : state.drawer ? $("#drawer-body") : null);
+const panelTab = () => (state.npOpen ? state.npTab : state.drawer || null);
+
+function toggleDrawer(tab) {
+  state.drawer = !tab || state.drawer === tab ? null : tab;
+  store.set("sona.drawer", state.drawer);
+  renderDrawer();
+  renderTopbar();
+}
+
+function renderDrawer() {
+  const el = $("#drawer");
+  document.documentElement.classList.toggle("drawer-open", !!state.drawer && !!el);
+  if (!el) return;
+  if (!state.drawer) return;
+  $$("[data-dtab]", el).forEach((b) => b.classList.toggle("on", b.dataset.dtab === state.drawer));
+  state.lastLyric = -1;
+  if (!state.queue[state.index]) $("#drawer-body").innerHTML = `<p class="drawer-empty">Rien en lecture.</p>`;
+  else if (state.drawer === "queue") renderQueue();
+  else { renderLyrics(); syncLyrics(true); }
+}
+
+function bindDrawer() {
+  const el = $("#drawer");
+  if (!el) return;
+  el.onclick = (e) => {
+    const tab = e.target.closest("[data-dtab]")?.dataset.dtab;
+    if (tab) { state.drawer = tab; store.set("sona.drawer", tab); renderDrawer(); renderTopbar(); }
+    if (e.target.closest("[data-dclose]")) toggleDrawer(null);
+    if (e.target.closest("[data-dfull]")) { const tab2 = state.drawer; toggleDrawer(null); openNowPlaying(tab2 || "lyrics"); }
+  };
+  state.drawer = store.get("sona.drawer") || null;
+  renderDrawer();
+}
+
 function openNowPlaying(tab, toggleIfSame) {
   if (!state.queue[state.index]) return;
   if (tab === "art" && !isMobile()) tab = state.npTab === "art" ? "lyrics" : state.npTab;
@@ -1639,6 +1687,7 @@ function closeNowPlaying() {
   if (np) { np.classList.remove("open"); np.style.transform = ""; }
   document.body.classList.remove("np-open");
   renderTopbar();
+  if (state.drawer) renderDrawer();
 }
 
 function renderNowPlaying() {
@@ -1810,7 +1859,7 @@ function bindNowPlayingGestures() {
 }
 
 function renderQueue() {
-  const box = $("#np-right");
+  const box = panelBox();
   if (!box) return;
   const rows = state.queue.map((t, i) => ({ t, i })).slice(Math.max(0, state.index - 3), state.index + 80);
   const label = state.station ? `${state.station.name} · radio` : state.name;
@@ -1839,11 +1888,11 @@ async function loadLyrics(t) {
   if (!sameTrack(t, state.queue[state.index])) return;
   state.lyrics = { lines: lyrics?.lines || [], synced: !!lyrics?.synced, instrumental: !!lyrics?.instrumental };
   state.lastLyric = -1;
-  if (state.npOpen && state.npTab === "lyrics") renderLyrics();
+  if (panelTab() === "lyrics") renderLyrics();
 }
 
 function renderLyrics() {
-  const box = $("#np-right");
+  const box = panelBox();
   if (!box) return;
   const ly = state.lyrics;
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
@@ -1863,14 +1912,14 @@ function renderLyrics() {
 }
 
 function syncLyrics(force) {
-  if (!state.npOpen || state.npTab !== "lyrics" || !state.lyrics?.synced) return;
+  if (panelTab() !== "lyrics" || !state.lyrics?.synced) return;
   const lines = state.lyrics.lines;
   const now = audio.currentTime + 0.25;
   let active = -1;
   for (let i = 0; i < lines.length; i++) { if (lines[i].time != null && lines[i].time <= now) active = i; else if (lines[i].time > now) break; }
   if (active === state.lastLyric && !force) return;
   state.lastLyric = active;
-  const box = $("#lyr");
+  const box = panelBox()?.querySelector("#lyr");
   if (!box) return;
   $$("p", box).forEach((p, i) => {
     p.classList.toggle("on", i === active);
@@ -4574,7 +4623,7 @@ async function partyTakeProposals() {
   takingProposal = true;
   party.takenDuring = trackKey(playing);
   state.queue.splice(state.index + 1, 0, top.track);
-  if (state.npOpen && state.npTab === "queue") renderQueue();
+  if (panelTab() === "queue") renderQueue();
   try { partyHandle(await api(partyPath("/queue/consume"), { method: "POST", body: JSON.stringify({ ids: [top.id] }) })); }
   catch {} finally { takingProposal = false; }
 }
@@ -5431,7 +5480,7 @@ async function desktopCommand(c) {
     case "removeIndex":
       if (!remote && c.index > state.index && c.index < state.queue.length) {
         state.queue.splice(c.index, 1);
-        if (state.npOpen && state.npTab === "queue") renderQueue();
+        if (panelTab() === "queue") renderQueue();
       }
       break;
     case "search": {
