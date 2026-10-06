@@ -4,7 +4,7 @@ et badges."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_token
@@ -12,7 +12,7 @@ from app.api.schemas import Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import challenges, discover, dj_voice, instrumental, listening_map, memories, releases, smart_playlists, sport
+from app.services import challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists, sport
 from app.services import stats as stats_service
 
 router = APIRouter(tags=["extras"])
@@ -200,3 +200,30 @@ async def mood(tz: str | None = Query(None), lat: float | None = Query(None, ge=
     out = await discover.mood_mix(deps, tz, lat, lon)
     out["tracks"] = [Track.from_info(t).model_dump() for t in out["tracks"]]
     return out
+
+
+@router.post("/recognize")
+async def recognize_song(request: Request, deps: ApiDeps = Depends(require_token)) -> dict:
+    """« Reconnaître un titre » : l'enregistrement (corps brut : WAV, M4A,
+    WebM…) est identifié, puis retrouvé dans le catalogue de Sona."""
+    audio = await request.body()
+    if len(audio) > recognize.MAX_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Enregistrement trop long.")
+    if len(audio) < 2000:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Enregistrement vide.")
+    try:
+        wav = await recognize.to_wav(audio, deps.settings.ffmpeg_path)
+        found = await recognize.identify(wav)
+    except recognize.RecognizeError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    if found is None:
+        return {"found": None, "track": None}
+    from app.services.search import SearchError, search_tracks
+
+    track = None
+    try:
+        tracks, _ = await search_tracks(deps, query_cache.CachedQuery(text=f"{found['title']} {found['artist']}"), index=0, limit=5)
+        track = Track.from_info(tracks[0]).model_dump() if tracks else None
+    except SearchError:
+        pass
+    return {"found": found, "track": track}

@@ -1471,3 +1471,16 @@ struct DailyTrack: Decodable {
 struct PublicLink: Decodable {
     let token: String?
 }
+
+/// Résultat de « Reconnaître un titre » (`/recognize`).
+struct RecognizeResult: Decodable {
+    struct Found: Decodable {
+        var title: String
+        var artist: String
+        var album: String?
+        var coverURL: String?
+        enum CodingKeys: String, CodingKey { case title, artist, album; case coverURL = "cover_url" }
+    }
+    var found: Found?
+    var track: Track?
+}

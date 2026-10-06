@@ -1341,3 +1341,11 @@ span.chip { cursor: default; }
 .brow small { color: var(--text-2); font-weight: 500; }
 .bav { width: 26px; height: 26px; border-radius: 50%; font-size: 11px; display: grid; place-items: center; background: var(--fill-strong); object-fit: cover; }
 .bn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Reconnaître un titre */
+.rec { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0 8px; text-align: center; }
+.rec-pulse { width: 110px; height: 110px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 44px; animation: rec-pulse 1.2s ease-in-out infinite; margin-bottom: 8px; }
+@keyframes rec-pulse { 50% { box-shadow: 0 0 0 22px color-mix(in srgb, var(--accent) 18%, transparent); } }
+.rec-art { width: 180px; height: 180px; border-radius: 14px; object-fit: cover; box-shadow: 0 16px 40px rgba(0,0,0,.4); background: var(--fill); }
+.rec-title { font-size: 20px; margin-top: 6px; }
+.rec .btn { margin-top: 10px; }

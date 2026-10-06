@@ -373,10 +373,10 @@ panneaux translucides). En plus du site :
   - **Siri / bouton Action** : « Lance le titre du jour sur Sona », « Mets
     ma playlist Sport sur Sona », « Envoie la musique sur le PC avec Sona »,
     plus Mode voiture et Reconnaître un titre dans Raccourcis ;
-  - **reconnaître un titre** (accueil) : ShazamKit écoute quelques
-    secondes, retrouve le titre dans Sona et le range dans la playlist
-    « Entendu dehors » (ShazamKit doit être autorisé pour l'identifiant de
-    l'app : une installation re-signée peut ne pas y avoir droit) ;
+  - **reconnaître un titre** (accueil, aussi sur le site et le PC) : le
+    micro écoute 8 s, le serveur identifie l'extrait (service de Shazam,
+    bibliothèque `shazamio`, sans clé ni compte Apple) et le retrouve dans
+    Sona ; il est rangé dans la playlist « Entendu dehors ».
 - **État de Sona** (Réglages → État de Sona) : serveur, lecture, Sona
   Connect et, sur Windows, télécommande, Stream Deck, Discord, raccourcis,
   paroles et iPhone — chacun en vert, orange ou rouge, avec la raison ;
@@ -460,6 +460,7 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
 | `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
 | `GET /home/mood?tz=&lat=&lon=` | Mix « selon le moment » : l'humeur d'après l'heure, le jour (vendredi et samedi soir : soirée) et, si la position est donnée, la météo (Open-Meteo, gratuit, position arrondie et non gardée) — pluie, neige, grand soleil, ciel gris, nuit, matin… Carte sur l'accueil (web, iPhone). |
+| `POST /recognize` | « Reconnaître un titre » : l'extrait enregistré (corps brut : WAV, M4A, WebM…) est converti par ffmpeg, identifié par le service de Shazam (`shazamio`) et retrouvé dans le catalogue. Réponse `{found, track}`. |
 | `GET /discover/radio/{source}/{artist_id}?artist=` | « Si tu aimes ce titre… » : radio d'artistes proches que tu n'as jamais écoutés (titres phares, mélangés artiste par artiste). Dans le menu de chaque titre. |
 | `GET /home/daily` | Titre du jour : une découverte (artiste proche de tes favoris, sinon ton mix du jour), la même toute la journée. Carte sur l'accueil (web, iPhone) et notification le matin sur l'iPhone. |
 | `GET/POST/DELETE /me/public-link` · `GET /p/{lien}` · `GET /p/{lien}/now` | Page publique « J'écoute » : un lien secret (à mettre sur un profil Discord, Instagram…) qui montre en direct le titre en cours, sinon la dernière écoute. Rien n'apparaît quand « Partager mon écoute » est coupé ; changer de lien ou le supprimer coupe l'ancien. Réglages → Page « J'écoute » publique. |

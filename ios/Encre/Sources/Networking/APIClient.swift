@@ -453,6 +453,14 @@ final class APIClient {
         return try await send(try request("/home/mood", query: query))
     }
 
+    /// « Reconnaître un titre » : l'extrait enregistré (WAV) est identifié par le serveur.
+    func recognize(audio: Data) async throws -> RecognizeResult {
+        var req = try request("/recognize", method: "POST", bodyData: audio)
+        req.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 60
+        return try await send(req)
+    }
+
     /// « Si tu aimes ce titre » : radio d'artistes proches jamais écoutés.
     func discoverRadio(source: String, artistId: String, artist: String) async throws -> [Track] {
         try await send(try request("/discover/radio/\(source)/\(artistId)", query: [URLQueryItem(name: "artist", value: artist)]))

@@ -177,7 +177,7 @@ struct CarModeIntent: AppIntent {
     }
 }
 
-/// Reconnaître le titre qui passe autour de soi (ShazamKit).
+/// Reconnaître le titre qui passe autour de soi (identifié par le serveur).
 struct RecognizeSongIntent: AppIntent {
     static let title: LocalizedStringResource = "Reconnaître un titre avec Sona"
     static let openAppWhenRun = true
