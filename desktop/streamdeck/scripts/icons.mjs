@@ -15,10 +15,11 @@ const actions = {
   playpause: "play", nowplaying: "note", next: "next", previous: "previous", like: "heart",
   shuffle: "shuffle", repeat: "repeat", volumeup: "volumeUp", volumedown: "volumeDown", dial: "speaker", seekdial: "next",
   addtoplaylist: "playlistAdd", djradio: "radio", lyricsoverlay: "quote",
+  playlist: "playlist", share: "share", volumepreset: "presets",
 };
 for (const [id, glyph] of Object.entries(actions)) {
   write(`actions/${id}/icon`, iconSvg(glyph));
-  write(`actions/${id}/key`, id === "nowplaying" ? coverSvg({ image: null, paused: true }) : keySvg(glyph));
+  write(`actions/${id}/key`, id === "nowplaying" ? coverSvg({ image: null, paused: true }) : id === "playlist" ? coverSvg({ image: null, paused: true, title: "Playlist", artist: "Sona" }) : keySvg(glyph));
 }
 // Icône du plugin : Stream Deck la veut en PNG (celle de l'app Sona).
 fs.mkdirSync(path.join(root, "plugin"), { recursive: true });

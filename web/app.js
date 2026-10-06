@@ -3510,11 +3510,20 @@ async function playOnDevice(d, tracks, index = 0, name = "") {
   } catch (e) { toast(e.message); }
 }
 
+/** Lien d'écoute d'un titre : sa page Deezer ou YouTube Music, sinon une recherche. */
+function trackLink(t) {
+  if (t.source === "deezer" && /^\d+$/.test(String(t.source_id))) return `https://www.deezer.com/track/${t.source_id}`;
+  if (["youtube", "ytmusic"].includes(t.source) && t.source_id) return `https://music.youtube.com/watch?v=${encodeURIComponent(t.source_id)}`;
+  return `https://music.youtube.com/search?q=${encodeURIComponent(`${t.artist} ${t.title}`)}`;
+}
+
+const shareText = (t) => `🎧 ${t.title} — ${t.artist}\n${trackLink(t)}`;
+
 async function shareTrack(t) {
-  const text = `${t.title} — ${t.artist}`;
+  const text = shareText(t);
   try {
-    if (navigator.share) await navigator.share({ title: t.title, text: `🎧 ${text} (via Sona)` });
-    else { await navigator.clipboard.writeText(text); toast("Copié"); }
+    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via Sona)`, url: trackLink(t) });
+    else { await navigator.clipboard.writeText(text); toast("Lien copié"); }
   } catch {}
 }
 
@@ -5378,7 +5387,23 @@ async function desktopCommand(c) {
     // Touches Stream Deck.
     case "playlists":
       result = ((await api("/me/playlists").catch(() => state.playlists)) || [])
-        .filter((p) => p.can_edit !== false && p.import_status !== "importing").map((p) => ({ id: String(p.id), name: p.name }));
+        .filter((p) => (c.all || p.can_edit !== false) && p.import_status !== "importing")
+        .map((p) => ({ id: String(p.id), name: p.name, cover: p.cover_url || (p.covers || [])[0] || null }));
+      break;
+    case "playPlaylist": {
+      if (!c.playlist) throw new Error("Choisis la playlist (réglage de la touche)");
+      const p = await api(`/me/playlists/${encodeURIComponent(c.playlist)}`);
+      const tracks = (p.entries || []).map((e) => e.track || e).filter((x) => x?.source && x?.source_id);
+      if (!tracks.length) throw new Error("Playlist vide");
+      if (remote) await playOnDevice(remote, tracks, 0, p.name);
+      else playList(tracks, 0, p.name);
+      result = { name: p.name, count: tracks.length };
+      break;
+    }
+    case "shareTrack":
+      if (!t) throw new Error("Rien en lecture");
+      result = { text: shareText(t) };
+      toast("Lien du titre copié : colle-le où tu veux");
       break;
     case "addToPlaylist": {
       if (!t) throw new Error("Rien en lecture");

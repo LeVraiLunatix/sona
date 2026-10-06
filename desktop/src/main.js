@@ -14,7 +14,7 @@
    La page tourne sous app://sona/ : son stockage (session Sona, réglages)
    est propre à l'app et l'API est appelée à l'adresse du serveur. */
 
-const { app, BrowserWindow, protocol, net, ipcMain, Tray, Menu, nativeImage, nativeTheme, shell, Notification, screen, dialog, powerMonitor, session } = require("electron");
+const { app, BrowserWindow, protocol, net, ipcMain, Tray, Menu, nativeImage, nativeTheme, shell, Notification, screen, dialog, powerMonitor, session, clipboard } = require("electron");
 const path = require("node:path");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
@@ -343,7 +343,7 @@ function pageCommand(body, timeout = 15000) {
 
 const REMOTE_ACTIONS = new Set(["toggle", "play", "pause", "next", "previous", "seek", "volume", "like", "shuffle", "repeat",
   // Touches Stream Deck : playlists, ajout du titre en cours, radio DJ, paroles en surimpression.
-  "playlists", "addToPlaylist", "djradio", "lyricsOverlay", "volumePreset",
+  "playlists", "addToPlaylist", "djradio", "lyricsOverlay", "volumePreset", "shareTrack", "playPlaylist",
   "playIndex", "removeIndex", "search", "playTrack", "playNext", "addToQueue", "lyrics", "home"]);
 
 async function remoteCommand(body) {
@@ -352,6 +352,12 @@ async function remoteCommand(body) {
   if (body.action === "lyricsOverlay") {
     setOverlay(typeof body.on === "boolean" ? body.on : !overlay);
     return { on: !!overlay };
+  }
+  // Partager : le texte est copié dans le presse-papiers de Windows (prêt à coller dans Discord).
+  if (body.action === "shareTrack") {
+    const got = await pageCommand({ action: "shareTrack" });
+    if (got?.text) clipboard.writeText(got.text);
+    return got;
   }
   const clean = { action: body.action };
   for (const k of ["position", "volume", "index"]) if (Number.isFinite(body[k])) clean[k] = body[k];

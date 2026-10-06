@@ -179,12 +179,15 @@ Sona sur le même PC et lui parle en local.
 | En cours | La pochette du titre en cours ; un appui met en pause ou relance |
 | Lecture / pause, Suivant, Précédent | La lecture, l'icône suit l'état |
 | J'aime, Aléatoire, Répéter | En rose quand c'est activé |
-| Volume +, Volume − | ±10 % |
-| Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
+| Volume +, Volume − | ±5 % |
+| Molette Sona (Stream Deck +) | Tourner : volume (1 % par cran) · appuyer : lecture/pause · toucher : suivant |
 | Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
 | Ajouter à une playlist | Le titre en cours dans la playlist choisie (panneau de la touche) |
 | Radio DJ | Une radio à partir du titre en cours |
 | Paroles | Affiche ou masque les paroles en surimpression |
+| Playlist | La pochette d'une playlist choisie (panneau de la touche) ; un appui la lance |
+| Partager le titre | Copie « 🎧 titre — artiste » et un lien d'écoute, prêt à coller dans Discord |
+| Préréglage de volume | Passe au préréglage suivant (En vocal, Calme, Normal, Fort), écrit sur la touche |
 
 Chaque touche a un réglage **Appareil** (panneau de la touche dans le
 logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du

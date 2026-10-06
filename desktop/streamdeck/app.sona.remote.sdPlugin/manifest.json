@@ -218,6 +218,58 @@
       "SupportedInMultiActions": true
     },
     {
+      "Name": "Playlist",
+      "UUID": "app.sona.remote.playlist",
+      "Icon": "imgs/actions/playlist/icon",
+      "Tooltip": "Lance la playlist choisie dans le panneau de la touche ; la touche montre sa pochette.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/playlist/key",
+          "TitleAlignment": "bottom",
+          "FontSize": 9
+        }
+      ],
+      "SupportedInMultiActions": true,
+      "PropertyInspectorPath": "ui/playlist.html"
+    },
+    {
+      "Name": "Partager le titre",
+      "UUID": "app.sona.remote.share",
+      "Icon": "imgs/actions/share/icon",
+      "Tooltip": "Copie « titre — artiste » et un lien d'écoute du titre en cours, prêt à coller dans Discord.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/share/key",
+          "TitleAlignment": "bottom",
+          "FontSize": 9
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
+      "Name": "Préréglage de volume",
+      "UUID": "app.sona.remote.volumepreset",
+      "Icon": "imgs/actions/volumepreset/icon",
+      "Tooltip": "Passe au préréglage de volume suivant (En vocal, Calme, Normal, Fort).",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/volumepreset/key",
+          "TitleAlignment": "bottom",
+          "FontSize": 9
+        }
+      ],
+      "SupportedInMultiActions": true
+    },
+    {
       "Name": "Molette Sona",
       "UUID": "app.sona.remote.dial",
       "Icon": "imgs/actions/dial/icon",
