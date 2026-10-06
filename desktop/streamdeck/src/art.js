@@ -20,6 +20,9 @@ const ICON = {
   volumeDown: "M11 4.5v15c0 .8-.9 1.2-1.5.7L5.3 16.5H3a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h2.3l4.2-3.7c.6-.5 1.5-.1 1.5.7zM15 11h6a1 1 0 1 1 0 2h-6a1 1 0 1 1 0-2z",
   note: "M19 3.2v11.3a3.5 3.5 0 1 1-2-3.2V7.4L10 9v7.5a3.5 3.5 0 1 1-2-3.2V6.2c0-.5.3-.9.8-1l9-2c.6-.1 1.2.3 1.2 1z",
   sona: "M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2",
+  playlistAdd: "M3 5h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm15-1v-3h-2v3h-3v2h3v3h2v-3h3v-2z",
+  radio: "M12 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm-4.2-3.6 1.4 1.4a6 6 0 0 0 0 8.4l-1.4 1.4a8 8 0 0 1 0-11.2zm8.4 0a8 8 0 0 1 0 11.2l-1.4-1.4a6 6 0 0 0 0-8.4zM4.9 3.5l1.4 1.4a10 10 0 0 0 0 14.2l-1.4 1.4a12 12 0 0 1 0-17zm14.2 0a12 12 0 0 1 0 17l-1.4-1.4a10 10 0 0 0 0-14.2z",
+  quote: "M5 3h14a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-6.6l-4.8 3.6A1 1 0 0 1 6 20.8V18H5a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zm2.5 5a1 1 0 1 0 0 2h9a1 1 0 1 0 0-2zm0 4a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2z",
 };
 
 const ACCENT = "#fa2d6c";
@@ -30,7 +33,7 @@ const escapeXml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&am
 
 const glyphPath = (name, fill, opacity = 1) => name === "sona"
   ? `<path d="${ICON.sona}" stroke="${fill}" stroke-opacity="${opacity}" stroke-width="2.3" stroke-linecap="round" fill="none"/>`
-  : `<path d="${ICON[name]}" fill="${fill}" fill-opacity="${opacity}"/>`;
+  : `<path d="${ICON[name]}" fill="${fill}" fill-opacity="${opacity}"${name === "quote" ? ` fill-rule="evenodd"` : ""}/>`;
 
 /**
  * Touche en verre : fond sombre, reflet en haut, icône blanche (rose quand

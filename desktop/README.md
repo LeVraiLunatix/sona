@@ -41,6 +41,13 @@ ce qu'un navigateur ne sait pas faire.
      Réglages → Statut Discord → Application Discord → colle-le.
   4. Discord (l'app d'ordinateur) ouvert sur le PC ; dans Discord,
      Paramètres → Confidentialité de l'activité → « Partager mon activité ».
+- **Pause automatique** : PC verrouillé ou en veille (la musique repart au
+  déverrouillage), casque ou enceinte débranché.
+- **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
+  notifications de Sona, paroles en surimpression sur une ligne, discrètes.
+  Windows le signale lui-même (SHQueryUserNotificationState).
+- **Visualiseur** (bouton ondes en haut) : spectre plein écran aux couleurs
+  de la pochette ; F pour le plein écran, Échap pour fermer.
 - **Raccourcis clavier globaux** (Réglages → Raccourcis clavier) : lecture,
   suivant, précédent, volume, j'aime, paroles, afficher Sona — même quand
   Sona est en arrière-plan.
@@ -150,6 +157,9 @@ Sona sur le même PC et lui parle en local.
 | Volume +, Volume − | ±10 % |
 | Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
 | Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
+| Ajouter à une playlist | Le titre en cours dans la playlist choisie (panneau de la touche) |
+| Radio DJ | Une radio à partir du titre en cours |
+| Paroles | Affiche ou masque les paroles en surimpression |
 
 Chaque touche a un réglage **Appareil** (panneau de la touche dans le
 logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du

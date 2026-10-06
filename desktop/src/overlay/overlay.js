@@ -39,4 +39,7 @@ function tick() {
   });
 }
 
+// Mode jeu : une seule ligne, plus petite et plus transparente.
+window.sonaOverlay.onMode?.((mode) => document.body.classList.toggle("game", !!mode?.game));
+
 setInterval(tick, 120);

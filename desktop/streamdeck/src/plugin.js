@@ -77,6 +77,7 @@ async function press(singleton, action, run) {
   } else {
     try {
       await run();
+      if (singleton.showsOk && action.isKey()) await action.showOk().catch(() => {});
       return;
     } catch (e) {
       streamDeck.logger.warn(`${singleton.manifestId} : ${e.message}`);
@@ -118,13 +119,23 @@ class SonaAction extends SingletonAction {
     return sendDevices();
   }
 
-  onSendToPlugin() {
+  onSendToPlugin(ev) {
+    // Panneau de la touche « Ajouter à une playlist » : la liste des playlists.
+    if (ev.payload?.want === "playlists") return sendPlaylists();
     return sendDevices();
   }
 }
 
 function rememberName(settings) {
   if (settings?.device && settings.deviceName) knownNames.set(settings.device, settings.deviceName);
+}
+
+/** Le panneau de « Ajouter à une playlist » : tes playlists (modifiables). */
+async function sendPlaylists() {
+  let playlists = [];
+  let error = "";
+  try { playlists = (await sona.command("playlists")) || []; } catch (e) { error = e.message; }
+  return streamDeck.ui.sendToPropertyInspector({ playlists, error }).catch(() => {});
 }
 
 /** Le panneau de la touche : « Ce PC » et les appareils Sona Connect allumés. */
@@ -135,27 +146,30 @@ function sendDevices() {
 
 /** Les touches, chacune avec son dessin selon l'état de l'appareil. */
 class SonaKey extends SonaAction {
-  constructor(id, { glyph, on, run }) {
+  constructor(id, { glyph, on, run, label, pcOnly }) {
     super();
     this.manifestId = `${UUID}.${id}`;
     this.glyph = glyph;
     this.on = on || (() => false);
     this.run = run;
+    // Texte sous l'icône (ex. le nom de la playlist), et touches réservées à ce PC.
+    this.label = label || (() => "");
+    this.pcOnly = !!pcOnly;
   }
 
   async render(action) {
     if (!action.isKey()) return;
-    const device = deviceOf(action);
+    const device = this.pcOnly ? "" : deviceOf(action);
     const problem = problemFor(device);
     const st = stateFor(device) || {};
     const glyph = typeof this.glyph === "function" ? this.glyph(st) : this.glyph;
     await action.setImage(dataUrl(keySvg(glyph, { on: !problem && this.on(st), dim: !!problem || (!st.track && this.needsTrack) })));
-    if (!flashes.has(action.id)) await action.setTitle(problem);
+    if (!flashes.has(action.id)) await action.setTitle(problem || this.label(settingsOf.get(action.id) || {}));
   }
 
   onKeyDown(ev) {
-    const device = deviceOf(ev.action);
-    return press(this, ev.action, () => this.run(stateFor(device) || {}, device));
+    const device = this.pcOnly ? "" : deviceOf(ev.action);
+    return press(this, ev.action, () => this.run(stateFor(device) || {}, device, settingsOf.get(ev.action.id) || {}));
   }
 }
 
@@ -179,8 +193,21 @@ const keys = [
   new SonaKey("repeat", { glyph: "repeat", on: (st) => !!st.repeat, run: (st, d) => command("repeat", d) }),
   new SonaKey("volumeup", { glyph: "volumeUp", run: (st, d) => setVolume((st.volume ?? 1) + 0.1, d) }),
   new SonaKey("volumedown", { glyph: "volumeDown", run: (st, d) => setVolume((st.volume ?? 1) - 0.1, d) }),
+  // Ajoute le titre en cours à la playlist réglée dans le panneau de la touche.
+  new SonaKey("addtoplaylist", {
+    glyph: "playlistAdd", pcOnly: true,
+    label: (set) => keyText(set.playlistName || "Choisir"),
+    run: async (st, d, set) => {
+      if (!set.playlist) throw new Error("Choisis la playlist");
+      await command("addToPlaylist", "", { playlist: set.playlist });
+    },
+  }),
+  new SonaKey("djradio", { glyph: "radio", pcOnly: true, run: () => command("djradio", "") }),
+  new SonaKey("lyricsoverlay", { glyph: "quote", pcOnly: true, on: (st) => !!st.overlay, run: () => command("lyricsOverlay", "") }),
 ];
-for (const k of keys.filter((k) => ["like"].includes(k.manifestId.split(".").pop()))) k.needsTrack = true;
+for (const k of keys.filter((k) => ["like", "addtoplaylist", "djradio"].includes(k.manifestId.split(".").pop()))) k.needsTrack = true;
+// « ✓ » sur la touche après un ajout réussi.
+keys.find((k) => k.manifestId.endsWith("addtoplaylist")).showsOk = true;
 
 // ── Pochettes ──────────────────────────────────────────────────────────
 

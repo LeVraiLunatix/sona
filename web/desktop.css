@@ -392,3 +392,6 @@ html.desktop .set-group.flat { background: none; box-shadow: none; border-radius
 .sc-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
 .sc-row .btn.capturing { color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
 .sc-bad { color: #ff6b6b !important; }
+
+/* Visualiseur : ses boutons sous ceux de la fenêtre */
+html.desktop .viz-tools { top: 62px; }

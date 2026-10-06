@@ -1459,6 +1459,7 @@ function renderTopbar() {
       <button class="tbtn small ${remote || otherDevices().length ? "on" : ""}" data-act="devices" title="Sona Connect : tes appareils">${icons.devices}</button>
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
       <button class="tbtn small ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
+      ${soundAvailable && !isMobile() ? `<button class="tbtn small ${viz.el ? "on" : ""}" data-act="viz" title="Visualiseur">${icons.wave}</button>` : ""}
       <button class="tbtn small ${state.npOpen && state.npTab === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
       <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : "Volume"}">${icons.speaker}<input type="range" class="slider" id="vol" min="0" max="1" step="0.01" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume"></div>
     </div>`;
@@ -1476,6 +1477,7 @@ function renderTopbar() {
     if (act === "like" && t) toggleLike(t);
     if (act === "open") openNowPlaying(state.npTab);
     if (act === "lyrics") openNowPlaying("lyrics", true);
+    if (act === "viz") viz.el ? closeVisualizer() : openVisualizer();
     if (act === "queue") openNowPlaying("queue", true);
     if (act === "seek" && remote && t?.duration_seconds) {
       const rect = e.target.closest(".progress").getBoundingClientRect();
@@ -2278,6 +2280,111 @@ function restoreResume() {
   }
   renderTopbar();
   loadLyrics(t);
+}
+
+// ── Casque débranché : pause (Sona pour Windows) ─────────────────────────
+
+/** Une sortie audio disparaît pendant la lecture (casque, enceinte) : pause. */
+function watchHeadphones() {
+  if (!navigator.mediaDevices?.enumerateDevices) return;
+  const outputs = async () => (await navigator.mediaDevices.enumerateDevices())
+    .filter((d) => d.kind === "audiooutput" && d.deviceId !== "default" && d.deviceId !== "communications").length;
+  let count = null;
+  outputs().then((n) => { count = n; }).catch(() => {});
+  navigator.mediaDevices.addEventListener("devicechange", async () => {
+    const n = await outputs().catch(() => count);
+    const lost = count != null && n < count;
+    count = n;
+    if (!lost || audio.paused || isSilence()) return;
+    const s = await desktop.settings().catch(() => null);
+    if (s && s.pauseOnHeadphones === false) return;
+    audio.pause();
+    toast("Sortie audio débranchée : pause");
+  });
+}
+
+// ── Visualiseur plein écran (ordinateur) ──────────────────────────────────
+
+const viz = { el: null, raf: 0 };
+
+function openVisualizer() {
+  if (!soundAvailable) return toast("Le visualiseur est sur ordinateur (et dans le lecteur de l'app iPhone)");
+  if (!state.queue[state.index]) return toast("Lance un titre d'abord");
+  sound.visual = true;
+  if (!ensureSound()) { sound.visual = false; return toast("Visualiseur indisponible sur ce navigateur"); }
+  closeVisualizer();
+  sound.visual = true;
+  const el = document.createElement("div");
+  el.className = "viz";
+  el.innerHTML = `<div class="viz-bg"><img alt=""></div><canvas></canvas>
+    <div class="viz-meta"><img class="viz-art" alt=""><div><b></b><span></span></div></div>
+    <div class="viz-tools"><button data-viz="full" title="Plein écran (F)">⛶</button><button data-viz="close" title="Fermer (Échap)">${icons.close}</button></div>`;
+  document.body.append(el);
+  viz.el = el;
+  const canvas = $("canvas", el);
+  const g = canvas.getContext("2d");
+  const data = new Uint8Array(sound.analyser.frequencyBinCount);
+  let shownKey = "";
+  const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen()).catch(() => {});
+  const onKey = (e) => {
+    if (e.key === "Escape") closeVisualizer();
+    if (e.key === "f" || e.key === "F") toggleFull();
+  };
+  document.addEventListener("keydown", onKey);
+  el._cleanup = () => document.removeEventListener("keydown", onKey);
+  el.onclick = (e) => {
+    const act = e.target.closest("[data-viz]")?.dataset.viz;
+    if (act === "close") closeVisualizer();
+    if (act === "full") toggleFull();
+  };
+  renderTopbar();
+  const draw = () => {
+    viz.raf = requestAnimationFrame(draw);
+    const cur = state.queue[state.index];
+    const key = cur ? trackKey(cur) : "";
+    if (cur && key !== shownKey) {
+      shownKey = key;
+      $(".viz-bg img", el).src = big(cur.cover_url, 600);
+      $(".viz-art", el).src = big(cur.cover_url, 300);
+      $(".viz-meta b", el).textContent = cur.title;
+      $(".viz-meta span", el).textContent = cur.artist;
+    }
+    const w = (canvas.width = el.clientWidth * devicePixelRatio);
+    const h = (canvas.height = el.clientHeight * devicePixelRatio);
+    sound.analyser.getByteFrequencyData(data);
+    g.clearRect(0, 0, w, h);
+    // Barres en miroir depuis le centre : les basses au milieu, les aigus aux bords.
+    const bars = 64;
+    const step = w / (bars * 2);
+    const bw = step * 0.62;
+    const grad = g.createLinearGradient(0, h * 0.78, 0, h * 0.2);
+    grad.addColorStop(0, "rgba(250,45,108,.95)");
+    grad.addColorStop(1, "rgba(139,92,246,.85)");
+    g.fillStyle = grad;
+    for (let i = 0; i < bars; i++) {
+      const bin = Math.min(data.length - 1, Math.floor(Math.pow(i / bars, 1.8) * data.length * 0.7));
+      const v = data[bin] / 255;
+      const bh = Math.max(4 * devicePixelRatio, Math.pow(v, 1.4) * h * 0.55);
+      for (const side of [-1, 1]) {
+        const x = w / 2 + side * (i * step + step / 2) - bw / 2;
+        g.beginPath();
+        g.roundRect(x, h * 0.78 - bh, bw, bh, bw / 2);
+        g.fill();
+      }
+    }
+  };
+  draw();
+}
+
+function closeVisualizer() {
+  if (!viz.el) return;
+  cancelAnimationFrame(viz.raf);
+  viz.el._cleanup?.();
+  viz.el.remove();
+  viz.el = null;
+  sound.visual = false;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  renderTopbar();
 }
 
 // ── Sona Connect ─────────────────────────────────────────────────────────
@@ -4785,6 +4892,8 @@ function desktopInit() {
   });
   desktop.onOpenRemote(() => account && openRemotePairing());
   desktop.onOverlay?.(() => { if ($("#desk-settings")) renderDesktopSettings(); });
+  desktop.onGameMode?.((on) => { if (on) closeVisualizer(); });
+  watchHeadphones();
   desktop.onMini((on) => { desk.mini = on; if (account) renderTopbar(); if ($("#desk-settings")) renderDesktopSettings(); });
   desktop.settings().then((s) => { desk.mini = s.mini; desk.name = s.deviceNameShown; }).catch(() => {});
   for (const ev of ["play", "pause", "seeked", "volumechange", "loadedmetadata"]) audio.addEventListener(ev, () => desktopReport());
@@ -4913,6 +5022,22 @@ async function desktopCommand(c) {
     case "playTrack": if (track) playList([track], 0, ""); break;
     case "playNext": if (track) playNext(track); break;
     case "addToQueue": if (track) addToQueue(track); break;
+    // Touches Stream Deck.
+    case "playlists":
+      result = ((await api("/me/playlists").catch(() => state.playlists)) || [])
+        .filter((p) => p.can_edit !== false && p.import_status !== "importing").map((p) => ({ id: String(p.id), name: p.name }));
+      break;
+    case "addToPlaylist": {
+      if (!t) throw new Error("Rien en lecture");
+      if (!c.playlist) throw new Error("Choisis la playlist (réglage de la touche)");
+      await api(`/me/playlists/${encodeURIComponent(c.playlist)}/tracks`, { method: "POST", body: JSON.stringify({ tracks: [cleanTrack(t)] }) });
+      toast(`« ${t.title} » ajouté à la playlist`);
+      break;
+    }
+    case "djradio":
+      if (!t) throw new Error("Rien en lecture");
+      await startDJRadio(t);
+      break;
     default: throw new Error("Action inconnue");
   }
   desktopReport(true);
@@ -4976,11 +5101,15 @@ async function renderDesktopSettings() {
     ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant que Sona tourne sur ce PC.", s.discordEnabled)}
     ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Application Discord", discordStatusText(s)) : ""}
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
+    ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
+    ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
+    ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}
     ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
-  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled"]) {
+  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
+    if (!input) continue;
     input.onchange = () => {
       haptic();
       desktop.set(key, input.checked)
