@@ -7,7 +7,7 @@ const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
-const { DiscordPresence, activityFor, encode, OP } = require("../src/discord");
+const { DiscordPresence, activityFor, encode, OP, SONA_APP_ID } = require("../src/discord");
 
 function fakeDiscord(file) {
   const frames = [];
@@ -90,6 +90,23 @@ test("identifiant invalide ou Discord fermé : erreur claire", async () => {
   presence.configure(true, "123456789012345678");
   assert.ok(await until(() => /pas ouvert/.test(presence.status().error || "")));
   presence.configure(false, "");
+});
+
+test("sans identifiant : l'application Discord de Sona, pour tout le monde", async (t) => {
+  if (process.platform === "win32") return t.skip("socket Unix");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sona-discord-"));
+  const file = path.join(dir, "discord-ipc-0");
+  const { server, frames } = await fakeDiscord(file);
+  const presence = new DiscordPresence({ connectTo: () => file, retry: 100 });
+  presence.configure(true, "");
+  try {
+    assert.ok(await until(() => presence.status().connected));
+    assert.equal(SONA_APP_ID, "1557013953190821979");
+    assert.deepEqual(frames[0], { op: OP.HANDSHAKE, msg: { v: 1, client_id: SONA_APP_ID } });
+  } finally {
+    presence.configure(false, "");
+    server.close();
+  }
 });
 
 test("en pause depuis un moment : le statut disparaît", async (t) => {

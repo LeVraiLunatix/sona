@@ -8,14 +8,16 @@
 
    Parle directement au client Discord du PC, par son canal local (tube
    nommé `discord-ipc-N` sous Windows, socket ailleurs) : pas de dépendance,
-   pas de réseau. Discord exige l'identifiant d'une « application » (créée
-   en une minute sur discord.com/developers) : son nom est celui affiché
-   (« Écoute Sona »). */
+   pas de réseau. Discord exige l'identifiant d'une « application » : celle
+   de Sona (SONA_APP_ID) sert à tout le monde ; on peut en mettre une autre
+   dans les réglages. Son nom est celui affiché (« Écoute Sona »). */
 
 const net = require("node:net");
 const crypto = require("node:crypto");
 const path = require("node:path");
 
+// Application Discord « Sona » : statut et logo pour tout le monde, sans réglage.
+const SONA_APP_ID = "1557013953190821979";
 const OP = { HANDSHAKE: 0, FRAME: 1, CLOSE: 2, PING: 3, PONG: 4 };
 // En pause depuis 5 min : plus de statut (comme Spotify).
 const PAUSE_HIDE_MS = 5 * 60 * 1000;
@@ -80,7 +82,7 @@ class DiscordPresence {
 
   /** Activé avec un identifiant d'application : se connecte (et se reconnecte) à Discord. */
   configure(enabled, clientId) {
-    const id = String(clientId || "").trim();
+    const id = String(clientId || "").trim() || SONA_APP_ID;
     const changed = id !== this.clientId || !!enabled !== this.enabled;
     this.enabled = !!enabled && /^\d{15,25}$/.test(id);
     this.clientId = id;
@@ -183,4 +185,4 @@ class DiscordPresence {
   }
 }
 
-module.exports = { DiscordPresence, activityFor, encode, OP };
+module.exports = { DiscordPresence, activityFor, encode, OP, SONA_APP_ID };

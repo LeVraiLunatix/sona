@@ -3055,7 +3055,6 @@ async function refreshStatus() {
         : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre Sona")
         : statusRow("off", "Stream Deck", "Plugin non connecté : installe-le (version Windows, fichier .streamDeckPlugin) et ouvre le logiciel Stream Deck"),
       !d.wanted ? statusRow("off", "Statut Discord", "Désactivé")
-        : !d.configured ? statusRow("warn", "Statut Discord", "Identifiant d'application Discord manquant (Réglages)")
         : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute Sona » sur ton profil")
         : statusRow("warn", "Statut Discord", d.error || "Connexion à Discord…"),
       ds.shortcuts?.refused?.length ? statusRow("warn", "Raccourcis clavier", `${plural(ds.shortcuts.refused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`)
@@ -5099,7 +5098,7 @@ async function renderDesktopSettings() {
     ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
     ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
     ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant que Sona tourne sur ce PC.", s.discordEnabled)}
-    ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Application Discord", discordStatusText(s)) : ""}
+    ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Discord", discordStatusText(s)) : ""}
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
     ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
@@ -5122,8 +5121,8 @@ async function renderDesktopSettings() {
     renderDesktopSettings();
   });
   $("[data-desk-discord]", box)?.addEventListener("click", async () => {
-    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "123456789012345678", confirm: "Enregistrer",
-      hint: "Discord demande une « application » à ton nom : sur discord.com/developers/applications, crée-en une nommée « Sona » (New Application), puis copie son Application ID ici. Discord doit être ouvert sur ce PC." });
+    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "Application de Sona", confirm: "Enregistrer",
+      hint: "Rien à faire : Sona utilise sa propre application Discord. Laisse vide, sauf pour afficher le statut avec ta propre application (son Application ID, sur discord.com/developers). Discord doit être ouvert sur ce PC, avec « Partager mon activité » activé." });
     if (id == null) return;
     await desktop.set("discordClientId", id).catch((e) => toast(deskErr(e)));
     setTimeout(renderDesktopSettings, 900);
@@ -5145,8 +5144,7 @@ async function renderDesktopSettings() {
 }
 
 function discordStatusText(s) {
-  if (!s.discordClientId) return "Ajoute l'identifiant de ton application Discord";
-  if (s.discord?.connected) return "Connecté à Discord";
+  if (s.discord?.connected) return s.discordClientId ? "Connecté (ta propre application)" : "Connecté à Discord";
   return s.discord?.error || "Connexion à Discord…";
 }
 

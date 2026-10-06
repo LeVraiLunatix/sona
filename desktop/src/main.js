@@ -599,7 +599,7 @@ ipcMain.handle("desktop:status", () => {
     version: app.getVersion(),
     remote: { enabled: settings.get("remoteEnabled"), running: remote.running, port: remote.port, error: remote.error, clients },
     streamDeck: clients.find((c) => c.name === "Stream Deck") || null,
-    discord: { ...discord.status(), configured: !!settings.get("discordClientId"), wanted: !!settings.get("discordEnabled") },
+    discord: { ...discord.status(), configured: true, custom: !!settings.get("discordClientId"), wanted: !!settings.get("discordEnabled") },
     shortcuts: { count: Object.keys(settings.get("shortcuts") || {}).length, refused: shortcutsRefused },
     overlay: !!overlay,
     gameMode: { enabled: !!settings.get("gameMode"), active: gameMode.active, supported: isWin },

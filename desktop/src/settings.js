@@ -27,8 +27,8 @@ const DEFAULTS = {
   // Paroles en surimpression sur le bureau (en bas ou en haut de l'écran).
   lyricsOverlay: false,
   overlayPosition: "bottom",
-  // Discord : « Écoute Sona » sur le profil (identifiant d'application Discord).
-  discordEnabled: false,
+  // Discord : « Écoute Sona » sur le profil. Vide : l'application Discord de Sona.
+  discordEnabled: true,
   discordClientId: "",
   // Raccourcis clavier globaux : { action: "CommandOrControl+Alt+Right" }.
   shortcuts: {},
@@ -48,6 +48,13 @@ function load() {
   let saved = {};
   try { saved = JSON.parse(fs.readFileSync(file(), "utf8")); } catch {}
   cache = { ...DEFAULTS, ...saved };
+  // Avant l'application Discord de Sona, le statut était coupé tant qu'on
+  // n'avait pas créé la sienne : il s'allume maintenant pour tout le monde.
+  if (!saved.discordDefaultApp) {
+    cache.discordDefaultApp = true;
+    if (!cache.discordClientId) cache.discordEnabled = true;
+    save();
+  }
   if (!cache.remoteKey) { cache.remoteKey = newKey(); save(); }
   return cache;
 }
