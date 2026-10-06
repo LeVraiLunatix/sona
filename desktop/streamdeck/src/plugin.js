@@ -191,8 +191,8 @@ const keys = [
   new SonaKey("like", { glyph: (st) => (st.liked ? "heartFill" : "heart"), on: (st) => !!st.liked, run: (st, d) => command("like", d) }),
   new SonaKey("shuffle", { glyph: "shuffle", on: (st) => !!st.shuffle, run: (st, d) => command("shuffle", d) }),
   new SonaKey("repeat", { glyph: "repeat", on: (st) => !!st.repeat, run: (st, d) => command("repeat", d) }),
-  new SonaKey("volumeup", { glyph: "volumeUp", run: (st, d) => setVolume((st.volume ?? 1) + 0.1, d) }),
-  new SonaKey("volumedown", { glyph: "volumeDown", run: (st, d) => setVolume((st.volume ?? 1) - 0.1, d) }),
+  new SonaKey("volumeup", { glyph: "volumeUp", run: (st, d) => setVolume((st.volume ?? 1) + 0.05, d) }),
+  new SonaKey("volumedown", { glyph: "volumeDown", run: (st, d) => setVolume((st.volume ?? 1) - 0.05, d) }),
   // Ajoute le titre en cours à la playlist réglée dans le panneau de la touche.
   new SonaKey("addtoplaylist", {
     glyph: "playlistAdd", pcOnly: true,
@@ -290,7 +290,7 @@ class Dial extends SonaAction {
     if (problemFor(device)) return press(this, ev.action, async () => {});
     // Les crans s'accumulent : un envoi toutes les 80 ms au plus.
     const st = stateFor(device);
-    const volume = Math.max(0, Math.min(1, (st?.volume ?? 1) + ev.payload.ticks * 0.02));
+    const volume = Math.max(0, Math.min(1, (st?.volume ?? 1) + ev.payload.ticks * 0.01));
     if (!device && sona.state) sona.state.volume = volume;
     else {
       const d = (sona.state?.devices || []).find((x) => x.id === device);

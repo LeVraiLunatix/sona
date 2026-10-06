@@ -1448,7 +1448,7 @@ function renderTopbar() {
   const t = remote ? rnow.track : state.queue[state.index];
   const liked = t && state.liked.has(`${t.source}:${t.source_id}`);
   const playingIcon = remote ? (rnow.paused ? icons.play : icons.pause) : audio.paused ? icons.play : icons.pause;
-  const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : audio.volume;
+  const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : vol.level;
   bar.innerHTML = `
     <div class="transport">
       <button class="tbtn small ${state.shuffle ? "on" : ""}" data-act="shuffle" title="Aléatoire">${icons.shuffle}</button>
@@ -1465,19 +1465,22 @@ function renderTopbar() {
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
     <div class="right-tools">
-      ${desktop ? `<button class="tbtn small ${desk.clients.length ? "on" : ""}" data-act="remote" title="Télécommande : pilote ce PC depuis ton téléphone">${icons.phone}</button>
-      <button class="tbtn small ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
+      ${desktop ? `<button class="tbtn small opt-1 ${desk.clients.length ? "on" : ""}" data-act="remote" title="Télécommande : pilote ce PC depuis ton téléphone">${icons.phone}</button>
+      <button class="tbtn small opt-1 ${desk.mini ? "on" : ""}" data-act="mini" title="Mini-lecteur">${icons.miniPlayer}</button>` : ""}
       <button class="tbtn small ${remote || otherDevices().length ? "on" : ""}" data-act="devices" title="Sona Connect : tes appareils">${icons.devices}</button>
       ${t ? `<button class="tbtn small ${liked ? "on" : ""}" data-act="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button>` : ""}
-      <button class="tbtn small ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
-      ${soundAvailable && !isMobile() ? `<button class="tbtn small ${viz.el ? "on" : ""}" data-act="viz" title="Visualiseur">${icons.wave}</button>` : ""}
-      <button class="tbtn small ${state.npOpen && state.npTab === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
-      <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : "Volume"}">${icons.speaker}<input type="range" class="slider" id="vol" min="0" max="1" step="0.01" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume"></div>
+      <button class="tbtn small opt-2 ${state.npOpen && state.npTab === "lyrics" ? "on" : ""}" data-act="lyrics" title="Paroles">${icons.quote}</button>
+      ${soundAvailable && !isMobile() ? `<button class="tbtn small opt-1 ${viz.el ? "on" : ""}" data-act="viz" title="Visualiseur">${icons.wave}</button>` : ""}
+      <button class="tbtn small opt-2 ${state.npOpen && state.npTab === "queue" ? "on" : ""}" data-act="queue" title="À suivre">${icons.queue}</button>
+      <button class="tbtn small more-tools" data-act="tools" title="Plus">${icons.more}</button>
+      <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : `Volume : ${volLabel(volumeShown)} — molette pour régler finement`}"><button class="vol-icon" data-act="volume" title="Volume et préréglages">${volIcon(volumeShown)}</button><input type="range" class="slider" id="vol" min="0" max="1" step="0.005" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume">${remote ? "" : `<span class="vol-pct" id="vol-pct">${volLabel(volumeShown)}</span>`}</div>
     </div>`;
   bar.onclick = (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
     if (act === "devices") return toggleDevices();
+    if (act === "volume") return remoteDevice() ? null : volumeSheet();
+    if (act === "tools") return toolsSheet();
     if (act === "remote") return openRemotePairing();
     if (act === "mini") return desktop?.set("mini", !desk.mini);
     if (act === "toggle") toggle();
@@ -1498,21 +1501,21 @@ function renderTopbar() {
       audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
     }
   };
-  const vol = $("#vol");
-  if (vol) {
-    vol.oninput = () => {
-      vol.style.setProperty("--p", `${vol.value * 100}%`);
-      if (remoteDevice()) { state.connect.pendingVolume = +vol.value; return; }
-      audio.volume = +vol.value;
-      store.set("sona.volume", vol.value);
+  const volInput = $("#vol");
+  if (volInput) {
+    volInput.oninput = () => {
+      volInput.style.setProperty("--p", `${volInput.value * 100}%`);
+      if (remoteDevice()) { state.connect.pendingVolume = +volInput.value; return; }
+      setVolume(+volInput.value);
     };
     // Volume de l'appareil distant (iPhone) : envoyé au relâchement.
-    vol.onchange = () => {
+    volInput.onchange = () => {
       const target = remoteDevice();
       if (!target) return;
-      sendCommand(target.id, "volume", { volume: +vol.value });
+      sendCommand(target.id, "volume", { volume: +volInput.value });
       setTimeout(() => { state.connect.pendingVolume = null; }, 6000);
     };
+    if (!remoteDevice()) bindVolumeWheel(volInput.closest(".volume"));
   }
   renderMini();
   updateProgress();
@@ -1628,11 +1631,13 @@ function renderNowPlaying() {
           <button class="tbtn" data-np="next">${icons.next}</button>
           <button class="tbtn small ${state.repeat ? "on" : ""}" data-np="repeat">${icons.repeat}</button>
         </div>
+        ${npVolumeRow()}
         <div class="np-sing" id="np-sing"></div>
       </div>
       <div class="np-right" id="np-right"></div>
     </div>`;
   bindNowPlaying(np, t);
+  bindNpVolume(np);
   if (state.npTab === "queue") renderQueue(); else renderLyrics();
   renderSing();
   renderMoments();
@@ -1669,7 +1674,7 @@ function renderNowPlayingMobile(np, t) {
         <button class="tbtn" data-np="next" aria-label="Suivant">${icons.next}</button>
         <button class="tbtn small ${state.repeat ? "on" : ""}" data-np="repeat" aria-label="Répéter">${icons.repeat}</button>
       </div>
-      ${isIOS ? "" : `<div class="np-volume">${icons.speaker}<input type="range" class="slider" id="np-vol" min="0" max="1" step="0.01" value="${audio.volume}" style="--p:${audio.volume * 100}%" aria-label="Volume"></div>`}
+      ${isIOS ? "" : npVolumeRow()}
       <div class="np-sing ${singOpen ? "" : "hidden"}" id="np-sing"></div>
       <div class="np-bottom">
         <button class="tbtn ${view === "lyrics" ? "on" : ""}" data-np="lyrics" aria-label="Paroles">${icons.quote}</button>
@@ -1679,8 +1684,7 @@ function renderNowPlayingMobile(np, t) {
       </div>
     </div>`;
   bindNowPlaying(np, t);
-  const vol = $("#np-vol", np);
-  if (vol) vol.oninput = () => { vol.style.setProperty("--p", `${vol.value * 100}%`); audio.volume = +vol.value; store.set("sona.volume", vol.value); };
+  bindNpVolume(np);
   if (view === "queue") renderQueue(); else if (view === "lyrics") renderLyrics();
   renderSing();
   renderMoments();
@@ -2081,6 +2085,173 @@ audio.addEventListener("volumechange", () => {
   if (sing.playing) sing.playing.master.gain.setTargetAtTime(audio.volume, sing.ctx.currentTime, 0.02);
 });
 
+// ── Volume : réglage fin, préréglages, mode vocal ────────────────────────
+// Le curseur suit l'oreille : volume réel = position², d'où beaucoup de
+// finesse dans les volumes bas (en vocal, la nuit). Préréglages modifiables,
+// et sur PC le « mode vocal » : quand une app (Discord…) prend le micro,
+// Sona passe sur « En vocal », puis revient au volume d'avant.
+
+const VOL_PRESETS = [
+  { id: "voc", label: "En vocal", level: 0.3 },
+  { id: "calme", label: "Calme", level: 0.5 },
+  { id: "normal", label: "Normal", level: 0.75 },
+  { id: "fort", label: "Fort", level: 1 },
+];
+
+const vol = {
+  level: (() => {
+    const saved = Number(store.get("sona.level"));
+    if (store.get("sona.level") != null && Number.isFinite(saved)) return Math.max(0, Math.min(1, saved));
+    // Ancien réglage (volume réel) : même volume entendu.
+    return Math.sqrt(Math.max(0, Math.min(1, +(store.get("sona.volume") ?? 1))));
+  })(),
+  presets: (() => {
+    try {
+      const saved = JSON.parse(store.get("sona.volPresets") || "null");
+      if (Array.isArray(saved)) return VOL_PRESETS.map((p) => ({ ...p, level: saved.find((s) => s.id === p.id)?.level ?? p.level }));
+    } catch {}
+    return VOL_PRESETS.map((p) => ({ ...p }));
+  })(),
+  voice: { active: false, before: null, apps: [] },
+};
+
+const volGain = (level = vol.level) => Math.round(level * level * 10000) / 10000;
+const volLabel = (level) => `${Math.round(level * 100)} %`;
+const volIcon = () => icons.speaker;
+
+/** Nouveau volume (0 à 1, position du curseur) : appliqué, affiché, retenu. */
+function setVolume(level, { save = true } = {}) {
+  vol.level = Math.max(0, Math.min(1, Math.round(level * 1000) / 1000));
+  audio.volume = volGain();
+  if (save) store.set("sona.level", String(vol.level));
+  for (const input of $$("#vol, #np-vol, #vs-range")) {
+    if (input.id === "vol" && remoteDevice()) continue;
+    input.value = input.id === "vs-range" ? vol.level * 100 : vol.level;
+    input.style.setProperty("--p", `${vol.level * 100}%`);
+  }
+  $$(remoteDevice() ? "#np-vol-pct, #vs-out" : "#vol-pct, #np-vol-pct, #vs-out").forEach((el) => (el.textContent = volLabel(vol.level)));
+  $$("[data-vpreset]").forEach((b) => b.classList.toggle("on", Math.abs(presetLevel(b.dataset.vpreset) - vol.level) < 0.005));
+}
+
+const presetLevel = (id) => vol.presets.find((p) => p.id === id)?.level ?? 1;
+
+function applyPreset(id) {
+  const preset = vol.presets.find((p) => p.id === id);
+  if (!preset) return;
+  setVolume(preset.level);
+  toast(`Volume « ${preset.label} » · ${volLabel(preset.level)}`);
+}
+
+/** Préréglage suivant (raccourci, Stream Deck) : du plus bas au plus fort, puis on recommence. */
+function nextPreset() {
+  const sorted = [...vol.presets].sort((a, b) => a.level - b.level);
+  const nextOne = sorted.find((p) => p.level > vol.level + 0.005) || sorted[0];
+  applyPreset(nextOne.id);
+  return nextOne;
+}
+
+/** Molette sur le curseur : 1 % par cran, 5 % avec Maj ; flèches pareil. */
+function bindVolumeWheel(el) {
+  if (!el || el.dataset.wheel) return;
+  el.dataset.wheel = "1";
+  el.addEventListener("wheel", (e) => {
+    if (remoteDevice()) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 0.05 : 0.01;
+    setVolume(vol.level + (e.deltaY < 0 || e.deltaX < 0 ? step : -step));
+  }, { passive: false });
+  const input = $("input", el);
+  if (input) input.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 0.05 : 0.01;
+    if (["ArrowUp", "ArrowRight"].includes(e.key)) { e.preventDefault(); setVolume(vol.level + step); }
+    if (["ArrowDown", "ArrowLeft"].includes(e.key)) { e.preventDefault(); setVolume(vol.level - step); }
+  });
+}
+
+/** Fenêtre étroite : les boutons de la barre qui n'y tiennent plus. */
+function toolsSheet() {
+  const hidden = (sel) => { const b = $(`#topbar [data-act="${sel}"]`); return b && getComputedStyle(b).display === "none"; };
+  actionSheet("", [
+    hidden("lyrics") && { icon: icons.quote, label: "Paroles", run: () => openNowPlaying("lyrics", true) },
+    hidden("queue") && { icon: icons.queue, label: "À suivre", run: () => openNowPlaying("queue", true) },
+    hidden("viz") && { icon: icons.wave, label: "Visualiseur", run: () => (viz.el ? closeVisualizer() : openVisualizer()) },
+    hidden("mini") && { icon: icons.miniPlayer, label: "Mini-lecteur", checked: desk.mini, run: () => desktop?.set("mini", !desk.mini) },
+    hidden("remote") && { icon: icons.phone, label: "Télécommande", sub: "Pilote ce PC depuis ton téléphone", run: openRemotePairing },
+    { icon: icons.speaker, label: "Volume et préréglages", sub: volLabel(vol.level), run: volumeSheet },
+  ]);
+}
+
+/** Ligne de volume du lecteur plein écran. */
+function npVolumeRow() {
+  return `<div class="np-volume"><button class="tbtn small vol-icon" data-np-vol-sheet title="Volume et préréglages">${volIcon(vol.level)}</button>
+    <input type="range" class="slider" id="np-vol" min="0" max="1" step="0.005" value="${vol.level}" style="--p:${vol.level * 100}%" aria-label="Volume">
+    <span class="vol-pct" id="np-vol-pct">${volLabel(vol.level)}</span></div>`;
+}
+
+function bindNpVolume(np) {
+  const input = $("#np-vol", np);
+  if (!input) return;
+  input.oninput = () => setVolume(+input.value);
+  bindVolumeWheel(input.closest(".np-volume"));
+  $("[data-np-vol-sheet]", np)?.addEventListener("click", (e) => { e.stopPropagation(); volumeSheet(); });
+}
+
+/** Feuille « Volume » : réglage au pour cent près, préréglages, mode vocal. */
+async function volumeSheet() {
+  const deskSettings = desktop ? await desktop.settings().catch(() => null) : null;
+  const wrap = openSheet(`<h2 class="sheet-title">Volume</h2>
+    <div class="vs-main">
+      <button class="vs-step" data-vstep="-1" aria-label="Moins fort">−</button>
+      <input type="range" class="slider" id="vs-range" min="0" max="100" step="0.5" value="${vol.level * 100}" style="--p:${vol.level * 100}%" aria-label="Volume">
+      <button class="vs-step" data-vstep="1" aria-label="Plus fort">+</button>
+      <output id="vs-out">${volLabel(vol.level)}</output>
+    </div>
+    <p class="muted vs-hint">Molette ou flèches : 1 % par cran (5 % avec Maj). Le curseur est plus fin dans les volumes bas.</p>
+    <h3 class="set-head">Préréglages</h3>
+    <div class="vs-presets">${vol.presets.map((p) => `<div class="vs-preset">
+      <button class="vs-apply ${Math.abs(p.level - vol.level) < 0.005 ? "on" : ""}" data-vpreset="${p.id}"><b>${esc(p.label)}</b><small data-vplevel="${p.id}">${volLabel(p.level)}</small></button>
+      <button class="vs-save" data-vsave="${p.id}" title="Enregistrer le volume actuel pour « ${esc(p.label)} »">${icons.pencil}</button></div>`).join("")}</div>
+    <p class="muted vs-hint">${icons.pencil} enregistre le volume actuel dans le préréglage.</p>
+    ${deskSettings ? `<div class="set-group">${toggleRow("vs-voice", "Mode vocal automatique",
+      "Quand Discord (ou une autre app) utilise ton micro, Sona passe sur « En vocal », puis revient au volume d'avant à la fin de l'appel.", deskSettings.micWatch !== false)}</div>
+      ${vol.voice.active ? `<p class="muted vs-hint">🎧 En vocal en ce moment${vol.voice.apps.length ? ` (${esc(vol.voice.apps.join(", "))})` : ""}.</p>` : ""}` : ""}`);
+  const range = $("#vs-range", wrap);
+  range.oninput = () => setVolume(+range.value / 100);
+  bindVolumeWheel($(".vs-main", wrap));
+  $$("[data-vstep]", wrap).forEach((b) => (b.onclick = () => setVolume(vol.level + 0.01 * +b.dataset.vstep)));
+  $$("[data-vpreset]", wrap).forEach((b) => (b.onclick = () => { haptic(); applyPreset(b.dataset.vpreset); }));
+  $$("[data-vsave]", wrap).forEach((b) => (b.onclick = () => {
+    const preset = vol.presets.find((p) => p.id === b.dataset.vsave);
+    preset.level = vol.level;
+    store.set("sona.volPresets", JSON.stringify(vol.presets.map(({ id, level }) => ({ id, level }))));
+    $(`[data-vplevel="${preset.id}"]`, wrap).textContent = volLabel(preset.level);
+    setVolume(vol.level);
+    toast(`« ${preset.label} » : ${volLabel(preset.level)}`);
+  }));
+  const voice = $('[data-setting="vs-voice"]', wrap);
+  if (voice) voice.onchange = () => desktop.set("micWatch", voice.checked).catch((e) => { voice.checked = !voice.checked; toast(e.message); });
+}
+
+/** Micro pris ou rendu par une autre app (PC) : mode vocal. */
+function micChanged({ inUse, apps }) {
+  vol.voice.apps = apps || [];
+  if (inUse && !vol.voice.active) {
+    const level = presetLevel("voc");
+    vol.voice = { active: true, before: vol.level, apps: vol.voice.apps };
+    if (vol.level > level) {
+      setVolume(level, { save: false });
+      toast(`🎧 En vocal${apps?.length ? ` sur ${apps[0]}` : ""} : volume baissé à ${volLabel(level)}`);
+    }
+  } else if (!inUse && vol.voice.active) {
+    const before = vol.voice.before;
+    vol.voice = { active: false, before: null, apps: [] };
+    if (before != null && before > vol.level) {
+      setVolume(before);
+      toast(`Fin du vocal : volume rétabli à ${volLabel(before)}`);
+    }
+  }
+}
+
 // ── Son : égaliseur, volume égalisé, fondu, reprise ─────────────────────
 // Sur ordinateur (site, Sona pour Windows). Pas sur iPhone : le traitement
 // audio du navigateur y coupe le son écran verrouillé — l'app iPhone a
@@ -2474,7 +2645,7 @@ function localState() {
   }));
   const t = state.queue[state.index];
   return {
-    queue, index: state.index - start, position: audio.currentTime || 0, paused: audio.paused, volume: audio.volume, name: state.name || null,
+    queue, index: state.index - start, position: audio.currentTime || 0, paused: audio.paused, volume: vol.level, name: state.name || null,
     shuffle: state.shuffle, repeat: state.repeat ? "one" : "off", liked: t ? state.liked.has(trackKey(t)) : null,
   };
 }
@@ -2565,7 +2736,7 @@ function runCommand(c) {
     case "next": next(); break;
     case "previous": prev(); break;
     case "seek": if (c.position != null) audio.currentTime = c.position; break;
-    case "volume": if (c.volume != null) { audio.volume = c.volume; renderTopbar(); } break;
+    case "volume": if (c.volume != null) setVolume(c.volume); break;
     case "transfer": playFrom(c.queue, c.index, c.position, c.name); if (c.from) toast(`Musique reprise ici depuis ${c.from}`); break;
     // Télécommande complète (« Appareils » sur le téléphone).
     case "shuffle": state.shuffle = !state.shuffle; renderTopbar(); startConnect.now?.(); break;
@@ -3357,9 +3528,8 @@ async function djAnnounce(t, previous) {
   try {
     const intro = await api(`/dj/intro?${q}`);
     if (seq !== dj.seq || !sameTrack(t, state.queue[state.index])) return;
-    const restore = audio.volume;
-    const duck = () => { audio.volume = Math.min(restore, 0.25); };
-    const unduck = () => { audio.volume = restore; };
+    const duck = () => { audio.volume = Math.min(volGain(), 0.25); };
+    const unduck = () => { audio.volume = volGain(); };
     if (intro.audio) {
       dj.audio?.pause();
       dj.audio = new Audio(`data:audio/mpeg;base64,${intro.audio}`);
@@ -4789,7 +4959,7 @@ async function viewAdmin() {
 
 // ── Événements audio ─────────────────────────────────────────────────────
 
-audio.volume = +(store.get("sona.volume") ?? 1);
+audio.volume = volGain();
 const syncPlayState = () => {
   $$('[data-act="toggle"]').forEach((b) => (b.innerHTML = audio.paused ? icons.play : icons.pause));
   const npToggle = $("#np-toggle");
@@ -4913,6 +5083,7 @@ function desktopInit() {
     const action = e.target.closest("[data-w]")?.dataset.w;
     if (action) desktop.window[action]();
   };
+  desktop.onMic?.(micChanged);
   desktop.onWindow(({ maximized, focused }) => {
     document.documentElement.classList.toggle("maximized", maximized);
     document.documentElement.classList.toggle("blurred", !focused);
@@ -4955,7 +5126,7 @@ function desktopSnapshot() {
     return { id: d.id, name: d.name, kind: d.kind, playing: !n.paused, track: n.track ? cleanTrack(n.track) : null,
       position: Math.round(n.position), volume: d.volume ?? null, shuffle: d.shuffle ?? null, repeat: d.repeat ?? null, liked: d.liked ?? null };
   });
-  if (!t) return { track: null, volume: audio.volume, shuffle: state.shuffle, repeat: state.repeat, devices };
+  if (!t) return { track: null, volume: vol.level, shuffle: state.shuffle, repeat: state.repeat, devices };
   const start = Math.max(0, state.index - 15);
   const ly = !remote && sameTrack(t, state.queue[state.index]) ? state.lyrics : null;
   return {
@@ -4963,7 +5134,7 @@ function desktopSnapshot() {
     paused: remote ? rnow.paused : audio.paused,
     position: remote ? rnow.position : audio.currentTime || 0,
     duration: remote ? t.duration_seconds || 0 : (audio.duration && isFinite(audio.duration) ? audio.duration : t.duration_seconds || 0),
-    volume: remote ? remote.volume ?? 1 : audio.volume,
+    volume: remote ? remote.volume ?? 1 : vol.level,
     shuffle: state.shuffle, repeat: state.repeat,
     liked: state.liked.has(trackKey(t)),
     remoteDevice: remote ? remote.name : null,
@@ -5042,12 +5213,18 @@ async function desktopCommand(c) {
     case "volume": {
       if (!Number.isFinite(c.volume)) break;
       const v = Math.max(0, Math.min(1, c.volume));
-      if (remote) sendCommand(remote.id, "volume", { volume: v });
-      else { audio.volume = v; store.set("sona.volume", String(v)); }
-      renderTopbar();
+      if (remote) { sendCommand(remote.id, "volume", { volume: v }); renderTopbar(); }
+      else setVolume(v);
       break;
     }
     case "like": if (t) await toggleLike(t); break;
+    case "volumePreset": {
+      const preset = c.preset && c.preset !== "next" ? vol.presets.find((p) => p.id === c.preset) : nextPreset();
+      if (!preset) throw new Error("Préréglage inconnu");
+      if (c.preset && c.preset !== "next") applyPreset(preset.id);
+      result = { preset: preset.id, label: preset.label, level: preset.level };
+      break;
+    }
     case "shuffle": state.shuffle = !state.shuffle; renderTopbar(); break;
     case "repeat": state.repeat = !state.repeat; renderTopbar(); break;
     case "playIndex": if (!remote && state.queue[c.index]) playAt(c.index); break;
@@ -5146,11 +5323,13 @@ async function renderDesktopSettings() {
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
     ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
+    ${desktop.platform === "win32" ? toggleRow("desk-micWatch", "Mode vocal automatique", "Quand Discord (ou une autre app) utilise ton micro, la musique passe sur ton préréglage « En vocal », puis revient après l'appel.", s.micWatch !== false) : ""}
+    ${linkRow("data-desk-volume", icons.speaker, "Volume et préréglages", `${volLabel(vol.level)} · ${vol.presets.map((p) => p.label).join(", ")}`)}
     ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}
     ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
-  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode"]) {
+  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
     if (!input) continue;
     input.onchange = () => {
@@ -5160,6 +5339,7 @@ async function renderDesktopSettings() {
         .catch((e) => { input.checked = !input.checked; toast(e.message); });
     };
   }
+  $("[data-desk-volume]", box)?.addEventListener("click", volumeSheet);
   $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
     await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
     renderDesktopSettings();

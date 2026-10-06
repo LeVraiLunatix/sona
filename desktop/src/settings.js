@@ -38,6 +38,8 @@ const DEFAULTS = {
   pauseOnHeadphones: true,
   // Mode jeu : discret quand une app est en plein écran.
   gameMode: true,
+  // Mode vocal : Discord (ou autre) prend le micro → musique baissée.
+  micWatch: true,
 };
 
 let cache = null;
