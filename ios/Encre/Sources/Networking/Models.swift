@@ -1001,16 +1001,56 @@ struct Challenges: Codable, Hashable {
         var earned: Bool
     }
 
+    /// Défis entre amis : classements de la semaine.
+    struct Friends: Codable, Hashable {
+        struct Entry: Codable, Hashable {
+            var name: String
+            var avatarURL: String?
+            var value: Int
+            var me: Bool
+            enum CodingKeys: String, CodingKey { case name, value, me; case avatarURL = "avatar_url" }
+        }
+        struct Board: Codable, Hashable, Identifiable {
+            var id: String
+            var title: String
+            var icon: String
+            var unit: String
+            var ranking: [Entry]
+        }
+        struct Champion: Codable, Hashable {
+            var name: String
+            var minutes: Int
+            var me: Bool
+        }
+        var boards: [Board]
+        var champion: Champion?
+    }
+
     var weekLabel: String
     var endsInDays: Int
     var challenges: [Challenge]
     var badges: [Badge]
+    var friends: Friends?
 
     enum CodingKeys: String, CodingKey {
-        case challenges, badges
+        case challenges, badges, friends
         case weekLabel = "week_label"
         case endsInDays = "ends_in_days"
     }
+}
+
+/// Mix « selon le moment » (`/home/mood`) : humeur, météo, titres.
+struct MoodMix: Decodable {
+    struct Weather: Decodable {
+        var label: String?
+        var temperature: Double?
+    }
+    var mood: String
+    var title: String
+    var emoji: String
+    var subtitle: String
+    var weather: Weather?
+    var tracks: [Track]
 }
 
 // MARK: - TV / PS5

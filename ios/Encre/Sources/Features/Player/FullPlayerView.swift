@@ -928,6 +928,24 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
                 actions.startRadio(track.source, artistId)
             })
         }
+        if let artistId = track.artistSourceId {
+            // « Si tu aimes ce titre » : artistes proches, jamais écoutés.
+            radios.append(item("Si tu aimes ce titre…", "sparkles") {
+                Task { @MainActor in
+                    let player = PlayerManager.shared
+                    do {
+                        let tracks = try await APIClient.shared.discoverRadio(source: track.source, artistId: artistId, artist: track.artist)
+                        guard let first = tracks.first else {
+                            player.errorMessage = "Tu connais déjà tous les artistes proches de \(track.artist) !"
+                            return
+                        }
+                        player.play(first, context: tracks, name: "Si tu aimes \(track.artist)")
+                    } catch {
+                        player.errorMessage = error.localizedDescription
+                    }
+                }
+            })
+        }
         main.append(UIMenu(title: "Radios", image: UIImage(systemName: "dot.radiowaves.left.and.right"), children: radios))
         main.append(item("Son, égaliseur et AirPods", "slider.vertical.3") { actions.openSound() })
         var sleep: [UIMenuElement] = [15, 30, 45, 60].map { minutes in

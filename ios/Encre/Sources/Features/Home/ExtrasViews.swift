@@ -279,6 +279,44 @@ struct ListeningMapView: View {
 
 // MARK: - Défis et badges
 
+/// Défis entre amis : un classement par défi de la semaine.
+struct FriendsBoardsSection: View {
+    let friends: Challenges.Friends
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Entre amis cette semaine").font(Typo.title).foregroundStyle(Tone.primary)
+            if let champion = friends.champion {
+                Label("\(champion.me ? "Tu es" : "\(champion.name) est") champion de la semaine dernière · \(champion.minutes) min",
+                      systemImage: "trophy.fill")
+                    .font(Typo.rowSubtitle).foregroundStyle(Tone.primary)
+                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.orange.opacity(0.18)))
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(friends.boards) { board in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(board.title, systemImage: board.icon).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                            ForEach(Array(board.ranking.enumerated()), id: \.offset) { index, entry in
+                                HStack(spacing: 8) {
+                                    Text(index < 3 ? ["🥇", "🥈", "🥉"][index] : "\(index + 1).").frame(width: 24)
+                                    Text(entry.me ? "Toi" : entry.name).font(Typo.rowSubtitle)
+                                        .foregroundStyle(entry.me ? Color.accentColor : Tone.primary).lineLimit(1)
+                                    Spacer(minLength: 6)
+                                    Text("\(entry.value) \(board.unit)").font(Typo.caption).foregroundStyle(Tone.secondary).monospacedDigit()
+                                }
+                            }
+                        }
+                        .padding(14).frame(width: 250, alignment: .topLeading)
+                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Tone.surfaceStrong))
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct ChallengesSection: View {
     let challenges: Challenges
     @State private var showingBadges = false

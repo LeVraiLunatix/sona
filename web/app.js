@@ -767,7 +767,7 @@ function tile({ href, icon, title, subtitle, tone = "", data = "" }) {
 
 async function viewHome() {
   $("#content").innerHTML = skeleton("Écouter");
-  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, daily] = await Promise.all([
+  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, daily, mood] = await Promise.all([
     api("/home/mixes").catch(() => []),
     api("/plays/recent?limit=80").catch(() => []),
     api("/releases").catch(() => []),
@@ -777,6 +777,7 @@ async function viewHome() {
     radioGroups().catch(() => []),
     api("/party/active").catch(() => []),
     api("/home/daily").catch(() => null),
+    loadMood(),
   ]);
   const recentTracks = playsToTracks(recent);
   const name = (account.display_name || account.username || "").split(" ")[0];
@@ -792,11 +793,14 @@ async function viewHome() {
     $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
     $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
     $("[data-focus]")?.addEventListener("click", (e) => { e.preventDefault(); focusSheet(); });
+    $("[data-mood-play]")?.addEventListener("click", () => playStation(`${mood.emoji} ${mood.title}`, async () => (await loadMood()).tracks));
+    $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
   });
   return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
     <div id="install">${installBanner()}</div>
     <div id="resume">${resumeCard()}</div>
     ${daily?.track ? dailyCard(daily) : ""}
+    ${mood?.tracks?.length ? moodCard(mood) : ""}
     ${party.state ? `<a class="live-pill" href="#/party">${bars()} Écoute ensemble en cours · ${esc(party.state.code)}</a>` : ""}
     ${parties.map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} ${esc(p.host_name || "Un ami")} écoute en groupe — rejoindre</a>`).join("")}
     ${heroTrack ? `<button class="home-hero" data-play="${heroList}">
@@ -832,6 +836,33 @@ async function viewHome() {
     ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${t.source}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
     ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
     ${!mixes.length && !recentTracks.length ? empty("♫", "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
+}
+
+/** Mix « selon la météo » : l'humeur du moment (heure, jour, météo si la position est connue). */
+function loadMood() {
+  const geo = JSON.parse(store.get("sona.geo") || "null");
+  const q = new URLSearchParams({ tz: tz() });
+  if (geo) { q.set("lat", geo.lat); q.set("lon", geo.lon); }
+  return api(`/home/mood?${q}`).catch(() => null);
+}
+
+function moodCard(m) {
+  const w = m.weather;
+  const weather = w ? `${w.label ? `${esc(w.label)} · ` : ""}${Math.round(w.temperature)} °C` : `<span class="link" data-mood-geo>📍 Selon ta météo</span>`;
+  return `<button class="mood mood-${esc(m.mood)}" data-mood-play>
+    <span class="mood-emoji">${esc(m.emoji)}</span>
+    <span class="mood-text"><span class="eyebrow">Selon le moment · ${weather}</span><span class="t">${esc(m.title)}</span><span class="s">${esc(m.subtitle)}</span></span>
+    <span class="fab">${icons.play}</span></button>`;
+}
+
+/** Position (arrondie à ~1 km, gardée sur cet appareil) pour la météo du mix. */
+function askMoodLocation() {
+  if (!navigator.geolocation) return toast("Position indisponible sur cet appareil");
+  navigator.geolocation.getCurrentPosition((pos) => {
+    store.set("sona.geo", JSON.stringify({ lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) }));
+    toast("Météo activée");
+    route();
+  }, () => toast("Position refusée : le mix suit l'heure et le jour"), { timeout: 8000, maximumAge: 3600000 });
 }
 
 /** « Titre du jour » : une découverte par jour, la même toute la journée. */
@@ -1284,6 +1315,14 @@ async function playStation(name, loader) {
   state.shuffle = false;
   playList(tracks, 0, name, { keepStation: true });
   state.station = { name, loader };
+}
+
+/** « Si tu aimes ce titre » : des artistes proches, jamais écoutés. */
+async function startDiscoverRadio(t) {
+  toast(`Découvertes autour de ${t.artist}…`);
+  const loader = () => api(`/discover/radio/${encodeURIComponent(t.source)}/${encodeURIComponent(t.artist_source_id)}?artist=${encodeURIComponent(t.artist)}`);
+  try { await playStation(`Si tu aimes ${t.artist}`, loader); }
+  catch (e) { toast(e.message === "Rien à jouer pour cette radio." ? "Tu connais déjà tous les artistes proches !" : e.message); }
 }
 
 /** Radio DJ à partir d'un titre : des morceaux qui s'enchaînent bien avec lui. */
@@ -3477,6 +3516,7 @@ function trackMenu(t, ctx = null, index = -1) {
     { icon: icons.plus, label: "Ajouter à une playlist…", run: () => addToPlaylistSheet([t]) },
     { icon: liked ? icons.heartFill : icons.heart, label: liked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque", run: () => toggleLike(t) },
     { icon: icons.radio, label: "Lancer la radio DJ", sub: "Des titres qui s'enchaînent bien avec celui-ci", run: () => startDJRadio(t) },
+    t.artist_source_id && { icon: icons.sparkles, label: "Si tu aimes ce titre…", sub: "Une radio d'artistes proches que tu n'as jamais écoutés", run: () => startDiscoverRadio(t) },
     party.state && { icon: icons.headphones, label: party.state.is_host ? "Jouer ensuite dans la session" : "Proposer à la session", run: () => partyPropose(t) },
     t.artist_source_id && { icon: icons.user, label: "Aller à l'artiste", run: () => { closeNowPlaying(); go(`#/artist/${t.source}/${t.artist_source_id}`); } },
     t.album_source_id && { icon: icons.note, label: "Aller à l'album", run: () => { closeNowPlaying(); go(`#/album/${t.source}/${t.album_source_id}`); } },
@@ -3788,6 +3828,16 @@ function rankRows(items, kind) {
   }).join("")}</div>`;
 }
 
+/** Défis entre amis : les classements de la semaine. */
+function friendsBoards({ boards, champion }) {
+  const medal = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}.`;
+  return `<section class="section"><div class="section-head"><h2>Entre amis cette semaine</h2></div>
+    ${champion ? `<p class="champion">🏆 ${champion.me ? "Tu es" : `${esc(champion.name)} est`} champion de la semaine dernière · ${plural(champion.minutes, "minute")} de musique</p>` : ""}
+    <div class="boards">${boards.map((b) => `<div class="board"><div class="bt">${esc(b.title)}</div>
+      ${b.ranking.map((r, i) => `<div class="brow ${r.me ? "me" : ""}"><span class="bm">${medal(i)}</span>${avatar(r.avatar_url, r.name, "bav")}<span class="bn">${r.me ? "Toi" : esc(r.name)}</span><b>${r.value.toLocaleString("fr-FR")} <small>${esc(b.unit)}</small></b></div>`).join("")}
+    </div>`).join("")}</div></section>`;
+}
+
 async function viewStats() {
   const { period, offset } = statsView;
   const seg = `<div class="segmented">${PERIODS.map(([k, label]) => `<button data-period="${k}" class="${k === period ? "on" : ""}">${label}</button>`).join("")}</div>`;
@@ -3838,6 +3888,7 @@ async function viewStats() {
         ${tile({ icon: icons.calendar, title: "Ton mois", subtitle: "Le récap du mois dernier", tone: "blue", data: 'data-recap="month"' })}
         ${tile({ icon: icons.trophy, title: "Ton année", subtitle: "Le récap de l'année dernière", tone: "orange", data: 'data-recap="year"' })}
       </div></section>
+    ${challenges?.friends?.boards?.length ? friendsBoards(challenges.friends) : ""}
     ${challenges ? `<section class="section"><div class="section-head"><h2>Défis de la semaine</h2><span class="muted">${challenges.ends_in_days ? `encore ${plural(challenges.ends_in_days, "jour")}` : "dernier jour"}</span></div>
       <div class="challenges">${challenges.challenges.map((c) => `<div class="challenge ${c.done ? "done" : ""}"><div class="ct">${esc(c.title)}${c.done ? ` ${icons.check}` : ""}</div>
         <div class="meter"><i style="width:${Math.round((c.value / c.goal) * 100)}%"></i></div><div class="cv">${c.value}/${c.goal} ${esc(c.unit)}</div></div>`).join("")}</div>
@@ -5056,7 +5107,8 @@ async function publicLinkSheet() {
     : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
   if (!token) {
     if (!(await confirmSheet("Créer ta page « J'écoute » ? Toute personne qui a le lien verra ce que tu écoutes, en direct (à mettre sur ton profil Discord, Instagram…).", "Créer le lien"))) return;
-    await api("/me/public-link", { method: "POST" });
+    const created = await api("/me/public-link", { method: "POST" });
+    desk.publicUrl = publicUrl(created.token);
     toast("Lien créé");
     return publicLinkSheet();
   }
@@ -5065,12 +5117,14 @@ async function publicLinkSheet() {
     { icon: icons.share, label: "Partager le lien", sub: url.replace(/^https?:\/\//, ""), run: () => share(url) },
     { icon: icons.globe, label: "Ouvrir la page", run: () => window.open(url, "_blank", "noopener") },
     { icon: icons.repeat, label: "Changer de lien", sub: "L'ancien ne marchera plus", run: async () => {
-      await api("/me/public-link", { method: "POST" });
+      const created = await api("/me/public-link", { method: "POST" });
+      desk.publicUrl = publicUrl(created.token);
       toast("Nouveau lien créé");
       publicLinkSheet();
     } },
     { icon: icons.trash, label: "Supprimer la page", danger: true, run: async () => {
       await api("/me/public-link", { method: "DELETE" });
+      desk.publicUrl = null;
       toast("Page supprimée");
     } },
   ], { header: `<h2 class="sheet-title">Page « J'écoute »</h2><p class="muted">Ce que tu écoutes en direct, sinon ta dernière écoute. Rien n'apparaît quand « Partager mon écoute » est coupé.</p>` });
@@ -5220,6 +5274,8 @@ function desktopInit() {
     if (action) desktop.window[action]();
   };
   desktop.onMic?.(micChanged);
+  // Page « J'écoute » du compte : bouton « Écouter avec moi » du statut Discord.
+  setTimeout(() => api("/me/public-link").then(({ token }) => { desk.publicUrl = token ? publicUrl(token) : null; desktopReport(true); }).catch(() => {}), 4000);
   let lastHeard = null;
   desktop.onVoice?.((v) => {
     if (v.last && v.last !== lastHeard) toast(`🎙️ « ${v.last} »`);
@@ -5282,6 +5338,8 @@ function desktopSnapshot() {
     devices,
     index: remote ? -1 : state.index,
     queueName: remote ? "" : state.station ? `${state.station.name} · radio` : state.name || "",
+    // Boutons du statut Discord : « Écouter avec moi » (page J'écoute) et le titre.
+    links: { listen: desk.publicUrl || null, track: trackLink(t) },
     queue: remote ? [] : state.queue.slice(start, state.index + 40).map((q, k) => ({ i: start + k, title: q.title, artist: q.artist, cover_url: q.cover_url || null })),
     lyrics: ly ? { synced: ly.synced, instrumental: ly.instrumental, lines: ly.lines.map((l) => ({ time: l.time ?? null, text: l.text || "" })) } : null,
   };

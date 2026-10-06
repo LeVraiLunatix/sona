@@ -26,6 +26,11 @@ struct StatsView: View {
                     .padding(.horizontal, 20)
                     .reveal(1)
 
+                if let friends = challenges?.friends, !friends.boards.isEmpty {
+                    FriendsBoardsSection(friends: friends)
+                        .padding(.horizontal, 20)
+                        .reveal(1)
+                }
                 if let challenges {
                     ChallengesSection(challenges: challenges)
                         .padding(.horizontal, 20)
