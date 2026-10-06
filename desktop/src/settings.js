@@ -40,6 +40,13 @@ const DEFAULTS = {
   gameMode: true,
   // Mode vocal : Discord (ou autre) prend le micro → musique baissée.
   micWatch: true,
+  // « Sona, suivant » : commandes vocales (micro toujours à l'écoute : coupé par défaut).
+  voiceControl: false,
+  // Fond d'écran de Windows = pochette floue du titre en cours.
+  coverWallpaper: false,
+  wallpaperOriginal: null,
+  // Progression du titre sur l'icône de la barre des tâches.
+  taskbarProgress: true,
 };
 
 let cache = null;

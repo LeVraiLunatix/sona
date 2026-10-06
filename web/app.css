@@ -1307,3 +1307,10 @@ span.chip { cursor: default; }
   body { -webkit-user-select: none; user-select: none; }
   input, textarea { -webkit-user-select: text; user-select: text; }
 }
+
+/* Mode focus : chrono flottant */
+.focus-pill { position: fixed; z-index: 60; right: 22px; bottom: 22px; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; color: #fff; font-size: 14px; background: linear-gradient(120deg, #ff8a3d, #ff3d6e); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.focus-pill.rest { background: linear-gradient(120deg, #2fb67c, #1f7a8c); }
+.focus-pill b { font-variant-numeric: tabular-nums; font-size: 16px; }
+.focus-chips { flex-wrap: wrap; }
+@media (max-width: 760px) { .focus-pill { bottom: calc(150px + env(safe-area-inset-bottom)); right: 14px; } }

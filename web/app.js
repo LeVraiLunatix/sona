@@ -207,6 +207,7 @@ async function startApp() {
   document.body.style.overflow = "";
   renderShell();
   restoreResume();
+  if (focus.phase) focusLoop();
   startConnect();
   loadSidebar();
   loadLiked();
@@ -790,6 +791,7 @@ async function viewHome() {
     $("[data-install-close]")?.addEventListener("click", () => { store.set("sona.installDismissed", "1"); $("#install").replaceChildren(); });
     $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
     $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
+    $("[data-focus]")?.addEventListener("click", (e) => { e.preventDefault(); focusSheet(); });
   });
   return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
     <div id="install">${installBanner()}</div>
@@ -817,6 +819,7 @@ async function viewHome() {
         ${tile({ href: "#/blindtest", icon: icons.wave, title: "Blind test", subtitle: "Défi du jour, solo ou en direct", tone: "violet" })}
         ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
         ${tile({ href: "#/sport", icon: icons.bolt, title: "Mode sport", subtitle: "La musique au tempo de ta course", tone: "green" })}
+        ${tile({ icon: icons.clock, title: "Mode focus", subtitle: "Travailler en musique, avec des pauses", tone: "orange", data: "data-focus" })}
       </div></section>
     ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
       href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
@@ -2250,6 +2253,130 @@ function micChanged({ inUse, apps }) {
       toast(`Fin du vocal : volume rétabli à ${volLabel(before)}`);
     }
   }
+}
+
+// ── Mode focus (Pomodoro) ────────────────────────────────────────────────
+// Des séances de travail en musique (25 min par défaut), puis une pause
+// (5 min) où la musique s'arrête ; un petit chrono flotte en bas à droite.
+
+const FOCUS_PLANS = [[25, 5], [50, 10], [90, 15]];
+const focus = (() => {
+  try {
+    const saved = JSON.parse(store.get("sona.focus") || "null");
+    if (saved && saved.endsAt > Date.now() - 60000) return saved;
+  } catch {}
+  return { phase: null, endsAt: 0, work: 25, rest: 5, rounds: 0, music: "current" };
+})();
+let focusTimer = null;
+
+const focusSave = () => store.set("sona.focus", focus.phase ? JSON.stringify(focus) : null);
+const clock = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+/** Petit « ding » (Web Audio), sans fichier son. */
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.9);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.18);
+      osc.stop(ctx.currentTime + i * 0.18 + 1);
+    });
+    setTimeout(() => ctx.close(), 1600);
+  } catch {}
+}
+
+function focusNotify(title, body) {
+  toast(`${title} · ${body}`);
+  if (desktop && "Notification" in window) try { new Notification(title, { body, silent: true }); } catch {}
+}
+
+/** Une radio calme pour travailler (lo-fi, piano, chill…), sinon la première. */
+async function calmRadio() {
+  const radios = (await radioGroups().catch(() => [])).flatMap((g) => g.radios);
+  return radios.find((r) => /lo-?fi|focus|piano|chill|calme|relax|ambient|jazz|study|étud/i.test(r.title)) || radios[0];
+}
+
+async function startFocus(work, rest, music) {
+  Object.assign(focus, { phase: "work", work, rest, music, rounds: 0, endsAt: Date.now() + work * 60000 });
+  focusSave();
+  if (music === "calm") {
+    const radio = await calmRadio();
+    if (radio) await startRadio(radio.id, radio.title);
+  } else if (audio.paused && audio.src) toggle();
+  focusNotify("Mode focus 🎯", `${work} min de concentration, puis ${rest} min de pause.`);
+  focusLoop();
+}
+
+function stopFocus() {
+  focus.phase = null;
+  focusSave();
+  focusLoop();
+}
+
+function focusLoop() {
+  clearInterval(focusTimer);
+  renderFocusPill();
+  if (!focus.phase) return;
+  focusTimer = setInterval(() => {
+    if (Date.now() >= focus.endsAt) {
+      chime();
+      if (focus.phase === "work") {
+        focus.phase = "rest";
+        focus.rounds += 1;
+        focus.endsAt = Date.now() + focus.rest * 60000;
+        if (!audio.paused) audio.pause();
+        focusNotify("Pause ☕", `${focus.rest} min : lève-toi, bois un verre d'eau. La musique reprend après.`);
+      } else {
+        focus.phase = "work";
+        focus.endsAt = Date.now() + focus.work * 60000;
+        if (audio.paused && audio.src) toggle();
+        focusNotify("C'est reparti 🎯", `Séance ${focus.rounds + 1} : ${focus.work} min.`);
+      }
+      focusSave();
+    }
+    renderFocusPill();
+  }, 1000);
+}
+
+function renderFocusPill() {
+  let pill = $(".focus-pill");
+  if (!focus.phase) { pill?.remove(); return; }
+  if (!pill) {
+    pill = document.createElement("button");
+    pill.className = "focus-pill";
+    pill.onclick = focusSheet;
+    document.body.append(pill);
+  }
+  pill.classList.toggle("rest", focus.phase === "rest");
+  pill.innerHTML = `<span>${focus.phase === "work" ? "🎯 Focus" : "☕ Pause"}</span><b>${clock(focus.endsAt - Date.now())}</b>`;
+}
+
+function focusSheet() {
+  if (focus.phase) {
+    return actionSheet("", [
+      { icon: icons.next, label: focus.phase === "work" ? "Passer à la pause" : "Reprendre maintenant", run: () => { focus.endsAt = Date.now(); } },
+      { icon: icons.close, label: "Arrêter le mode focus", danger: true, run: () => { stopFocus(); toast("Mode focus arrêté"); } },
+    ], { header: `<h2 class="sheet-title">${focus.phase === "work" ? "🎯 Concentration" : "☕ Pause"} · ${clock(focus.endsAt - Date.now())}</h2>
+      <p class="muted">${plural(focus.rounds, "séance terminée", "séances terminées")} · ${focus.work} min de travail, ${focus.rest} min de pause.</p>` });
+  }
+  let plan = FOCUS_PLANS.findIndex(([w]) => w === focus.work);
+  if (plan < 0) plan = 0;
+  let music = focus.music || "current";
+  const wrap = openSheet(`<h2 class="sheet-title">Mode focus</h2>
+    <p class="muted">Des séances de concentration en musique, puis une courte pause où la musique s'arrête — la méthode Pomodoro.</p>
+    <h3 class="set-head">Durée</h3>
+    <div class="chips focus-chips">${FOCUS_PLANS.map(([w, r], i) => `<button class="chip ${i === plan ? "on" : ""}" data-plan="${i}">${w} min · pause ${r}</button>`).join("")}</div>
+    <h3 class="set-head">Musique</h3>
+    <div class="chips focus-chips"><button class="chip ${music === "current" ? "on" : ""}" data-music="current">Ma musique en cours</button><button class="chip ${music === "calm" ? "on" : ""}" data-music="calm">Une radio calme</button></div>
+    <button class="btn wide" data-focus-start style="margin-top:18px">${icons.play} Démarrer</button>`);
+  $$("[data-plan]", wrap).forEach((b) => (b.onclick = () => { plan = +b.dataset.plan; $$("[data-plan]", wrap).forEach((x) => x.classList.toggle("on", x === b)); }));
+  $$("[data-music]", wrap).forEach((b) => (b.onclick = () => { music = b.dataset.music; $$("[data-music]", wrap).forEach((x) => x.classList.toggle("on", x === b)); }));
+  $("[data-focus-start]", wrap).onclick = () => { wrap.close(); const [w, r] = FOCUS_PLANS[plan]; startFocus(w, r, music); };
 }
 
 // ── Son : égaliseur, volume égalisé, fondu, reprise ─────────────────────
@@ -5084,6 +5211,11 @@ function desktopInit() {
     if (action) desktop.window[action]();
   };
   desktop.onMic?.(micChanged);
+  let lastHeard = null;
+  desktop.onVoice?.((v) => {
+    if (v.last && v.last !== lastHeard) toast(`🎙️ « ${v.last} »`);
+    lastHeard = v.last;
+  });
   desktop.onWindow(({ maximized, focused }) => {
     document.documentElement.classList.toggle("maximized", maximized);
     document.documentElement.classList.toggle("blurred", !focused);
@@ -5218,6 +5350,7 @@ async function desktopCommand(c) {
       break;
     }
     case "like": if (t) await toggleLike(t); break;
+    case "focus": focusSheet(); break;
     case "volumePreset": {
       const preset = c.preset && c.preset !== "next" ? vol.presets.find((p) => p.id === c.preset) : nextPreset();
       if (!preset) throw new Error("Préréglage inconnu");
@@ -5324,22 +5457,28 @@ async function renderDesktopSettings() {
     ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
     ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
     ${desktop.platform === "win32" ? toggleRow("desk-micWatch", "Mode vocal automatique", "Quand Discord (ou une autre app) utilise ton micro, la musique passe sur ton préréglage « En vocal », puis revient après l'appel.", s.micWatch !== false) : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-voiceControl", "Commandes vocales « Sona… »", "Dis « Sona, suivant », « Sona, pause », « Sona, plus fort » ou « Sona, mets du PNL ». Reconnaissance vocale de Windows, hors ligne (voix française de Windows nécessaire).", s.voiceControl) : ""}
+    ${desktop.platform === "win32" && s.voiceControl ? `<div class="set-row"><span class="set-text"><b>Écoute</b><small>${esc(s.voice?.error || (s.voice?.ready ? `Prêt (${s.voice.culture || "fr"})${s.voice.last ? ` · dernier : « ${s.voice.last} »` : ""}` : "Démarrage…"))}</small></span></div>` : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-coverWallpaper", "Fond d'écran pochette", "Pendant la lecture, le fond d'écran de Windows devient la pochette en cours, floue. Ton fond d'écran revient quand tu coupes l'option.", s.coverWallpaper) : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône de Sona se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
+    ${linkRow("data-desk-focus", icons.clock, "Mode focus", focus.phase ? `En cours · ${clock(focus.endsAt - Date.now())}` : "Pomodoro : travail en musique, pauses")}
     ${linkRow("data-desk-volume", icons.speaker, "Volume et préréglages", `${volLabel(vol.level)} · ${vol.presets.map((p) => p.label).join(", ")}`)}
     ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Sona Connect", s.deviceNameShown)}
     ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
-  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch"]) {
+  for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch", "voiceControl", "coverWallpaper", "taskbarProgress"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
     if (!input) continue;
     input.onchange = () => {
       haptic();
       desktop.set(key, input.checked)
-        .then(() => ["lyricsOverlay", "discordEnabled"].includes(key) && setTimeout(renderDesktopSettings, key === "discordEnabled" ? 900 : 0))
+        .then(() => ["lyricsOverlay", "discordEnabled", "voiceControl"].includes(key) && setTimeout(renderDesktopSettings, ["discordEnabled", "voiceControl"].includes(key) ? 1500 : 0))
         .catch((e) => { input.checked = !input.checked; toast(e.message); });
     };
   }
   $("[data-desk-volume]", box)?.addEventListener("click", volumeSheet);
+  $("[data-desk-focus]", box)?.addEventListener("click", focusSheet);
   $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
     await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
     renderDesktopSettings();

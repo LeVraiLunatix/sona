@@ -36,7 +36,8 @@ function parseLine(line) {
     if (!raw) continue;
     let name = raw.includes("#") ? path.win32.basename(raw.replace(/#/g, "\\")) : raw.split("_")[0].split(".").pop();
     name = name.replace(/\.exe$/i, "");
-    if (!name || /^(sona|electron)$/i.test(name)) continue;
+    // Sona lui-même (karaoké, commandes vocales dans PowerShell) ne compte pas.
+    if (!name || /^(sona|electron|powershell)$/i.test(name)) continue;
     if (!apps.includes(name)) apps.push(name);
   }
   return apps;

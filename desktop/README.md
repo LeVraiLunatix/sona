@@ -52,6 +52,22 @@ ce qu'un navigateur ne sait pas faire.
   125-150 %), le plein écran (F11) ressort comme on y était entré, le
   lecteur plein écran garde commandes et volume visibles à toute hauteur,
   et la barre du haut range dans « ⋯ » les boutons qui ne tiennent plus.
+- **Barre des tâches** : dans l'aperçu, précédent / lecture / suivant et
+  ♥ (plein quand le titre est dans ta bibliothèque) ; l'icône se remplit
+  au fil du titre (orange en pause) ; clic droit sur l'icône : lecture /
+  pause, suivant, précédent, mini-lecteur, paroles, mode focus.
+- **Mode focus** (Pomodoro) : 25, 50 ou 90 min de concentration en musique
+  (la tienne ou une radio calme), puis une pause où la musique s'arrête ;
+  un chrono flotte en bas à droite, un « ding » et une notification à
+  chaque changement. Aussi sur le web (tuile « Mode focus » de l'accueil).
+- **Fond d'écran pochette** (coupé par défaut) : le fond d'écran de Windows
+  devient la pochette en cours, floue et assombrie ; ton fond d'écran
+  revient quand tu coupes l'option.
+- **Commandes vocales « Sona… »** (coupées par défaut) : « Sona, pause »,
+  « Sona, suivant », « Sona, plus fort », « Sona, j'aime », « Sona, mets du
+  PNL ». Reconnaissance vocale de Windows, hors ligne ; il faut la voix
+  française de Windows (Paramètres → Heure et langue → Voix / Langue →
+  Français → Reconnaissance vocale).
 - **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
   notifications de Sona, paroles en surimpression sur une ligne, discrètes.
   Windows le signale lui-même (SHQueryUserNotificationState).

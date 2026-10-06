@@ -23,6 +23,7 @@ if (location.protocol === "app:" && location.host === "sona") {
     onOpenRemote: on("desktop:open-remote"),
     onWindow: on("desktop:window"),
     onMic: on("desktop:mic"),
+    onVoice: on("desktop:voice"),
     onMini: on("desktop:mini"),
     onOverlay: on("desktop:overlay"),
     onGameMode: on("desktop:gamemode"),
