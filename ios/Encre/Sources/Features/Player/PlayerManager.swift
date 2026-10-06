@@ -216,7 +216,7 @@ final class PlayerManager: ObservableObject {
         let mixStart = fadeSeconds > 0
             ? min(info?.end ?? duration, duration) - fadeSeconds
             : info.map { max($0.mixOut, $0.end - 16, $0.start) } ?? (duration - mixLength)
-        let canMix = !followsParty && repeatMode != .one && sleepTimer != .endOfTrack
+        let canMix = !followsParty && repeatMode != .one && !sleepStopsAfterCurrent
         if canMix, let next = upNext.first, position < end {
             if mixIncoming != nil, mixIncomingTrack?.id != next.id, mixTask == nil { cancelMix() }
             if position < mixStart - 20, mixIncoming != nil, mixTask == nil {
@@ -421,9 +421,38 @@ final class PlayerManager: ObservableObject {
 
     // MARK: Minuteur de sommeil
 
+    /// Minuteur intelligent : à l'heure dite, le titre en cours se termine
+    /// (en fondu) plutôt que d'être coupé net ; « fin de l'album » s'arrête
+    /// au dernier titre de l'album en cours.
     enum SleepTimer: Equatable {
         case minutes(Int)
         case endOfTrack
+        case endOfAlbum
+    }
+
+    /// Le minuteur arrêtera la musique à la fin du titre en cours.
+    private var sleepStopsAfterCurrent: Bool {
+        switch sleepTimer {
+        case .endOfTrack: return true
+        case .endOfAlbum: return !nextIsSameAlbum
+        default: return false
+        }
+    }
+
+    /// Le titre suivant est-il du même album que celui en cours ?
+    private var nextIsSameAlbum: Bool {
+        guard let current, let next = upNext.first else { return false }
+        if let a = current.albumSourceId, let b = next.albumSourceId { return a == b }
+        guard let a = current.album, let b = next.album else { return false }
+        return a.caseInsensitiveCompare(b) == .orderedSame && current.artist == next.artist
+    }
+
+    /// Fondu de sortie sur les 20 dernières secondes du titre où le minuteur arrête la musique.
+    private func sleepFadeTick(position: Double, duration: Double) {
+        guard sleepStopsAfterCurrent, mixTask == nil, let player else { return }
+        let remaining = duration - position
+        guard remaining > 0, remaining < 20 else { return }
+        player.volume = gain(for: current) * Float(max(0.03, remaining / 20))
     }
 
     @Published private(set) var sleepTimer: SleepTimer?
@@ -441,7 +470,15 @@ final class PlayerManager: ObservableObject {
         sleepTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(minutes * 60))
             guard let self, !Task.isCancelled else { return }
-            await self.fadeOutAndPause()
+            // Heure atteinte en plein titre : on le laisse finir (en fondu)
+            // s'il reste moins de 6 min, sinon fondu tout de suite.
+            let remaining = self.durationSeconds - self.positionSeconds
+            if self.isPlaying, self.durationSeconds > 0, remaining > 2, remaining < 360 {
+                self.sleepTimer = .endOfTrack
+                self.sleepDeadline = nil
+            } else {
+                await self.fadeOutAndPause()
+            }
         }
     }
 
@@ -1166,6 +1203,9 @@ final class PlayerManager: ObservableObject {
                 if self.crossfadeEnabled {
                     self.autoMixTick(position: time.seconds, duration: duration)
                 }
+                if self.sleepTimer != nil {
+                    self.sleepFadeTick(position: time.seconds, duration: duration)
+                }
                 if let last = self.lastTick, self.isPlaying {
                     let delta = time.seconds - last
                     if delta > 0 && delta <= 1.5 { self.listenedSeconds += delta }
@@ -1299,10 +1339,11 @@ final class PlayerManager: ObservableObject {
             isPlaying = false
             return
         }
-        if automatic && sleepTimer == .endOfTrack {
-            // Minuteur « fin du titre » : on s'arrête là.
+        if automatic && sleepStopsAfterCurrent {
+            // Minuteur « fin du titre » / « fin de l'album » : on s'arrête là.
             sleepTimer = nil
             player?.pause()
+            player?.volume = gain(for: current)
             isPlaying = false
             return
         }

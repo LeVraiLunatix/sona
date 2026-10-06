@@ -82,6 +82,113 @@ struct StartDJRadioIntent: AppIntent {
     }
 }
 
+/// « Dis Siri, lance le titre du jour sur Sona ».
+struct PlayDailyTrackIntent: AppIntent {
+    static let title: LocalizedStringResource = "Jouer le titre du jour"
+    static let description = IntentDescription("Une découverte choisie d'après tes goûts, la même toute la journée.")
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let daily = try await APIClient.shared.dailyTrack()
+        guard let track = daily.track else { return .result(dialog: "Pas encore de titre du jour : écoute un peu de musique d'abord.") }
+        PlayerManager.shared.play(track, context: [track], name: "Titre du jour")
+        return .result(dialog: "Titre du jour : \(track.title), de \(track.artist).")
+    }
+}
+
+/// Une de tes playlists, pour Siri et Raccourcis (« mets ma playlist Sport »).
+struct PlaylistEntity: AppEntity {
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Playlist"
+    static let defaultQuery = PlaylistQuery()
+    let id: Int
+    let name: String
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+}
+
+struct PlaylistQuery: EntityStringQuery {
+    @MainActor
+    func entities(for identifiers: [Int]) async throws -> [PlaylistEntity] {
+        try await all().filter { identifiers.contains($0.id) }
+    }
+
+    @MainActor
+    func entities(matching string: String) async throws -> [PlaylistEntity] {
+        let needle = string.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return try await all().filter {
+            $0.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).contains(needle)
+        }
+    }
+
+    @MainActor
+    func suggestedEntities() async throws -> [PlaylistEntity] { try await all() }
+
+    @MainActor
+    private func all() async throws -> [PlaylistEntity] {
+        try await APIClient.shared.playlists().map { PlaylistEntity(id: $0.id, name: $0.name) }
+    }
+}
+
+struct PlayUserPlaylistIntent: AppIntent {
+    static let title: LocalizedStringResource = "Jouer une de mes playlists"
+    static let description = IntentDescription("Lance une de tes playlists Sona (« Sport », « Soirée »…).")
+
+    @Parameter(title: "Playlist")
+    var playlist: PlaylistEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let detail = try await APIClient.shared.userPlaylist(id: playlist.id)
+        let tracks = detail.tracks
+        guard let first = tracks.first else { return .result(dialog: "La playlist \(playlist.name) est vide.") }
+        PlayerManager.shared.play(first, context: tracks, name: detail.name)
+        return .result(dialog: "Lecture de \(detail.name).")
+    }
+}
+
+/// « Dis Siri, envoie la musique sur le PC » : la lecture continue sur le
+/// PC (à la même seconde), l'iPhone devient sa télécommande.
+struct SendToPCIntent: AppIntent {
+    static let title: LocalizedStringResource = "Envoyer la musique sur mon PC"
+    static let description = IntentDescription("Ce que joue l'iPhone continue sur ton PC (Sona pour Windows ouvert).")
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let connect = ConnectManager.shared
+        guard PlayerManager.shared.current != nil else { return .result(dialog: "Rien ne joue sur l'iPhone.") }
+        await connect.sync()
+        let pc = connect.chosenDevice ?? connect.devices.first { !$0.isMe && $0.kind != "iphone" }
+        guard let pc, !pc.isMe else { return .result(dialog: "Aucun PC allumé : ouvre Sona pour Windows.") }
+        await connect.listen(on: pc)
+        return .result(dialog: "La musique continue sur \(pc.name).")
+    }
+}
+
+/// Mode voiture : à lancer par une automatisation Raccourcis (« quand
+/// l'iPhone se connecte au Bluetooth de la voiture »).
+struct CarModeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Mode voiture Sona"
+    static let description = IntentDescription("Ouvre l'écran voiture (gros boutons) et relance la musique.")
+    static let openAppWhenRun = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppRouter.shared.pendingURL = URL(string: "encre://car?play=1")
+        return .result()
+    }
+}
+
+/// Reconnaître le titre qui passe autour de soi (ShazamKit).
+struct RecognizeSongIntent: AppIntent {
+    static let title: LocalizedStringResource = "Reconnaître un titre avec Sona"
+    static let openAppWhenRun = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppRouter.shared.pendingURL = URL(string: "encre://shazam")
+        return .result()
+    }
+}
+
 struct PauseIntent: AppIntent {
     static let title: LocalizedStringResource = "Mettre Sona en pause"
 
@@ -245,23 +352,25 @@ struct SonaShortcuts: AppShortcutsProvider {
             shortTitle: "Récap",
             systemImageName: "chart.bar.fill"
         )
+        // 10 phrases au plus par app : pause, reprise et suivant restent
+        // dans Raccourcis (et Siri sait déjà les faire pour l'app qui joue).
         AppShortcut(
-            intent: PauseIntent(),
-            phrases: ["Pause \(.applicationName)", "Mets \(.applicationName) en pause"],
-            shortTitle: "Pause",
-            systemImageName: "pause.fill"
+            intent: PlayDailyTrackIntent(),
+            phrases: ["Lance le titre du jour sur \(.applicationName)", "Titre du jour \(.applicationName)"],
+            shortTitle: "Titre du jour",
+            systemImageName: "sparkle"
         )
         AppShortcut(
-            intent: ResumeIntent(),
-            phrases: ["Reprends \(.applicationName)"],
-            shortTitle: "Reprendre",
-            systemImageName: "play.fill"
+            intent: PlayUserPlaylistIntent(),
+            phrases: ["Mets ma playlist \(\.$playlist) sur \(.applicationName)", "Joue ma playlist \(\.$playlist) sur \(.applicationName)"],
+            shortTitle: "Ma playlist",
+            systemImageName: "music.note.list"
         )
         AppShortcut(
-            intent: NextTrackIntent(),
-            phrases: ["Titre suivant \(.applicationName)"],
-            shortTitle: "Suivant",
-            systemImageName: "forward.fill"
+            intent: SendToPCIntent(),
+            phrases: ["Envoie la musique sur le PC avec \(.applicationName)", "Mets \(.applicationName) sur le PC"],
+            shortTitle: "Sur le PC",
+            systemImageName: "laptopcomputer"
         )
     }
 }
