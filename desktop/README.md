@@ -40,6 +40,12 @@ ce qu'un navigateur ne sait pas faire.
   page « J'écoute », si tu l'as créée) et « Écouter ce titre ».
 - **Pause automatique** : PC verrouillé ou en veille (la musique repart au
   déverrouillage), casque ou enceinte débranché.
+- **Look « Cider »** : la fenêtre entière est utilisée — barre latérale
+  sur toute la hauteur, barre du lecteur à plat en haut (commandes à gauche,
+  titre au centre, volume et outils à droite), boutons de fenêtre façon
+  Windows dans le coin, pages en pleine largeur. Paroles et « À suivre »
+  s'ouvrent dans un **tiroir à droite** (on continue de naviguer) ; un clic
+  sur la pochette du haut ouvre toujours le lecteur plein écran.
 - **Volume fin et préréglages** : le curseur suit l'oreille (beaucoup de
   finesse dans les volumes bas), molette ou flèches au pour cent près (5 %
   avec Maj), pourcentage affiché ; clic sur le haut-parleur → feuille
