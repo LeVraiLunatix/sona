@@ -31,16 +31,11 @@ ce qu'un navigateur ne sait pas faire.
   site (Sona Connect), tant que Sona tourne sur le PC, même réduit près de
   l'horloge : Discord ne laisse que son app d'ordinateur recevoir un
   statut, un iPhone ou une page web ne peuvent pas lui parler. En pause
-  plus de 5 min, le statut disparaît. Mise en place (une fois) :
-  1. discord.com/developers/applications → **New Application**, nom
-     « Sona » (c'est lui qui s'affiche : « Écoute Sona ») ; icône : le logo
-     de Sona (`ios/Encre/Assets.xcassets/AppIcon.appiconset/AppIcon.png`).
-  2. **Rich Presence → Art Assets** → ajoute ce même logo sous le nom
-     `sona` (petite image et image quand un titre n'a pas de pochette).
-  3. **General Information** → copie l'**Application ID**, puis dans Sona :
-     Réglages → Statut Discord → Application Discord → colle-le.
-  4. Discord (l'app d'ordinateur) ouvert sur le PC ; dans Discord,
-     Paramètres → Confidentialité de l'activité → « Partager mon activité ».
+  plus de 5 min, le statut disparaît. Activé d'office, rien à créer : Sona
+  a son application Discord (`1557013953190821979`, logo compris). Il faut
+  seulement Discord (l'app d'ordinateur) ouvert sur le PC et, dans Discord,
+  Paramètres → Confidentialité de l'activité → « Partager mon activité ».
+  Réglages → Discord permet de mettre ta propre application à la place.
 - **Pause automatique** : PC verrouillé ou en veille (la musique repart au
   déverrouillage), casque ou enceinte débranché.
 - **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
