@@ -121,7 +121,7 @@ class SonaAction extends SingletonAction {
 
   onSendToPlugin(ev) {
     // Panneau de la touche « Ajouter à une playlist » : la liste des playlists.
-    if (ev.payload?.want === "playlists") return sendPlaylists();
+    if (ev.payload?.want === "playlists") return sendPlaylists(!!ev.payload.all);
     return sendDevices();
   }
 }
@@ -130,11 +130,12 @@ function rememberName(settings) {
   if (settings?.device && settings.deviceName) knownNames.set(settings.device, settings.deviceName);
 }
 
-/** Le panneau de « Ajouter à une playlist » : tes playlists (modifiables). */
-async function sendPlaylists() {
+/** Panneau de « Ajouter à une playlist » (playlists modifiables) ou de
+ *  « Playlist » (toutes, avec leur pochette). */
+async function sendPlaylists(all = false) {
   let playlists = [];
   let error = "";
-  try { playlists = (await sona.command("playlists")) || []; } catch (e) { error = e.message; }
+  try { playlists = (await sona.command("playlists", all ? { all: true } : {})) || []; } catch (e) { error = e.message; }
   return streamDeck.ui.sendToPropertyInspector({ playlists, error }).catch(() => {});
 }
 
@@ -204,10 +205,22 @@ const keys = [
   }),
   new SonaKey("djradio", { glyph: "radio", pcOnly: true, run: () => command("djradio", "") }),
   new SonaKey("lyricsoverlay", { glyph: "quote", pcOnly: true, on: (st) => !!st.overlay, run: () => command("lyricsOverlay", "") }),
+  // Copie « titre — artiste + lien » du titre en cours, prêt à coller dans Discord.
+  new SonaKey("share", { glyph: "share", pcOnly: true, run: () => command("shareTrack", "") }),
+  // Préréglage de volume suivant (En vocal → Calme → Normal → Fort).
+  new SonaKey("volumepreset", {
+    glyph: "presets", pcOnly: true,
+    label: () => presetLabel,
+    run: async () => {
+      const got = await command("volumePreset", "", { preset: "next" });
+      if (got?.label) presetLabel = keyText(got.label);
+    },
+  }),
 ];
-for (const k of keys.filter((k) => ["like", "addtoplaylist", "djradio"].includes(k.manifestId.split(".").pop()))) k.needsTrack = true;
-// « ✓ » sur la touche après un ajout réussi.
-keys.find((k) => k.manifestId.endsWith("addtoplaylist")).showsOk = true;
+let presetLabel = "";
+for (const k of keys.filter((k) => ["like", "addtoplaylist", "djradio", "share"].includes(k.manifestId.split(".").pop()))) k.needsTrack = true;
+// « ✓ » sur la touche après un ajout ou une copie réussis.
+for (const id of ["addtoplaylist", "share"]) keys.find((k) => k.manifestId.endsWith(id)).showsOk = true;
 
 // ── Pochettes ──────────────────────────────────────────────────────────
 
@@ -229,6 +242,28 @@ async function cover(url) {
   covers.set(small, job);
   if (covers.size > 30) covers.delete(covers.keys().next().value);
   return job;
+}
+
+/** Touche « Playlist » : la pochette de la playlist choisie ; appui = la lancer. */
+class PlaylistKey extends SonaAction {
+  manifestId = `${UUID}.playlist`;
+
+  async render(action) {
+    if (!action.isKey()) return;
+    const set = settingsOf.get(action.id) || {};
+    const problem = problemFor("");
+    const image = set.playlistCover ? await cover(set.playlistCover) : null;
+    await action.setImage(dataUrl(coverSvg({ image, paused: true, title: set.playlistName || "Choisir", artist: "Playlist" })));
+    if (!flashes.has(action.id)) await action.setTitle(problem);
+  }
+
+  onKeyDown(ev) {
+    return press(this, ev.action, async () => {
+      const set = settingsOf.get(ev.action.id) || {};
+      if (!set.playlist) throw new Error("Choisis la playlist");
+      await command("playPlaylist", "", { playlist: set.playlist });
+    });
+  }
 }
 
 /** Touche « En cours » : la pochette du titre ; appui = lecture/pause. */
@@ -360,9 +395,10 @@ class SeekDial extends SonaAction {
 }
 
 const nowPlaying = new NowPlaying();
+const playlistKey = new PlaylistKey();
 const dial = new Dial();
 const seekDial = new SeekDial();
-const all = [...keys, nowPlaying, dial, seekDial];
+const all = [...keys, nowPlaying, playlistKey, dial, seekDial];
 
 function renderAll() {
   for (const singleton of all) {

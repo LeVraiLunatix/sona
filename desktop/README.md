@@ -52,6 +52,22 @@ ce qu'un navigateur ne sait pas faire.
   125-150 %), le plein écran (F11) ressort comme on y était entré, le
   lecteur plein écran garde commandes et volume visibles à toute hauteur,
   et la barre du haut range dans « ⋯ » les boutons qui ne tiennent plus.
+- **Barre des tâches** : dans l'aperçu, précédent / lecture / suivant et
+  ♥ (plein quand le titre est dans ta bibliothèque) ; l'icône se remplit
+  au fil du titre (orange en pause) ; clic droit sur l'icône : lecture /
+  pause, suivant, précédent, mini-lecteur, paroles, mode focus.
+- **Mode focus** (Pomodoro) : 25, 50 ou 90 min de concentration en musique
+  (la tienne ou une radio calme), puis une pause où la musique s'arrête ;
+  un chrono flotte en bas à droite, un « ding » et une notification à
+  chaque changement. Aussi sur le web (tuile « Mode focus » de l'accueil).
+- **Fond d'écran pochette** (coupé par défaut) : le fond d'écran de Windows
+  devient la pochette en cours, floue et assombrie ; ton fond d'écran
+  revient quand tu coupes l'option.
+- **Commandes vocales « Sona… »** (coupées par défaut) : « Sona, pause »,
+  « Sona, suivant », « Sona, plus fort », « Sona, j'aime », « Sona, mets du
+  PNL ». Reconnaissance vocale de Windows, hors ligne ; il faut la voix
+  française de Windows (Paramètres → Heure et langue → Voix / Langue →
+  Français → Reconnaissance vocale).
 - **Mode jeu** : un jeu (ou toute app) en plein écran → plus de
   notifications de Sona, paroles en surimpression sur une ligne, discrètes.
   Windows le signale lui-même (SHQueryUserNotificationState).
@@ -163,12 +179,15 @@ Sona sur le même PC et lui parle en local.
 | En cours | La pochette du titre en cours ; un appui met en pause ou relance |
 | Lecture / pause, Suivant, Précédent | La lecture, l'icône suit l'état |
 | J'aime, Aléatoire, Répéter | En rose quand c'est activé |
-| Volume +, Volume − | ±10 % |
-| Molette Sona (Stream Deck +) | Tourner : volume · appuyer : lecture/pause · toucher : suivant |
+| Volume +, Volume − | ±5 % |
+| Molette Sona (Stream Deck +) | Tourner : volume (1 % par cran) · appuyer : lecture/pause · toucher : suivant |
 | Position Sona (Stream Deck +) | Tourner : avancer/reculer de 5 s par cran · appuyer : lecture/pause |
 | Ajouter à une playlist | Le titre en cours dans la playlist choisie (panneau de la touche) |
 | Radio DJ | Une radio à partir du titre en cours |
 | Paroles | Affiche ou masque les paroles en surimpression |
+| Playlist | La pochette d'une playlist choisie (panneau de la touche) ; un appui la lance |
+| Partager le titre | Copie « 🎧 titre — artiste » et un lien d'écoute, prêt à coller dans Discord |
+| Préréglage de volume | Passe au préréglage suivant (En vocal, Calme, Normal, Fort), écrit sur la touche |
 
 Chaque touche a un réglage **Appareil** (panneau de la touche dans le
 logiciel Stream Deck) : « Ce PC », ou un autre appareil Sona Connect du
