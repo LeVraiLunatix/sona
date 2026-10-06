@@ -63,3 +63,46 @@ async def compute(repo, user_id: int, tz_name: str | None, now: datetime | None 
         "challenges": challenges,
         "badges": badges,
     }
+
+
+# ── Défis entre amis : le classement de la semaine ─────────────────────────
+
+BOARDS = [
+    ("minutes", "Le plus de musique", "headphones", "min"),
+    ("discoveries", "Le plus de découvertes", "sparkle.magnifyingglass", "artistes"),
+    ("artists", "Le plus éclectique", "person.3.fill", "artistes"),
+    ("night", "Oiseau de nuit (minuit – 5 h)", "moon.stars.fill", "écoutes"),
+]
+
+
+async def _week_scores(repo, user_id: int, tz_name: str | None, offset: int, now: datetime) -> dict:
+    tz = stats_service.resolve_tz(tz_name)
+    report = await stats_service.compute(repo, user_id, "week", offset, tz_name, now)
+    plays = await repo.plays_between(user_id, report.start, report.end)
+    night = sum(1 for p in plays if stats_service.parse_iso(p.played_at).astimezone(tz).hour < 5)
+    return {"minutes": report.minutes, "discoveries": len(report.discoveries), "artists": report.artists, "night": night}
+
+
+async def friends_boards(repo, user_id: int, tz_name: str | None, now: datetime | None = None) -> dict:
+    """Classements de la semaine entre amis (comptes qui partagent leur
+    écoute), et le champion de la semaine dernière (le plus de musique)."""
+    now = now or datetime.now(timezone.utc)
+    people = [a for a in await repo.list_accounts()
+              if a.status == "approved" and (a.share_listening or a.user_id == user_id)]
+    if not any(a.user_id != user_id for a in people):
+        return {"boards": [], "champion": None}
+    scores = {a.user_id: await _week_scores(repo, a.user_id, tz_name, 0, now) for a in people}
+    names = {a.user_id: (a.display_name or a.lastfm_username, a.avatar_url) for a in people}
+    boards = []
+    for key, title, icon, unit in BOARDS:
+        ranking = sorted(people, key=lambda a: (-scores[a.user_id][key], names[a.user_id][0].casefold()))
+        boards.append({
+            "id": key, "title": title, "icon": icon, "unit": unit,
+            "ranking": [{"name": names[a.user_id][0], "avatar_url": names[a.user_id][1], "value": scores[a.user_id][key],
+                         "me": a.user_id == user_id} for a in ranking if scores[a.user_id][key] > 0 or a.user_id == user_id][:10],
+        })
+    last = {a.user_id: (await _week_scores(repo, a.user_id, tz_name, -1, now))["minutes"] for a in people}
+    best = max(people, key=lambda a: last[a.user_id])
+    champion = {"name": names[best.user_id][0], "avatar_url": names[best.user_id][1], "minutes": last[best.user_id],
+                "me": best.user_id == user_id} if last[best.user_id] > 0 else None
+    return {"boards": boards, "champion": champion}

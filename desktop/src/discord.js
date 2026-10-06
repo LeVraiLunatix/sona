@@ -57,6 +57,12 @@ function activityFor(state, now = Date.now()) {
     },
     instance: false,
   };
+  // Boutons (vus par les autres, pas par soi) : ta page « J'écoute » en
+  // direct, et le titre sur Deezer / YouTube Music.
+  const buttons = [];
+  if (/^https:\/\//.test(state.links?.listen || "")) buttons.push({ label: "Écouter avec moi", url: state.links.listen.slice(0, 512) });
+  if (/^https:\/\//.test(state.links?.track || "")) buttons.push({ label: "Écouter ce titre", url: state.links.track.slice(0, 512) });
+  if (buttons.length) activity.buttons = buttons;
   const duration = state.duration || t.duration_seconds || 0;
   if (!state.paused && duration) {
     const start = Math.round(now - (state.position || 0) * 1000);

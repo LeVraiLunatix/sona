@@ -443,6 +443,21 @@ final class APIClient {
         try await send(try request("/home/mixes", query: refresh ? [URLQueryItem(name: "refresh", value: "true")] : []))
     }
 
+    /// Mix « selon le moment » : l'heure, le jour, et la météo si la position est donnée.
+    func mood(latitude: Double? = nil, longitude: Double? = nil) async throws -> MoodMix {
+        var query = [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]
+        if let latitude, let longitude {
+            query.append(URLQueryItem(name: "lat", value: String(format: "%.2f", latitude)))
+            query.append(URLQueryItem(name: "lon", value: String(format: "%.2f", longitude)))
+        }
+        return try await send(try request("/home/mood", query: query))
+    }
+
+    /// « Si tu aimes ce titre » : radio d'artistes proches jamais écoutés.
+    func discoverRadio(source: String, artistId: String, artist: String) async throws -> [Track] {
+        try await send(try request("/discover/radio/\(source)/\(artistId)", query: [URLQueryItem(name: "artist", value: artist)]))
+    }
+
     /// Titre du jour : une découverte, la même toute la journée.
     func dailyTrack() async throws -> DailyTrack {
         try await send(try request("/home/daily"))

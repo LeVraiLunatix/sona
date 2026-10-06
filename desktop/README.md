@@ -36,6 +36,8 @@ ce qu'un navigateur ne sait pas faire.
   seulement Discord (l'app d'ordinateur) ouvert sur le PC et, dans Discord,
   Paramètres → Confidentialité de l'activité → « Partager mon activité ».
   Réglages → Discord permet de mettre ta propre application à la place.
+  Sous le statut, deux boutons pour tes amis : « Écouter avec moi » (ta
+  page « J'écoute », si tu l'as créée) et « Écouter ce titre ».
 - **Pause automatique** : PC verrouillé ou en veille (la musique repart au
   déverrouillage), casque ou enceinte débranché.
 - **Volume fin et préréglages** : le curseur suit l'oreille (beaucoup de

@@ -46,6 +46,9 @@ test("l'activité montre le titre, l'artiste, la pochette et la progression", ()
   assert.equal(a.assets.small_text, "Sur Sona pour Windows");
   // Lecture sur l'iPhone, montrée par le PC (Sona Connect).
   assert.equal(activityFor({ track: { title: "T", artist: "A" }, remoteDevice: "iPhone de Lucas" }).assets.small_text, "Sur iPhone de Lucas");
+  const withLinks = activityFor({ track: { title: "T", artist: "A" }, links: { listen: "https://sona.example/p/abc", track: "https://www.deezer.com/track/1" } });
+  assert.deepEqual(withLinks.buttons, [{ label: "Écouter avec moi", url: "https://sona.example/p/abc" }, { label: "Écouter ce titre", url: "https://www.deezer.com/track/1" }]);
+  assert.equal(activityFor({ track: { title: "T", artist: "A" }, links: { listen: "javascript:alert(1)" } }).buttons, undefined);
   const paused = activityFor({ track: { title: "T", artist: "A" }, paused: true });
   assert.equal(paused.state, "A · en pause");
   assert.equal(paused.timestamps, undefined);

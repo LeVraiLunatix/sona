@@ -337,7 +337,7 @@ hébergé sur Vercel). Même compte, mêmes playlists et mêmes stats que l'app 
 Fonctions reprises de l'app : mix, radios, radio DJ et lecture automatique,
 paroles synchronisées, karaoké, Sona Connect, diffusion TV/PS5, playlists
 (création, import, visibilité, collaboratives), bibliothèque (titres,
-albums, artistes), amis et Blend, stats, défis et badges, récaps en story,
+albums, artistes), amis et Blend, stats, défis et badges (et classements de la semaine entre amis), récaps en story,
 blind test (solo, défi du jour, paroles, en direct entre amis), écoute
 ensemble, concerts, mode sport, moments, DJ vocal, minuteur de sommeil,
 réglages et administration. Restent propres à l'app iOS : les
@@ -459,6 +459,8 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `GET /admin/accounts` · `POST /admin/accounts/{id}/approve\|reject\|promote\|demote` | Panel d'admin : accorder, refuser/révoquer l'accès, droits d'admin. Chaque nouvelle demande est signalée aux admins du bot Telegram. |
 | `GET /stream/{source}/{id}?quality=&format=` | Télécharge (si besoin), vérifie l'audio contre l'extrait officiel et sert le fichier — avec support des requêtes `Range`, pour qu'`AVPlayer` puisse lire en streaming. Le fichier est conservé sur disque (`data/stream_cache/`) pour les lectures suivantes. |
 | `GET/POST/DELETE /library/{kind}` | Bibliothèque (`track`/`album`/`artist`). |
+| `GET /home/mood?tz=&lat=&lon=` | Mix « selon le moment » : l'humeur d'après l'heure, le jour (vendredi et samedi soir : soirée) et, si la position est donnée, la météo (Open-Meteo, gratuit, position arrondie et non gardée) — pluie, neige, grand soleil, ciel gris, nuit, matin… Carte sur l'accueil (web, iPhone). |
+| `GET /discover/radio/{source}/{artist_id}?artist=` | « Si tu aimes ce titre… » : radio d'artistes proches que tu n'as jamais écoutés (titres phares, mélangés artiste par artiste). Dans le menu de chaque titre. |
 | `GET /home/daily` | Titre du jour : une découverte (artiste proche de tes favoris, sinon ton mix du jour), la même toute la journée. Carte sur l'accueil (web, iPhone) et notification le matin sur l'iPhone. |
 | `GET/POST/DELETE /me/public-link` · `GET /p/{lien}` · `GET /p/{lien}/now` | Page publique « J'écoute » : un lien secret (à mettre sur un profil Discord, Instagram…) qui montre en direct le titre en cours, sinon la dernière écoute. Rien n'apparaît quand « Partager mon écoute » est coupé ; changer de lien ou le supprimer coupe l'ancien. Réglages → Page « J'écoute » publique. |
 | `GET/DELETE /history` | Historique. |

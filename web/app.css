@@ -1314,3 +1314,30 @@ span.chip { cursor: default; }
 .focus-pill b { font-variant-numeric: tabular-nums; font-size: 16px; }
 .focus-chips { flex-wrap: wrap; }
 @media (max-width: 760px) { .focus-pill { bottom: calc(150px + env(safe-area-inset-bottom)); right: 14px; } }
+
+/* Mix « selon la météo » */
+.mood { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: center; width: 100%; max-width: 720px; margin-top: 14px; padding: 12px 14px; border-radius: 18px; text-align: left; color: #fff; background: linear-gradient(120deg, #1d4e89, #102a4c); }
+.mood-pluie, .mood-gris { background: linear-gradient(120deg, #3b4a63, #1b2433); }
+.mood-neige { background: linear-gradient(120deg, #6d8fb3, #2d4060); }
+.mood-nuit { background: linear-gradient(120deg, #241b4f, #0d0b22); }
+.mood-soiree { background: linear-gradient(120deg, #b0246a, #4a1460); }
+.mood-soleil, .mood-matin { background: linear-gradient(120deg, #f29a2e, #c2451f); }
+.mood-emoji { font-size: 40px; text-align: center; }
+.mood-text { display: flex; flex-direction: column; min-width: 0; }
+.mood .eyebrow { color: rgba(255,255,255,.75); }
+.mood .t { font-weight: 700; font-size: 17px; }
+.mood .s { font-size: 13px; opacity: .8; }
+.mood .link { text-decoration: underline; cursor: pointer; }
+.mood .fab { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #000; }
+.mood .fab svg { width: 18px; height: 18px; }
+/* Défis entre amis */
+.champion { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: linear-gradient(120deg, rgba(242,183,5,.25), rgba(242,113,28,.12)); font-weight: 600; }
+.boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.board { padding: 14px; border-radius: 16px; background: var(--fill); }
+.board .bt { font-weight: 700; margin-bottom: 8px; }
+.brow { display: grid; grid-template-columns: 28px 26px 1fr auto; align-items: center; gap: 8px; padding: 5px 0; font-size: 14px; }
+.brow.me .bn { color: var(--accent); font-weight: 700; }
+.brow .bm { text-align: center; }
+.brow small { color: var(--text-2); font-weight: 500; }
+.bav { width: 26px; height: 26px; border-radius: 50%; font-size: 11px; display: grid; place-items: center; background: var(--fill-strong); object-fit: cover; }
+.bn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -4,14 +4,15 @@ et badges."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_token
 from app.api.schemas import Track
 from app.api.state import ApiDeps
+from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import challenges, dj_voice, instrumental, listening_map, memories, releases, smart_playlists, sport
+from app.services import challenges, discover, dj_voice, instrumental, listening_map, memories, releases, smart_playlists, sport
 from app.services import stats as stats_service
 
 router = APIRouter(tags=["extras"])
@@ -174,4 +175,28 @@ async def listening_places(deps: ApiDeps = Depends(require_token)) -> list[dict]
 
 @router.get("/challenges")
 async def weekly_challenges(tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> dict:
-    return await challenges.compute(deps.repo, deps.user_id, tz)
+    out = await challenges.compute(deps.repo, deps.user_id, tz)
+    out["friends"] = await challenges.friends_boards(deps.repo, deps.user_id, tz)
+    return out
+
+
+@router.get("/discover/radio/{source}/{artist_id}", response_model=list[Track])
+async def discover_radio(source: str, artist_id: str, artist: str = Query(""),
+                         deps: ApiDeps = Depends(require_token)) -> list[Track]:
+    """« Si tu aimes ce titre » : des artistes proches, jamais écoutés."""
+    try:
+        tracks = await discover.unknown_artists_radio(deps, deps.user_id, source, artist_id, artist)
+    except lookup.UnknownSourceError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except lookup.ProviderErrors as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return [Track.from_info(t) for t in tracks]
+
+
+@router.get("/home/mood")
+async def mood(tz: str | None = Query(None), lat: float | None = Query(None, ge=-90, le=90),
+               lon: float | None = Query(None, ge=-180, le=180), deps: ApiDeps = Depends(require_token)) -> dict:
+    """Mix « selon la météo » : l'humeur du moment (heure, jour, météo si la position est donnée)."""
+    out = await discover.mood_mix(deps, tz, lat, lon)
+    out["tracks"] = [Track.from_info(t).model_dump() for t in out["tracks"]]
+    return out

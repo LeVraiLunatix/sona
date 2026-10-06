@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var memories: [Memory] = []
     @State private var showingSport = false
     @State private var daily: DailyTrack?
+    @State private var mood: MoodMix?
 
     var body: some View {
         ScrollView {
@@ -22,6 +23,10 @@ struct HomeView: View {
 
                 if let daily, let track = daily.track {
                     dailyCard(track, reason: daily.reason).padding(.horizontal, 20).reveal(1)
+                }
+
+                if let mood, let first = mood.tracks.first {
+                    moodCard(mood, first: first).padding(.horizontal, 20).reveal(1)
                 }
 
                 if !viewModel.mixes.isEmpty {
@@ -167,9 +172,45 @@ struct HomeView: View {
         async let fresh = try? APIClient.shared.releases()
         async let past = try? APIClient.shared.memories()
         async let pick = try? APIClient.shared.dailyTrack()
+        // Dernière position connue (concerts, carte) : la météo du mix, sans redemander.
+        let place = ConcertAlerts.lastLocation
+        async let moment = try? APIClient.shared.mood(latitude: place?.0, longitude: place?.1)
         releases = await fresh ?? releases
         memories = await past ?? memories
         daily = await pick ?? daily
+        mood = await moment ?? mood
+    }
+
+    /// Mix « selon le moment » : pluie, soleil, nuit, soirée…
+    private func moodCard(_ mood: MoodMix, first: Track) -> some View {
+        Button {
+            player.play(first, context: mood.tracks, name: "\(mood.emoji) \(mood.title)")
+        } label: {
+            HStack(spacing: 14) {
+                Text(mood.emoji).font(.system(size: 40)).frame(width: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(moodEyebrow(mood)).font(Typo.caption).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                    Text(mood.title).font(Typo.headline).foregroundStyle(.white)
+                    Text(mood.subtitle).font(Typo.caption).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "play.fill").font(.system(size: 16, weight: .bold)).foregroundStyle(.black)
+                    .frame(width: 40, height: 40).background(Circle().fill(.white))
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(red: 0.11, green: 0.31, blue: 0.54), Color(red: 0.06, green: 0.16, blue: 0.3)],
+                                         startPoint: .leading, endPoint: .trailing))
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.98))
+    }
+
+    private func moodEyebrow(_ mood: MoodMix) -> String {
+        guard let weather = mood.weather else { return "SELON LE MOMENT" }
+        let temp = weather.temperature.map { " · \(Int($0.rounded())) °C" } ?? ""
+        return "SELON LA MÉTÉO · \(weather.label ?? "")\(temp)".uppercased()
     }
 
     /// « Titre du jour » : une découverte, la même toute la journée.
