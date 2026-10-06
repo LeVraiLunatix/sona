@@ -798,6 +798,7 @@ async function viewHome() {
     $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
     $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
     $("[data-focus]")?.addEventListener("click", (e) => { e.preventDefault(); focusSheet(); });
+    $("[data-recognize]")?.addEventListener("click", (e) => { e.preventDefault(); recognizeSheet(); });
     $("[data-mood-play]")?.addEventListener("click", () => playStation(`${mood.emoji} ${mood.title}`, async () => (await loadMood()).tracks));
     $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
   });
@@ -829,6 +830,7 @@ async function viewHome() {
         ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
         ${tile({ href: "#/sport", icon: icons.bolt, title: "Mode sport", subtitle: "La musique au tempo de ta course", tone: "green" })}
         ${tile({ icon: icons.clock, title: "Mode focus", subtitle: "Travailler en musique, avec des pauses", tone: "orange", data: "data-focus" })}
+        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "Sona écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
       </div></section>
     ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
       href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
@@ -2341,6 +2343,69 @@ function micChanged({ inUse, apps }) {
       toast(`Fin du vocal : volume rétabli à ${volLabel(before)}`);
     }
   }
+}
+
+// ── Reconnaître un titre ─────────────────────────────────────────────────
+// Le micro écoute 8 s, le serveur identifie l'extrait (service de Shazam)
+// et le retrouve dans Sona ; il est rangé dans la playlist « Entendu dehors ».
+
+async function recognizeSheet() {
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
+  catch { return toast("Autorise le micro pour reconnaître un titre"); }
+  const wasPlaying = !audio.paused;
+  if (wasPlaying) audio.pause();  // sinon Sona se reconnaît elle-même
+  let cancelled = false;
+  const wrap = openSheet(`<h2 class="sheet-title">Reconnaître un titre</h2><div class="rec" id="rec">
+      <div class="rec-pulse"><span>${icons.wave}</span></div><b id="rec-msg">J'écoute… 8 s</b><small class="muted">Approche-toi de la musique.</small></div>`,
+    { onClose: () => { cancelled = true; stream.getTracks().forEach((t) => t.stop()); } });
+  const box = $("#rec", wrap);
+  const chunks = [];
+  const recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.start();
+  for (let left = 7; left >= 0 && !cancelled; left--) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const msg = $("#rec-msg", wrap);
+    if (msg) msg.textContent = `J'écoute… ${left} s`;
+  }
+  const done = new Promise((r) => (recorder.onstop = r));
+  recorder.stop();
+  await done;
+  stream.getTracks().forEach((t) => t.stop());
+  if (cancelled) return;
+  box.innerHTML = `<span class="spinner"></span><b>Recherche du titre…</b>`;
+  try {
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    const res = await fetch(`${BASE}/recognize`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": blob.type }, body: blob });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`);
+    if (!data.found) {
+      box.innerHTML = `<b>Titre non reconnu</b><small class="muted">Rapproche-toi de la musique et réessaie.</small><button class="btn" data-rec-again>Réessayer</button>`;
+    } else {
+      const f = data.found, t = data.track;
+      box.innerHTML = `<img class="rec-art" src="${esc(f.cover_url || t?.cover_url || "")}" alt=""><b class="rec-title">${esc(f.title)}</b><span class="muted">${esc(f.artist)}</span>
+        ${t ? `<button class="btn" data-rec-play>${icons.play} Écouter dans Sona</button><small class="muted" id="rec-saved"></small>` : `<small class="muted">Introuvable dans le catalogue de Sona.</small>`}`;
+      if (t) {
+        $("[data-rec-play]", box).onclick = () => { wrap.close(); playList([t], 0, "Entendu dehors"); };
+        saveHeard(t).then((ok) => { const el = $("#rec-saved", box); if (el && ok) el.textContent = "✓ Ajouté à « Entendu dehors »"; });
+      }
+    }
+  } catch (e) {
+    box.innerHTML = `<b>Reconnaissance impossible</b><small class="muted">${esc(e.message)}</small><button class="btn" data-rec-again>Réessayer</button>`;
+  }
+  $("[data-rec-again]", box)?.addEventListener("click", () => { wrap.close(); recognizeSheet(); });
+}
+
+/** Range un titre reconnu dans la playlist « Entendu dehors » (créée au besoin). */
+async function saveHeard(t) {
+  try {
+    const lists = await api("/me/playlists");
+    const pl = lists.find((p) => p.name === "Entendu dehors");
+    if (pl) await api(`/me/playlists/${pl.id}/tracks`, { method: "POST", body: JSON.stringify({ tracks: [cleanTrack(t)] }) });
+    else await api("/me/playlists", { method: "POST", body: JSON.stringify({ name: "Entendu dehors", tracks: [cleanTrack(t)] }) });
+    return true;
+  } catch { return false; }
 }
 
 // ── Mode focus (Pomodoro) ────────────────────────────────────────────────

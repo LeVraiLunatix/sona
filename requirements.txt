@@ -12,3 +12,5 @@ edge-tts>=7.0,<8
 # précompilées pour Linux ARM (aarch64) et x86, sans PyTorch.
 numpy>=2.0
 onnxruntime>=1.20
+# « Reconnaître un titre » (app/services/recognize.py) : service de Shazam, sans clé.
+shazamio>=0.8
