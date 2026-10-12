@@ -115,6 +115,57 @@ def test_youtube_down_falls_back_to_soundcloud(client, tmp_path, monkeypatch):
     assert client.get("/health").json()["streaming"] == "ok"
 
 
+def test_lost_known_source_does_not_rule_out_youtube(client, tmp_path, monkeypatch):
+    """La vidéo mémorisée pour un titre a disparu : les autres vidéos YouTube
+    restent essayées, YouTube n'est pas en panne pour autant."""
+    known = Candidate(video_id="old", title="Titre", artist="Artiste", album=None, duration_seconds=180,
+                      cover_url=None, is_song=True)
+    other = Candidate(video_id="yt2", title="Titre", artist="Artiste", album=None, duration_seconds=180,
+                      cover_url=None, is_song=True)
+    tried = []
+
+    async def track_for(deps, source, source_id):
+        return TRACK
+
+    async def same(deezer, track):
+        return track
+
+    async def preferred(self, source, source_id):
+        return "old"
+
+    async def sources(track, cookies, excluded, preferred):
+        assert preferred == "old"
+        for candidate in (known, other):
+            yield candidate
+
+    async def download(settings, url, track, quality, fmt):
+        tried.append(url)
+        if url.endswith("=old"):
+            raise DownloadError("Téléchargement audio impossible.")
+        path = tmp_path / "work" / "titre.m4a"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"audio")
+        return path
+
+    class Verdict:
+        rejected = False
+
+    async def verify(track, path, ffmpeg):
+        return Verdict()
+
+    from app.db.repository import Repository
+
+    monkeypatch.setattr(Repository, "stream_source_get", preferred)
+    monkeypatch.setattr(stream, "_track_for", track_for)
+    monkeypatch.setattr(stream, "complete_preview", same)
+    monkeypatch.setattr(stream, "iter_audio_sources", sources)
+    monkeypatch.setattr(stream, "download_and_tag", download)
+    monkeypatch.setattr(stream, "verify_recording", verify)
+    ready = client.post("/stream/deezer/5/prepare", headers=AUTH)
+    assert ready.status_code == 200, ready.text
+    assert tried == ["https://www.youtube.com/watch?v=old", "https://www.youtube.com/watch?v=yt2"]
+
+
 def test_cookies_upload_from_the_app(client, tmp_path, monkeypatch):
     checked = []
 
