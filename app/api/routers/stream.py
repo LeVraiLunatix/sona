@@ -104,7 +104,9 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                         deps.settings, source_candidate.source_url, track, quality, fmt
                     )
                 except DownloadError as exc:
-                    if source_candidate.platform == "youtube":
+                    # La source mémorisée a pu disparaître (vidéo retirée) :
+                    # cela ne dit rien de YouTube, les autres vidéos restent à essayer.
+                    if source_candidate.platform == "youtube" and source_candidate.video_id != preferred:
                         youtube_failure = exc
                         stream_health.record(False, stream_health.classify(str(exc.__cause__ or exc), exc.bot_wall))
                         logger.info("YouTube indisponible pour %s — %s, essai des autres sources", track.artist, track.title)

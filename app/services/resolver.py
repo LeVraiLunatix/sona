@@ -481,6 +481,28 @@ def _search_soundcloud_sync(query: str) -> list[Candidate]:
     return [c for c in (_candidate_from_soundcloud(e) for e in entries if e) if c]
 
 
+def known_source(track: TrackInfo, video_id: str) -> Candidate:
+    """Candidat d'une source déjà retenue pour ce morceau, d'après son seul
+    identifiant (voir `Candidate.video_id`).
+
+    Une source SoundCloud (« soundcloud:123 ») doit redevenir une adresse
+    SoundCloud : prise pour une vidéo YouTube, elle échouait à coup sûr, et
+    les titres qui ne sont que sur SoundCloud (l'album « Deux frères » de
+    PNL) devenaient introuvables ou tombaient sur un repost de moindre qualité.
+    """
+    platform, _, track_id = video_id.partition(":")
+    if platform == "soundcloud" and track_id.isdigit():
+        return Candidate(
+            video_id=video_id, title=track.title, artist=track.artist, album=track.album,
+            duration_seconds=track.duration_seconds, cover_url=track.cover_url, is_song=False,
+            platform="soundcloud", url=f"https://api.soundcloud.com/tracks/{track_id}",
+        )
+    return Candidate(
+        video_id=video_id, title=track.title, artist=track.artist, album=track.album,
+        duration_seconds=track.duration_seconds, cover_url=track.cover_url, is_song=True,
+    )
+
+
 def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candidate]) -> None:
     if best is not None:
         logger.info(
@@ -538,10 +560,7 @@ async def iter_audio_sources(
     offered: set[str] = set(excluded)
     if preferred and preferred not in offered:
         offered.add(preferred)
-        yield Candidate(
-            video_id=preferred, title=track.title, artist=track.artist, album=track.album,
-            duration_seconds=track.duration_seconds, cover_url=track.cover_url, is_song=True,
-        )
+        yield known_source(track, preferred)
 
     # Recherches YouTube Music une formulation à la fois : dès qu'un titre
     # publié par l'artiste convient, inutile d'en lancer d'autres (chacune

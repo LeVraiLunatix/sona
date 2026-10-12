@@ -129,3 +129,18 @@ def test_known_source_is_offered_without_searching(monkeypatch):
             return candidate.video_id
 
     assert asyncio.run(first()) == "known"
+
+
+def test_known_soundcloud_source_is_downloaded_from_soundcloud(monkeypatch):
+    """Cas réel : « Frontières » et « Menace » de PNL (absents de YouTube).
+    La source retenue « soundcloud:… » était reproposée comme une vidéo
+    YouTube, donc toujours en échec, et le titre devenait introuvable."""
+    monkeypatch.setattr(resolver, "_search_ytmusic_sync", lambda queries: [])
+
+    async def first():
+        async for candidate in resolver.iter_audio_sources(TRACK, None, preferred="soundcloud:726423343"):
+            return candidate
+
+    known = asyncio.run(first())
+    assert known.platform == "soundcloud"
+    assert known.source_url == "https://api.soundcloud.com/tracks/726423343"
