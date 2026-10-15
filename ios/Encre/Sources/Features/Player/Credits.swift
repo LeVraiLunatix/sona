@@ -18,6 +18,10 @@ final class TrackArtistsCache: ObservableObject {
         }
     }
 
+    func featured(for track: Track) -> [TrackArtist] {
+        track.featuredArtists(extra: byId[track.id])
+    }
+
     func line(for track: Track) -> String {
         track.artistLine(extra: byId[track.id])
     }

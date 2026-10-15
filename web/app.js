@@ -49,6 +49,9 @@ function featHtml(t, links = false) {
 const goArtist = (t, id, name) => id ? `<span class="link" data-goartist="${esc(t.source)}/${esc(id)}">${esc(name)}</span>` : esc(name);
 /** « Favé (feat. RnBoi) », chaque nom cliquable. */
 const artistHtml = (t) => goArtist(t, t.artist_source_id, t.artist) + featHtml(t, true);
+/** Nom de l'album, cliquable quand on connaît son identifiant. */
+const albumHtml = (t) => t.album_source_id
+  ? `<span class="link" data-goalbum="${esc(t.source)}/${esc(t.album_source_id)}">${esc(t.album)}</span>` : esc(t.album);
 const artistsText = (t) => t.artist + (featuredOf(t).length ? ` (feat. ${featuredOf(t).map((a) => a.name).join(", ")})` : "");
 const isMobile = () => matchMedia("(max-width: 760px)").matches;
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -121,12 +124,12 @@ async function api(path, options = {}) {
 
 // Clic sur un nom d'artiste (barre de lecture, lecteur, listes) : sa page, sans lancer le titre.
 document.addEventListener("click", (e) => {
-  const link = e.target.closest?.("[data-goartist]");
+  const link = e.target.closest?.("[data-goartist], [data-goalbum]");
   if (!link) return;
   e.stopPropagation();
   e.preventDefault();
   closeNowPlaying();
-  location.hash = `#/artist/${link.dataset.goartist}`;
+  location.hash = link.dataset.goalbum ? `#/album/${link.dataset.goalbum}` : `#/artist/${link.dataset.goartist}`;
 }, true);
 
 function toast(text) {
@@ -198,7 +201,7 @@ const icons = {
   clock: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a1 1 0 0 1 1 1v4.6l3.2 1.9a1 1 0 1 1-1 1.7l-3.7-2.2A1 1 0 0 1 11 12V7a1 1 0 0 1 1-1z"),
   logo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2" stroke="#fff" stroke-width="2.3" stroke-linecap="round" fill="none"/></svg>`,
 };
-const bars = () => `<span class="bars ${audio.paused ? "paused" : ""}"><i></i><i></i><i></i></span>`;
+const bars = () => `<span class="bars ${audio.paused ? "paused" : ""}"><i></i><i></i><i></i><i></i></span>`;
 
 // ── Connexion ──────────────────────────────────────────────────────────────
 
@@ -1557,7 +1560,7 @@ function renderTopbar() {
     ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
-        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
+        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${albumHtml(t)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
@@ -1762,7 +1765,7 @@ function renderNowPlaying() {
       <div class="np-left">
         <img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt="">
         <div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
-          <div class="a">${artistHtml(t)}</div></div>
+          <div class="a">${artistHtml(t)}${t.album ? ` · ${albumHtml(t)}` : ""}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button></div>
         <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>
           <div class="np-times"><span id="np-cur">0:00</span><span id="np-rem">-0:00</span></div></div>
@@ -1804,7 +1807,7 @@ function renderNowPlayingMobile(np, t) {
             <button class="tbtn" data-np="more">${icons.more}</button></div>
           <div class="np-stage np-panel" id="np-right"></div>`}
       ${view === "art" ? `<div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
-          <div class="a">${artistHtml(t)}</div></div>
+          <div class="a">${artistHtml(t)}${t.album ? ` · ${albumHtml(t)}` : ""}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" aria-label="J'aime">${liked ? icons.heartFill : icons.heart}</button>
           <button class="tbtn" data-np="more" aria-label="Plus d'options">${icons.more}</button></div>` : ""}
       <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>
@@ -5490,7 +5493,21 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowRight" && audio.src) audio.currentTime += 10;
   else if (e.key === "ArrowLeft" && audio.src) audio.currentTime -= 10;
   else if (e.key.toLowerCase() === "l" && audio.src) openNowPlaying("lyrics", true);
+  else if (e.key.toLowerCase() === "q" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("queue") : openNowPlaying("queue", true));
+  else if (e.key.toLowerCase() === "c" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("credits") : openNowPlaying("credits", true));
+  else if (e.key === "/") { e.preventDefault(); location.hash = "#/search"; setTimeout(() => $("#q")?.focus(), 150); }
+  else if (e.key === "?") shortcutsSheet();
 });
+
+/** Aide « ? » : les raccourcis clavier. */
+function shortcutsSheet() {
+  if ($(".sheet-wrap")) return;
+  const rows = [
+    ["Espace", "Lecture / pause"], ["Ctrl + → / ←", "Titre suivant / précédent"], ["→ / ←", "Avancer / reculer de 10 s"],
+    ["L", "Paroles"], ["C", "Crédits"], ["Q", "À suivre"], ["/", "Rechercher"], ["Échap", "Fermer le lecteur"], ["?", "Cette aide"],
+  ];
+  openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2><div class="shortcuts">${rows.map(([k, d]) => `<div class="sc"><kbd>${esc(k)}</kbd><span>${esc(d)}</span></div>`).join("")}</div>`);
+}
 
 // ── Sona pour Windows ─────────────────────────────────────────────────────
 // La même page dans l'app d'ordinateur (dossier desktop/) : barre de titre

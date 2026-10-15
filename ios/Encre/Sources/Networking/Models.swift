@@ -101,13 +101,18 @@ extension Track {
     /// l'artiste ni dans le titre (« (feat. X) »). `extra` : artistes lus
     /// ailleurs quand la fiche n'en porte pas.
     func artistLine(extra: [TrackArtist]? = nil) -> String {
+        let feats = featuredArtists(extra: extra).map(\.name)
+        return feats.isEmpty ? artist : "\(artist) (feat. \(feats.joined(separator: ", ")))"
+    }
+
+    /// Les invités à montrer : ceux qui ne sont pas déjà dans le nom de l'artiste ni dans le titre.
+    func featuredArtists(extra: [TrackArtist]? = nil) -> [TrackArtist] {
         let all = (artists?.isEmpty == false ? artists : extra) ?? []
         let seen = " " + Track.words("\(artist) \(title)") + " "
-        let feats = all.map(\.name).filter { name in
-            let w = Track.words(name)
+        return all.filter { a in
+            let w = Track.words(a.name)
             return !w.isEmpty && !seen.contains(" " + w + " ")
         }
-        return feats.isEmpty ? artist : "\(artist) (feat. \(feats.joined(separator: ", ")))"
     }
 
     private static func words(_ text: String) -> String {

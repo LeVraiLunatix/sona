@@ -316,19 +316,32 @@ struct FullPlayerView: View {
                     .font(.system(size: compact ? 17 : 22, weight: .bold))
                     .foregroundStyle(Tone.primary)
                     .lineLimit(1)
-                Button {
-                    if let artistId = track.artistSourceId {
-                        onOpenRoute(.artist(source: track.source, id: artistId))
+                // « Favé (feat. RnBoi) » : chaque nom ouvre sa fiche artiste.
+                let feats = artistsCache.featured(for: track)
+                HStack(spacing: 0) {
+                    Button {
+                        if let artistId = track.artistSourceId {
+                            onOpenRoute(.artist(source: track.source, id: artistId))
+                        }
+                    } label: { Text(track.artist) }
+                        .buttonStyle(.pressable)
+                        .disabled(track.artistSourceId == nil)
+                    if !feats.isEmpty {
+                        Text(" (feat. ")
+                        ForEach(Array(feats.enumerated()), id: \.offset) { index, artist in
+                            Button {
+                                if let id = artist.sourceId { onOpenRoute(.artist(source: track.source, id: id)) }
+                            } label: { Text(artist.name + (index < feats.count - 1 ? ", " : "")) }
+                                .buttonStyle(.pressable)
+                                .disabled(artist.sourceId == nil)
+                        }
+                        Text(")")
                     }
-                } label: {
-                    Text(artistsCache.line(for: track))
-                        .font(.system(size: compact ? 15 : 19, weight: .regular))
-                        .foregroundStyle(Tone.secondary)
-                        .lineLimit(1)
-                        .task(id: track.id) { await artistsCache.load(track) }
                 }
-                .buttonStyle(.pressable)
-                .disabled(track.artistSourceId == nil)
+                .font(.system(size: compact ? 15 : 19, weight: .regular))
+                .foregroundStyle(Tone.secondary)
+                .lineLimit(1)
+                .task(id: track.id) { await artistsCache.load(track) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .id(track.id)

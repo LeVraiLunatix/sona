@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -24,6 +25,31 @@ def _require_text(q: str) -> str:
     if not text:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Paramètre `q` vide.")
     return text
+
+
+# Les résultats de recherche Deezer n'ont pas les artistes en featuring : on
+# les lit sur la fiche des premiers titres (en cache 6 h), au mieux et vite.
+FEATS_LOOKUP_MAX = 12
+FEATS_LOOKUP_BUDGET = 2.5
+
+
+async def _add_feats(deps: ApiDeps, tracks: list) -> None:
+    todo = [t for t in tracks if t.source == "deezer" and not t.artists][:FEATS_LOOKUP_MAX]
+    if not todo:
+        return
+    gate = asyncio.Semaphore(4)
+
+    async def one(track) -> None:
+        async with gate:
+            try:
+                track.artists = (await lookup.get_track(deps, "deezer", track.source_id)).artists
+            except Exception:  # noqa: BLE001 — au mieux : la recherche ne doit jamais échouer pour ça
+                return
+
+    tasks = [asyncio.create_task(one(t)) for t in todo]
+    _, pending = await asyncio.wait(tasks, timeout=FEATS_LOOKUP_BUDGET)
+    for task in pending:
+        task.cancel()
 
 
 @router.get("/search/artists", response_model=list[Artist])
@@ -81,6 +107,7 @@ async def search(
     except SearchError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
+    await _add_feats(deps, tracks)
     return SearchResponse(
         query_id=query_id,
         provider=cached.provider,

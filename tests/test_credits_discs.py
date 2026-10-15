@@ -210,3 +210,20 @@ def test_artist_top_tracks_sorted_by_rank_without_duplicates():
     client = DeezerClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     tracks = asyncio.run(client.get_artist_top_tracks("1"))
     assert [(t.title, t.source_id) for t in tracks] == [("Haut", "2"), ("Milieu", "4"), ("Bas", "1")]
+
+
+def test_search_results_get_featured_artists(client):
+    deps = client.app_state.deps
+
+    async def search_tracks(query, index=0, limit=25, order=None):
+        return [TrackInfo("deezer", "5", "Titre", "Favé", None, None, None, None)], 1
+
+    async def get_track(track_id):
+        return TrackInfo("deezer", track_id, "Titre", "Favé", None, None, None, None, artists=[
+            {"name": "Favé", "source_id": "1", "role": "main"}, {"name": "RnBoi", "source_id": "2", "role": "featured"},
+        ])
+
+    deps.deezer.search_tracks = search_tracks
+    deps.deezer.get_track = get_track
+    body = client.get("/search", params={"q": "fave"}, headers=AUTH).json()
+    assert [a["name"] for a in body["tracks"][0]["artists"]] == ["Favé", "RnBoi"]
