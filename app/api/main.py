@@ -17,7 +17,7 @@ from app.api.routers import (
     accounts, blindlive, blindtest, browse, connect, extras, catalog, concerts, friends, history, home, karaoke, library, lyrics, party,
     public,
     playlists,
-    search, stats, stream, tv, user_settings,
+    search, share, stats, stream, tv, user_settings,
 )
 from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
@@ -213,6 +213,7 @@ def create_app() -> FastAPI:
     app.include_router(blindtest.router)
     app.include_router(concerts.router)
     app.include_router(public.router)
+    app.include_router(share.router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict:

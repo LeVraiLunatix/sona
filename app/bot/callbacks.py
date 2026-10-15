@@ -75,8 +75,19 @@ class ImportCB(CallbackData, prefix="imp"):
     action: str  # go | list | view | sync | play | report | accept | remove
     pid: int = 0
     item: int = 0
-    status: str = ""
+    # Un champ vide revient à None une fois passé par Telegram.
+    status: str | None = None
     page: int = 1
+
+
+class ShareCB(CallbackData, prefix="shr"):
+    """Liens de partage (handlers/sharing.py)."""
+
+    action: str  # make | revoke | play
+    kind: str | None = None
+    source: str | None = None
+    id: str | None = None
+    token: str | None = None
 
 
 class AccessCB(CallbackData, prefix="access"):

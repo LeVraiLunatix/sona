@@ -308,6 +308,28 @@ CREATE TABLE IF NOT EXISTS track_analysis (
     PRIMARY KEY (source, source_id)
 );
 
+-- Liens de partage d'un titre, d'un album ou d'une playlist Sona
+-- (routers/share.py) : une page publique en lecture seule — pochette, titres,
+-- extraits de 30 s —, jamais l'audio complet. Jeton aléatoire de 128 bits,
+-- révocable, expiration facultative. Titre, sous-titre et pochette sont
+-- recopiés à la création : la page s'affiche sans rien redemander.
+CREATE TABLE IF NOT EXISTS share_links (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL,
+    ref TEXT NOT NULL,
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    cover_url TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    revoked INTEGER NOT NULL DEFAULT 0,
+    views INTEGER NOT NULL DEFAULT 0,
+    last_viewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_share_links_user ON share_links (user_id, created_at DESC);
+
 -- Paroles en cache (services/lyrics.py), absences comprises (`payload`
 -- NULL) : passé `expires_at`, le titre est recherché de nouveau.
 CREATE TABLE IF NOT EXISTS lyrics_cache (

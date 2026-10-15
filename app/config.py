@@ -72,6 +72,12 @@ class Settings:
     # Jeton d'utilisateur Musixmatch (app de bureau) : sans lui, Musixmatch
     # ne répond plus correctement et reste en veille.
     musixmatch_token: str | None = None
+    # Liens de partage (routers/share.py) : adresse publique HTTPS de l'API,
+    # telle qu'on la voit d'Internet (« https://sona.exemple.fr »), pour
+    # fabriquer les liens /s/… ; sinon celle de la requête reçue. Et adresse
+    # du site Sona, pour le bouton « Ouvrir dans Sona » de la page publique.
+    share_base_url: str | None = None
+    web_app_url: str | None = None
 
     @property
     def is_private_mode(self) -> bool:
@@ -144,6 +150,8 @@ def load_settings() -> Settings:
         karaoke_threads=int(os.getenv("KARAOKE_THREADS", "").strip() or min(2, os.cpu_count() or 1)),
         lyrics_extra_sources=os.getenv("LYRICS_EXTRA_SOURCES", "1").strip().lower() not in ("0", "false", "non", "no"),
         musixmatch_token=os.getenv("MUSIXMATCH_TOKEN", "").strip() or None,
+        share_base_url=os.getenv("SHARE_BASE_URL", "").strip().rstrip("/") or None,
+        web_app_url=os.getenv("SONA_WEB_URL", "").strip().rstrip("/") or None,
         admin_lastfm_users=frozenset(
             name.strip().casefold()
             for name in (os.getenv("ADMIN_LASTFM_USERS") or os.getenv("LASTFM_USER") or "").split(",")

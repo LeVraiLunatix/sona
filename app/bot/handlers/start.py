@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from app.bot import access, keyboards, navigation
@@ -31,12 +31,20 @@ async def render_link_help(deps: Deps, target: RenderTarget, user_id: int, param
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, deps: Deps) -> None:
-    """Accueil d'un utilisateur déjà autorisé.
+async def cmd_start(message: Message, deps: Deps, command: CommandObject | None = None) -> None:
+    """Accueil d'un utilisateur déjà autorisé — ou lien de partage ouvert
+    depuis sa page publique (`/start s_<jeton>`).
 
     Les utilisateurs non autorisés n'arrivent jamais ici : le filtre de
     whitelist les confie à `app.bot.access` (invitation, demande d'accès…).
     """
+    args = (command.args or "") if command else ""
+    if args.startswith("s_"):
+        from app.bot.handlers.sharing import open_shared
+
+        await deps.repo.ensure_user(message.from_user.id)
+        await open_shared(deps, message, args[2:])
+        return
     await access.open_home(deps, message.from_user, message.chat.id)
 
 

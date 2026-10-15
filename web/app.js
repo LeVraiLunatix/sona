@@ -597,7 +597,7 @@ async function route() {
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
     stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
     blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
-    settings: viewSettings, admin: viewAdmin, health: viewHealth, devices: viewDevices, status: viewStatus,
+    settings: viewSettings, admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -1075,6 +1075,7 @@ async function viewAlbum(source, id, isPlaylist = false) {
     bindLikeButtons();
     $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(tracks));
     $("[data-dlall]")?.addEventListener("click", () => offlineDownloadAll(tracks));
+    $("[data-share-album]")?.addEventListener("click", () => sonaShareSheet({ kind: "album", source: album.source, id: album.source_id, title: album.title, subtitle: album.artist, cover_url: album.cover_url }));
     // « Autres versions » (deluxe, remasterisé…) en bas de l'album, comme Apple Music.
     if (!isPlaylist) api(`/albums/${encodeURIComponent(source)}/${encodeURIComponent(id)}/versions`).then((versions) => {
       const box = $("#album-versions");
@@ -1089,7 +1090,8 @@ async function viewAlbum(source, id, isPlaylist = false) {
     info: [album.year?.slice(0, 4), plural(tracks.length, "titre"), !isPlaylist && discOf(tracks) > 1 ? `${discOf(tracks)} disques` : "", total ? minutesLabel(total / 60) : ""].filter(Boolean).join(" · "), list,
     extra: (isPlaylist ? "" : likeButton("album", album.source, album.source_id, state.likedAlbums))
       + `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`
-      + (offline.supported && !isPlaylist ? `<button class="btn ghost icon-only" data-dlall title="Télécharger l'album pour l'écoute hors ligne">${icons.download}</button>` : ""),
+      + (offline.supported && !isPlaylist ? `<button class="btn ghost icon-only" data-dlall title="Télécharger l'album pour l'écoute hors ligne">${icons.download}</button>` : "")
+      + (isPlaylist ? "" : `<button class="btn ghost icon-only" data-share-album title="Partager l'album">${icons.share}</button>`),
   }) + trackTable(tracks, album.title, { showAlbum: isPlaylist, discs: !isPlaylist }) + `<div id="album-versions"></div>`);
 }
 
@@ -1214,6 +1216,7 @@ function playlistMenu(p) {
     } });
     if (p.origin && p.import_status === "done") items.push({ icon: icons.check, label: "Rapport d'import", sub: "Trouvés, à vérifier, introuvables", run: () => importReport(p) });
   }
+  if (p.track_count) items.push({ icon: icons.share, label: "Partager un lien…", sub: "Page publique : titres et extraits de 30 s", run: () => sonaShareSheet({ kind: "playlist", source: "sona", id: p.id, title: p.name, subtitle: plural(p.track_count, "titre"), cover_url: p.cover_url || (p.covers || [])[0] }) });
   items.push({ icon: icons.wave, label: "Blind test sur cette playlist", run: () => { bt.pending = { mode: "playlist", ref: String(p.id), label: p.name }; go("#/blindtest"); } });
   if (p.is_owner) {
     items.push({ icon: icons.trash, label: "Supprimer la playlist", danger: true, run: async () => {
@@ -4382,7 +4385,8 @@ function trackMenu(t, ctx = null, index = -1) {
     offline.supported && { icon: icons.download, label: offlineHas(t) ? "Supprimer le téléchargement" : "Télécharger pour l'écoute hors ligne",
       run: () => (offlineHas(t) ? offlineRemove(t).then(() => toast("Téléchargement supprimé")) : offlineDownload(t)) },
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
-    { icon: icons.share, label: "Partager", run: () => shareTrack(t) },
+    { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
+    { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
   ], { header });
 }
 
@@ -4415,6 +4419,83 @@ async function shareTrack(t) {
     if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via Sona)`, url: trackLink(t) });
     else { await navigator.clipboard.writeText(text); toast("Lien copié"); }
   } catch {}
+}
+
+// ── Liens de partage (page publique : pochette et extraits de 30 s) ───────
+const SHARE_VALIDITY = [[null, "Sans limite"], [24, "24 h"], [168, "7 jours"], [720, "30 jours"]];
+const SHARE_KINDS = { track: "Titre", album: "Album", playlist: "Playlist" };
+
+/** « Partager » : un lien vers une page publique en lecture seule — jamais
+ * le titre complet (Sona est privé) ; les membres l'ouvrent dans Sona. */
+function sonaShareSheet(target) {
+  let validity = null;
+  const wrap = openSheet(`<h2 class="sheet-title">Partager</h2>
+    <div class="share-card"><img src="${esc(big(target.cover_url, 200))}" alt="" onerror="this.style.visibility='hidden'">
+      <div><small>${esc(SHARE_KINDS[target.kind] || "")}</small><b>${esc(target.title)}</b><span>${esc(target.subtitle || "")}</span></div></div>
+    <h3 class="set-head">Validité du lien</h3>
+    <div class="chips share-validity">${SHARE_VALIDITY.map(([h, label]) => `<button class="chip ${h === null ? "on" : ""}" data-validity="${h ?? ""}">${label}</button>`).join("")}</div>
+    <div class="share-result"><button class="btn wide" data-share-create>${icons.share} Créer le lien</button></div>
+    <p class="muted small-note">Sans compte Sona, on voit la pochette et des extraits officiels de 30 s, jamais le titre complet. Les membres l'ouvrent dans l'app, sur le site ou dans Telegram. Révocable à tout moment dans Réglages › Liens de partage.</p>`, { cls: "share-sheet" });
+  const result = $(".share-result", wrap);
+  const reset = () => { result.innerHTML = `<button class="btn wide" data-share-create>${icons.share} Créer le lien</button>`; };
+  $(".share-validity", wrap).onclick = (e) => {
+    const chip = e.target.closest("[data-validity]");
+    if (!chip) return;
+    validity = chip.dataset.validity ? Number(chip.dataset.validity) : null;
+    $$("[data-validity]", wrap).forEach((c) => c.classList.toggle("on", c === chip));
+    reset();
+  };
+  result.onclick = async (e) => {
+    if (e.target.closest("[data-share-create]")) {
+      e.target.closest("button").disabled = true;
+      try {
+        const link = await api("/me/shares", { method: "POST", body: JSON.stringify({ kind: target.kind, source: target.source, id: String(target.id), expires_in_hours: validity }) });
+        result.innerHTML = `<div class="share-url" data-share-url>${esc(link.url)}</div>
+          <div class="pill-row"><button class="btn" data-share-copy>${icons.check} Copier</button>${navigator.share && !desktop ? `<button class="btn ghost" data-share-native>${icons.share} Partager</button>` : ""}<a class="btn ghost" href="${esc(link.url)}" target="_blank" rel="noopener">Voir la page</a></div>`;
+        result.dataset.url = link.url;
+      } catch (err) { toast(err.message); reset(); }
+      return;
+    }
+    const url = result.dataset.url;
+    if (e.target.closest("[data-share-copy]")) { try { await navigator.clipboard.writeText(url); haptic(); toast("Lien copié"); } catch { toast(url); } }
+    if (e.target.closest("[data-share-native]")) { try { await navigator.share({ title: target.title, text: `🎧 ${target.title}${target.subtitle ? ` — ${target.subtitle}` : ""}`, url }); } catch {} }
+  };
+}
+
+/** Réglages › Liens de partage : les liens actifs, leurs vues, la révocation. */
+async function shareLinksSheet() {
+  const links = await api("/me/shares").catch((e) => { toast(e.message); return null; });
+  if (!links) return;
+  const row = (l) => `<div class="share-row" data-token="${esc(l.token)}"><img src="${esc(big(l.cover_url, 120))}" alt="" onerror="this.style.visibility='hidden'">
+    <div><b>${esc(l.title)}</b><span>${esc([SHARE_KINDS[l.kind], plural(l.views, "vue"), !l.active ? "expiré" : l.expires_at ? `jusqu'au ${new Date(l.expires_at).toLocaleDateString("fr-FR")}` : ""].filter(Boolean).join(" · "))}</span></div>
+    <button class="tbtn small" data-share-copy-row title="Copier le lien">${icons.check}</button><button class="tbtn small" data-share-revoke title="Révoquer">${icons.trash}</button></div>`;
+  const wrap = openSheet(`<h2 class="sheet-title">Liens de partage</h2>
+    <div class="share-list">${links.length ? links.map(row).join("") : `<p class="muted">Aucun lien. Partage un titre, un album ou une playlist depuis son menu « ⋯ ».</p>`}</div>`);
+  $(".share-list", wrap).onclick = async (e) => {
+    const rowEl = e.target.closest("[data-token]");
+    if (!rowEl) return;
+    const link = links.find((l) => l.token === rowEl.dataset.token);
+    if (e.target.closest("[data-share-copy-row]")) { try { await navigator.clipboard.writeText(link.url); toast("Lien copié"); } catch { toast(link.url); } }
+    if (e.target.closest("[data-share-revoke]")) {
+      if (!(await confirmSheet(`Révoquer le lien de « ${link.title} » ? La page publique disparaîtra.`, "Révoquer"))) return;
+      try { await api(`/me/shares/${link.token}`, { method: "DELETE" }); rowEl.remove(); toast("Lien révoqué"); } catch (err) { toast(err.message); }
+    }
+  };
+}
+
+/** Lien de partage reçu (« Ouvrir dans Sona ») : l'album s'ouvre, un titre
+ * ou une playlist s'affiche avec ses titres. */
+async function viewShared(token) {
+  $("#content").innerHTML = skeleton("");
+  const shared = await api(`/shares/${encodeURIComponent(token)}`);
+  if (shared.kind === "album") { go(`#/album/${shared.source}/${shared.id}`); return null; }
+  const list = register(shared.tracks, shared.title);
+  setTimeout(() => $("[data-addall-shared]")?.addEventListener("click", () => addToPlaylistSheet(shared.tracks)));
+  return page(hero({
+    cover: shared.cover_url, kind: `${SHARE_KINDS[shared.kind] || ""} partagé${shared.kind === "playlist" ? "e" : ""}`, title: shared.title,
+    by: shared.subtitle || "", info: plural(shared.tracks.length, "titre"), list,
+    extra: `<button class="btn ghost icon-only" data-addall-shared title="Ajouter à une playlist">${icons.plus}</button>`,
+  }) + trackTable(shared.tracks, shared.title, { showAlbum: true }));
 }
 
 async function addToPlaylistSheet(tracks) {
@@ -5960,6 +6041,7 @@ async function viewSettings() {
     <h3 class="set-head">Compte</h3><div class="set-group">
       ${toggleRow("share_listening", "Partager mon écoute", "Tes amis voient ce que tu écoutes en direct et tes dernières écoutes.", me.share_listening)}
       ${linkRow("data-public-link", icons.globe, "Page « J'écoute » publique", "Un lien qui montre en direct ce que tu écoutes")}
+      ${linkRow("data-share-links", icons.share, "Liens de partage", "Tes liens publics, leurs vues ; les révoquer")}
       ${toggleRow("scrobble_to_lastfm", "Scrobbler sur Last.fm", "Chaque morceau écouté au moins à moitié est ajouté à ton profil Last.fm ; un titre aimé devient ♥ sur Last.fm.", me.scrobble_to_lastfm)}
       <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque Sona"}</small></span>${icons.right}</a>
       <a class="set-row" data-history><span class="mi-icon">${icons.download}</span><span class="set-text"><b>Importer mon historique Last.fm</b><small id="history-status">Pour des stats complètes</small></span>${icons.right}</a>
@@ -6041,6 +6123,7 @@ function bindSettings() {
   $("[data-install-app]")?.addEventListener("click", installApp);
   $("[data-sound]")?.addEventListener("click", soundSheet);
   $("[data-public-link]")?.addEventListener("click", publicLinkSheet);
+  $("[data-share-links]")?.addEventListener("click", shareLinksSheet);
   if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;

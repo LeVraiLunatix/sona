@@ -16,6 +16,7 @@ struct UserPlaylistView: View {
     @State private var newName = ""
     @State private var confirmingDelete = false
     @State private var showsReport = false
+    @State private var shareTarget: ShareTarget?
 
     var body: some View {
         Group {
@@ -46,6 +47,10 @@ struct UserPlaylistView: View {
                         }
                         Button { player.playNext(entries.map(\.track)) } label: {
                             Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
+                        }
+                        .disabled(entries.isEmpty)
+                        Button { shareTarget = .playlist(playlist) } label: {
+                            Label("Partager…", systemImage: "link")
                         }
                         .disabled(entries.isEmpty)
                         if playlist.mine {
@@ -97,6 +102,7 @@ struct UserPlaylistView: View {
         ) {
             Button("Supprimer", role: .destructive) { Task { await delete() } }
         }
+        .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
         .sheet(isPresented: $showsReport, onDismiss: { Task { await load() } }) {
             ImportReportView(playlistId: playlistId)
         }

@@ -682,6 +682,56 @@ struct ImportItem: Codable, Identifiable, Hashable {
     }
 }
 
+/// Lien de partage public d'un titre, d'un album ou d'une playlist.
+struct SonaShare: Codable, Identifiable, Hashable {
+    var token: String
+    var url: String
+    var kind: String
+    var source: String
+    var sourceId: String
+    var title: String
+    var subtitle: String?
+    var coverURL: String?
+    var createdAt: String
+    var expiresAt: String?
+    var views: Int
+    var active: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case token, url, kind, source, title, subtitle, views, active
+        case sourceId = "id"
+        case coverURL = "cover_url"
+        case createdAt = "created_at"
+        case expiresAt = "expires_at"
+    }
+
+    var id: String { token }
+    var kindLabel: String {
+        switch kind {
+        case "album": "Album"
+        case "playlist": "Playlist"
+        default: "Titre"
+        }
+    }
+}
+
+/// Lien de partage reçu, ouvert dans l'app (`encre://share?token=…`).
+struct SharedContent: Codable {
+    var kind: String
+    var source: String
+    var sourceId: String
+    var title: String
+    var subtitle: String?
+    var coverURL: String?
+    var tracks: [Track]
+
+    enum CodingKeys: String, CodingKey {
+        case kind, source, title, subtitle, tracks
+        case sourceId = "id"
+        case coverURL = "cover_url"
+    }
+}
+
 struct ImportReport: Codable {
     var playlist: UserPlaylist
     var counts: [String: Int]

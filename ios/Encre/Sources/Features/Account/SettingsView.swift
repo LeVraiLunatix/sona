@@ -96,6 +96,11 @@ struct SettingsView: View {
                         Label("Page « J'écoute » publique", systemImage: "globe")
                     }
                     NavigationLink {
+                        ShareLinksView()
+                    } label: {
+                        Label("Liens de partage", systemImage: "link")
+                    }
+                    NavigationLink {
                         CarModeSettingsView()
                     } label: {
                         Label("Mode voiture", systemImage: "car.fill")

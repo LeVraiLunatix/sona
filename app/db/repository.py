@@ -202,6 +202,31 @@ class Playlist:
 
 
 @dataclass(slots=True)
+class ShareLink:
+    """Lien de partage public d'un titre, d'un album ou d'une playlist Sona."""
+
+    token: str
+    user_id: int
+    kind: str  # « track » | « album » | « playlist »
+    source: str  # deezer, spotify… ou « sona » (playlist de l'app)
+    ref: str
+    title: str
+    subtitle: str | None
+    cover_url: str | None
+    created_at: str
+    expires_at: str | None = None
+    revoked: int = 0
+    views: int = 0
+    last_viewed_at: str | None = None
+
+    @property
+    def active(self) -> bool:
+        if self.revoked:
+            return False
+        return self.expires_at is None or self.expires_at > _now()
+
+
+@dataclass(slots=True)
 class ImportItem:
     """Un titre de la playlist d'origine et ce que l'import en a fait."""
 
@@ -1488,6 +1513,54 @@ class Repository:
 
     async def analysis_delete(self, source: str, source_id: str) -> None:
         await self._db.conn.execute("DELETE FROM track_analysis WHERE source=? AND source_id=?", (source, source_id))
+        await self._db.conn.commit()
+
+    # -- Liens de partage (routers/share.py) ----------------------------------
+
+    async def share_create(self, link: ShareLink) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO share_links (token, user_id, kind, source, ref, title, subtitle, cover_url,
+                                        created_at, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (link.token, link.user_id, link.kind, link.source, link.ref, link.title, link.subtitle,
+             link.cover_url, link.created_at, link.expires_at),
+        )
+        await self._db.conn.commit()
+
+    async def share_get(self, token: str) -> ShareLink | None:
+        """Lien de partage, même révoqué ou expiré (l'appelant décide)."""
+        cursor = await self._db.conn.execute("SELECT * FROM share_links WHERE token=?", (token,))
+        row = await cursor.fetchone()
+        return ShareLink(**{k: row[k] for k in row.keys()}) if row else None
+
+    async def share_list(self, user_id: int) -> list[ShareLink]:
+        cursor = await self._db.conn.execute(
+            "SELECT * FROM share_links WHERE user_id=? AND revoked=0 ORDER BY created_at DESC", (user_id,)
+        )
+        return [ShareLink(**{k: r[k] for k in r.keys()}) for r in await cursor.fetchall()]
+
+    async def share_find_active(self, user_id: int, kind: str, source: str, ref: str) -> ShareLink | None:
+        """Lien sans expiration déjà créé pour ce contenu : on le redonne
+        plutôt que d'en multiplier."""
+        cursor = await self._db.conn.execute(
+            """SELECT * FROM share_links WHERE user_id=? AND kind=? AND source=? AND ref=?
+               AND revoked=0 AND expires_at IS NULL ORDER BY created_at DESC LIMIT 1""",
+            (user_id, kind, source, ref),
+        )
+        row = await cursor.fetchone()
+        return ShareLink(**{k: row[k] for k in row.keys()}) if row else None
+
+    async def share_revoke(self, user_id: int, token: str) -> bool:
+        cursor = await self._db.conn.execute(
+            "UPDATE share_links SET revoked=1 WHERE token=? AND user_id=? AND revoked=0", (token, user_id)
+        )
+        await self._db.conn.commit()
+        return cursor.rowcount > 0
+
+    async def share_viewed(self, token: str) -> None:
+        await self._db.conn.execute(
+            "UPDATE share_links SET views=views+1, last_viewed_at=? WHERE token=?", (_now(), token)
+        )
         await self._db.conn.commit()
 
     # -- Paroles en cache (services/lyrics.py) ---------------------------------

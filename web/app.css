@@ -734,6 +734,21 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .imp-pick small { opacity: .6; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imp-pick em { font-style: normal; opacity: .5; font-variant-numeric: tabular-nums; font-size: 13px; }
 .small-note { font-size: 12.5px; }
+/* Partage : aperçu, validité, lien créé, liste des liens. */
+.share-card { display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 16px; background: var(--fill); margin: 8px 0 4px; }
+.share-card img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: var(--fill); flex: none; }
+.share-card div { display: grid; gap: 2px; min-width: 0; }
+.share-card small { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.share-card b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-card span { color: var(--text-2); font-size: 14px; }
+.share-validity { margin-bottom: 14px; }
+.share-result { display: grid; gap: 12px; margin-bottom: 10px; }
+.share-url { padding: 12px 14px; border-radius: 12px; background: var(--fill); font: 500 13px/1.4 ui-monospace, "SF Mono", Consolas, monospace; color: var(--text-2); word-break: break-all; user-select: all; }
+.share-row { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--hairline); }
+.share-row img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--fill); }
+.share-row div { display: grid; gap: 2px; min-width: 0; }
+.share-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-row span { font-size: 13px; color: var(--text-2); }
 .hidden { display: none !important; }
 .btn.small { height: 30px; padding: 0 14px; font-size: 13px; }
 .btn.big { height: 52px; padding: 0 30px; font-size: 17px; border-radius: 999px; }

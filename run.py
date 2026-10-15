@@ -46,6 +46,7 @@ BASE_COMMANDS = [
     BotCommand(command="search", description="Rechercher un morceau"),
     BotCommand(command="importer", description="Importer une playlist (Spotify, Deezer, YouTube, SoundCloud…)"),
     BotCommand(command="playlists", description="Mes playlists importées"),
+    BotCommand(command="partages", description="Mes liens de partage"),
     BotCommand(command="help", description="Aide"),
     BotCommand(command="id", description="Afficher mon identifiant Telegram"),
 ]

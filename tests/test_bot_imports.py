@@ -123,6 +123,12 @@ def test_list_of_imported_playlists(deps):
     assert empty_markup is None and "Aucune playlist" in empty_text
 
 
+def test_callbacks_survive_the_round_trip_through_telegram():
+    """Un champ vide revient à None une fois passé par Telegram."""
+    packed = ImportCB(action="view", pid=3).pack()
+    assert ImportCB.unpack(packed).pid == 3
+
+
 def test_pending_link_expires(deps):
     callback = FakeCallback(FakeMessage())
     asyncio.run(imports.on_go(callback, deps))

@@ -15,6 +15,7 @@ from app.bot.handlers import (
     playlist,
     search,
     settings,
+    sharing,
     start,
     track,
 )
@@ -33,6 +34,7 @@ def setup_routers(dp: Dispatcher) -> None:
     dp.include_router(admin.router)
     dp.include_router(announce.router)
     dp.include_router(imports.router)
+    dp.include_router(sharing.router)
     # Suggestions au-dessus du champ de saisie (mode inline) : un type
     # d'update à part, jamais en concurrence avec les messages.
     dp.include_router(inline.router)

@@ -51,6 +51,9 @@ const jsonRoutes = {
     track_count: 2, duration_seconds: 6, import_status: "done", import_total: 3, import_done: 3, import_missing: 1, import_uncertain: 1, import_added: 0,
     import_error: null, synced_at: new Date().toISOString(), updated_at: new Date().toISOString(), visibility: "private", is_owner: true, can_edit: true,
     entries: [{ entry_id: 1, track: track(1) }, { entry_id: 2, track: track(2) }] },
+  "/me/shares": { token: "tok123456789abcdefghij", url: "https://sona.exemple.fr/s/tok123456789abcdefghij", kind: "album", source: "deezer", id: "99",
+    title: "Double", subtitle: "Favé", cover_url: null, created_at: new Date().toISOString(), expires_at: null, views: 0, active: true },
+  "/shares/tok123456789abcdefghij": { kind: "playlist", source: "sona", id: "5", title: "Soirée partagée", subtitle: "Playlist de Léa · 2 titres", cover_url: null, tracks: [track(1), track(2)] },
   "/me/playlists/5/import": { playlist: {}, counts: { found: 1, uncertain: 1, missing: 1 }, items: [
     { id: 1, position: 0, status: "found", reason: null, original: track(1, { source: "soundcloud" }), matched: track(1), entry_id: 1, fixed: false },
     { id: 2, position: 1, status: "uncertain", reason: "Durée différente (6 s d'écart)", original: track(2, { source: "soundcloud", title: "Titre deux" }), matched: track(2), entry_id: 2, fixed: false },
@@ -149,7 +152,19 @@ await page.keyboard.press("Escape");
 await page.keyboard.press("Escape");
 // Fermer le rapport recharge la fiche de la playlist : on attend la fin.
 await page.waitForTimeout(800);
-// 9. aide raccourcis
+// 9. partage : lien d'un album, puis lien reçu ouvert dans Sona
+await page.goto(`http://localhost:${port}/web/#/album/deezer/99`);
+await page.waitForSelector("[data-share-album]", { timeout: 5000 }).catch(() => {});
+await page.click("[data-share-album]").catch((e) => out("partage: " + e.message.split("\n")[0]));
+await page.click("[data-share-create]").catch(() => {});
+await page.waitForSelector(".share-url", { timeout: 5000 }).catch(() => {});
+out(`lien de partage: ${await page.$eval(".share-url", (e) => e.textContent).catch(() => "absent")}`);
+await page.keyboard.press("Escape");
+await page.goto(`http://localhost:${port}/web/#/s/tok123456789abcdefghij`);
+await page.waitForSelector(".hero h1", { timeout: 5000 }).catch(() => {});
+out(`lien reçu: ${await page.$eval(".hero h1", (e) => e.textContent).catch(() => "absent")}`);
+await page.waitForTimeout(800);
+// 10. aide raccourcis
 await page.keyboard.press("Escape");
 await page.keyboard.press("?");
 out(`aide raccourcis: ${await page.$$eval(".shortcuts .sc", (e) => e.length)} lignes`);

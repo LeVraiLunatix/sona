@@ -20,6 +20,7 @@ struct TrackRow: View {
     @Environment(\.addToPlaylist) private var addToPlaylist
     @ObservedObject private var downloads = DownloadManager.shared
     @State private var showsCredits = false
+    @State private var sharing = false
 
     var body: some View {
         Button(action: action) {
@@ -64,6 +65,7 @@ struct TrackRow: View {
         }
         .buttonStyle(.pressable(scale: 0.98))
         .sheet(isPresented: $showsCredits) { CreditsView(track: track) }
+        .sheet(isPresented: $sharing) { SonaShareSheet(target: .track(track)) }
         .contextMenu {
             if PartyManager.shared.isGuest {
                 Button { Task { await PartyManager.shared.propose(track) } } label: {
@@ -110,6 +112,7 @@ struct TrackRow: View {
                 }
             }
             Button { showsCredits = true } label: { Label("Crédits du titre", systemImage: "list.bullet.rectangle") }
+            Button { sharing = true } label: { Label("Partager…", systemImage: "link") }
             if let onOpenArtist {
                 Button(action: onOpenArtist) { Label("Voir l'artiste", systemImage: "person.crop.circle") }
             }

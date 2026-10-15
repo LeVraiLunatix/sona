@@ -443,6 +443,37 @@ final class APIClient {
         try await send(try request("/me/playlists/\(id)/sync", method: "POST"))
     }
 
+    // MARK: - Liens de partage
+
+    /// Lien vers une page publique (pochette, extraits de 30 s) ; sans
+    /// `expiresInHours`, il ne périme pas (il reste révocable).
+    func createShare(kind: String, source: String, id: String, expiresInHours: Int?) async throws -> SonaShare {
+        struct Body: Encodable {
+            let kind: String
+            let source: String
+            let id: String
+            let expiresInHours: Int?
+            enum CodingKeys: String, CodingKey {
+                case kind, source, id
+                case expiresInHours = "expires_in_hours"
+            }
+        }
+        let data = try encode(Body(kind: kind, source: source, id: id, expiresInHours: expiresInHours))
+        return try await send(try request("/me/shares", method: "POST", bodyData: data))
+    }
+
+    func shares() async throws -> [SonaShare] {
+        try await send(try request("/me/shares"))
+    }
+
+    func revokeShare(token: String) async throws {
+        try await sendNoContent(try request("/me/shares/\(token)", method: "DELETE"))
+    }
+
+    func openShare(token: String) async throws -> SharedContent {
+        try await send(try request("/shares/\(token)"))
+    }
+
     /// Rapport d'import titre par titre (`status` : found, uncertain, missing).
     func importReport(playlistId: Int, status: String? = nil) async throws -> ImportReport {
         let query = status.map { [URLQueryItem(name: "status", value: $0)] } ?? []

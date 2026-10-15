@@ -11,6 +11,7 @@ struct AlbumDetailView: View {
     @State private var palette: [Color] = ArtworkPalette.fallback
     @State private var inLibrary = false
     @State private var libraryBounce = 0
+    @State private var shareTarget: ShareTarget?
     @State private var versions: [Album] = []
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.addToPlaylist) private var addToPlaylist
@@ -52,6 +53,11 @@ struct AlbumDetailView: View {
                                 Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
                             }
                         }
+                        if !isPlaylist {
+                            Button { shareTarget = .album(album) } label: {
+                                Label("Partager…", systemImage: "link")
+                            }
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                     }
@@ -68,6 +74,7 @@ struct AlbumDetailView: View {
                 }
             }
         }
+        .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
         .task { await load() }
     }
 

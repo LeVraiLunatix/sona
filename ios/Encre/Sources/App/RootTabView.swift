@@ -144,6 +144,22 @@ struct RootTabView: View {
         }
     }
 
+    /// Lien de partage : l'album s'ouvre ; un titre ou une playlist se lance.
+    private func openShare(_ token: String) async {
+        do {
+            let content = try await APIClient.shared.openShare(token: token)
+            if content.kind == "album" {
+                selectedTab = .home
+                homePath.append(Route.album(source: content.source, id: content.sourceId))
+            } else if let first = content.tracks.first {
+                player.play(first, context: content.tracks, name: content.title)
+                showingPlayer = true
+            }
+        } catch {
+            player.errorMessage = "Ce lien de partage n'existe plus (expiré ou révoqué)."
+        }
+    }
+
     /// Liens `encre://…` des widgets, de la Live Activity et des notifications.
     private func open(_ url: URL) {
         guard url.scheme == "encre" else { return }
@@ -189,6 +205,11 @@ struct RootTabView: View {
             showingRecognize = true
         case "devices":
             showingDevices = true
+        case "share":
+            // Lien de partage reçu (page publique › « Ouvrir dans l'app »).
+            if let token = query.first(where: { $0.name == "token" })?.value {
+                Task { await openShare(token) }
+            }
         case "player":
             if player.current != nil || remote.isRemote { showingPlayer = true }
         case "djradio":

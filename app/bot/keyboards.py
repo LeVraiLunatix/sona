@@ -7,6 +7,7 @@ from app.bot.callbacks import (
     AdminCB,
     AlbumCB,
     ImportCB,
+    ShareCB,
     ArtistCB,
     HistoryCB,
     LibraryCB,
@@ -140,6 +141,7 @@ def track_keyboard(track: TrackInfo, in_library: bool) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Écouter", callback_data=TrackCB(action="play", source=track.source, id=track.source_id).pack())],
         row2,
         [InlineKeyboardButton(text=lib_label, callback_data=TrackCB(action=lib_action, source=track.source, id=track.source_id).pack())],
+        [InlineKeyboardButton(text="🔗 Partager", callback_data=ShareCB(action="make", kind="track", source=track.source, id=track.source_id).pack())],
         _back_row(NavCB(action="back").pack()),
     )
 
@@ -168,6 +170,7 @@ def album_keyboard(
         pag,
         [InlineKeyboardButton(text="Tout écouter", callback_data=AlbumCB(action="playall", source=album.source, id=album.source_id).pack())],
         [InlineKeyboardButton(text=lib_label, callback_data=AlbumCB(action=lib_action, source=album.source, id=album.source_id).pack())],
+        [InlineKeyboardButton(text="🔗 Partager", callback_data=ShareCB(action="make", kind="album", source=album.source, id=album.source_id).pack())],
         _back_row(NavCB(action="back").pack()),
     )
 
