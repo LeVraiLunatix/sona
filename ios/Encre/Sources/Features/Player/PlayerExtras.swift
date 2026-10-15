@@ -100,6 +100,7 @@ struct SoundSettingsSheet: View {
     @State private var gains: [Float] = AudioEffects.eqGains
     @AppStorage("encre.autoResume") private var autoResume = true
     @AppStorage("encre.visualizer") private var visualizer = false
+    @AppStorage("encre.reactiveBackground") private var reactiveBackground = false
     @AppStorage("encre.djVoice") private var djVoice = false
     @AppStorage("encre.djVoiceName") private var djVoiceName = "remy"
     @AppStorage("encre.lyricsActivity") private var lyricsActivity = false
@@ -225,6 +226,13 @@ struct SoundSettingsSheet: View {
                                 .font(Typo.caption).foregroundStyle(Tone.secondary)
                         }
                     }
+                    Toggle(isOn: $reactiveBackground) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Fond qui bat au son", systemImage: "circle.hexagongrid")
+                            Text("Le fond du lecteur suit les basses (le son est mesuré : un peu plus de batterie). Sinon, il respire sur le tempo du titre.")
+                                .font(Typo.caption).foregroundStyle(Tone.secondary)
+                        }
+                    }
                     Toggle(isOn: $lyricsActivity) {
                         VStack(alignment: .leading, spacing: 2) {
                             Label("Paroles sur l'écran verrouillé", systemImage: "quote.bubble")
@@ -238,6 +246,10 @@ struct SoundSettingsSheet: View {
             }
             .onChange(of: visualizer) { _, on in
                 AudioEffects.visualizerOn = on
+                player.audioEffectsChanged()
+            }
+            .onChange(of: reactiveBackground) { _, on in
+                AudioEffects.reactiveBackground = on
                 player.audioEffectsChanged()
             }
             .onChange(of: djVoice) { _, on in

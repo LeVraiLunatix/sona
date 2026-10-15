@@ -116,7 +116,16 @@ await page.keyboard.press("c");
 await page.waitForSelector(".credits .cr", { timeout: 5000 }).catch(() => out("crédits: absents"));
 out(`crédits: ${await page.$$eval(".credits .cr .cl", (e) => e.map((x) => x.textContent).join(","))}`);
 out(`crédit cliquable: ${await page.$$eval("[data-credit-search]", (e) => e.length)}`);
-// 7. aide raccourcis
+// 7. fond vivant (WebGL) aux couleurs de la pochette, lecteur plein écran
+await page.keyboard.press("Escape");
+await page.evaluate(() => {
+  playList([{ ...state.queue[state.index], source_id: "8", cover_url: "/web/icons/icon-512.png" }], 0, "");
+  openNowPlaying("lyrics");
+});
+await page.waitForSelector("#np .np-gl.on", { timeout: 5000 }).then(() => out("fond vivant: ok"), () => out("fond vivant: absents"));
+if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
+await page.keyboard.press("Escape");
+// 8. aide raccourcis
 await page.keyboard.press("Escape");
 await page.keyboard.press("?");
 out(`aide raccourcis: ${await page.$$eval(".shortcuts .sc", (e) => e.length)} lignes`);

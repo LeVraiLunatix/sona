@@ -57,7 +57,7 @@ struct FullPlayerView: View {
 
     private var localPlayer: some View {
         ZStack {
-            LivingBackground(colors: palette, animated: player.isPlaying)
+            LivingBackground(colors: palette, animated: player.isPlaying, reactive: true, tempo: player.current?.bpm)
                 .id(palette)
                 .transition(.opacity)
 
@@ -94,7 +94,7 @@ struct FullPlayerView: View {
         }
         .animation(.easeInOut(duration: 0.9), value: palette)
         .task(id: player.current?.coverURL) {
-            let colors = await ArtworkPalette.colors(for: player.current?.coverURL)
+            let colors = await ArtworkPalette.meshColors(for: player.current?.coverURL)
             palette = colors
         }
         .task(id: player.current?.id) { await refreshLikeState() }

@@ -1882,6 +1882,7 @@ function openNowPlaying(tab, toggleIfSame) {
   $("#np").classList.add("open");
   document.body.classList.add("np-open");
   renderTopbar();
+  livingBg.sync();
 }
 
 function closeNowPlaying() {
@@ -1893,7 +1894,214 @@ function closeNowPlaying() {
   if (state.drawer) renderDrawer();
 }
 
+// ── Fond vivant du lecteur plein écran ───────────────────────────────────
+// Un dégradé maillé dessiné en WebGL aux couleurs de la pochette (grille
+// 4 × 4 : la composition est gardée — le ciel en haut, le sujet au centre),
+// qui ondule lentement et bat avec les basses quand le son passe par
+// l'analyseur (réglage « Fond qui bat au son », ou égaliseur, visualiseur…).
+// Sobre : 60 images/s au plus, dessiné au tiers de la résolution (c'est flou
+// de toute façon), arrêté lecteur fermé, en pause ou onglet caché, et
+// immobile avec « Réduire les animations ». Sans WebGL, ou si la pochette ne
+// se lit pas (CORS), la pochette floue d'avant reste en place.
+const livingBg = (() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const bins = new Uint8Array(256);
+  let gl = null, canvas = null, loc = {}, texA = null, texB = null;
+  let raf = 0, lastFrame = 0, fadeStart = 0, key = "", energy = 0;
+  const born = performance.now();
+
+  const VERT = "attribute vec2 p; varying vec2 uv; void main() { uv = p * .5 + .5; gl_Position = vec4(p, 0., 1.); }";
+  const FRAG = `precision mediump float;
+    varying vec2 uv;
+    uniform sampler2D a, b;
+    uniform float t, energy, mixv;
+    // Grille 4 × 4 lissée : interpolation douce entre cases (le filtrage
+    // linéaire de la texture fait le reste).
+    vec3 grid(sampler2D s, vec2 p) {
+      vec2 g = clamp(p, 0., 1.) * 3.;
+      vec2 i = floor(min(g, vec2(2.999)));
+      vec2 f = g - i;
+      f = f * f * (3. - 2. * f);
+      return texture2D(s, (i + f + .5) / 4.).rgb;
+    }
+    void main() {
+      vec2 p = uv;
+      float k = .07 + .05 * energy;
+      p += k * vec2(sin(p.y * 3.1 + t * .23) + .5 * sin(p.x * 5.3 - t * .17),
+                    cos(p.x * 2.7 - t * .19) + .5 * cos(p.y * 4.1 + t * .29));
+      p.y = 1. - p.y;
+      vec3 c = mix(grid(b, p), grid(a, p), mixv) * (.94 + .16 * energy);
+      // Un grain imperceptible : pas de bandes dans les dégradés sombres.
+      float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      gl_FragColor = vec4(c + (n - .5) / 128., 1.);
+    }`;
+
+  function init() {
+    canvas = document.createElement("canvas");
+    canvas.className = "np-gl";
+    canvas.setAttribute("aria-hidden", "true");
+    gl = canvas.getContext("webgl", { alpha: false, antialias: false, depth: false, powerPreference: "low-power" });
+    if (!gl) return false;
+    const shader = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { gl = null; return false; }
+    gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const p = gl.getAttribLocation(prog, "p");
+    gl.enableVertexAttribArray(p);
+    gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 0, 0);
+    for (const name of ["a", "b", "t", "energy", "mixv"]) loc[name] = gl.getUniformLocation(prog, name);
+    gl.uniform1i(loc.a, 0);
+    gl.uniform1i(loc.b, 1);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    const texture = () => {
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      return tex;
+    };
+    texA = texture();
+    texB = texture();
+    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); stop(); canvas.remove(); gl = null; canvas = null; key = ""; });
+    return true;
+  }
+
+  function upload(tex, rgb) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 4, 4, 0, gl.RGB, gl.UNSIGNED_BYTE, rgb);
+  }
+
+  /** 16 couleurs de la pochette (4 × 4, ligne du haut d'abord), ravivées et
+   * assombries juste ce qu'il faut pour le texte blanc ; null si illisible. */
+  function extract(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = c.height = 32;
+          const g = c.getContext("2d", { willReadFrequently: true });
+          g.drawImage(img, 0, 0, 32, 32);
+          const px = g.getImageData(0, 0, 32, 32).data;
+          const cells = [];
+          for (let row = 0; row < 4; row++) for (let col = 0; col < 4; col++) {
+            let r = 0, gr = 0, b = 0;
+            for (let y = row * 8; y < row * 8 + 8; y++) for (let x = col * 8; x < col * 8 + 8; x++) {
+              const i = (y * 32 + x) * 4;
+              r += px[i]; gr += px[i + 1]; b += px[i + 2];
+            }
+            cells.push(hsv(r / 64, gr / 64, b / 64));
+          }
+          const vivid = cells.reduce((m, c) => (c[1] * c[2] > m[1] * m[2] ? c : m));
+          const out = new Uint8Array(48);
+          cells.forEach(([h, s, v], i) => {
+            // Case grise : teintée par la couleur vive de la pochette.
+            if (s < 0.25 && vivid[1] > 0.35) { h = vivid[0]; s = Math.max(s, vivid[1] * 0.45); }
+            out.set(rgb(h, Math.min(1, s * 1.2), Math.min(0.66, Math.max(0.14, v))), i * 3);
+          });
+          resolve(out);
+        } catch { resolve(null); } // pochette sans CORS : image illisible
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+  function hsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    const h = d === 0 ? 0 : max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h / 6, max ? d / max : 0, max];
+  }
+  function rgb(h, s, v) {
+    const f = (n) => { const k = (n + h * 6) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1)))); };
+    return [f(5), f(3), f(1)];
+  }
+
+  function measure() {
+    let target = 0;
+    if (sound.analyser && sound.ctx?.state === "running" && !audio.paused) {
+      sound.analyser.getByteFrequencyData(bins);
+      const bass = (bins[1] + bins[2] + bins[3] + bins[4]) / (4 * 255);
+      target = Math.min(1, Math.max(0, (bass - 0.35) * 1.8));
+    }
+    // Attaque rapide, retombée lente : un battement, pas un clignotement.
+    energy += (target - energy) * (target > energy ? 0.35 : 0.06);
+  }
+
+  function draw(now) {
+    const w = Math.max(64, Math.ceil(canvas.clientWidth / 3));
+    const h = Math.max(64, Math.ceil(canvas.clientHeight / 3));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); }
+    const still = reduce.matches;
+    if (!still) measure();
+    gl.uniform1f(loc.t, still ? 0 : (now - born) / 1000);
+    gl.uniform1f(loc.energy, still ? 0 : energy);
+    gl.uniform1f(loc.mixv, still ? 1 : Math.min(1, (now - fadeStart) / 1200));
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texA);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texB);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  const running = () => gl && canvas?.isConnected && state.npOpen && !document.hidden && !reduce.matches
+    && (!audio.paused || performance.now() - fadeStart < 1300);
+  function frame(now) {
+    raf = 0;
+    if (!running()) return;
+    // 60 images/s au plus, même sur un écran 120 / 144 Hz.
+    if (now - lastFrame >= 15.5) { lastFrame = now; draw(now); }
+    raf = requestAnimationFrame(frame);
+  }
+  function kick() {
+    if (!gl || !canvas?.isConnected) return;
+    if (reduce.matches) return draw(performance.now());
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; }
+
+  /** Lecteur plein écran (re)dessiné, titre changé, lecture reprise. */
+  function sync() {
+    const bg = $("#np .np-bg");
+    const t = state.queue[state.index];
+    if (!bg || !t || !state.npOpen) return stop();
+    if (!gl && !init()) return;
+    if (canvas.parentNode !== bg) bg.append(canvas);
+    const url = t.cover_url ? big(t.cover_url, 300) : "";
+    if (url !== key) {
+      key = url;
+      if (!url) { canvas.classList.remove("on"); return; }
+      extract(url).then((colors) => {
+        if (key !== url || !gl) return;
+        if (!colors) { canvas.classList.remove("on"); return; }
+        const first = !canvas.classList.contains("on");
+        [texA, texB] = [texB, texA];
+        upload(texA, colors);
+        if (first) upload(texB, colors);
+        fadeStart = performance.now();
+        canvas.classList.add("on");
+        kick();
+      });
+    }
+    kick();
+  }
+
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) kick(); });
+  reduce.addEventListener?.("change", kick);
+  return { sync };
+})();
+
 function renderNowPlaying() {
+  renderNowPlayingView();
+  livingBg.sync();
+}
+
+function renderNowPlayingView() {
   const np = $("#np");
   if (!np) return;
   const t = state.queue[state.index];
@@ -2574,6 +2782,8 @@ function renderSing() {
 }
 
 audio.addEventListener("play", () => { if (sing.buffers) startStems(0.05); });
+// Fond vivant du lecteur : il s'arrête en pause, repart avec la musique.
+audio.addEventListener("play", () => livingBg.sync());
 audio.addEventListener("pause", stopStems);
 audio.addEventListener("seeked", () => { if (sing.buffers) startStems(0.03); });
 audio.addEventListener("timeupdate", checkStemsDrift);
@@ -2952,6 +3162,8 @@ const sound = {
   eq: (() => { try { const v = JSON.parse(store.get("sona.eq")); return Array.isArray(v) && v.length === 5 ? v.map(Number) : [0, 0, 0, 0, 0]; } catch { return [0, 0, 0, 0, 0]; } })(),
   normalize: store.get("sona.normalize") === "1",
   fade: Number(store.get("sona.fade")) || 0,
+  // « Fond qui bat au son » : le fond du lecteur suit les basses analysées.
+  reactiveBg: store.get("sona.reactiveBg") === "1",
   visual: false, // visualiseur ouvert (il lit le son analysé)
   ctx: null, filters: [], level: null, fader: null, analyser: null,
   loudness: new Map(), fadingOut: false, trackKey: "",
@@ -2959,7 +3171,7 @@ const sound = {
 const soundAvailable = !isIOS;
 
 function soundWanted() {
-  return soundAvailable && (sound.eq.some((g) => Math.abs(g) > 0.05) || sound.normalize || sound.fade > 0 || sound.visual);
+  return soundAvailable && (sound.eq.some((g) => Math.abs(g) > 0.05) || sound.normalize || sound.fade > 0 || sound.visual || sound.reactiveBg);
 }
 
 /** Branche le lecteur sur l'égaliseur (une fois, à la première option activée). */
@@ -3012,6 +3224,12 @@ function setNormalize(on) {
   store.set("sona.normalize", on ? "1" : null);
   ensureSound();
   soundTrackChanged();
+}
+
+function setReactiveBg(on) {
+  sound.reactiveBg = !!on;
+  store.set("sona.reactiveBg", on ? "1" : null);
+  ensureSound();
 }
 
 function setFade(seconds) {
@@ -3085,6 +3303,7 @@ function soundSheet() {
       <input type="range" min="-12" max="12" step="1" value="${sound.eq[i]}" data-eq="${i}" aria-label="${EQ_LABELS[i]} Hz"><b>${EQ_LABELS[i]}</b></label>`).join("")}</div>
     <div class="set-group">
       ${toggleRow("snd-normalize", "Volume égalisé", "Tous les titres au même niveau sonore.", sound.normalize)}
+      ${toggleRow("snd-reactive", "Fond qui bat au son", "Le fond du lecteur plein écran suit les basses.", sound.reactiveBg)}
       <label class="set-row"><span class="set-text"><b>Fondu entre les titres</b><small>Le titre s'efface en douceur, le suivant arrive en fondu.</small></span>
         <select class="field small" data-fade>${[0, 2, 4, 6, 8, 10, 12].map((v) => `<option value="${v}" ${sound.fade === v ? "selected" : ""}>${v ? `${v} s` : "Aucun"}</option>`).join("")}</select></label>
     </div>`, { cls: "sound-sheet" });
@@ -3105,6 +3324,7 @@ function soundSheet() {
   });
   $$("[data-eq-preset]", wrap).forEach((b) => (b.onclick = () => { setEq(EQ_PRESETS.find(([n]) => n === b.dataset.eqPreset)[1]); paint(); }));
   $('[data-setting="snd-normalize"]', wrap).onchange = (e) => setNormalize(e.target.checked);
+  $('[data-setting="snd-reactive"]', wrap).onchange = (e) => setReactiveBg(e.target.checked);
   $("[data-fade]", wrap).onchange = (e) => setFade(e.target.value);
   paint();
 }

@@ -1821,7 +1821,8 @@ final class PlayerManager: ObservableObject {
     /// audio spatial.
     private func prepareItem(_ item: AVPlayerItem) {
         applySpatial(item)
-        if (singAlong || AudioEffects.isEQActive || AudioEffects.visualizerOn), item.audioMix == nil {
+        if (singAlong || AudioEffects.isEQActive || AudioEffects.visualizerOn || AudioEffects.reactiveBackground),
+           item.audioMix == nil {
             Task { [weak item] in
                 guard let item, let mix = await AudioEffects.audioMix(for: item) else { return }
                 item.audioMix = mix

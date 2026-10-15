@@ -51,6 +51,11 @@ enum AudioEffects {
     static var visualizerOn = UserDefaults.standard.bool(forKey: "encre.visualizer") {
         didSet { UserDefaults.standard.set(visualizerOn, forKey: "encre.visualizer") }
     }
+    /// « Fond qui bat au son » : le fil audio mesure le son pour le fond
+    /// du lecteur, même sans visualiseur.
+    static var reactiveBackground = UserDefaults.standard.bool(forKey: "encre.reactiveBackground") {
+        didSet { UserDefaults.standard.set(reactiveBackground, forKey: "encre.reactiveBackground") }
+    }
     static let levelBands = 8
     /// Fréquences de coupure entre deux bandes voisines.
     static let levelSplits: [Float] = [90, 220, 500, 1100, 2400, 5000, 10000]

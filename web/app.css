@@ -383,6 +383,10 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .np-bg img { width: 100%; height: 100%; object-fit: cover; filter: blur(90px) saturate(1.8) brightness(.75); transform: scale(1.1); animation: drift 30s ease-in-out infinite alternate; }
 @keyframes drift { from { transform: scale(1.1) rotate(0deg); } to { transform: scale(1.35) rotate(8deg); } }
 .np-bg::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.28); }
+/* Fond vivant (WebGL) : par-dessus la pochette floue, qui reste en secours. */
+.np-gl { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s var(--ease); }
+.np-gl.on { opacity: 1; }
+.np-bg:has(.np-gl.on) img { animation: none; }
 .np-top { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; padding: 18px 26px; }
 .np-top .tbtn { color: #fff; }
 .np-top .tbtn:hover { background: rgba(255,255,255,.14); }
