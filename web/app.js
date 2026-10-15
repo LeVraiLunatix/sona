@@ -43,10 +43,13 @@ function featuredOf(t) {
 function featHtml(t, links = false) {
   const f = featuredOf(t);
   if (!f.length) return "";
-  return ` <span class="feat">feat. ${f.map((a) => links && a.source_id
-    ? `<span class="link" data-artist="${esc(t.source)}/${esc(a.source_id)}">${esc(a.name)}</span>` : esc(a.name)).join(", ")}</span>`;
+  return ` <span class="feat">(feat. ${f.map((a) => links ? goArtist(t, a.source_id, a.name) : esc(a.name)).join(", ")})</span>`;
 }
-const artistsText = (t) => [t.artist, ...featuredOf(t).map((a) => a.name)].join(", ");
+/** Nom d'artiste qui ouvre sa fiche au clic (voir l'écouteur `data-goartist`, plus bas). */
+const goArtist = (t, id, name) => id ? `<span class="link" data-goartist="${esc(t.source)}/${esc(id)}">${esc(name)}</span>` : esc(name);
+/** « Favé (feat. RnBoi) », chaque nom cliquable. */
+const artistHtml = (t) => goArtist(t, t.artist_source_id, t.artist) + featHtml(t, true);
+const artistsText = (t) => t.artist + (featuredOf(t).length ? ` (feat. ${featuredOf(t).map((a) => a.name).join(", ")})` : "");
 const isMobile = () => matchMedia("(max-width: 760px)").matches;
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -115,6 +118,16 @@ async function api(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
+
+// Clic sur un nom d'artiste (barre de lecture, lecteur, listes) : sa page, sans lancer le titre.
+document.addEventListener("click", (e) => {
+  const link = e.target.closest?.("[data-goartist]");
+  if (!link) return;
+  e.stopPropagation();
+  e.preventDefault();
+  closeNowPlaying();
+  location.hash = `#/artist/${link.dataset.goartist}`;
+}, true);
 
 function toast(text) {
   let el = $(".toast");
@@ -1544,7 +1557,7 @@ function renderTopbar() {
     ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
-        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${esc(t.artist)}${featHtml(t)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
+        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
@@ -1619,7 +1632,7 @@ function renderMini() {
   mp.innerHTML = `<div class="mp-inner" data-mp="open">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
-      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${esc(t.artist)}${featHtml(t)}` : `${esc(t.artist)}${featHtml(t)}`}</div></div>
+      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${artistHtml(t)}` : artistHtml(t)}</div></div>
     <button class="mp-btn" data-mp="toggle" aria-label="Lecture/Pause">${paused ? icons.play : icons.pause}</button>
     <button class="mp-btn" data-mp="next" aria-label="Suivant">${icons.next}</button>
     <div class="mp-progress"><div class="fill" id="mp-fill"></div></div></div>`;
@@ -1749,7 +1762,7 @@ function renderNowPlaying() {
       <div class="np-left">
         <img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt="">
         <div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
-          <div class="a">${t.artist_source_id ? `<span class="link" data-np="artist">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t)}</div></div>
+          <div class="a">${artistHtml(t)}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button></div>
         <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>
           <div class="np-times"><span id="np-cur">0:00</span><span id="np-rem">-0:00</span></div></div>
@@ -1786,12 +1799,12 @@ function renderNowPlayingMobile(np, t) {
       ${view === "art"
         ? `<div class="np-stage" data-np-swipe><img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt=""></div>`
         : `<div class="np-mini-head"><img src="${esc(big(t.cover_url, 200))}" alt="" data-np="art">
-            <div class="np-meta-s"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}${featHtml(t)}</div></div>
+            <div class="np-meta-s"><div class="t">${esc(t.title)}</div><div class="a">${artistHtml(t)}</div></div>
             <button class="tbtn ${liked ? "on" : ""}" data-np="like">${liked ? icons.heartFill : icons.heart}</button>
             <button class="tbtn" data-np="more">${icons.more}</button></div>
           <div class="np-stage np-panel" id="np-right"></div>`}
       ${view === "art" ? `<div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
-          <div class="a">${t.artist_source_id ? `<span class="link" data-np="artist">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t)}</div></div>
+          <div class="a">${artistHtml(t)}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" aria-label="J'aime">${liked ? icons.heartFill : icons.heart}</button>
           <button class="tbtn" data-np="more" aria-label="Plus d'options">${icons.more}</button></div>` : ""}
       <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>

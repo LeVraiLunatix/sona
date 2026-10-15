@@ -97,7 +97,7 @@ struct TrackArtist: Codable, Hashable {
 }
 
 extension Track {
-    /// « Ziak feat. Gazo » : les invités qui ne sont pas déjà dans le nom de
+    /// « Ziak (feat. Gazo) » : les invités qui ne sont pas déjà dans le nom de
     /// l'artiste ni dans le titre (« (feat. X) »). `extra` : artistes lus
     /// ailleurs quand la fiche n'en porte pas.
     func artistLine(extra: [TrackArtist]? = nil) -> String {
@@ -107,7 +107,7 @@ extension Track {
             let w = Track.words(name)
             return !w.isEmpty && !seen.contains(" " + w + " ")
         }
-        return feats.isEmpty ? artist : "\(artist) feat. \(feats.joined(separator: ", "))"
+        return feats.isEmpty ? artist : "\(artist) (feat. \(feats.joined(separator: ", ")))"
     }
 
     private static func words(_ text: String) -> String {
