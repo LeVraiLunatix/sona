@@ -213,6 +213,58 @@ def test_diagnose_reports_why_each_source_was_rejected(client, tmp_path, monkeyp
     assert client.post("/admin/diagnose/deezer/5").status_code == 401
 
 
+def test_only_version_flagged_as_wrong_is_explained_and_can_be_restored(client, tmp_path, monkeypatch):
+    """Cas réel : « Frontières » de PNL. La seule version trouvée avait été
+    signalée « Mauvaise version ? » : plus aucune source n'était essayée, et
+    l'app disait juste « Titre introuvable ». Le diagnostic le montre, et
+    l'admin peut réautoriser la source."""
+    from app.services import resolver
+
+    repost = Candidate(video_id="sanji", title="PNL - Frontière - [ Officiel Album Deux Frères ]", artist="SANJI",
+                       album=None, duration_seconds=180, cover_url=None, is_song=False)
+    ref = TrackInfo("deezer", "5", "Frontières", "PNL", "Deux frères", None, 180, None)
+    downloads = []
+
+    async def track_for(deps, source, source_id):
+        return ref
+
+    async def same(deezer, track):
+        return track
+
+    async def download(settings, url, track, quality, fmt):
+        downloads.append(url)
+        path = tmp_path / "work" / "titre.m4a"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"audio")
+        return path
+
+    async def verify(track, path, ffmpeg):
+        return Verdict(0.05)
+
+    monkeypatch.setattr(resolver, "_search_ytmusic_sync", lambda queries: [repost])
+    monkeypatch.setattr(resolver, "_search_soundcloud_sync", lambda query: [])
+    monkeypatch.setattr(resolver, "_search_ytdlp_sync", lambda query, cookies: [])
+    monkeypatch.setattr(stream, "_track_for", track_for)
+    monkeypatch.setattr(stream, "complete_preview", same)
+    monkeypatch.setattr(stream, "download_and_tag", download)
+    monkeypatch.setattr(stream, "verify_recording", verify)
+    repo = client.app.state.deps.repo
+    client.portal.call(repo.reject_source, "deezer", "5", "sanji")
+
+    failed = client.post("/stream/deezer/5/prepare", headers=AUTH)
+    assert failed.status_code == 404
+    assert "Mauvaise version" in failed.json()["detail"]
+    report = client.post("/admin/diagnose/deezer/5", headers=AUTH).json()
+    assert report["excluded"] == 1 and report["tried"] == []
+    assert report["found"][0]["rejected"] == "écartée par « Mauvaise version ? »"
+    assert downloads == []
+
+    assert client.post("/admin/diagnose/deezer/5/unreject", headers=AUTH).json() == {"unrejected": 1}
+    report = client.post("/admin/diagnose/deezer/5", headers=AUTH).json()
+    assert report["ready"] is True and report["excluded"] == 0
+    assert downloads == ["https://www.youtube.com/watch?v=sanji"]
+
+
 def test_cookies_upload_from_the_app(client, tmp_path, monkeypatch):
     checked = []
 

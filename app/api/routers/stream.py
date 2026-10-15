@@ -92,6 +92,11 @@ def forget_track_failures(source: str, source_id: str) -> None:
         del _failures[key]
 
 
+def forget_live_source(source: str, source_id: str) -> None:
+    """Oublie le flux direct (ou son absence) retenu pour ce morceau."""
+    _live.drop_track(source, source_id)
+
+
 def _start_report(source: str, source_id: str, track: TrackInfo | None) -> dict:
     report = {
         "at": time.time(),
@@ -101,6 +106,7 @@ def _start_report(source: str, source_id: str, track: TrackInfo | None) -> dict:
         },
         "tried": [],
         "found": [],
+        "excluded": 0,
         "result": None,
     }
     _reports[(source, source_id)] = report
@@ -117,12 +123,18 @@ def _describe(candidate: Candidate) -> dict:
     }
 
 
-def _found_summary(track: TrackInfo, found: list[Candidate]) -> list[dict]:
+WRONG_VERSION_REASON = "écartée par « Mauvaise version ? »"
+
+
+def _found_summary(track: TrackInfo, found: list[Candidate], excluded: set[str]) -> list[dict]:
     """Résultats des recherches, du plus au moins ressemblant, avec la raison
-    d'un éventuel rejet par le résolveur."""
+    d'un éventuel rejet : par le résolveur, ou signalé « Mauvaise version ? »."""
     scored = sorted(((score_candidate(track, c), c) for c in found), key=lambda sc: sc[0], reverse=True)
     return [
-        {**_describe(c), "score": round(score, 2), "rejected": rejection_reason(track, c)}
+        {
+            **_describe(c), "score": round(score, 2),
+            "rejected": WRONG_VERSION_REASON if c.video_id in excluded else rejection_reason(track, c),
+        }
         for score, c in scored[:MAX_REPORTED_RESULTS]
     ]
 
@@ -140,23 +152,24 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
 
     track = await complete_preview(deps.deezer, track)
     report = _start_report(source, source_id, track)
+    excluded = await deps.repo.rejected_sources(source, source_id)
+    report["excluded"] = len(excluded)
     found: list[Candidate] = []
     try:
-        dest = await _download_first_faithful(deps, source, source_id, quality, fmt, track, report, found)
+        dest = await _download_first_faithful(deps, source, source_id, quality, fmt, track, report, found, excluded)
     except HTTPException as exc:
         report["result"] = str(exc.detail)
         raise
     finally:
-        report["found"] = _found_summary(track, found)
+        report["found"] = _found_summary(track, found, excluded)
     report["result"] = "ok"
     return dest
 
 
 async def _download_first_faithful(
     deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str,
-    track: TrackInfo, report: dict, found: list[Candidate],
+    track: TrackInfo, report: dict, found: list[Candidate], excluded: set[str],
 ) -> Path:
-    excluded = await deps.repo.rejected_sources(source, source_id)
     # Source déjà trouvée (lecture directe précédente) : essayée d'abord,
     # sans nouvelle recherche. Toujours vérifiée par empreinte ci-dessous.
     preferred = await deps.repo.stream_source_get(source, source_id)
@@ -229,6 +242,11 @@ async def _download_first_faithful(
     if youtube_failure is not None:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, _download_failure(youtube_failure)) from youtube_failure
     if attempts == 0:
+        if any(c.video_id in excluded and rejection_reason(track, c) is None for c in found):
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "Les seules versions trouvées ont été écartées avec « Mauvaise version ? ».",
+            )
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucune source audio trouvée pour ce morceau.")
     raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucune version fidèle de ce morceau n'a été trouvée.")
 
