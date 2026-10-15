@@ -693,6 +693,13 @@ class Repository:
         )
         await self._db.conn.commit()
 
+    async def stream_source_forget(self, source: str, source_id: str, video_id: str) -> None:
+        """Oublie la source retenue pour ce morceau, si c'est bien `video_id`."""
+        await self._db.conn.execute(
+            "DELETE FROM stream_sources WHERE source=? AND source_id=? AND video_id=?", (source, source_id, video_id)
+        )
+        await self._db.conn.commit()
+
     # -- Écrans TV / PS5 ------------------------------------------------------
 
     async def tv_screens(self, user_id: int) -> list[dict]:
