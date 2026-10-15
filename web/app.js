@@ -230,10 +230,25 @@ async function boot() {
   startApp();
 }
 
+/** Sans réseau : la page « Téléchargés », et la lecture de ce qui est sur l'appareil. */
+function startOffline() {
+  account = { status: "approved", username: "", display_name: "Hors ligne", avatar_url: null };
+  document.body.style.overflow = "";
+  renderShell();
+  bindDrawer();
+  location.hash = "#/library/downloads";
+  route();
+  toast("Hors ligne : tes titres téléchargés restent disponibles");
+}
+
 async function startApp() {
   try {
     account = await api("/auth/me");
-  } catch (e) { return renderLogin(token ? e.message : null); }
+  } catch (e) {
+    // Serveur injoignable (pas de réseau) mais des titres téléchargés : on reste dans l'app.
+    if (token && !e.status && offline.meta.length) return startOffline();
+    return renderLogin(token ? e.message : null);
+  }
   if (account.status !== "approved") {
     return renderLogin(account.status === "rejected" ? "Accès refusé par un administrateur." : "Ton compte attend la validation d'un administrateur.");
   }
@@ -710,7 +725,7 @@ function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null
       <span style="min-width:0"><div class="ti">${esc(t.title)}</div>
         <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(t.source)}/${esc(t.artist_source_id)}">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t, true)}</div></span>
       <span class="al">${showAlbum && t.album ? (t.album_source_id ? `<span class="link" data-album="${esc(t.source)}/${esc(t.album_source_id)}">${esc(t.album)}</span>` : esc(t.album)) : ""}</span>
-      <span class="d">${t.duration_seconds ? fmt(t.duration_seconds) : ""}</span>
+      <span class="d">${offlineHas(t) ? `<span class="dl-mark" title="Disponible hors ligne">${icons.download}</span>` : ""}${t.duration_seconds ? fmt(t.duration_seconds) : ""}</span>
       <span class="acts">
         <button data-act="next" title="Lire ensuite">${icons.nextUp}</button>
         <button data-act="like" class="${liked ? "liked" : ""}" title="${liked ? "Dans ta bibliothèque" : "Ajouter à la bibliothèque"}">${liked ? icons.heartFill : icons.heart}</button>
@@ -1059,6 +1074,7 @@ async function viewAlbum(source, id, isPlaylist = false) {
   setTimeout(() => {
     bindLikeButtons();
     $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(tracks));
+    $("[data-dlall]")?.addEventListener("click", () => offlineDownloadAll(tracks));
     // « Autres versions » (deluxe, remasterisé…) en bas de l'album, comme Apple Music.
     if (!isPlaylist) api(`/albums/${encodeURIComponent(source)}/${encodeURIComponent(id)}/versions`).then((versions) => {
       const box = $("#album-versions");
@@ -1072,7 +1088,8 @@ async function viewAlbum(source, id, isPlaylist = false) {
     byHref: album.artist_source_id && !isPlaylist ? `#/artist/${album.source}/${album.artist_source_id}` : "",
     info: [album.year?.slice(0, 4), plural(tracks.length, "titre"), !isPlaylist && discOf(tracks) > 1 ? `${discOf(tracks)} disques` : "", total ? minutesLabel(total / 60) : ""].filter(Boolean).join(" · "), list,
     extra: (isPlaylist ? "" : likeButton("album", album.source, album.source_id, state.likedAlbums))
-      + `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`,
+      + `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`
+      + (offline.supported && !isPlaylist ? `<button class="btn ghost icon-only" data-dlall title="Télécharger l'album pour l'écoute hors ligne">${icons.download}</button>` : ""),
   }) + trackTable(tracks, album.title, { showAlbum: isPlaylist, discs: !isPlaylist }) + `<div id="album-versions"></div>`);
 }
 
@@ -1084,18 +1101,58 @@ async function viewArtist(source, id) {
     api(`${base}/albums`).catch(() => ({ albums: [], singles: [] })), api(`${base}/related`).catch(() => []),
   ]);
   const list = register(top, artist.name);
+  // Discographie : filtre (tout / albums / singles) et tri (récent / ancien / A-Z).
+  const disco = { filter: "all", sort: "recent" };
+  const year = (a) => a.year || "0";
+  const sorted = (items) => [...items].sort(disco.sort === "az" ? (x, y) => x.title.localeCompare(y.title, "fr")
+    : disco.sort === "old" ? (x, y) => year(x).localeCompare(year(y)) : (x, y) => year(y).localeCompare(year(x)));
+  const albumCard = (a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) });
+  const discoHtml = () => {
+    const f = disco.filter;
+    const chips = (name, options, current) => `<div class="chips">${options.map(([k, label]) => `<button class="chip ${k === current ? "on" : ""}" data-disco-${name}="${k}">${label}</button>`).join("")}</div>`;
+    const hasMany = (albums.albums?.length || 0) + (albums.singles?.length || 0) > 3;
+    return (hasMany ? `<div class="disco-controls">${chips("filter", [["all", "Tout"], ["albums", "Albums"], ["singles", "Singles et EP"]], f)}${chips("sort", [["recent", "Récents"], ["old", "Anciens"], ["az", "A → Z"]], disco.sort)}</div>` : "")
+      + (f !== "singles" ? shelf("Albums", sorted(albums.albums || []).map(albumCard)) : "")
+      + (f !== "albums" ? shelf("Singles et EP", sorted(albums.singles || []).map(albumCard)) : "")
+      + (f === "all" ? shelf("Autres versions", sorted(albums.other_versions || []).map(albumCard)) : "");
+  };
   setTimeout(() => {
     bindLikeButtons();
     $("[data-artist-radio]")?.addEventListener("click", () => playStation(`Radio ${artist.name}`, () => api(`${base}/radio`)).catch((e) => toast(e.message)));
+    const redraw = () => { const box = $("#artist-disco"); if (box) { box.innerHTML = discoHtml(); bindDisco(); } };
+    const bindDisco = () => {
+      $$("[data-disco-filter]").forEach((b) => (b.onclick = () => { disco.filter = b.dataset.discoFilter; redraw(); }));
+      $$("[data-disco-sort]").forEach((b) => (b.onclick = () => { disco.sort = b.dataset.discoSort; redraw(); }));
+      bindPage($("#artist-disco"));
+    };
+    bindDisco();
+    // Biographie (Wikipédia) et concerts : arrivent après la page, sans la retarder.
+    api(`${base}/bio`).then((bio) => {
+      const box = $("#artist-bio");
+      if (!box || !bio?.text) return;
+      box.innerHTML = `<section class="section"><div class="section-head"><h2>À propos</h2></div>
+        <div class="bio"><p class="bio-text clamp">${esc(bio.text)}</p>
+        <div class="bio-foot"><button class="link-btn" data-bio-more>Lire la suite</button>${bio.url ? `<a class="bio-src" href="${esc(bio.url)}" target="_blank" rel="noopener">${esc(bio.source || "Source")}</a>` : ""}</div></div></section>`;
+      $("[data-bio-more]", box).onclick = (e) => { const p = $(".bio-text", box); p.classList.toggle("clamp"); e.target.textContent = p.classList.contains("clamp") ? "Lire la suite" : "Réduire"; };
+    }).catch(() => {});
+    api(`${base}/concerts`).then((events) => {
+      const box = $("#artist-concerts");
+      if (!box || !events?.length) return;
+      box.innerHTML = `<section class="section"><div class="section-head"><h2>Concerts à venir</h2></div><div class="concerts">${events.slice(0, 6).map((e) => {
+        const d = new Date(e.datetime);
+        return `<a class="concert" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : ""}>
+          <span class="date"><b>${d.getDate()}</b><small>${d.toLocaleDateString("fr-FR", { month: "short" })}</small></span>
+          <span class="ct"><span class="t">${esc(e.venue || e.city || "Concert")}</span><span class="s">${esc([e.city, e.country].filter(Boolean).join(" · "))}</span></span>
+          ${e.url ? `<span class="go">Billets</span>` : ""}</a>`;
+      }).join("")}</div></section>`;
+    }).catch(() => {});
   });
   return page(hero({
     cover: artist.picture_url, kind: "Artiste", title: artist.name, round: true,
     info: artist.fans ? `${artist.fans.toLocaleString("fr-FR")} fans` : "", list: top.length ? list : "",
     extra: `<button class="btn ghost" data-artist-radio>${icons.radio} Radio</button>` + likeButton("artist", artist.source, artist.source_id, state.likedArtists),
   }) + (top.length ? `<section class="section"><div class="section-head"><h2>Titres populaires</h2></div>${trackTable(top.slice(0, 10), artist.name)}</section>` : "")
-    + shelf("Albums", (albums.albums || []).map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) })))
-    + shelf("Singles et EP", (albums.singles || []).map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) })))
-    + shelf("Autres versions", (albums.other_versions || []).map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) })))
+    + `<div id="artist-concerts"></div><div id="artist-disco">${discoHtml()}</div><div id="artist-bio"></div>`
     + shelf("Artistes similaires", related.map((a) => card({ href: `#/artist/${a.source}/${a.source_id}`, cover: a.picture_url, title: a.name, round: true })), { kind: "round" }));
 }
 
@@ -1180,7 +1237,7 @@ async function viewMix(id) {
     + trackTable(mix.tracks, mix.title));
 }
 
-const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", "Albums"], ["artists", "Artistes"]];
+const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", "Albums"], ["artists", "Artistes"], ["downloads", "Téléchargés"]];
 
 async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
@@ -1217,6 +1274,14 @@ async function viewLibrary(kind) {
     const list = register(tracks, "Tes titres");
     body = tracks.length ? `<p class="page-sub">${plural(tracks.length, "titre")}</p><div class="pill-row"><button class="btn" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button></div>${trackTable(tracks, "Tes titres")}`
       : empty("♡", "Rien ici pour l'instant", "Ajoute des titres avec le cœur, ici ou dans l'app.");
+  } else if (kind === "downloads") {
+    const tracks = offline.meta;
+    const list = register(tracks, "Téléchargés");
+    let usage = "";
+    try { const e = await navigator.storage?.estimate?.(); if (e?.usage) usage = ` · ${(e.usage / 1048576).toFixed(0)} Mo utilisés`; } catch {}
+    setTimeout(() => $("[data-dl-clear]")?.addEventListener("click", async () => { await offlineClear(); toast("Téléchargements supprimés"); route(); }));
+    body = tracks.length ? `<p class="page-sub">${plural(tracks.length, "titre")}${usage}</p><div class="pill-row"><button class="btn" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button><button class="btn ghost" data-dl-clear>${icons.trash} Tout supprimer</button></div>${trackTable(tracks, "Téléchargés")}`
+      : empty("⬇️", "Aucun titre téléchargé", offline.supported ? "Dans le menu « ⋯ » d'un titre, ou avec le bouton de l'album : « Télécharger pour l'écoute hors ligne »." : "Le hors ligne n'est pas disponible dans ce navigateur.");
   } else {
     const k = kind === "albums" ? "album" : "artist";
     const data = await api(`/library/${k}?limit=500`).catch(() => ({ items: [] }));
@@ -1435,16 +1500,100 @@ function addToQueue(track) {
   if (panelTab() === "queue") renderQueue();
 }
 
+// ── Écoute hors ligne ────────────────────────────────────────────────────
+// Les titres téléchargés sont gardés dans le stockage du navigateur (ou de
+// l'app Windows) : lisibles sans réseau, et la page « Téléchargés » s'ouvre
+// toute seule quand le serveur est injoignable.
+
+const streamUrl = (t) => `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
+const OFFLINE_CACHE = "sona-offline-v1";
+const offline = {
+  supported: "caches" in window,
+  meta: (() => { try { const v = JSON.parse(store.get("sona.offline")); return Array.isArray(v) ? v : []; } catch { return []; } })(),
+  busy: new Set(), url: null,
+};
+const offlineKey = (t) => `https://offline.sona.local/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}`;
+const offlineHas = (t) => offline.supported && offline.meta.some((m) => sameTrack(m, t));
+const offlineSave = () => store.set("sona.offline", offline.meta.length ? JSON.stringify(offline.meta) : null);
+
+async function offlineUrl(t) {
+  try {
+    const hit = await (await caches.open(OFFLINE_CACHE)).match(offlineKey(t));
+    if (!hit) return null;
+    if (offline.url) URL.revokeObjectURL(offline.url);
+    offline.url = URL.createObjectURL(await hit.blob());
+    return offline.url;
+  } catch { return null; }
+}
+
+async function offlineDownload(t) {
+  if (!offline.supported) return toast("Le hors ligne n'est pas disponible ici");
+  const key = trackKey(t);
+  if (offlineHas(t) || offline.busy.has(key)) return;
+  offline.busy.add(key);
+  toast(`Téléchargement de « ${t.title} »…`);
+  try {
+    navigator.storage?.persist?.();
+    // `live=false` : le fichier vérifié et complet, pas le relais direct de YouTube.
+    const url = `${streamUrl(t)}&live=false`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(await explainPlaybackError(url));
+    const blob = await res.blob();
+    if (blob.size < 20000) throw new Error("fichier audio incomplet");
+    const cache = await caches.open(OFFLINE_CACHE);
+    await cache.put(offlineKey(t), new Response(blob, { headers: { "Content-Type": blob.type || "audio/mpeg" } }));
+    offline.meta.push(cleanTrack(t));
+    offlineSave();
+    toast(`« ${t.title} » disponible hors ligne`);
+  } catch (e) {
+    toast(`Téléchargement impossible : ${e.message}`);
+  } finally {
+    offline.busy.delete(key);
+    if (location.hash.startsWith("#/library/downloads")) route();
+  }
+}
+
+async function offlineRemove(t) {
+  try { await (await caches.open(OFFLINE_CACHE)).delete(offlineKey(t)); } catch {}
+  offline.meta = offline.meta.filter((m) => !sameTrack(m, t));
+  offlineSave();
+}
+
+async function offlineClear() {
+  try { await caches.delete(OFFLINE_CACHE); } catch {}
+  offline.meta = [];
+  offlineSave();
+}
+
+/** Plusieurs titres à la suite (un album), un à la fois pour ne pas saturer le serveur. */
+async function offlineDownloadAll(tracks) {
+  for (const t of tracks) if (!offlineHas(t)) await offlineDownload(t);
+}
+
 function playAt(index, { position = 0 } = {}) {
   const t = state.queue[index];
   if (!t) { audio.pause(); return; }
   state.index = index;
   Object.assign(state, { listened: 0, lastTick: 0, scrobbled: false, lyrics: null, lastLyric: -1, startedAt: new Date().toISOString() });
   state.connect.claim = true;
-  audio.src = `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
-  if (position > 1) {
+  const seekTo = () => {
+    if (position <= 1) return;
     const seek = () => { audio.currentTime = position; audio.removeEventListener("loadedmetadata", seek); };
     audio.addEventListener("loadedmetadata", seek);
+  };
+  if (offlineHas(t)) {
+    // Titre téléchargé : lu depuis le stockage de l'appareil, sans réseau. Le
+    // silence tient la place le temps de le relire (quelques millisecondes).
+    audio.src = SILENCE;
+    offlineUrl(t).then((url) => {
+      if (state.index !== index || !sameTrack(state.queue[index], t)) { if (url) URL.revokeObjectURL(url); return; }
+      audio.src = url || streamUrl(t);
+      seekTo();
+      audio.play().catch(() => {});
+    });
+  } else {
+    audio.src = streamUrl(t);
+    seekTo();
   }
   djAnnounce(t, state.queue[index - 1]);
   remotePlay();
@@ -1988,6 +2137,8 @@ function dateLabel(d) {
 function creditsHTML(t, d) {
   const row = (label, value) => value ? `<div class="cr"><span class="cl">${esc(label)}</span><span class="cv">${value}</span></div>` : "";
   const artistLink = (a) => a.source_id ? `<button class="link" data-credit-artist="${esc(t.source)}/${esc(a.source_id)}">${esc(a.name)}</button>` : esc(a.name);
+  // Compositeurs, producteurs… : un clic lance une recherche sur leur nom.
+  const nameLink = (n) => `<button class="link" data-credit-search="${esc(n)}">${esc(n)}</button>`;
   const artists = d?.artists?.length ? d.artists : [{ name: t.artist, source_id: t.artist_source_id, role: "main" }];
   const main = artists.filter((a) => a.role !== "featured"), feats = artists.filter((a) => a.role === "featured");
   const written = d?.credits || [];
@@ -1995,7 +2146,7 @@ function creditsHTML(t, d) {
   const rows = [
     row(main.length > 1 ? "Artistes" : "Artiste", main.map(artistLink).join(", ")),
     row("Featuring", feats.map(artistLink).join(", ")),
-    ...written.map((c) => row(c.role, c.names.map(esc).join(", "))),
+    ...written.map((c) => row(c.role, c.names.map(nameLink).join(", "))),
     row("Album", [t.album && esc(t.album), disc && esc(disc)].filter(Boolean).join(" · ")),
     row("Label", esc(d?.label || "")),
     row("Sortie", esc(dateLabel(d?.release_date))),
@@ -2007,6 +2158,11 @@ function creditsHTML(t, d) {
 }
 
 function bindCredits(root) {
+  $$("[data-credit-search]", root).forEach((b) => (b.onclick = () => {
+    root.closest(".sheet-wrap")?.close?.();
+    closeNowPlaying();
+    go(`#/search/${encodeURIComponent(b.dataset.creditSearch)}`);
+  }));
   $$("[data-credit-artist]", root).forEach((b) => (b.onclick = () => {
     root.closest(".sheet-wrap")?.close?.();
     closeNowPlaying();
@@ -2036,6 +2192,14 @@ async function creditsSheet(t) {
   bindCredits(body);
 }
 
+/** Décalage des paroles d'un titre, en secondes (positif : paroles plus tôt) — gardé par titre sur cet appareil. */
+const lyricsOffset = (t) => Number(store.get(`sona.lyrOffset.${trackKey(t)}`)) || 0;
+function setLyricsOffset(t, value) {
+  const v = Math.round(Math.max(-10, Math.min(10, value)) * 10) / 10;
+  store.set(`sona.lyrOffset.${trackKey(t)}`, v ? String(v) : null);
+}
+const offsetLabel = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1).replace(".", ",")} s`;
+
 function renderLyrics() {
   const box = panelBox();
   if (!box) return;
@@ -2045,11 +2209,21 @@ function renderLyrics() {
     box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas de paroles pour ce titre."}</p></div>`;
     return;
   }
-  box.innerHTML = `<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map((l, i) => `<p data-l="${i}">${esc(l.text || "♪")}</p>`).join("")}</div>`;
+  const cur = state.queue[state.index];
+  const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
+      <span class="lyr-src">Paroles · LRCLIB</span><button data-lyr-off="-0.5" aria-label="Retarder les paroles">−</button>
+      <span class="lyr-val" id="lyr-val">${offsetLabel(lyricsOffset(cur))}</span><button data-lyr-off="0.5" aria-label="Avancer les paroles">+</button></div>` : "";
+  box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map((l, i) => `<p data-l="${i}">${esc(l.text || "♪")}</p>`).join("")}</div>`;
   if (ly.synced) {
     $$("[data-l]", box).forEach((p) => (p.onclick = () => {
       const time = ly.lines[+p.dataset.l].time;
-      if (time != null) { audio.currentTime = time; if (audio.paused) audio.play(); }
+      if (time != null) { audio.currentTime = Math.max(0, time - lyricsOffset(cur)); if (audio.paused) audio.play(); }
+    }));
+    $$("[data-lyr-off]", box).forEach((b) => (b.onclick = () => {
+      setLyricsOffset(cur, lyricsOffset(cur) + Number(b.dataset.lyrOff));
+      const val = $("#lyr-val", box);
+      if (val) val.textContent = offsetLabel(lyricsOffset(cur));
+      syncLyrics(true);
     }));
   }
   state.lastLyric = -1;
@@ -2059,7 +2233,8 @@ function renderLyrics() {
 function syncLyrics(force) {
   if (panelTab() !== "lyrics" || !state.lyrics?.synced) return;
   const lines = state.lyrics.lines;
-  const now = audio.currentTime + 0.25;
+  const cur = state.queue[state.index];
+  const now = audio.currentTime + 0.25 + (cur ? lyricsOffset(cur) : 0);
   let active = -1;
   for (let i = 0; i < lines.length; i++) { if (lines[i].time != null && lines[i].time <= now) active = i; else if (lines[i].time > now) break; }
   if (active === state.lastLyric && !force) return;
@@ -3789,6 +3964,8 @@ function trackMenu(t, ctx = null, index = -1) {
       icon: d.kind === "iphone" ? icons.phone : icons.laptop, label: `Écouter sur ${d.name}`,
       sub: "Le titre se lance sur cet appareil", run: () => playOnDevice(d, ctx?.tracks?.length ? ctx.tracks : [t], ctx?.tracks?.length ? Math.max(0, index) : 0, ctx?.name),
     })),
+    offline.supported && { icon: icons.download, label: offlineHas(t) ? "Supprimer le téléchargement" : "Télécharger pour l'écoute hors ligne",
+      run: () => (offlineHas(t) ? offlineRemove(t).then(() => toast("Téléchargement supprimé")) : offlineDownload(t)) },
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
     { icon: icons.share, label: "Partager", run: () => shareTrack(t) },
   ], { header });
@@ -4219,7 +4396,7 @@ async function openRecap(period, offset) {
     r.biggest_day && `<div class="eyebrow">Ton plus gros jour</div><h2>${esc(r.biggest_day.label)}</h2><p>${minutesLabel(r.biggest_day.minutes)} de musique ce jour-là.</p>`,
     r.discovered_count && `<div class="eyebrow">Découvertes</div><div class="huge">${r.discovered_count}</div><p>nouveaux artistes, dont ${r.discoveries.slice(0, 3).map((d) => esc(d.name)).join(", ")}.</p>`,
     r.friends_rank && `<div class="eyebrow">Parmi tes amis</div><div class="huge">${r.friends_rank.rank === 1 ? "🥇" : `${r.friends_rank.rank}e`}</div><p>sur ${r.friends_rank.total} au temps d'écoute.</p>`,
-    `<div class="eyebrow">C'est tout pour ${what}</div><h2>À la prochaine 👋</h2>${r.first_track ? `<p class="muted">Ton premier son : ${esc(r.first_track.title)} — ${esc(r.first_track.artist)}</p>` : ""}`,
+    `<div class="eyebrow">C'est tout pour ${what}</div><h2>À la prochaine 👋</h2><button class="btn" data-rc-share>${icons.share} Partager mon récap</button>${r.first_track ? `<p class="muted">Ton premier son : ${esc(r.first_track.title)} — ${esc(r.first_track.artist)}</p>` : ""}`,
   ].filter(Boolean);
   const cover = r.top_artists[0]?.picture_url || r.top_tracks[0]?.cover_url || "";
   const el = document.createElement("div");
@@ -4239,6 +4416,7 @@ async function openRecap(period, offset) {
     slide.classList.remove("in"); void slide.offsetWidth; slide.classList.add("in");
     $$(".recap-bars i", el).forEach((b, k) => b.className = k < i ? "done" : k === i ? "now" : "");
     $("[data-rc-play]", el)?.addEventListener("click", (e) => { e.stopPropagation(); playTrackFrom(r.favourite_track); });
+    $("[data-rc-share]", el)?.addEventListener("click", (e) => { e.stopPropagation(); shareRecapImage(r); });
     clearTimeout(timer);
     timer = setTimeout(() => show(i + 1), 6500);
   };
@@ -4249,6 +4427,56 @@ async function openRecap(period, offset) {
   $(".recap-tap.left", el).onclick = () => show(i - 1);
   $(".recap-tap.right", el).onclick = () => show(i + 1);
   show(0);
+}
+
+/** Récap en image (1080×1920, pour une story) : dessinée à la main, sans pochettes (une image d'un autre site « salirait » le canvas et bloquerait l'export). */
+async function shareRecapImage(r) {
+  const W = 1080, H = 1920;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const g = canvas.getContext("2d");
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#fa2d48";
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#1b1030"); bg.addColorStop(0.55, "#2a0f2e"); bg.addColorStop(1, "#0b0b12");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * 0.8, H * 0.12, 20, W * 0.8, H * 0.12, 700);
+  glow.addColorStop(0, `${accent}66`); glow.addColorStop(1, "transparent");
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  const font = '"Segoe UI", system-ui, -apple-system, sans-serif';
+  const text = (str, x, y, size, weight = 600, color = "#fff", max = W - 160) => {
+    g.font = `${weight} ${size}px ${font}`; g.fillStyle = color;
+    let out = String(str);
+    while (g.measureText(out).width > max && out.length > 1) out = out.slice(0, -2);
+    g.fillText(out === String(str) ? out : `${out}…`, x, y);
+  };
+  text("SONA · RÉCAP", 80, 150, 38, 700, accent);
+  text(r.label, 80, 250, 84, 800);
+  text("Temps d'écoute", 80, 420, 40, 500, "#ffffffaa");
+  text(minutesLabel(r.minutes), 80, 560, 150, 800);
+  text(`${plural(r.plays, "écoute")} · ${plural(r.artists, "artiste")} · ${plural(r.tracks, "titre")}`, 80, 640, 38, 500, "#ffffffaa");
+  let y = 800;
+  if (r.top_artists?.length) {
+    text("Tes artistes", 80, y, 40, 700, accent); y += 70;
+    r.top_artists.slice(0, 3).forEach((a, i) => { text(`${i + 1}  ${a.name}`, 80, y, 58, 700); y += 84; });
+    y += 40;
+  }
+  if (r.top_tracks?.length) {
+    text("Tes titres", 80, y, 40, 700, accent); y += 70;
+    r.top_tracks.slice(0, 5).forEach((t, i) => { text(`${i + 1}  ${t.name}`, 80, y, 50, 600); text(t.subtitle || "", 150, y + 46, 32, 400, "#ffffff99"); y += 112; });
+  }
+  if (r.personality) text(`${r.personality.emoji}  ${r.personality.title}`, 80, H - 150, 54, 700);
+  text("Fait avec Sona", 80, H - 80, 32, 500, "#ffffff77");
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) return toast("Impossible de créer l'image");
+  const file = new File([blob], "sona-recap.png", { type: "image/png" });
+  try {
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `Mon récap Sona : ${r.label}` }); return; }
+  } catch (e) { if (e?.name === "AbortError") return; }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "sona-recap.png";
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Image enregistrée dans tes téléchargements");
 }
 
 // ── Concerts ─────────────────────────────────────────────────────────────
@@ -5436,10 +5664,27 @@ audio.addEventListener("ended", () => {
   if (sleep.endOfTrack) { setSleep(0); toast("Bonne nuit 🌙"); return; }
   next(true);
 });
-audio.addEventListener("error", () => {
+/** Pourquoi un titre ne se lance pas : on relit la réponse du serveur (une ligne de flux) au lieu d'un message générique. */
+async function explainPlaybackError(src) {
+  if (!navigator.onLine) return "Pas de connexion à internet";
+  try {
+    const res = await fetch(src, { headers: { Range: "bytes=0-0" } });
+    if (res.ok || res.status === 206) return "Ce titre ne se lance pas";
+    let detail = "";
+    try { detail = (await res.json()).detail || ""; } catch {}
+    if (res.status === 401) return "Session expirée : reconnecte-toi";
+    if (res.status === 404) return "Titre introuvable chez la source";
+    if (res.status === 429) return "Trop de demandes : réessaie dans un instant";
+    if (res.status >= 500) return detail && typeof detail === "string" ? detail : "YouTube ne répond pas pour ce titre pour le moment";
+    return detail && typeof detail === "string" ? detail : "Ce titre ne se lance pas";
+  } catch { return "Le serveur Sona est injoignable"; }
+}
+
+audio.addEventListener("error", async () => {
   if (!audio.src || isSilence()) return;
-  if (partyGuest()) return toast("Ce titre ne se lance pas chez toi — l'hôte continue");
-  toast("Ce titre ne se lance pas — passage au suivant");
+  const reason = await explainPlaybackError(audio.src);
+  if (partyGuest()) return toast(`${reason} — l'hôte continue`);
+  toast(`${reason} — passage au suivant`);
   setTimeout(() => next(true), 1200);
 });
 audio.addEventListener("timeupdate", () => {
@@ -5496,11 +5741,11 @@ document.addEventListener("keydown", (e) => {
   else if (e.key.toLowerCase() === "q" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("queue") : openNowPlaying("queue", true));
   else if (e.key.toLowerCase() === "c" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("credits") : openNowPlaying("credits", true));
   else if (e.key === "/") { e.preventDefault(); location.hash = "#/search"; setTimeout(() => $("#q")?.focus(), 150); }
-  else if (e.key === "?") shortcutsSheet();
+  else if (e.key === "?") keyboardHelpSheet();
 });
 
 /** Aide « ? » : les raccourcis clavier. */
-function shortcutsSheet() {
+function keyboardHelpSheet() {
   if ($(".sheet-wrap")) return;
   const rows = [
     ["Espace", "Lecture / pause"], ["Ctrl + → / ←", "Titre suivant / précédent"], ["→ / ←", "Avancer / reculer de 10 s"],

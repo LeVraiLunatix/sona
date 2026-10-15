@@ -24,6 +24,7 @@ struct FullPlayerView: View {
     @State private var confirmingWrongVersion = false
     @State private var showingSound = false
     @State private var storyTrack: Track?
+    @State private var creditsTrack: Track?
     @State private var momentRequest: MomentRequest?
     @State private var moments: [TrackMoment] = []
     @ObservedObject private var gestures = HeadGestures.shared
@@ -116,6 +117,7 @@ struct FullPlayerView: View {
         }
         .sheet(isPresented: $showingSound) { SoundSettingsSheet(player: player) }
         .sheet(item: $storyTrack) { track in StoryShareSheet(track: track) }
+        .sheet(item: $creditsTrack) { track in CreditsView(track: track) }
         .sheet(item: $momentRequest) { request in
             AddMomentSheet(track: request.track, position: request.position) {
                 Task { await loadMoments() }
@@ -242,6 +244,7 @@ struct FullPlayerView: View {
                 reportWrongVersion: { _ in confirmingWrongVersion = true },
                 openSound: { showingSound = true },
                 shareStory: { track in storyTrack = track },
+                showCredits: { track in creditsTrack = track },
                 addMoment: { track in momentRequest = MomentRequest(track: track, position: player.positionSeconds) }
             )
         )
@@ -859,6 +862,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         var reportWrongVersion: (Track) -> Void
         var openSound: () -> Void
         var shareStory: (Track) -> Void
+        var showCredits: (Track) -> Void
         var addMoment: (Track) -> Void
     }
 
@@ -932,6 +936,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
             main.append(item("Télécharger", "arrow.down.circle") { DownloadManager.shared.download([track]) })
         }
         main.append(UIMenu(title: "Réagir et partager", image: UIImage(systemName: "square.and.arrow.up"), children: [
+            item("Crédits du titre", "list.bullet.rectangle") { actions.showCredits(track) },
             item("Réagir à ce moment", "bubble.left.and.exclamationmark.bubble.right") { actions.addMoment(track) },
             item("Partager en story", "square.and.arrow.up.on.square") { actions.shareStory(track) },
         ]))

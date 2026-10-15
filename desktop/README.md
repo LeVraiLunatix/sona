@@ -28,6 +28,13 @@ ce qu'un navigateur ne sait pas faire.
   « Disque 2 »…), et un onglet « Crédits » à côté des paroles (artistes, label,
   date, genres, compositeurs et producteurs quand MusicBrainz les connaît) ;
   aussi dans le menu « ⋯ » d'un titre.
+- **Hors ligne** : « Télécharger pour l'écoute hors ligne » dans le menu « ⋯ »
+  d'un titre ou sur un album ; les titres sont gardés sur le PC (onglet
+  Bibliothèque → Téléchargés) et lus sans réseau. Sans connexion, Sona s'ouvre
+  directement sur cette page.
+- **Paroles** : décalage ± 0,5 s réglable par titre ; **page artiste** :
+  biographie (Wikipédia), prochains concerts, discographie filtrable et triable ;
+  **récap** partageable en image ; touche `?` pour l'aide des raccourcis.
 - **Paroles en surimpression** : les paroles synchronisées par-dessus les
   autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
   clique au travers. Réglages, zone de notification ou raccourci clavier.

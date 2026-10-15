@@ -227,3 +227,33 @@ def test_search_results_get_featured_artists(client):
     deps.deezer.get_track = get_track
     body = client.get("/search", params={"q": "fave"}, headers=AUTH).json()
     assert [a["name"] for a in body["tracks"][0]["artists"]] == ["Favé", "RnBoi"]
+
+
+def test_artist_bio_only_for_musicians():
+    from app.services.artist_bio import pick_summary
+
+    good = {"extract": "Favé est un rappeur français né en 1990, auteur de plusieurs albums.", "description": "rappeur",
+            "content_urls": {"desktop": {"page": "https://fr.wikipedia.org/wiki/Fav%C3%A9"}}}
+    assert pick_summary(good) == {"text": good["extract"], "url": "https://fr.wikipedia.org/wiki/Fav%C3%A9", "source": "Wikipédia"}
+    assert pick_summary({"extract": "Favé est une commune de l'Orne située dans la région Normandie."}) is None
+    assert pick_summary({"type": "disambiguation", "extract": "x" * 80}) is None
+
+
+def test_artist_bio_and_concerts_endpoints(client, monkeypatch):
+    from app.providers.base import ArtistInfo
+    from app.services import artist_bio, concerts
+
+    async def get_artist(artist_id):
+        return ArtistInfo("deezer", artist_id, "Favé", None)
+
+    async def get_bio(name):
+        return {"text": f"Bio de {name}", "url": None, "source": "Wikipédia"} if name == "Favé" else None
+
+    async def events(app_id, artist, picture=None):
+        return [{"id": "1", "artist": artist, "datetime": "2026-12-01T20:00:00", "venue": "Zénith", "city": "Paris"}]
+
+    client.app_state.deps.deezer.get_artist = get_artist
+    monkeypatch.setattr(artist_bio, "get_bio", get_bio)
+    monkeypatch.setattr(concerts, "artist_events", events)
+    assert client.get("/artists/deezer/9/bio", headers=AUTH).json()["text"] == "Bio de Favé"
+    assert client.get("/artists/deezer/9/concerts", headers=AUTH).json()[0]["venue"] == "Zénith"

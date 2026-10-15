@@ -474,6 +474,12 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .disc-head { display: flex; align-items: center; gap: 8px; margin: 18px 0 4px; padding: 0 12px 8px; border-bottom: .5px solid var(--hairline); font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--text-2); }
 .disc-head:first-child { margin-top: 4px; }
 .disc-head .icon { font-size: 16px; }
+.lyr-tools { position: absolute; top: 8px; right: 10px; z-index: 2; display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,.6); opacity: .55; transition: opacity .2s; }
+.lyr-tools:hover { opacity: 1; }
+.lyr-tools button { width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff; font-size: 15px; line-height: 1; }
+.lyr-tools button:hover { background: rgba(255,255,255,.26); }
+.lyr-val { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+.lyr-src { margin-right: 4px; }
 .queue { height: 100%; overflow-y: auto; padding: 6vh 0; }
 .queue h3 { font-size: 15px; font-weight: 700; margin: 0 0 12px; color: rgba(255,255,255,.85); }
 .qrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 8px; width: 100%; text-align: left; }
@@ -1379,3 +1385,15 @@ span.chip { cursor: default; }
 .rec-art { width: 180px; height: 180px; border-radius: 14px; object-fit: cover; box-shadow: 0 16px 40px rgba(0,0,0,.4); background: var(--fill); }
 .rec-title { font-size: 20px; margin-top: 6px; }
 .rec .btn { margin-top: 10px; }
+
+/* Page artiste : filtres de discographie, biographie */
+.dl-mark { display: inline-flex; vertical-align: -2px; margin-right: 6px; color: var(--text-3); font-size: 13px; }
+.disco-controls { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 26px 0 -6px; }
+.disco-controls .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip.on { background: var(--accent); color: var(--on-accent, #fff); }
+.bio { max-width: 760px; }
+.bio-text { margin: 0; line-height: 1.55; color: var(--text-2); font-size: 15px; white-space: pre-line; }
+.bio-text.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bio-foot { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
+.bio-foot .link-btn { margin-top: 0; }
+.bio-src { font-size: 12.5px; color: var(--text-3); }
