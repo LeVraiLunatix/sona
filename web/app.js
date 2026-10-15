@@ -3956,6 +3956,7 @@ function trackMenu(t, ctx = null, index = -1) {
     playing && { icon: icons.moon, label: sleep.until ? `Minuteur : ${sleepLabel()}` : "Minuteur de sommeil", run: sleepMenu },
     playing && { icon: icons.tv, label: "Diffuser sur la TV ou la PS5", run: openCast },
     playing && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
+    account?.is_admin && { icon: icons.pulse, label: "Diagnostic de lecture", sub: "Ce que le serveur trouve pour ce titre, et pourquoi il l'écarte", run: () => diagnoseTrack(t) },
     entry && ctx.playlist?.can_edit && { icon: icons.trash, label: "Retirer de cette playlist", danger: true, run: async () => {
       await api(`/me/playlists/${ctx.playlist.id}/tracks/${entry.entry_id}`, { method: "DELETE" });
       toast("Retiré de la playlist"); route();
@@ -4031,6 +4032,35 @@ async function reportWrongVersion(t) {
     toast("Source écartée : on relance avec une autre");
     if (sameTrack(t, state.queue[state.index])) playAt(state.index);
   } catch (e) { toast(e.message); }
+}
+
+/** « Diagnostic de lecture » (admin) : le serveur relance la préparation du
+ * titre et raconte chaque source essayée — de quoi comprendre un titre qui ne
+ * se lance pas sans lire les journaux du serveur. */
+async function diagnoseTrack(t) {
+  const wrap = openSheet(`<h2 class="sheet-title">Diagnostic de lecture</h2>
+    <p class="muted">« ${esc(t.title)} » — ${esc(t.artist)}</p>
+    <div data-diag><p class="muted">Le serveur cherche et télécharge le titre… (jusqu'à une minute)</p></div>`);
+  const box = $("[data-diag]", wrap);
+  let r;
+  try {
+    r = await api(`/admin/diagnose/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}`, { method: "POST" });
+  } catch (e) { box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
+  if (!r.tried) { box.innerHTML = `<p><span class="pill-state">Prêt</span></p><p class="muted">${esc(r.message)}</p>`; return; }
+  const dur = (d) => (d ? fmt(d) : "?");
+  const row = (title, sub) => `<div class="set-row"><span class="set-text"><b>${title}</b><small>${sub}</small></span></div>`;
+  const ref = r.track;
+  box.innerHTML = `
+    <p><span class="pill-state ${r.ready ? "" : "bad"}">${r.ready ? "Prêt" : "Échec"}</span> ${r.ready ? "" : esc(r.result)}</p>
+    ${ref ? `<p class="muted">Référence : ${esc(ref.title)} — ${esc(ref.artist)}${ref.album ? ` · ${esc(ref.album)}` : ""} · ${dur(ref.duration_seconds)} · ${ref.preview ? "extrait officiel disponible" : "pas d'extrait officiel"}</p>` : ""}
+    <h3 class="set-head">Sources essayées</h3>
+    <div class="set-group">${r.tried.length ? r.tried.map((c) => row(
+      `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)}</small>`,
+      `${esc(c.artist)} — ${esc(c.outcome || "?")}`)).join("") : row("Aucune", "Aucun résultat n'a passé le tri ci-dessous")}</div>
+    <h3 class="set-head">Résultats des recherches</h3>
+    <div class="set-group">${r.found.length ? r.found.map((c) => row(
+      `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)} · score ${c.score}</small>`,
+      `${esc(c.artist)} — ${c.rejected ? `écarté : ${esc(c.rejected)}` : "acceptable"}`)).join("") : row("Aucun résultat", "YouTube et SoundCloud n'ont rien renvoyé")}</div>`;
 }
 
 // ── Moments : réactions posées à un instant du titre ──────────────────────
@@ -5673,7 +5703,7 @@ async function explainPlaybackError(src) {
     let detail = "";
     try { detail = (await res.json()).detail || ""; } catch {}
     if (res.status === 401) return "Session expirée : reconnecte-toi";
-    if (res.status === 404) return "Titre introuvable chez la source";
+    if (res.status === 404) return detail && typeof detail === "string" ? detail : "Titre introuvable chez la source";
     if (res.status === 429) return "Trop de demandes : réessaie dans un instant";
     if (res.status >= 500) return detail && typeof detail === "string" ? detail : "YouTube ne répond pas pour ce titre pour le moment";
     return detail && typeof detail === "string" ? detail : "Ce titre ne se lance pas";

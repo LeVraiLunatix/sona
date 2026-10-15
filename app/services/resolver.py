@@ -527,6 +527,7 @@ async def iter_audio_sources(
     cookies_file: Path | None = None,
     excluded: frozenset[str] | set[str] = frozenset(),
     preferred: str | None = None,
+    found: list[Candidate] | None = None,
 ) -> AsyncIterator[Candidate]:
     """Sources audio acceptables d'un morceau, de la plus probable à la moins probable.
 
@@ -544,6 +545,8 @@ async def iter_audio_sources(
     pour ce morceau (« Mauvaise version ? » dans l'app), jamais reproposées.
     `preferred` : source déjà retenue pour ce morceau lors d'une écoute
     précédente — proposée d'emblée, sans aucune recherche (le plus lent).
+    `found` : reçoit tous les résultats de recherche, retenus ou non (pour
+    le diagnostic d'un titre qui ne se lance pas).
     """
     if track.source == "youtube":
         yield Candidate(
@@ -566,7 +569,7 @@ async def iter_audio_sources(
     # publié par l'artiste convient, inutile d'en lancer d'autres (chacune
     # coûte une à deux secondes sur une petite machine).
     queries = _query_variants(track)
-    candidates: list[Candidate] = []
+    candidates: list[Candidate] = found if found is not None else []
     youtube_music: list[Candidate] = []
     for query in queries:
         known = {c.video_id for c in candidates}

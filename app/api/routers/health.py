@@ -137,3 +137,21 @@ async def update_ytdlp(deps: ApiDeps = Depends(require_admin)) -> dict:
         cwd=BASE_DIR, stdout=log, stderr=log, start_new_session=True,
     )
     return {"started": True, "message": "Mise à jour lancée : Sona redémarre dans une minute si une nouvelle version arrive."}
+
+
+@router.post("/diagnose/{source}/{source_id}")
+async def diagnose_track(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
+    """« Diagnostic de lecture » d'un titre : relance sa préparation (sans
+    attendre la fin du délai après un échec) et rend le compte rendu — ce
+    que YouTube et SoundCloud ont renvoyé, et pourquoi chaque source a été
+    écartée. De quoi comprendre un titre qui ne se lance pas sans lire les
+    journaux du serveur."""
+    stream.forget_track_failures(source, source_id)
+    try:
+        await stream.ensure_file(deps, source, source_id, "best", "auto")
+    except HTTPException:
+        pass  # le compte rendu dit pourquoi
+    report = stream.last_report(source, source_id)
+    if report is None:
+        return {"ready": True, "message": "Ce titre est déjà prêt sur le serveur : il se lance depuis le cache."}
+    return {"ready": report["result"] == "ok", **report}

@@ -144,3 +144,18 @@ def test_known_soundcloud_source_is_downloaded_from_soundcloud(monkeypatch):
     known = asyncio.run(first())
     assert known.platform == "soundcloud"
     assert known.source_url == "https://api.soundcloud.com/tracks/726423343"
+
+
+def test_every_search_result_is_reported_for_the_diagnosis(monkeypatch):
+    instru = cand("instru", "7/7 (Instrumental)", is_song=True)
+    official = cand("audio", "7/7", video_type=AUDIO_TRACK_TYPE, is_song=True)
+    monkeypatch.setattr(resolver, "_search_ytmusic_sync", lambda queries: [instru, official])
+    monkeypatch.setattr(resolver, "_search_soundcloud_sync", lambda query: [])
+    monkeypatch.setattr(resolver, "_search_ytdlp_sync", lambda query, cookies: [])
+    found = []
+
+    async def collect():
+        return [c.video_id async for c in resolver.iter_audio_sources(TRACK, None, found=found)]
+
+    assert asyncio.run(collect()) == ["audio"]
+    assert {c.video_id for c in found} == {"instru", "audio"}

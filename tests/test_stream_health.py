@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.api.routers import health, stream
 from app.providers.base import TrackInfo
 from app.services import stream_health, youtube_session, ytdlp_updater
+from app.services.audio_match import Verdict
 from app.services.downloader import DownloadError
 from app.services.resolver import Candidate
 
@@ -82,7 +83,7 @@ def test_youtube_down_falls_back_to_soundcloud(client, tmp_path, monkeypatch):
     async def same(deezer, track):
         return track
 
-    async def sources(track, cookies, excluded, preferred):
+    async def sources(track, cookies, excluded, preferred, found=None):
         for candidate in (youtube, youtube2, soundcloud):
             yield candidate
 
@@ -95,11 +96,8 @@ def test_youtube_down_falls_back_to_soundcloud(client, tmp_path, monkeypatch):
         path.write_bytes(b"audio")
         return path
 
-    class Verdict:
-        rejected = False
-
     async def verify(track, path, ffmpeg):
-        return Verdict()
+        return Verdict(0.05)
 
     monkeypatch.setattr(stream, "_track_for", track_for)
     monkeypatch.setattr(stream, "complete_preview", same)
@@ -133,7 +131,7 @@ def test_lost_known_source_does_not_rule_out_youtube(client, tmp_path, monkeypat
     async def preferred(self, source, source_id):
         return "old"
 
-    async def sources(track, cookies, excluded, preferred):
+    async def sources(track, cookies, excluded, preferred, found=None):
         assert preferred == "old"
         for candidate in (known, other):
             yield candidate
@@ -147,11 +145,8 @@ def test_lost_known_source_does_not_rule_out_youtube(client, tmp_path, monkeypat
         path.write_bytes(b"audio")
         return path
 
-    class Verdict:
-        rejected = False
-
     async def verify(track, path, ffmpeg):
-        return Verdict()
+        return Verdict(0.05)
 
     from app.db.repository import Repository
 
@@ -164,6 +159,58 @@ def test_lost_known_source_does_not_rule_out_youtube(client, tmp_path, monkeypat
     ready = client.post("/stream/deezer/5/prepare", headers=AUTH)
     assert ready.status_code == 200, ready.text
     assert tried == ["https://www.youtube.com/watch?v=old", "https://www.youtube.com/watch?v=yt2"]
+
+
+def test_diagnose_reports_why_each_source_was_rejected(client, tmp_path, monkeypatch):
+    """« Diagnostic de lecture » : un titre qui ne se lance pas dit pourquoi,
+    sans lire les journaux du serveur — même juste après un échec."""
+    snippet = Candidate(video_id="soundcloud:7", title="Titre", artist="Artiste", album=None, duration_seconds=180,
+                        cover_url=None, is_song=False, platform="soundcloud", url="https://soundcloud.com/a/titre")
+    instru = Candidate(video_id="yt-instru", title="Artiste - Titre (Instrumental)", artist="Beats", album=None,
+                       duration_seconds=180, cover_url=None, is_song=False)
+    downloads = []
+
+    async def track_for(deps, source, source_id):
+        return TRACK
+
+    async def same(deezer, track):
+        return track
+
+    async def sources(track, cookies, excluded, preferred, found=None):
+        found.extend([snippet, instru])
+        yield snippet
+
+    async def download(settings, url, track, quality, fmt):
+        downloads.append(url)
+        path = tmp_path / "work" / "titre.m4a"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"audio")
+        return path
+
+    async def verify(track, path, ffmpeg):
+        return Verdict(1.0, "fichier de 30 s au lieu de 180 s")
+
+    monkeypatch.setattr(stream, "_track_for", track_for)
+    monkeypatch.setattr(stream, "complete_preview", same)
+    monkeypatch.setattr(stream, "iter_audio_sources", sources)
+    monkeypatch.setattr(stream, "download_and_tag", download)
+    monkeypatch.setattr(stream, "verify_recording", verify)
+    assert client.post("/stream/deezer/5/prepare", headers=AUTH).status_code == 404
+
+    got = client.post("/admin/diagnose/deezer/5", headers=AUTH)
+    assert got.status_code == 200, got.text
+    report = got.json()
+    assert len(downloads) == 2  # l'échec récent n'empêche pas le diagnostic de réessayer
+    assert report["ready"] is False
+    assert report["result"] == "Aucune version fidèle de ce morceau n'a été trouvée."
+    assert report["track"]["title"] == "Titre"
+    assert report["tried"] == [{
+        "id": "soundcloud:7", "platform": "soundcloud", "title": "Titre", "artist": "Artiste",
+        "duration_seconds": 180, "outcome": "écartée : fichier de 30 s au lieu de 180 s",
+    }]
+    reasons = {r["id"]: r["rejected"] for r in report["found"]}
+    assert reasons == {"soundcloud:7": None, "yt-instru": "version dérivée (instrumental)"}
+    assert client.post("/admin/diagnose/deezer/5").status_code == 401
 
 
 def test_cookies_upload_from_the_app(client, tmp_path, monkeypatch):

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import shutil
 import time
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from contextlib import aclosing
 from pathlib import Path
 
@@ -22,7 +22,9 @@ from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
 from app.services import audio_analysis, karaoke, live_stream, stream_health
-from app.services.resolver import ResolutionError, iter_audio_sources
+from app.services.resolver import (
+    Candidate, ResolutionError, iter_audio_sources, rejection_reason, score_candidate,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["stream"])
@@ -72,15 +74,88 @@ async def _track_for(deps: ApiDeps, source: str, source_id: str) -> TrackInfo:
         return known
 
 
+# Dernière tentative de téléchargement par morceau, pour le diagnostic
+# (« Diagnostic de lecture » dans le menu d'un titre, côté admin) : ce que
+# les recherches ont trouvé et pourquoi chaque source a été écartée — sans
+# avoir à lire les journaux du serveur.
+MAX_REPORTS = 50
+MAX_REPORTED_RESULTS = 25
+_reports: OrderedDict[tuple[str, str], dict] = OrderedDict()
+
+
+def last_report(source: str, source_id: str) -> dict | None:
+    return _reports.get((source, source_id))
+
+
+def forget_track_failures(source: str, source_id: str) -> None:
+    for key in [k for k in _failures if k[:2] == (source, source_id)]:
+        del _failures[key]
+
+
+def _start_report(source: str, source_id: str, track: TrackInfo | None) -> dict:
+    report = {
+        "at": time.time(),
+        "track": None if track is None else {
+            "title": track.title, "artist": track.artist, "album": track.album,
+            "duration_seconds": track.duration_seconds, "preview": bool(track.preview_url),
+        },
+        "tried": [],
+        "found": [],
+        "result": None,
+    }
+    _reports[(source, source_id)] = report
+    _reports.move_to_end((source, source_id))
+    while len(_reports) > MAX_REPORTS:
+        _reports.popitem(last=False)
+    return report
+
+
+def _describe(candidate: Candidate) -> dict:
+    return {
+        "id": candidate.video_id, "platform": candidate.platform, "title": candidate.title,
+        "artist": candidate.artist, "duration_seconds": candidate.duration_seconds,
+    }
+
+
+def _found_summary(track: TrackInfo, found: list[Candidate]) -> list[dict]:
+    """Résultats des recherches, du plus au moins ressemblant, avec la raison
+    d'un éventuel rejet par le résolveur."""
+    scored = sorted(((score_candidate(track, c), c) for c in found), key=lambda sc: sc[0], reverse=True)
+    return [
+        {**_describe(c), "score": round(score, 2), "rejected": rejection_reason(track, c)}
+        for score, c in scored[:MAX_REPORTED_RESULTS]
+    ]
+
+
 async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> Path:
     """Reproduit `deliver_track_audio` du bot, sans Telegram : télécharge,
-    vérifie l'audio contre l'extrait officiel, et rend un fichier persistant."""
+    vérifie l'audio contre l'extrait officiel, et rend un fichier persistant.
+    Chaque tentative est consignée (voir `last_report`)."""
     try:
         track = await _track_for(deps, source, source_id)
     except lookup.ProviderErrors as exc:
+        report = _start_report(source, source_id, None)
+        report["result"] = f"Morceau introuvable : {exc}"
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Morceau introuvable : {exc}") from exc
 
     track = await complete_preview(deps.deezer, track)
+    report = _start_report(source, source_id, track)
+    found: list[Candidate] = []
+    try:
+        dest = await _download_first_faithful(deps, source, source_id, quality, fmt, track, report, found)
+    except HTTPException as exc:
+        report["result"] = str(exc.detail)
+        raise
+    finally:
+        report["found"] = _found_summary(track, found)
+    report["result"] = "ok"
+    return dest
+
+
+async def _download_first_faithful(
+    deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str,
+    track: TrackInfo, report: dict, found: list[Candidate],
+) -> Path:
     excluded = await deps.repo.rejected_sources(source, source_id)
     # Source déjà trouvée (lecture directe précédente) : essayée d'abord,
     # sans nouvelle recherche. Toujours vérifiée par empreinte ci-dessous.
@@ -93,10 +168,13 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
     youtube_failure: DownloadError | None = None
     try:
         async with aclosing(
-            iter_audio_sources(track, deps.settings.youtube_cookies_file, excluded, preferred)
+            iter_audio_sources(track, deps.settings.youtube_cookies_file, excluded, preferred, found=found)
         ) as sources:
             async for source_candidate in sources:
+                tried = _describe(source_candidate)
+                report["tried"].append(tried)
                 if youtube_failure is not None and source_candidate.platform == "youtube":
+                    tried["outcome"] = "sautée : YouTube indisponible"
                     continue
                 attempts += 1
                 try:
@@ -104,6 +182,9 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                         deps.settings, source_candidate.source_url, track, quality, fmt
                     )
                 except DownloadError as exc:
+                    tried["outcome"] = "téléchargement impossible : " + _download_failure(exc).removeprefix(
+                        "Téléchargement audio impossible : "
+                    )
                     # La source mémorisée a pu disparaître (vidéo retirée) :
                     # cela ne dit rien de YouTube, les autres vidéos restent à essayer.
                     if source_candidate.platform == "youtube" and source_candidate.video_id != preferred:
@@ -117,6 +198,12 @@ async def _resolve_and_download(deps: ApiDeps, source: str, source_id: str, qual
                     continue
 
                 verdict = await verify_recording(track, path, deps.settings.ffmpeg_path)
+                if verdict.rejected:
+                    tried["outcome"] = "écartée : " + (verdict.reason or f"écart d'empreinte {verdict.error:.3f}")
+                elif verdict.error is not None:
+                    tried["outcome"] = f"retenue (écart d'empreinte {verdict.error:.3f})"
+                else:
+                    tried["outcome"] = f"retenue sans comparaison ({verdict.reason})"
                 if not verdict.rejected:
                     dest = _persistent_path(deps, source, source_id, fmt, quality, path.suffix)
                     dest.parent.mkdir(parents=True, exist_ok=True)
