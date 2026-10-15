@@ -48,6 +48,9 @@ class LyricsError(Exception):
 class LyricsWord:
     time: float
     text: str
+    # Fin du mot quand la source la donne (NetEase, Musixmatch) ; sinon
+    # l'app la déduit du mot suivant.
+    end: float | None = None
 
 
 @dataclass(slots=True)
@@ -57,6 +60,7 @@ class LyricsLine:
     # Mot par mot, quand la source le donne (LRC enrichi) ; sinon l'app
     # répartit elle-même la ligne.
     words: list[LyricsWord] | None = None
+    end: float | None = None
 
 
 @dataclass(slots=True)

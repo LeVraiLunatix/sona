@@ -66,6 +66,12 @@ class Settings:
     karaoke_cache_max_mb: int = 1500
     # Cœurs donnés au calcul (en priorité basse : l'API passe toujours avant).
     karaoke_threads: int = 2
+    # Paroles (services/lyrics.py) : en plus de LRCLIB, NetEase et Musixmatch
+    # (mot par mot). LYRICS_EXTRA_SOURCES=0 n'interroge que LRCLIB.
+    lyrics_extra_sources: bool = True
+    # Jeton d'utilisateur Musixmatch (app de bureau) : sans lui, Musixmatch
+    # ne répond plus correctement et reste en veille.
+    musixmatch_token: str | None = None
 
     @property
     def is_private_mode(self) -> bool:
@@ -136,6 +142,8 @@ def load_settings() -> Settings:
         models_dir=data_dir("MODELS_DIR", "data/models"),
         karaoke_cache_max_mb=int(os.getenv("KARAOKE_CACHE_MAX_MB", "").strip() or 1500),
         karaoke_threads=int(os.getenv("KARAOKE_THREADS", "").strip() or min(2, os.cpu_count() or 1)),
+        lyrics_extra_sources=os.getenv("LYRICS_EXTRA_SOURCES", "1").strip().lower() not in ("0", "false", "non", "no"),
+        musixmatch_token=os.getenv("MUSIXMATCH_TOKEN", "").strip() or None,
         admin_lastfm_users=frozenset(
             name.strip().casefold()
             for name in (os.getenv("ADMIN_LASTFM_USERS") or os.getenv("LASTFM_USER") or "").split(",")

@@ -16,7 +16,28 @@ window.sonaOverlay.onState((s) => {
 
 function position() {
   if (!state) return 0;
-  return (state.position || 0) + (state.paused ? 0 : (performance.now() - receivedAt) / 1000);
+  // Décalage des paroles réglé pour ce titre dans Sona (positif : plus tôt).
+  return (state.position || 0) + (state.lyrics?.offset || 0) + (state.paused ? 0 : (performance.now() - receivedAt) / 1000);
+}
+
+/** Ligne en cours mot par mot : un <span> par mot, allumé au fil du chant. */
+function renderWords(line) {
+  nowEl.textContent = "";
+  for (const [, , text] of line.words) {
+    const span = document.createElement("span");
+    span.className = "w";
+    span.textContent = text;
+    nowEl.append(span);
+  }
+}
+
+function fillWords(line, t) {
+  if (!line?.words) return;
+  const spans = nowEl.children;
+  line.words.forEach(([start, end], k) => {
+    const p = Math.max(0, Math.min(1, (t - start) / Math.max(0.05, end - start)));
+    if (spans[k]) spans[k].style.opacity = (0.45 + 0.55 * p).toFixed(2);
+  });
 }
 
 function tick() {
@@ -29,11 +50,16 @@ function tick() {
   const t = position() + 0.15;
   let active = -1;
   for (let i = 0; i < lines.length; i++) { if (lines[i].time <= t) active = i; else break; }
-  if (active === shown) return;
+  if (active === shown) {
+    fillWords(lines[active], t);
+    return;
+  }
   shown = active;
   document.body.classList.add("swap");
   requestAnimationFrame(() => {
-    nowEl.textContent = active >= 0 ? lines[active].text : "♪";
+    const line = lines[active];
+    if (line?.words?.length) { renderWords(line); fillWords(line, position() + 0.15); }
+    else nowEl.textContent = line ? line.text : "♪";
     nextEl.textContent = lines[active + 1]?.text || "";
     requestAnimationFrame(() => document.body.classList.remove("swap"));
   });
@@ -42,4 +68,6 @@ function tick() {
 // Mode jeu : une seule ligne, plus petite et plus transparente.
 window.sonaOverlay.onMode?.((mode) => document.body.classList.toggle("game", !!mode?.game));
 
-setInterval(tick, 120);
+// 20 fois par seconde : assez pour un remplissage mot par mot fluide
+// (fondu CSS entre deux pas), sans tenir le processeur éveillé pour rien.
+setInterval(tick, 50);

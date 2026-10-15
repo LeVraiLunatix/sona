@@ -24,6 +24,7 @@ from app.api.state import ApiDeps
 from app.config import load_settings
 from app.services import karaoke as karaoke_service, stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
+from app.services.lyrics import LyricsService
 from app.db.database import Database
 from app.db.repository import Repository
 from app.logging_config import setup_logging
@@ -32,6 +33,8 @@ from app.providers.deezer import DeezerClient
 from app.providers.lastfm_auth import LastfmAuthClient
 from app.providers.lrclib import LrclibClient
 from app.providers.musicbrainz import MusicBrainzClient
+from app.providers.musixmatch import MusixmatchClient
+from app.providers.netease import NeteaseClient
 from app.providers.spotify import SpotifyClient
 
 logger = logging.getLogger(__name__)
@@ -67,6 +70,8 @@ async def lifespan(app: FastAPI):
     apple = AppleMusicClient()
     spotify = SpotifyClient(settings.spotify_client_id, settings.spotify_client_secret)
     lrclib = LrclibClient()
+    netease = NeteaseClient() if settings.lyrics_extra_sources else None
+    musixmatch = MusixmatchClient(settings.musixmatch_token) if settings.lyrics_extra_sources else None
     musicbrainz = MusicBrainzClient()
     lastfm_auth = (
         LastfmAuthClient(settings.lastfm_api_key, settings.lastfm_api_secret)
@@ -86,6 +91,7 @@ async def lifespan(app: FastAPI):
         lrclib=lrclib,
         lastfm_auth=lastfm_auth,
         musicbrainz=musicbrainz,
+        lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch),
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
@@ -110,6 +116,9 @@ async def lifespan(app: FastAPI):
         await apple.aclose()
         await spotify.aclose()
         await lrclib.aclose()
+        for client in (netease, musixmatch):
+            if client is not None:
+                await client.aclose()
         await musicbrainz.aclose()
         if lastfm_auth is not None:
             await lastfm_auth.aclose()

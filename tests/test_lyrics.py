@@ -127,7 +127,10 @@ def test_lyrics_endpoint(client):
         "title": "Titre", "artist": "Artiste", "album": "Album", "duration": 200,
     })
     assert got.status_code == 200
-    assert got.json() == {"synced": True, "instrumental": False, "lines": [{"time": 1.5, "text": "Salut", "words": None}]}
+    assert got.json() == {
+        "synced": True, "instrumental": False, "sync": "line", "source": "lrclib", "language": None,
+        "lines": [{"time": 1.5, "text": "Salut", "words": None, "end": None}],
+    }
 
 
 def test_lyrics_endpoint_not_found_and_upstream_error(client):
@@ -139,8 +142,9 @@ def test_lyrics_endpoint_not_found_and_upstream_error(client):
 
     client.app_state.deps.lrclib.get_lyrics = none
     assert client.get("/lyrics", headers=AUTH, params={"title": "T", "artist": "A"}).status_code == 404
+    # L'absence est maintenant en cache : un autre titre pour voir l'erreur.
     client.app_state.deps.lrclib.get_lyrics = broken
-    assert client.get("/lyrics", headers=AUTH, params={"title": "T", "artist": "A"}).status_code == 502
+    assert client.get("/lyrics", headers=AUTH, params={"title": "T2", "artist": "A"}).status_code == 502
     assert client.get("/lyrics", params={"title": "T", "artist": "A"}).status_code == 401
 
 

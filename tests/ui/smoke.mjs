@@ -43,7 +43,9 @@ const jsonRoutes = {
   "/artists/deezer/10/bio": { text: "Favé est un rappeur français. ".repeat(12), url: "https://fr.wikipedia.org/wiki/Fave", source: "Wikipédia" },
   "/artists/deezer/10/concerts": [{ id: "1", artist: "Favé", datetime: "2026-12-01T20:00:00", venue: "Zénith", city: "Paris", country: "FR", url: null }],
   "/tracks/deezer/1/credits": { artists: track(1).artists, credits: [{ role: "Producteur", names: ["Beatmaker"] }], album: "Double", label: "Label", release_date: "2024-05-03", genres: ["Rap"], isrc: "FR1", disc_number: 1, track_number: 1, duration_seconds: 3 },
-  "/lyrics": { synced: true, instrumental: false, lines: [{ time: 0, text: "Ligne un" }, { time: 1, text: "Ligne deux" }] },
+  "/lyrics": { synced: true, instrumental: false, sync: "word", source: "netease", language: "fr", lines: [
+    { time: 0, text: "Ligne un", words: [{ time: 0, text: "Ligne ", end: 0.4 }, { time: 0.4, text: "un", end: 0.9 }] },
+    { time: 1, text: "" }, { time: 2, text: "Ligne deux" }] },
   "/search": { query_id: "q", provider: "deezer", total: 1, tracks: [track(1)] },
 };
 const errors = [];
@@ -106,6 +108,10 @@ await page.waitForSelector(".np.open, #np-right, #drawer-body .lyrics", { timeou
 out(`outils paroles: ${await page.$$eval(".lyr-tools", (e) => e.length)}`);
 await page.click("[data-lyr-off='0.5']").catch((e) => out("décalage: " + e.message.split("\n")[0]));
 out(`valeur décalage: ${await page.$eval("#lyr-val", (e) => e.textContent).catch(() => "?")}`);
+out(`mots de la 1re ligne: ${await page.$$eval("#lyr [data-l='0'] .w", (e) => e.map((x) => x.textContent.trim()).join("|"))}`);
+out(`mots estimés de la 3e ligne: ${await page.$$eval("#lyr [data-l='2'] .w", (e) => e.length)}`);
+out(`pause instrumentale: ${await page.$$eval("#lyr p.gap i", (e) => e.length === 3)}`);
+out(`source des paroles: ${await page.$eval(".lyr-foot", (e) => e.textContent).catch(() => "absente")}`);
 await page.keyboard.press("c");
 await page.waitForSelector(".credits .cr", { timeout: 5000 }).catch(() => out("crédits: absents"));
 out(`crédits: ${await page.$$eval(".credits .cr .cl", (e) => e.map((x) => x.textContent).join(","))}`);

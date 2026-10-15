@@ -91,7 +91,7 @@ final class LyricsActivity {
         var nextLine: String?
         if let lyrics, lyricsTrackID == track.id, lyrics.synced, !lyrics.lines.isEmpty {
             let lines = lyrics.lines
-            let position = player.positionSeconds + 0.3
+            let position = player.positionSeconds + 0.3 + LyricsOptions.storedOffset(for: track.id)
             if let index = lines.lastIndex(where: { ($0.time ?? .infinity) <= position }) {
                 let text = lines[index].text.trimmingCharacters(in: .whitespaces)
                 line = text.isEmpty ? "♪" : text

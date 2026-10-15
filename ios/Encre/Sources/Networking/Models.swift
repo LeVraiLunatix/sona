@@ -210,6 +210,8 @@ struct Lyrics: Codable, Hashable {
     struct Word: Codable, Hashable {
         var time: Double
         var text: String
+        /// Fin du mot quand la source la donne (sinon : le mot suivant).
+        var end: Double? = nil
     }
 
     struct Line: Codable, Hashable {
@@ -217,11 +219,28 @@ struct Lyrics: Codable, Hashable {
         var text: String
         /// Mot par mot quand la source le donne (sinon estimé par l'app).
         var words: [Word]?
+        var end: Double? = nil
     }
 
     var synced: Bool
     var instrumental: Bool
     var lines: [Line]
+    /// « word » (mot par mot), « line » (ligne par ligne) ou « none ».
+    var sync: String? = nil
+    /// « lrclib », « netease », « musixmatch ».
+    var source: String? = nil
+    /// Code ISO 639-1, quand le serveur reconnaît la langue.
+    var language: String? = nil
+
+    /// Nom de la source à afficher sous les paroles.
+    var sourceName: String? {
+        switch source {
+        case "lrclib": "LRCLIB"
+        case "netease": "NetEase"
+        case "musixmatch": "Musixmatch"
+        default: source
+        }
+    }
 }
 
 struct RadioGroup: Codable, Identifiable, Hashable {

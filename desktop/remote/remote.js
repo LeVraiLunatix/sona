@@ -356,7 +356,8 @@ function syncLyrics(force) {
   if (S.view !== "lyrics") return;
   const ly = S.state?.lyrics;
   if (!ly?.synced || !ly.lines?.length) return;
-  const now = position() + 0.25;
+  // Décalage réglé pour ce titre dans Sona (positif : paroles plus tôt).
+  const now = position() + 0.25 + (ly.offset || 0);
   let active = -1;
   for (let i = 0; i < ly.lines.length; i++) {
     const time = ly.lines[i].time;

@@ -1352,3 +1352,35 @@ class Repository:
     async def analysis_delete(self, source: str, source_id: str) -> None:
         await self._db.conn.execute("DELETE FROM track_analysis WHERE source=? AND source_id=?", (source, source_id))
         await self._db.conn.commit()
+
+    # -- Paroles en cache (services/lyrics.py) ---------------------------------
+
+    async def lyrics_cache_get(self, key: str) -> tuple[dict | None, str | None, str | None] | None:
+        """(paroles, source, langue) encore valables — paroles None : on sait
+        qu'il n'y en a pas. None : rien en cache (ou expiré)."""
+        cursor = await self._db.conn.execute(
+            "SELECT payload, source, language FROM lyrics_cache WHERE cache_key=? AND expires_at > ?",
+            (key, _now()),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return (json.loads(row["payload"]) if row["payload"] else None), row["source"], row["language"]
+
+    async def lyrics_cache_set(
+        self, key: str, payload: dict | None, source: str | None, language: str | None, ttl: timedelta
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        await self._db.conn.execute(
+            """INSERT INTO lyrics_cache (cache_key, payload, source, language, fetched_at, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, source=excluded.source,
+               language=excluded.language, fetched_at=excluded.fetched_at, expires_at=excluded.expires_at""",
+            (key, json.dumps(payload, ensure_ascii=False) if payload else None, source, language,
+             now.isoformat(), (now + ttl).isoformat()),
+        )
+        await self._db.conn.commit()
+
+    async def lyrics_cache_delete(self, key: str) -> None:
+        await self._db.conn.execute("DELETE FROM lyrics_cache WHERE cache_key=?", (key,))
+        await self._db.conn.commit()

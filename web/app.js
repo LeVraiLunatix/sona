@@ -2082,10 +2082,45 @@ function renderQueue() {
   $(".qrow.current", box)?.scrollIntoView({ block: "center" });
 }
 
-async function loadLyrics(t) {
+/** Mots horodatés d'une ligne : ceux de la source quand elle les donne
+ * (paroles mot par mot), sinon une estimation — chaque mot reçoit une part de
+ * la ligne selon sa longueur, sans s'étirer sur une longue pause. */
+function timedWords(line, next) {
+  const start = line.time ?? 0;
+  if (line.words?.length) {
+    return line.words.map((w, i) => {
+      const following = w.end ?? (i + 1 < line.words.length ? line.words[i + 1].time : Math.min(next ?? w.time + 1, w.time + 1.2));
+      return { start: w.time, end: Math.max(w.time + 0.05, following), text: w.text };
+    });
+  }
+  const tokens = (line.text || "").split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  const natural = tokens.reduce((s, x) => s + x.length, 0) * 0.085 + 0.8;
+  const duration = Math.max(0.6, Math.min(natural, (next ?? start + natural) - start - 0.15));
+  const weights = tokens.map((x) => x.length + 2);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let cursor = start;
+  return tokens.map((tok, i) => {
+    const len = (duration * weights[i]) / total;
+    const w = { start: cursor, end: cursor + len, text: i + 1 < tokens.length ? `${tok} ` : tok };
+    cursor += len;
+    return w;
+  });
+}
+
+const nextLyricTime = (lines, i) => lines.slice(i + 1).find((l) => l.time != null)?.time ?? null;
+const LYRICS_SOURCES = { lrclib: "LRCLIB", netease: "NetEase", musixmatch: "Musixmatch" };
+function lyricsSourceLabel(ly) {
+  if (!ly?.source) return "";
+  const name = LYRICS_SOURCES[ly.source] || ly.source;
+  return `Paroles : ${name}${ly.sync === "word" ? " · mot par mot" : ly.sync === "line" ? " · ligne par ligne" : ""}`;
+}
+
+async function loadLyrics(t, refresh = false) {
   const q = new URLSearchParams({ title: t.title, artist: t.artist });
   if (t.album) q.set("album", t.album);
   if (t.duration_seconds) q.set("duration", t.duration_seconds);
+  if (refresh) q.set("refresh", "true");
   let lyrics = null;
   // « Pas de paroles » (404) est définitif ; un service de paroles injoignable
   // ou lent (502, réseau) mérite deux nouvelles tentatives.
@@ -2095,7 +2130,13 @@ async function loadLyrics(t) {
     try { lyrics = await api(`/lyrics?${q}`); break; } catch (e) { if (e.status === 404) break; }
   }
   if (!sameTrack(t, state.queue[state.index])) return;
-  state.lyrics = { lines: lyrics?.lines || [], synced: !!lyrics?.synced, instrumental: !!lyrics?.instrumental };
+  const lines = lyrics?.lines || [];
+  const synced = !!lyrics?.synced;
+  if (synced) lines.forEach((l, i) => { if (l.text) l.timed = timedWords(l, nextLyricTime(lines, i)); });
+  state.lyrics = {
+    lines, synced, instrumental: !!lyrics?.instrumental,
+    sync: lyrics?.sync || (synced ? "line" : "none"), source: lyrics?.source || null,
+  };
   state.lastLyric = -1;
   if (panelTab() === "lyrics") renderLyrics();
 }
@@ -2205,15 +2246,26 @@ function renderLyrics() {
   if (!box) return;
   const ly = state.lyrics;
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
+  const cur = state.queue[state.index];
+  const refreshBtn = `<button class="lyr-refresh" data-lyr-refresh>Chercher ${ly.lines.length ? "de meilleures paroles" : "encore"}</button>`;
   if (!ly.lines.length) {
-    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas de paroles pour ce titre."}</p></div>`;
+    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas de paroles pour ce titre."}</p>${ly.instrumental ? "" : refreshBtn}</div>`;
+    bindLyricsRefresh(box, cur);
     return;
   }
-  const cur = state.queue[state.index];
   const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
-      <span class="lyr-src">Paroles · LRCLIB</span><button data-lyr-off="-0.5" aria-label="Retarder les paroles">−</button>
+      <button data-lyr-off="-0.5" aria-label="Retarder les paroles">−</button>
       <span class="lyr-val" id="lyr-val">${offsetLabel(lyricsOffset(cur))}</span><button data-lyr-off="0.5" aria-label="Avancer les paroles">+</button></div>` : "";
-  box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map((l, i) => `<p data-l="${i}">${esc(l.text || "♪")}</p>`).join("")}</div>`;
+  // Ligne en cours remplie mot par mot (un <span> par mot) ; pause
+  // instrumentale (ligne vide) : trois points qui s'allument.
+  const line = (l, i) => {
+    if (ly.synced && !l.text) return `<p data-l="${i}" class="gap" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i></p>`;
+    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w">${esc(w.text)}</span>`).join("")}</p>`;
+    return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
+  };
+  const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}${refreshBtn}</div>`;
+  box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map(line).join("")}${foot}</div>`;
+  bindLyricsRefresh(box, cur);
   if (ly.synced) {
     $$("[data-l]", box).forEach((p) => (p.onclick = () => {
       const time = ly.lines[+p.dataset.l].time;
@@ -2230,8 +2282,41 @@ function renderLyrics() {
   syncLyrics(true);
 }
 
+function bindLyricsRefresh(box, cur) {
+  const btn = $("[data-lyr-refresh]", box);
+  if (btn && cur) btn.onclick = () => { state.lyrics = null; renderLyrics(); loadLyrics(cur, true); };
+}
+
+// Remplissage mot par mot de la ligne en cours, à chaque image (60 i/s au
+// plus, et rien quand la page est cachée : le navigateur suspend alors
+// requestAnimationFrame). S'arrête en pause ou paroles fermées ; `syncLyrics`
+// le relance à la reprise.
+let lyricsRaf = 0;
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+function lyricsFrame() {
+  lyricsRaf = 0;
+  const ly = state.lyrics;
+  if (panelTab() !== "lyrics" || !ly?.synced || audio.paused) return;
+  const box = panelBox()?.querySelector("#lyr");
+  if (!box) return;
+  const cur = state.queue[state.index];
+  const now = audio.currentTime + 0.1 + (cur ? lyricsOffset(cur) : 0);
+  const i = state.lastLyric;
+  const line = ly.lines[i];
+  const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
+  if (p && line.timed?.length) {
+    const spans = p.children;
+    line.timed.forEach((w, k) => spans[k]?.style.setProperty("--p", clamp01((now - w.start) / (w.end - w.start)).toFixed(3)));
+  } else if (p?.classList.contains("gap")) {
+    const end = nextLyricTime(ly.lines, i) ?? line.time + 4;
+    p.style.setProperty("--p", clamp01((now - line.time) / Math.max(0.1, end - line.time)).toFixed(3));
+  }
+  lyricsRaf = requestAnimationFrame(lyricsFrame);
+}
+
 function syncLyrics(force) {
   if (panelTab() !== "lyrics" || !state.lyrics?.synced) return;
+  if (!lyricsRaf && !audio.paused) lyricsRaf = requestAnimationFrame(lyricsFrame);
   const lines = state.lyrics.lines;
   const cur = state.queue[state.index];
   const now = audio.currentTime + 0.25 + (cur ? lyricsOffset(cur) : 0);
@@ -5911,7 +5996,15 @@ function desktopSnapshot() {
     // Boutons du statut Discord : « Écouter avec moi » (page J'écoute) et le titre.
     links: { listen: desk.publicUrl || null, track: trackLink(t) },
     queue: remote ? [] : state.queue.slice(start, state.index + 40).map((q, k) => ({ i: start + k, title: q.title, artist: q.artist, cover_url: q.cover_url || null })),
-    lyrics: ly ? { synced: ly.synced, instrumental: ly.instrumental, lines: ly.lines.map((l) => ({ time: l.time ?? null, text: l.text || "" })) } : null,
+    // Paroles pour la surimpression et la télécommande : mots horodatés
+    // ([début, fin, texte]) et décalage réglé pour ce titre.
+    lyrics: ly ? {
+      synced: ly.synced, instrumental: ly.instrumental, offset: lyricsOffset(t),
+      lines: ly.lines.map((l) => ({
+        time: l.time ?? null, text: l.text || "",
+        words: l.timed?.length ? l.timed.map((w) => [Math.round(w.start * 100) / 100, Math.round(w.end * 100) / 100, w.text]) : undefined,
+      })),
+    } : null,
   };
 }
 

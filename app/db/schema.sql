@@ -283,3 +283,14 @@ CREATE TABLE IF NOT EXISTS track_analysis (
     analyzed_at TEXT NOT NULL,
     PRIMARY KEY (source, source_id)
 );
+
+-- Paroles en cache (services/lyrics.py), absences comprises (`payload`
+-- NULL) : passé `expires_at`, le titre est recherché de nouveau.
+CREATE TABLE IF NOT EXISTS lyrics_cache (
+    cache_key TEXT PRIMARY KEY,
+    payload TEXT,
+    source TEXT,
+    language TEXT,
+    fetched_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);

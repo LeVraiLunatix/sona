@@ -451,7 +451,7 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `GET /search/artists\|albums?q=…` | Recherche d'artistes (tolérante aux fautes, repli YouTube Music) ou d'albums. |
 | `GET /tracks\|albums\|playlists\|artists/{source}/{id}` | Fiche détaillée (et sous-routes `/top-tracks`, `/albums`, `/related`, `/radio` pour un artiste). |
 | `GET /browse/radios`, `GET /radios/{id}/tracks` | Radios thématiques Deezer triées à la main ; chaque appel à `/tracks` est un nouveau tirage. |
-| `GET /lyrics?title=&artist=&album=&duration=` | Paroles via [LRCLIB](https://lrclib.net) (base publique, sans clé) : synchronisées quand elles existent (`time` en secondes par ligne), sinon brutes ; 404 si inconnues. |
+| `GET /lyrics?title=&artist=&album=&duration=&refresh=` | Paroles de la meilleure source ([LRCLIB](https://lrclib.net), NetEase, Musixmatch avec `MUSIXMATCH_TOKEN`), vérifiées sur le titre, l'artiste et la durée (±2 s) : mot par mot quand elles existent (`words`, avec `time` et `end`), sinon ligne par ligne, sinon brutes. `sync` (`word`, `line`, `none`), `source` et `language` (ISO 639-1) disent ce qu'on a eu. Gardées en base, absences comprises ; `refresh=true` cherche de nouveau. 404 si inconnues. |
 | `POST /plays` · `GET /plays/recent` | Écoutes terminées envoyées par l'app (moitié du titre ou 4 min, comme Last.fm), par lots, doublons ignorés. |
 | `GET /stats?period=day\|week\|month\|year\|all&offset=0&tz=Europe/Paris` | Stats d'écoute façon Wrapped pour n'importe quelle période : écoutes, minutes, tops artistes/titres/albums, courbe, heures, jours, découvertes, série de jours. |
 | `GET/POST /stats/import/lastfm` | Import (en tâche de fond, reprise automatique) de l'historique Last.fm de `LASTFM_USER` — nécessite `LASTFM_API_KEY`. |

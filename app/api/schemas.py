@@ -117,18 +117,27 @@ class RadioGroup(BaseModel):
 class LyricsWordOut(BaseModel):
     time: float
     text: str
+    # Fin du mot (secondes) quand la source la donne ; sinon le mot suivant.
+    end: float | None = None
 
 
 class LyricsLineOut(BaseModel):
     time: float | None
     text: str
     words: list[LyricsWordOut] | None = None
+    end: float | None = None
 
 
 class LyricsOut(BaseModel):
     synced: bool
     instrumental: bool
     lines: list[LyricsLineOut]
+    # « word » (mot par mot), « line » (ligne par ligne) ou « none » (texte brut).
+    sync: str = "none"
+    # D'où viennent les paroles : « lrclib », « netease », « musixmatch ».
+    source: str | None = None
+    # Langue des paroles (code ISO 639-1), quand on la reconnaît.
+    language: str | None = None
 
 
 class SearchResponse(BaseModel):

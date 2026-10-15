@@ -8,6 +8,13 @@ from app.services import artist_photos, blindlive, concerts, connect, instrument
 
 
 @pytest.fixture(autouse=True)
+def _lrclib_only(monkeypatch):
+    """Paroles : pas d'appel aux vrais NetEase / Musixmatch pendant les tests
+    (test_lyrics_sources les remplace par des faux)."""
+    monkeypatch.setenv("LYRICS_EXTRA_SOURCES", "0")
+
+
+@pytest.fixture(autouse=True)
 def _no_artist_photo_lookup(monkeypatch):
     """Les stats ne vont pas chercher les photos d'artistes sur le vrai
     Deezer pendant les tests (test_artist_photos le fait avec un faux)."""

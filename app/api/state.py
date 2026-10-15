@@ -10,6 +10,7 @@ from app.providers.lastfm_auth import LastfmAuthClient
 from app.providers.lrclib import LrclibClient
 from app.providers.musicbrainz import MusicBrainzClient
 from app.providers.spotify import SpotifyClient
+from app.services.lyrics import LyricsService
 
 
 @dataclass(slots=True)
@@ -27,6 +28,8 @@ class ApiDeps:
     lastfm_auth: LastfmAuthClient | None = None
     # Crédits détaillés (compositeur, producteur…) ; absent = crédits Deezer seuls.
     musicbrainz: MusicBrainzClient | None = None
+    # Paroles multi-sources avec cache (sinon LRCLIB seul, sans cache).
+    lyrics: LyricsService | None = None
     account: Account | None = None
     is_admin: bool = False
     user_id_override: int | None = None

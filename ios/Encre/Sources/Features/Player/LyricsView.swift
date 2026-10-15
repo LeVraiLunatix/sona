@@ -18,6 +18,36 @@ final class LyricsOptions: ObservableObject {
     /// Paroles dans une autre langue que le français.
     @Published var foreign = false
     @Published var translating = false
+    /// Décalage des paroles du titre en cours, en secondes (positif : les
+    /// paroles arrivent plus tôt). Gardé par titre sur l'iPhone.
+    @Published private(set) var offset: Double = 0
+    /// Réglage du décalage affiché sous les paroles.
+    @Published var showsOffset = false
+    private var trackID: String?
+
+    func load(for track: Track) {
+        trackID = track.id
+        offset = Self.storedOffset(for: track.id)
+        showsOffset = false
+    }
+
+    func setOffset(_ value: Double) {
+        let clamped = (min(10, max(-10, value)) * 10).rounded() / 10
+        offset = clamped
+        guard let trackID else { return }
+        if clamped == 0 {
+            UserDefaults.standard.removeObject(forKey: Self.offsetKey(trackID))
+        } else {
+            UserDefaults.standard.set(clamped, forKey: Self.offsetKey(trackID))
+        }
+    }
+
+    /// Décalage gardé pour un titre (aussi lu par l'activité en direct).
+    nonisolated static func storedOffset(for trackID: String) -> Double {
+        UserDefaults.standard.double(forKey: offsetKey(trackID))
+    }
+
+    private nonisolated static func offsetKey(_ id: String) -> String { "encre.lyricsOffset.\(id)" }
 }
 
 struct LyricsView: View {
@@ -40,23 +70,37 @@ struct LyricsView: View {
             case .loading:
                 ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
             case .unavailable(let message):
-                EmptyState(systemImage: "quote.bubble", title: "Paroles indisponibles", message: message)
-                    .frame(maxHeight: .infinity)
+                VStack(spacing: 18) {
+                    EmptyState(systemImage: "quote.bubble", title: "Paroles indisponibles", message: message)
+                    retryButton
+                }
+                .frame(maxHeight: .infinity)
             case .loaded(let lyrics):
                 if lyrics.instrumental {
                     EmptyState(systemImage: "pianokeys", title: "Instrumental", message: "Pas de paroles, juste la musique.")
                         .frame(maxHeight: .infinity)
                 } else if lyrics.synced {
-                    synced(lyrics.lines)
+                    synced(lyrics)
                         .translationTask(translationConfig) { session in
                             await translate(lyrics.lines, with: session)
                         }
                 } else {
-                    plain(lyrics.lines)
+                    plain(lyrics)
                 }
             }
         }
-        .task(id: track.id) { await load() }
+        .overlay(alignment: .bottom) {
+            if options.showsOffset && options.synced {
+                LyricsOffsetBar(options: options)
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(Motion.snappy, value: options.showsOffset)
+        .task(id: track.id) {
+            options.load(for: track)
+            await load()
+        }
         // Boutons dans l'en-tête du lecteur (`LyricsHeaderButtons`).
         .onChange(of: options.translating) { _, on in
             if on && translations.isEmpty {
@@ -72,27 +116,43 @@ struct LyricsView: View {
     /// Marge du lecteur plein écran (voir `FullPlayerView`).
     private static let sideInset: CGFloat = 26
 
-    private func synced(_ lines: [Lyrics.Line]) -> some View {
+    private func synced(_ lyrics: Lyrics) -> some View {
+        let lines = lyrics.lines
+        let offset = options.offset
         // Légère avance : la ligne s'allume quand elle est chantée, pas un
         // demi-temps après (le lecteur ne publie sa position que 2 fois/s).
-        let position = player.positionSeconds + 0.35
+        let position = player.positionSeconds + 0.35 + offset
         let active = lines.lastIndex(where: { ($0.time ?? 0) <= position })
         return ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
+                    // Longue intro : les trois points d'attente avant la
+                    // première ligne.
+                    if active == nil, let first = lines.first?.time, first > 4 {
+                        InterludeDots(start: 0, end: first, offset: offset, player: player, active: true)
+                            .id(-1)
+                    }
                     ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                         let isActive = index == active
+                        let next = lines.dropFirst(index + 1).first?.time
                         // Avant la première ligne (intro, ou lecture pas
                         // encore lancée) : tout net et estompé, rien de flou.
                         let blur = active.map { isActive ? 0 : min(3.5, Double(abs(index - $0)) * 0.9) } ?? 0
                         VStack(alignment: .leading, spacing: 0) {
-                            if isActive && !line.text.isEmpty {
+                            if line.text.isEmpty {
+                                // Pause instrumentale (ligne vide du LRC).
+                                InterludeDots(
+                                    start: line.time ?? 0, end: next ?? (line.time ?? 0) + 4,
+                                    offset: offset, player: player, active: isActive
+                                )
+                            } else if isActive {
                                 KaraokeLine(
-                                    words: KaraokeLine.timedWords(line, next: lines.dropFirst(index + 1).first?.time),
-                                    player: player
+                                    words: KaraokeLine.timedWords(line, next: next),
+                                    player: player,
+                                    offset: offset
                                 )
                             } else {
-                                Text(line.text.isEmpty ? "♪" : line.text)
+                                Text(line.text)
                                     .foregroundStyle(Color.white.opacity(index < (active ?? 0) ? 0.3 : 0.45))
                             }
                             if options.translating, let translated = translations[line.text], translated != line.text {
@@ -108,10 +168,11 @@ struct LyricsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                if let time = line.time { player.seek(toSeconds: time) }
+                                if let time = line.time { player.seek(toSeconds: max(0, time - offset)) }
                             }
                             .id(index)
                     }
+                    footer(lyrics)
                 }
                 .padding(.vertical, 120)
                 // La marge est à l'intérieur de la zone qui défile : le flou
@@ -147,28 +208,80 @@ struct LyricsView: View {
         withAnimation(Motion.smooth) { translations = result }
     }
 
-    private func plain(_ lines: [Lyrics.Line]) -> some View {
+    private func plain(_ lyrics: Lyrics) -> some View {
         ScrollView(showsIndicators: false) {
-            Text(lines.map(\.text).joined(separator: "\n"))
-                .font(.system(size: 22, weight: .semibold))
-                .lineSpacing(8)
-                .foregroundStyle(Tone.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 30)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(lyrics.lines.map(\.text).joined(separator: "\n"))
+                    .font(.system(size: 22, weight: .semibold))
+                    .lineSpacing(8)
+                    .foregroundStyle(Tone.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                footer(lyrics)
+                    .padding(.top, 18)
+            }
+            .padding(.vertical, 30)
         }
         .mask { EdgeFade() }
     }
 
-    private func load() async {
+    /// Sous les paroles : leur source et leur précision, et de quoi les
+    /// chercher de nouveau (le serveur les garde en cache).
+    private func footer(_ lyrics: Lyrics) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let name = lyrics.sourceName {
+                Text(Self.sourceLine(name, sync: lyrics.sync))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.4))
+            }
+            Button {
+                Task { await load(refresh: true) }
+            } label: {
+                Label("Chercher de meilleures paroles", systemImage: "arrow.clockwise")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
+    }
+
+    static func sourceLine(_ name: String, sync: String?) -> String {
+        switch sync {
+        case "word": "Paroles : \(name) · mot par mot"
+        case "line": "Paroles : \(name) · ligne par ligne"
+        default: "Paroles : \(name)"
+        }
+    }
+
+    private var retryButton: some View {
+        Button {
+            Task { await load(refresh: true) }
+        } label: {
+            Label("Chercher encore", systemImage: "arrow.clockwise")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(Color.white.opacity(0.15)))
+        }
+        .buttonStyle(.pressable(scale: 0.94))
+    }
+
+    private func load(refresh: Bool = false) async {
         state = .loading
         do {
-            if let lyrics = try await APIClient.shared.lyrics(for: track) {
+            if let lyrics = try await APIClient.shared.lyrics(for: track, refresh: refresh) {
                 translations = [:]
                 options.translating = false
                 translationConfig = nil
-                let recognizer = NLLanguageRecognizer()
-                recognizer.processString(lyrics.lines.map(\.text).joined(separator: "\n"))
-                options.foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
+                if let language = lyrics.language {
+                    options.foreign = language != "fr"
+                } else {
+                    let recognizer = NLLanguageRecognizer()
+                    recognizer.processString(lyrics.lines.map(\.text).joined(separator: "\n"))
+                    options.foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
+                }
                 state = .loaded(lyrics)
             } else {
                 state = .unavailable("Pas de paroles connues pour ce morceau.")
@@ -194,6 +307,9 @@ struct LyricsHeaderButtons: View {
                 }
             }
             if options.synced {
+                circle("timer", on: options.showsOffset, label: "Décalage des paroles") {
+                    options.showsOffset.toggle()
+                }
                 SingButton(player: player)
                     .transition(.scale.combined(with: .opacity))
             }
@@ -601,13 +717,21 @@ struct KaraokeLine: View {
 
     let words: [TimedWord]
     @ObservedObject var player: PlayerManager
+    /// Décalage réglé pour ce titre (voir `LyricsOptions.offset`).
+    var offset: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !player.isPlaying)) { _ in
-            let now = player.exactPositionSeconds + 0.1
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: !player.isPlaying)) { _ in
+            let now = player.exactPositionSeconds + 0.1 + offset
             words.reduce(Text("")) { text, word in
                 let progress = word.end > word.start ? min(1, max(0, (now - word.start) / (word.end - word.start))) : 1
-                return text + Text(word.text).foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
+                // Le mot chanté s'allume et monte d'un rien, comme porté par
+                // la voix (immobile avec « Réduire les animations »).
+                let lift = reduceMotion ? 0 : 1.6 * progress
+                return text + Text(word.text)
+                    .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
+                    .baselineOffset(lift)
             }
         }
     }
@@ -616,7 +740,8 @@ struct KaraokeLine: View {
         let start = line.time ?? 0
         if let words = line.words, !words.isEmpty {
             return words.enumerated().map { index, word in
-                let following = index + 1 < words.count ? words[index + 1].time : min(next ?? word.time + 1, word.time + 1.2)
+                let following = word.end
+                    ?? (index + 1 < words.count ? words[index + 1].time : min(next ?? word.time + 1, word.time + 1.2))
                 return TimedWord(start: word.time, end: max(word.time + 0.05, following), text: word.text)
             }
         }
@@ -636,5 +761,91 @@ struct KaraokeLine: View {
             defer { cursor += length }
             return TimedWord(start: cursor, end: cursor + length, text: index + 1 < tokens.count ? token + " " : token)
         }
+    }
+}
+
+/// Pause instrumentale (intro, pont, ligne vide du LRC) : trois points qui
+/// respirent et s'allument l'un après l'autre au fil de la pause, comme
+/// dans Musique. Estompés quand ce n'est pas la ligne en cours.
+struct InterludeDots: View {
+    let start: Double
+    let end: Double
+    var offset: Double = 0
+    @ObservedObject var player: PlayerManager
+    var active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: !active || !player.isPlaying)) { timeline in
+            let now = player.exactPositionSeconds + offset
+            let progress = end > start ? min(1, max(0, (now - start) / (end - start))) : 0
+            let breath = reduceMotion ? 1 : 1 + 0.1 * sin(timeline.date.timeIntervalSinceReferenceDate * 2.4)
+            HStack(spacing: 10) {
+                ForEach(0..<3, id: \.self) { dot in
+                    let lit = min(1, max(0, progress * 3 - Double(dot)))
+                    Circle()
+                        .fill(Color.white.opacity(active ? 0.3 + 0.7 * lit : 0.22))
+                        .frame(width: 11, height: 11)
+                }
+            }
+            .scaleEffect(active ? breath : 0.85, anchor: .leading)
+            .frame(height: 30, alignment: .leading)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Réglage du décalage des paroles : ± 0,5 s par appui, gardé pour ce
+/// titre ; un appui sur la valeur la remet à zéro.
+struct LyricsOffsetBar: View {
+    @ObservedObject var options: LyricsOptions
+
+    var body: some View {
+        HStack(spacing: 6) {
+            step("minus", by: -0.5, label: "Paroles plus tard")
+            Button {
+                options.setOffset(0)
+            } label: {
+                VStack(spacing: 1) {
+                    Text(valueLabel)
+                        .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                        .contentTransition(.numericText(value: options.offset))
+                    Text(options.offset == 0 ? "Décalage" : "Remettre à zéro")
+                        .font(.system(size: 10, weight: .medium))
+                        .opacity(0.6)
+                }
+                .foregroundStyle(.white)
+                .frame(minWidth: 96)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Décalage des paroles : \(valueLabel)")
+            .accessibilityHint("Remet le décalage à zéro")
+            step("plus", by: 0.5, label: "Paroles plus tôt")
+        }
+        .padding(6)
+        .background(Capsule().fill(.ultraThinMaterial))
+        .environment(\.colorScheme, .dark)
+        .animation(Motion.snappy, value: options.offset)
+        .sensoryFeedback(.selection, trigger: options.offset)
+    }
+
+    private var valueLabel: String {
+        let value = options.offset
+        let sign = value > 0 ? "+" : value < 0 ? "−" : ""
+        return sign + String(format: "%.1f s", abs(value)).replacingOccurrences(of: ".", with: ",")
+    }
+
+    private func step(_ icon: String, by delta: Double, label: String) -> some View {
+        Button {
+            options.setOffset(options.offset + delta)
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(Color.white.opacity(0.14)))
+        }
+        .buttonStyle(.pressable(scale: 0.88))
+        .accessibilityLabel(label)
     }
 }

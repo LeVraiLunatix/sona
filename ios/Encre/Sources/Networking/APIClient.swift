@@ -264,11 +264,13 @@ final class APIClient {
 
     /// `nil` quand le serveur ne connaît pas de paroles pour ce morceau
     /// (404) : un cas normal, pas une erreur à afficher comme telle.
-    func lyrics(for track: Track) async throws -> Lyrics? {
+    /// `refresh` : ignorer le cache du serveur (« Chercher d'autres paroles »).
+    func lyrics(for track: Track, refresh: Bool = false) async throws -> Lyrics? {
         var items = [
             URLQueryItem(name: "title", value: track.title),
             URLQueryItem(name: "artist", value: track.artist),
         ]
+        if refresh { items.append(URLQueryItem(name: "refresh", value: "true")) }
         if let album = track.album { items.append(URLQueryItem(name: "album", value: album)) }
         if let duration = track.durationSeconds, duration > 0 {
             items.append(URLQueryItem(name: "duration", value: "\(duration)"))
