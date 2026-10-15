@@ -107,6 +107,14 @@ def forget_live_source(source: str, source_id: str) -> None:
     _unfaithful.pop((source, source_id), None)
 
 
+def allow_source(source: str, source_id: str, video_id: str) -> None:
+    """Une source choisie par l'admin : plus écartée par la vérification
+    précédente, et plus d'échec ni de flux direct mémorisés pour ce titre."""
+    _unfaithful[(source, source_id)].discard(video_id)
+    _live.drop_track(source, source_id)
+    forget_track_failures(source, source_id)
+
+
 def _start_report(source: str, source_id: str, track: TrackInfo | None) -> dict:
     report = {
         "at": time.time(),

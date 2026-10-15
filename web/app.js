@@ -4056,6 +4056,10 @@ async function diagnoseTrack(t) {
       ${ref ? `<p class="muted">Référence : ${esc(ref.title)} — ${esc(ref.artist)}${ref.album ? ` · ${esc(ref.album)}` : ""} · ${dur(ref.duration_seconds)} · ${ref.preview ? "extrait officiel disponible" : "pas d'extrait officiel"}</p>` : ""}
       ${r.excluded ? `<p class="muted">${plural(r.excluded, "source")} écartée${r.excluded > 1 ? "s" : ""} avec « Mauvaise version ? » pour ce titre.</p>
         <div class="pill-row"><button class="btn small" data-unreject>Réautoriser et réessayer</button></div>` : ""}
+      <h3 class="set-head">Choisir une source à la main</h3>
+      <p class="muted">Aucune bonne version ? Colle un lien YouTube ou SoundCloud : il sera essayé en premier, et comparé à l'extrait officiel avant d'être accepté.</p>
+      <input class="field" data-use-url type="url" inputmode="url" placeholder="https://soundcloud.com/… ou https://youtu.be/…" autocomplete="off">
+      <div class="pill-row"><button class="btn small" data-use-source>Essayer ce lien</button></div>
       <h3 class="set-head">Sources essayées</h3>
       <div class="set-group">${r.tried.length ? r.tried.map((c) => row(
         `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)}</small>`,
@@ -4064,6 +4068,14 @@ async function diagnoseTrack(t) {
       <div class="set-group">${r.found.length ? r.found.map((c) => row(
         `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)} · score ${c.score}</small>`,
         `${esc(c.artist)} — ${c.rejected ? `écarté : ${esc(c.rejected)}` : "acceptable"}`)).join("") : row("Aucun résultat", "YouTube et SoundCloud n'ont rien renvoyé")}</div>`;
+    const useBtn = $("[data-use-source]", box), useUrl = $("[data-use-url]", box);
+    useBtn.onclick = async () => {
+      const url = useUrl.value.trim();
+      if (!url) return useUrl.focus();
+      useBtn.disabled = true;
+      try { await api(`${path}/use-source`, { method: "POST", body: JSON.stringify({ url }) }); } catch (e) { toast(e.message); useBtn.disabled = false; return; }
+      run();
+    };
     const unreject = $("[data-unreject]", box);
     if (unreject) unreject.onclick = async () => {
       unreject.disabled = true;

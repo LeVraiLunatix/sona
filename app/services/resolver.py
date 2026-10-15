@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 import unicodedata
+from urllib.parse import parse_qs, urlparse
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -501,6 +502,45 @@ def known_source(track: TrackInfo, video_id: str) -> Candidate:
         video_id=video_id, title=track.title, artist=track.artist, album=track.album,
         duration_seconds=track.duration_seconds, cover_url=track.cover_url, is_song=True,
     )
+
+
+_YOUTUBE_HOSTS = frozenset({"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"})
+_SOUNDCLOUD_HOSTS = frozenset({"soundcloud.com", "www.soundcloud.com", "m.soundcloud.com", "on.soundcloud.com"})
+_SOUNDCLOUD_API_TRACK_RE = re.compile(r"^/tracks/(?:soundcloud%3Atracks%3A)?(\d+)$")
+_YOUTUBE_ID_RE = re.compile(r"^[\w-]{11}$")
+
+
+def _soundcloud_track_id_sync(url: str) -> str:
+    opts = {"quiet": True, "logger": ytdlp_logger, "skip_download": True, "noplaylist": True, "socket_timeout": 20}
+    with yt_dlp.YoutubeDL(with_js_runtimes(opts)) as ydl:
+        info = ydl.extract_info(url, download=False)
+    track_id = str((info or {}).get("id") or "")
+    if not track_id.isdigit():
+        raise ValueError("pas un titre SoundCloud")
+    return track_id
+
+
+async def source_from_url(url: str) -> str:
+    """Identifiant de source (voir `Candidate.video_id`) d'un lien YouTube ou
+    SoundCloud collé par l'admin pour un titre qui n'a pas de bonne version.
+    Lève ResolutionError si le lien n'en est pas un."""
+    parsed = urlparse(url.strip())
+    host = (parsed.hostname or "").lower()
+    if host in _YOUTUBE_HOSTS:
+        video_id = parsed.path.strip("/").split("/")[0] if host == "youtu.be" else (parse_qs(parsed.query).get("v") or [""])[0]
+        if _YOUTUBE_ID_RE.match(video_id):
+            return video_id
+        raise ResolutionError("Lien YouTube sans identifiant de vidéo.")
+    if host in _SOUNDCLOUD_HOSTS or host in {"api.soundcloud.com", "api-v2.soundcloud.com"}:
+        api_track = _SOUNDCLOUD_API_TRACK_RE.match(parsed.path)
+        if api_track:
+            return f"soundcloud:{api_track.group(1)}"
+        try:
+            return f"soundcloud:{await asyncio.to_thread(_soundcloud_track_id_sync, url.strip())}"
+        except Exception as exc:
+            logger.info("Lien SoundCloud illisible %r : %s", url, exc)
+            raise ResolutionError("Lien SoundCloud illisible : ce n'est pas un titre, ou SoundCloud ne répond pas.") from exc
+    raise ResolutionError("Seuls les liens YouTube et SoundCloud sont acceptés.")
 
 
 def _log_choice(track: TrackInfo, best: Candidate | None, candidates: list[Candidate]) -> None:
