@@ -304,3 +304,35 @@ def test_closest_duration_wins_a_tie():
         ],
     )
     assert best.video_id == "repost"
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("https://youtu.be/75q36trLops?si=30RaYSI03tDioyPQ", "75q36trLops"),
+    ("https://www.youtube.com/watch?v=75q36trLops&t=12", "75q36trLops"),
+    ("https://music.youtube.com/watch?v=75q36trLops", "75q36trLops"),
+    ("https://api.soundcloud.com/tracks/726423343", "soundcloud:726423343"),
+    ("https://api-v2.soundcloud.com/tracks/soundcloud%3Atracks%3A726423343", "soundcloud:726423343"),
+])
+def test_source_from_url(url, expected):
+    assert asyncio.run(resolver.source_from_url(url)) == expected
+
+
+def test_soundcloud_page_link_is_resolved_to_its_track(monkeypatch):
+    monkeypatch.setattr(resolver, "_soundcloud_track_id_sync", lambda url: "123")
+    link = "https://soundcloud.com/atkiller/frontieres?utm_source=clipboard&utm_medium=text"
+    assert asyncio.run(resolver.source_from_url(link)) == "soundcloud:123"
+    # Et l'identifiant mémorisé redevient une adresse SoundCloud (voir known_source).
+    assert resolver.known_source(pnl("Frontières", 292), "soundcloud:123").source_url == "https://api.soundcloud.com/tracks/123"
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.com/watch?v=75q36trLops", "https://www.youtube.com/", "https://www.youtube.com/watch?v=court",
+    "pas un lien", "https://soundcloud.com/atkiller",
+])
+def test_source_from_url_refuses_what_is_not_a_track(url, monkeypatch):
+    def broken(link):
+        raise ValueError("pas un titre")
+
+    monkeypatch.setattr(resolver, "_soundcloud_track_id_sync", broken)
+    with pytest.raises(resolver.ResolutionError):
+        asyncio.run(resolver.source_from_url(url))

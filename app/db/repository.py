@@ -834,6 +834,12 @@ class Repository:
         )
         await self._db.conn.commit()
 
+    async def unreject_source(self, source: str, source_id: str, video_id: str) -> None:
+        await self._db.conn.execute(
+            "DELETE FROM rejected_sources WHERE source=? AND source_id=? AND video_id=?", (source, source_id, video_id)
+        )
+        await self._db.conn.commit()
+
     async def unreject_sources(self, source: str, source_id: str) -> int:
         """Réautorise les sources écartées par « Mauvaise version ? » pour un
         morceau. Renvoie leur nombre."""

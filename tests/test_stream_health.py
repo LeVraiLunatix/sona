@@ -317,6 +317,57 @@ def test_source_rejected_by_the_fingerprint_is_no_longer_relayed(client, tmp_pat
     stream.forget_live_source("deezer", "5")
 
 
+def test_admin_can_choose_the_source_of_a_title(client, tmp_path, monkeypatch):
+    """Frontières de PNL : pas de bonne version sur YouTube. L'admin colle un
+    lien ; il est essayé en premier, et toujours vérifié par empreinte."""
+    from app.services import resolver
+
+    monkeypatch.setattr(resolver, "_soundcloud_track_id_sync", lambda url: "555")
+    repo = client.app.state.deps.repo
+    client.portal.call(repo.reject_source, "deezer", "5", "soundcloud:555")
+    stream._unfaithful[("deezer", "5")].add("soundcloud:555")
+    seen = []
+
+    async def track_for(deps, source, source_id):
+        return TRACK
+
+    async def same(deezer, track):
+        return track
+
+    async def sources(track, cookies, excluded, preferred, found=None):
+        seen.append((preferred, set(excluded)))
+        yield resolver.known_source(track, preferred)
+
+    downloads = []
+
+    async def download(settings, url, track, quality, fmt):
+        downloads.append(url)
+        path = tmp_path / "work" / "titre.m4a"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"audio")
+        return path
+
+    async def verify(track, path, ffmpeg):
+        return Verdict(0.05)
+
+    monkeypatch.setattr(stream, "_track_for", track_for)
+    monkeypatch.setattr(stream, "complete_preview", same)
+    monkeypatch.setattr(stream, "iter_audio_sources", sources)
+    monkeypatch.setattr(stream, "download_and_tag", download)
+    monkeypatch.setattr(stream, "verify_recording", verify)
+
+    bad = client.post("/admin/diagnose/deezer/5/use-source", headers=AUTH, json={"url": "https://example.com/x"})
+    assert bad.status_code == 422
+    assert client.post("/admin/diagnose/deezer/5/use-source", json={"url": "https://soundcloud.com/a/b"}).status_code == 401
+
+    got = client.post("/admin/diagnose/deezer/5/use-source", headers=AUTH, json={"url": "https://soundcloud.com/atkiller/frontieres?utm_source=x"})
+    assert got.json() == {"video_id": "soundcloud:555"}
+    assert ("deezer", "5") not in stream._unfaithful or "soundcloud:555" not in stream._unfaithful[("deezer", "5")]
+    assert client.post("/stream/deezer/5/prepare", headers=AUTH).status_code == 200
+    assert seen == [("soundcloud:555", set())]  # plus écartée, essayée en premier
+    assert downloads == ["https://api.soundcloud.com/tracks/555"]
+
+
 def test_cookies_upload_from_the_app(client, tmp_path, monkeypatch):
     checked = []
 

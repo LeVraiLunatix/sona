@@ -22,6 +22,7 @@ from app.api.routers import stream
 from app.api.state import ApiDeps
 from app.config import BASE_DIR
 from app.services import stream_health, youtube_session, ytdlp_updater
+from app.services.resolver import ResolutionError, source_from_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["santé"])
@@ -167,3 +168,26 @@ async def unreject_sources(source: str, source_id: str, deps: ApiDeps = Depends(
     stream.forget_live_source(source, source_id)
     logger.info("%d source(s) réautorisée(s) pour %s:%s", count, source, source_id)
     return {"unrejected": count}
+
+
+class UseSourceIn(BaseModel):
+    url: str = Field(min_length=8, max_length=500)
+
+
+@router.post("/diagnose/{source}/{source_id}/use-source")
+async def use_source(
+    source: str, source_id: str, payload: UseSourceIn, deps: ApiDeps = Depends(require_admin)
+) -> dict:
+    """Choisit à la main la source d'un titre qui n'a pas de bonne version : un
+    lien YouTube ou SoundCloud collé depuis le diagnostic. Elle est essayée en
+    premier à la prochaine lecture — et toujours comparée à l'extrait
+    officiel : un audio qui n'est pas le bon enregistrement reste écarté."""
+    try:
+        video_id = await source_from_url(payload.url)
+    except ResolutionError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    await deps.repo.unreject_source(source, source_id, video_id)
+    await deps.repo.stream_source_set(source, source_id, video_id)
+    stream.allow_source(source, source_id, video_id)
+    logger.info("Source %s choisie à la main pour %s:%s", video_id, source, source_id)
+    return {"video_id": video_id}
