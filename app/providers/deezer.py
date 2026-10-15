@@ -296,7 +296,18 @@ class DeezerClient:
         self, artist_id: str, limit: int = 25
     ) -> list[TrackInfo]:
         data = await self._get(f"/artist/{artist_id}/top", {"limit": limit})
-        return [_track_from_json(d) for d in data.get("data", [])]
+        # L'ordre de Deezer bouge d'un appel à l'autre : tri par popularité
+        # (`rank`, stable), et un seul exemplaire par titre (single + album).
+        items = sorted(data.get("data", []), key=lambda d: -(d.get("rank") or 0))
+        tracks: list[TrackInfo] = []
+        seen: set[str] = set()
+        for d in items:
+            key = _artist_key(d.get("title_short") or d.get("title") or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            tracks.append(_track_from_json(d))
+        return tracks
 
     async def get_artist_albums(
         self, artist_id: str, artist_name: str | None = None

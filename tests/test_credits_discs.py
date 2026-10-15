@@ -177,3 +177,36 @@ def test_track_endpoint_exposes_feats_and_disc(client):
     client.app_state.deps.deezer.get_track = get_track
     body = client.get("/tracks/deezer/77", headers=AUTH).json()
     assert body["disc_number"] == 2 and body["artists"][0]["name"] == "A"
+
+
+def _album(uid: str, title: str, date: str, tracks: int = 10):
+    from app.providers.base import AlbumInfo
+    return AlbumInfo("deezer", uid, title, "A", "1", date[:4], None, tracks, None, release_date=date)
+
+
+def test_album_versions_keep_newest_and_move_others_down():
+    from app.services import album_versions as av
+
+    assert av.base_title("Ipséité (Édition Deluxe)") == av.base_title("Ipséité") == "ipseite"
+    assert av.base_title("Love (Is All)") == "loveisall"
+    assert av.base_title("Album - Remastered 2011") == "album"
+    albums = [
+        _album("1", "Premier", "2019-01-01"),
+        _album("2", "Second", "2021-03-01", 12),
+        _album("3", "Second (Deluxe)", "2021-09-01", 18),
+        _album("4", "Second (Édition Collector)", "2022-01-01", 20),
+    ]
+    main, others = av.split_versions(albums)
+    assert [a.source_id for a in main] == ["4", "1"]
+    assert [a.source_id for a in others] == ["3", "2"]
+    assert [a.source_id for a in av.siblings(albums[2], albums)] == ["4", "2"]
+
+
+def test_artist_top_tracks_sorted_by_rank_without_duplicates():
+    def handler(request: httpx.Request) -> httpx.Response:
+        mk = lambda i, t, r: {"id": i, "title": t, "title_short": t, "rank": r, "artist": {"id": 1, "name": "A"}}
+        return httpx.Response(200, json={"data": [mk(1, "Bas", 10), mk(2, "Haut", 900), mk(3, "Haut", 500), mk(4, "Milieu", 100)]})
+
+    client = DeezerClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    tracks = asyncio.run(client.get_artist_top_tracks("1"))
+    assert [(t.title, t.source_id) for t in tracks] == [("Haut", "2"), ("Milieu", "4"), ("Bas", "1")]

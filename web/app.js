@@ -1043,6 +1043,13 @@ async function viewAlbum(source, id, isPlaylist = false) {
   setTimeout(() => {
     bindLikeButtons();
     $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(tracks));
+    // « Autres versions » (deluxe, remasterisé…) en bas de l'album, comme Apple Music.
+    if (!isPlaylist) api(`/albums/${encodeURIComponent(source)}/${encodeURIComponent(id)}/versions`).then((versions) => {
+      const box = $("#album-versions");
+      if (!box || !versions?.length) return;
+      box.innerHTML = shelf("Autres versions", versions.map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: [a.year?.slice(0, 4), a.track_count ? plural(a.track_count, "titre") : ""].filter(Boolean).join(" · ") })));
+      bindPage(box);
+    }).catch(() => {});
   });
   return page(hero({
     cover: album.cover_url, kind: isPlaylist ? "Playlist" : "Album", title: album.title, by: album.artist,
@@ -1050,7 +1057,7 @@ async function viewAlbum(source, id, isPlaylist = false) {
     info: [album.year?.slice(0, 4), plural(tracks.length, "titre"), !isPlaylist && discOf(tracks) > 1 ? `${discOf(tracks)} disques` : "", total ? minutesLabel(total / 60) : ""].filter(Boolean).join(" · "), list,
     extra: (isPlaylist ? "" : likeButton("album", album.source, album.source_id, state.likedAlbums))
       + `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`,
-  }) + trackTable(tracks, album.title, { showAlbum: isPlaylist, discs: !isPlaylist }));
+  }) + trackTable(tracks, album.title, { showAlbum: isPlaylist, discs: !isPlaylist }) + `<div id="album-versions"></div>`);
 }
 
 async function viewArtist(source, id) {
@@ -1072,6 +1079,7 @@ async function viewArtist(source, id) {
   }) + (top.length ? `<section class="section"><div class="section-head"><h2>Titres populaires</h2></div>${trackTable(top.slice(0, 10), artist.name)}</section>` : "")
     + shelf("Albums", (albums.albums || []).map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) })))
     + shelf("Singles et EP", (albums.singles || []).map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) })))
+    + shelf("Autres versions", (albums.other_versions || []).map((a) => card({ href: `#/album/${a.source}/${a.source_id}`, cover: a.cover_url, title: a.title, subtitle: a.year?.slice(0, 4) })))
     + shelf("Artistes similaires", related.map((a) => card({ href: `#/artist/${a.source}/${a.source_id}`, cover: a.picture_url, title: a.name, round: true })), { kind: "round" }));
 }
 

@@ -7,7 +7,7 @@ from app.api.schemas import Album, Artist, Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import credits, djradio
+from app.services import album_versions, credits, djradio
 
 router = APIRouter(tags=["catalog"])
 
@@ -91,11 +91,27 @@ async def get_artist_radio(
 async def get_artist_albums(
     source: str, source_id: str, deps: ApiDeps = Depends(require_token)
 ) -> dict[str, list[Album]]:
+    """Albums et singles, du plus récent au plus ancien, une seule édition de
+    chaque ; les éditions écartées (deluxe, remasterisé…) vont dans
+    `other_versions`."""
     albums, singles = await _handle(lookup.get_artist_albums(deps, source, source_id))
+    main_albums, other_albums = album_versions.split_versions(albums)
+    main_singles, other_singles = album_versions.split_versions(singles)
     return {
-        "albums": [Album.from_info(a) for a in albums],
-        "singles": [Album.from_info(a) for a in singles],
+        "albums": [Album.from_info(a) for a in main_albums],
+        "singles": [Album.from_info(a) for a in main_singles],
+        "other_versions": [Album.from_info(a) for a in album_versions.newest_first(other_albums + other_singles)],
     }
+
+
+@router.get("/albums/{source}/{source_id}/versions", response_model=list[Album])
+async def get_album_versions(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> list[Album]:
+    """Autres éditions d'un album (« Autres versions » en bas de sa page)."""
+    album = await _handle(lookup.get_album(deps, source, source_id))
+    if not album.artist_source_id:
+        return []
+    albums, singles = await _handle(lookup.get_artist_albums(deps, source, album.artist_source_id))
+    return [Album.from_info(a) for a in album_versions.siblings(album, albums + singles)]
 
 
 @router.get("/djradio/{source}/{source_id}", response_model=list[Track])
