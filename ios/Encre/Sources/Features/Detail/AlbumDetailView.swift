@@ -11,6 +11,7 @@ struct AlbumDetailView: View {
     @State private var palette: [Color] = ArtworkPalette.fallback
     @State private var inLibrary = false
     @State private var libraryBounce = 0
+    @State private var versions: [Album] = []
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.addToPlaylist) private var addToPlaylist
 
@@ -21,6 +22,7 @@ struct AlbumDetailView: View {
                     header(album)
                     tracks(album).reveal(2)
                     footer(album).reveal(3)
+                    if !versions.isEmpty { versionsSection.reveal(4) }
                 }
                 .padding(.bottom, 24)
             } else if let errorMessage {
@@ -124,12 +126,29 @@ struct AlbumDetailView: View {
         .padding(.bottom, 20)
     }
 
+    /// Album en plusieurs disques : « Disque 1 », « Disque 2 »…
+    private func discCount(_ album: Album) -> Int {
+        isPlaylist ? 1 : Set(album.tracks.compactMap(\.discNumber)).count
+    }
+
     private func tracks(_ album: Album) -> some View {
-        LazyVStack(spacing: 0) {
+        let showsDiscs = discCount(album) > 1
+        return LazyVStack(spacing: 0) {
             ForEach(Array(album.tracks.enumerated()), id: \.offset) { index, track in
+                if showsDiscs && (index == 0 || album.tracks[index - 1].discNumber != track.discNumber) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "opticaldisc")
+                        Text("Disque \(track.discNumber ?? 1)")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Tone.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, index == 0 ? 4 : 22)
+                    .padding(.bottom, 6)
+                }
                 TrackRow(
                     track: track,
-                    index: index + 1,
+                    index: showsDiscs ? (track.trackNumber ?? index + 1) : index + 1,
                     showsArtwork: false,
                     isCurrent: player.current?.id == track.id,
                     isPlaying: player.isPlaying,
@@ -155,6 +174,17 @@ struct AlbumDetailView: View {
             .padding(.top, 18)
     }
 
+    /// « Autres versions » (deluxe, remasterisé…), comme sur Apple Music.
+    private var versionsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "Autres versions").padding(.horizontal, 20)
+            Carousel(items: versions) { other in
+                AlbumTile(album: other) { path.append(Route.album(source: other.source, id: other.sourceId)) }
+            }
+        }
+        .padding(.top, 30)
+    }
+
     private func metaLine(_ album: Album) -> String? {
         let isAlbum = album.tracks.count > 1 || (album.trackCount ?? 0) > 1
         let kind = isPlaylist ? "Playlist" : (isAlbum ? "Album" : "Single")
@@ -166,6 +196,7 @@ struct AlbumDetailView: View {
         let count = album.trackCount ?? album.tracks.count
         let seconds = album.durationSeconds ?? album.tracks.compactMap(\.durationSeconds).reduce(0, +)
         var parts = ["\(count) titre\(count > 1 ? "s" : "")"]
+        if discCount(album) > 1 { parts.append("\(discCount(album)) disques") }
         if seconds > 0 { parts.append("\(max(1, seconds / 60)) min") }
         return parts.joined(separator: ", ")
     }
@@ -180,6 +211,9 @@ struct AlbumDetailView: View {
             }
             withAnimation(Motion.smooth) { album = loaded }
             palette = await ArtworkPalette.colors(for: loaded.coverURL)
+            if !isPlaylist {
+                versions = (try? await APIClient.shared.albumVersions(source: source, id: id)) ?? []
+            }
             if !isPlaylist, let page = try? await APIClient.shared.library(kind: "album", limit: 200) {
                 inLibrary = page.items.contains { $0.source == source && $0.sourceId == id }
             }

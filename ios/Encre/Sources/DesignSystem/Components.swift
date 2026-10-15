@@ -19,6 +19,7 @@ struct TrackRow: View {
     var action: () -> Void
     @Environment(\.addToPlaylist) private var addToPlaylist
     @ObservedObject private var downloads = DownloadManager.shared
+    @State private var showsCredits = false
 
     var body: some View {
         Button(action: action) {
@@ -48,7 +49,7 @@ struct TrackRow: View {
                         .font(Typo.rowTitle)
                         .foregroundStyle(Tone.primary)
                         .lineLimit(1)
-                    Text(track.artist)
+                    Text(track.artistLine())
                         .font(Typo.rowSubtitle)
                         .foregroundStyle(Tone.secondary)
                         .lineLimit(1)
@@ -62,6 +63,7 @@ struct TrackRow: View {
             .padding(.vertical, 6)
         }
         .buttonStyle(.pressable(scale: 0.98))
+        .sheet(isPresented: $showsCredits) { CreditsView(track: track) }
         .contextMenu {
             if PartyManager.shared.isGuest {
                 Button { Task { await PartyManager.shared.propose(track) } } label: {
@@ -107,6 +109,7 @@ struct TrackRow: View {
                     Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
                 }
             }
+            Button { showsCredits = true } label: { Label("Crédits du titre", systemImage: "list.bullet.rectangle") }
             if let onOpenArtist {
                 Button(action: onOpenArtist) { Label("Voir l'artiste", systemImage: "person.crop.circle") }
             }

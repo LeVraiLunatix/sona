@@ -9,6 +9,7 @@ struct ArtistDetailView: View {
     @State private var topTracks: [Track] = []
     @State private var albums: [Album] = []
     @State private var singles: [Album] = []
+    @State private var otherVersions: [Album] = []
     @State private var related: [Artist] = []
     @State private var errorMessage: String?
     @State private var showsAllTracks = false
@@ -33,6 +34,9 @@ struct ArtistDetailView: View {
                         }
                         if !singles.isEmpty {
                             carousel("Singles et EP", singles).reveal(3)
+                        }
+                        if !otherVersions.isEmpty {
+                            carousel("Autres versions", otherVersions).reveal(3)
                         }
                         if !related.isEmpty { relatedSection.reveal(4) }
                     }
@@ -192,6 +196,7 @@ struct ArtistDetailView: View {
                 topTracks = top
                 albums = albumSet?.albums ?? []
                 singles = albumSet?.singles ?? []
+                otherVersions = albumSet?.otherVersions ?? []
             }
         } catch {
             errorMessage = error.localizedDescription

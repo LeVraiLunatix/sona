@@ -9,6 +9,7 @@ struct MiniPlayerView: View {
     @ObservedObject var player: PlayerManager
     var onExpand: () -> Void
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    @ObservedObject private var artistsCache = TrackArtistsCache.shared
 
     private var isInline: Bool { placement == .inline }
 
@@ -25,10 +26,11 @@ struct MiniPlayerView: View {
                         .foregroundStyle(Tone.primary)
                         .lineLimit(1)
                     if !isInline {
-                        Text(track.artist)
+                        Text(artistsCache.line(for: track))
                             .font(.system(size: 13))
                             .foregroundStyle(Tone.secondary)
                             .lineLimit(1)
+                            .task(id: track.id) { await artistsCache.load(track) }
                     }
                 }
                 .id(track.id)

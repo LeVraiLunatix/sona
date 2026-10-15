@@ -59,9 +59,16 @@ struct Track: Codable, Identifiable, Hashable {
     var albumSourceId: String?
     /// Tempo (Deezer, fiche complète) : sert à l'AutoMix.
     var bpm: Double? = nil
+    /// Disque et piste (albums en plusieurs disques) et artistes crédités
+    /// (featuring) — absents de bien des listes, d'où les optionnels.
+    var discNumber: Int? = nil
+    var trackNumber: Int? = nil
+    var artists: [TrackArtist]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case source, title, artist, album, year, bpm
+        case source, title, artist, album, year, bpm, artists
+        case discNumber = "disc_number"
+        case trackNumber = "track_number"
         case sourceId = "source_id"
         case durationSeconds = "duration_seconds"
         case coverURL = "cover_url"
@@ -75,6 +82,67 @@ struct Track: Codable, Identifiable, Hashable {
         guard let s = durationSeconds else { return "--:--" }
         return String(format: "%d:%02d", s / 60, s % 60)
     }
+}
+
+/// Artiste crédité sur un titre (`role` : « main » ou « featured »).
+struct TrackArtist: Codable, Hashable {
+    var name: String
+    var sourceId: String?
+    var role: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, role
+        case sourceId = "source_id"
+    }
+}
+
+extension Track {
+    /// « Ziak feat. Gazo » : les invités qui ne sont pas déjà dans le nom de
+    /// l'artiste ni dans le titre (« (feat. X) »). `extra` : artistes lus
+    /// ailleurs quand la fiche n'en porte pas.
+    func artistLine(extra: [TrackArtist]? = nil) -> String {
+        let all = (artists?.isEmpty == false ? artists : extra) ?? []
+        let seen = " " + Track.words("\(artist) \(title)") + " "
+        let feats = all.map(\.name).filter { name in
+            let w = Track.words(name)
+            return !w.isEmpty && !seen.contains(" " + w + " ")
+        }
+        return feats.isEmpty ? artist : "\(artist) feat. \(feats.joined(separator: ", "))"
+    }
+
+    private static func words(_ text: String) -> String {
+        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+}
+
+/// Crédits détaillés d'un titre (`/tracks/{source}/{id}/credits`).
+struct TrackCredits: Codable {
+    var artists: [TrackArtist]
+    var credits: [CreditGroup]
+    var album: String?
+    var label: String?
+    var releaseDate: String?
+    var genres: [String]
+    var isrc: String?
+    var discNumber: Int?
+    var trackNumber: Int?
+    var durationSeconds: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case artists, credits, album, label, genres, isrc
+        case releaseDate = "release_date"
+        case discNumber = "disc_number"
+        case trackNumber = "track_number"
+        case durationSeconds = "duration_seconds"
+    }
+}
+
+struct CreditGroup: Codable, Hashable {
+    var role: String
+    var names: [String]
 }
 
 struct Album: Codable, Identifiable, Hashable {
@@ -184,6 +252,13 @@ struct ResolvedLink: Codable {
 struct ArtistAlbums: Codable {
     var albums: [Album]
     var singles: [Album]
+    /// Éditions écartées des deux listes (deluxe, remasterisé…).
+    var otherVersions: [Album]? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case albums, singles
+        case otherVersions = "other_versions"
+    }
 }
 
 struct LibraryItem: Codable, Identifiable, Hashable {

@@ -12,6 +12,7 @@ struct FullPlayerView: View {
     /// Ferme le lecteur et ouvre une fiche dans l'onglet actif.
     var onOpenRoute: (Route) -> Void
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var artistsCache = TrackArtistsCache.shared
 
     private enum Panel: Equatable { case artwork, lyrics, queue }
     @State private var panel: Panel = .artwork
@@ -320,10 +321,11 @@ struct FullPlayerView: View {
                         onOpenRoute(.artist(source: track.source, id: artistId))
                     }
                 } label: {
-                    Text(track.artist)
+                    Text(artistsCache.line(for: track))
                         .font(.system(size: compact ? 15 : 19, weight: .regular))
                         .foregroundStyle(Tone.secondary)
                         .lineLimit(1)
+                        .task(id: track.id) { await artistsCache.load(track) }
                 }
                 .buttonStyle(.pressable)
                 .disabled(track.artistSourceId == nil)

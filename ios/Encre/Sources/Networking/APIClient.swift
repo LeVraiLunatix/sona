@@ -211,6 +211,17 @@ final class APIClient {
         try await send(try request("/albums/\(source)/\(id)"))
     }
 
+    /// Autres éditions d'un album (deluxe, remasterisé…).
+    func albumVersions(source: String, id: String) async throws -> [Album] {
+        try await send(try request("/albums/\(source)/\(id)/versions"))
+    }
+
+    /// Artistes crédités, puis (`details`) label, genres, compositeurs…
+    func credits(for track: Track, details: Bool = true) async throws -> TrackCredits {
+        let query = details ? [] : [URLQueryItem(name: "details", value: "false")]
+        return try await send(try request("/tracks/\(track.source)/\(track.sourceId)/credits", query: query))
+    }
+
     func playlist(source: String, id: String) async throws -> Album {
         try await send(try request("/playlists/\(source)/\(id)"))
     }
