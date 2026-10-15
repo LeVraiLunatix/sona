@@ -16,6 +16,8 @@ from app.services.downloader import DownloadError
 from app.services.resolver import Candidate
 
 AUTH = {"Authorization": "Bearer test-token"}
+# La vraie lecture directe (le fixture `client` la remplace).
+REAL_LIVE_SOURCE = stream._live_source
 TRACK = TrackInfo("deezer", "5", "Titre", "Artiste", None, None, 180, None)
 COOKIES = "# Netscape HTTP Cookie File\n" + "\t".join(
     [".youtube.com", "TRUE", "/", "TRUE", "1999999999", "SID", "valeur"]
@@ -263,6 +265,56 @@ def test_only_version_flagged_as_wrong_is_explained_and_can_be_restored(client, 
     report = client.post("/admin/diagnose/deezer/5", headers=AUTH).json()
     assert report["ready"] is True and report["excluded"] == 0
     assert downloads == ["https://www.youtube.com/watch?v=sanji"]
+
+
+def test_source_rejected_by_the_fingerprint_is_no_longer_relayed(client, tmp_path, monkeypatch):
+    """Cas réel : la lecture directe avait retenu un repost de « Frontières »
+    au son coupé par YouTube. La vérification l'écartait, mais la lecture
+    directe le relayait encore à chaque écoute : ça chargeait, sans un son."""
+    from app.services import live_stream
+
+    muted = Candidate(video_id="muted", title="Frontières", artist="PNL", album=None, duration_seconds=180,
+                      cover_url=None, is_song=True)
+    repo = client.app.state.deps.repo
+    client.portal.call(repo.stream_source_set, "deezer", "5", "muted")
+
+    async def track_for(deps, source, source_id):
+        return TRACK
+
+    async def same(deezer, track):
+        return track
+
+    async def sources(track, cookies, excluded, preferred, found=None):
+        assert preferred == "muted"
+        yield muted
+
+    async def download(settings, url, track, quality, fmt):
+        path = tmp_path / "work" / "titre.m4a"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"audio")
+        return path
+
+    async def verify(track, path, ffmpeg):
+        return Verdict(0.485)
+
+    relayed = []
+
+    async def resolve(track, cookies, excluded, preferred):
+        relayed.append((set(excluded), preferred))
+        return None
+
+    monkeypatch.setattr(stream, "_track_for", track_for)
+    monkeypatch.setattr(stream, "complete_preview", same)
+    monkeypatch.setattr(stream, "iter_audio_sources", sources)
+    monkeypatch.setattr(stream, "download_and_tag", download)
+    monkeypatch.setattr(stream, "verify_recording", verify)
+    monkeypatch.setattr(live_stream, "resolve", resolve)
+    assert client.post("/stream/deezer/5/prepare", headers=AUTH).status_code == 404
+
+    assert client.portal.call(repo.stream_source_get, "deezer", "5") is None
+    client.portal.call(REAL_LIVE_SOURCE, client.app.state.deps, "deezer", "5", ("deezer", "5", "auto", "best"))
+    assert relayed == [({"muted"}, None)]
+    stream.forget_live_source("deezer", "5")
 
 
 def test_cookies_upload_from_the_app(client, tmp_path, monkeypatch):

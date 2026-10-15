@@ -92,9 +92,19 @@ def forget_track_failures(source: str, source_id: str) -> None:
         del _failures[key]
 
 
+# Sources dont l'audio téléchargé n'est pas le morceau (empreinte trop
+# éloignée, fichier tronqué…), depuis le démarrage. La lecture directe relaie
+# une source sans la vérifier : sans ce souvenir, elle reprenait celle que la
+# vérification venait d'écarter (cas réel : un repost de « Frontières » de PNL
+# au son coupé par YouTube, relayé en silence).
+_unfaithful: defaultdict[tuple[str, str], set[str]] = defaultdict(set)
+
+
 def forget_live_source(source: str, source_id: str) -> None:
-    """Oublie le flux direct (ou son absence) retenu pour ce morceau."""
+    """Oublie le flux direct (ou son absence) retenu pour ce morceau, et les
+    sources que la vérification avait écartées."""
     _live.drop_track(source, source_id)
+    _unfaithful.pop((source, source_id), None)
 
 
 def _start_report(source: str, source_id: str, track: TrackInfo | None) -> dict:
@@ -234,6 +244,10 @@ async def _download_first_faithful(
                     verdict.reason or f"écart d'empreinte {verdict.error:.3f}",
                 )
                 cleanup_download(path)
+                _unfaithful[(source, source_id)].add(source_candidate.video_id)
+                _live.drop_track(source, source_id)
+                if source_candidate.video_id == preferred:
+                    await deps.repo.stream_source_forget(source, source_id, preferred)
                 if attempts >= MAX_SOURCE_ATTEMPTS:
                     break
     except ResolutionError as exc:
@@ -436,7 +450,7 @@ async def _live_source(deps: ApiDeps, source: str, source_id: str, key: tuple) -
             return cached
         try:
             track = await _track_for(deps, source, source_id)
-            excluded = await deps.repo.rejected_sources(source, source_id)
+            excluded = await deps.repo.rejected_sources(source, source_id) | _unfaithful.get((source, source_id), set())
             preferred = await deps.repo.stream_source_get(source, source_id)
             found = await live_stream.resolve(track, deps.settings.youtube_cookies_file, excluded, preferred)
             if found is not None and found.video_id:
