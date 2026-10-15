@@ -4040,27 +4040,38 @@ async function reportWrongVersion(t) {
 async function diagnoseTrack(t) {
   const wrap = openSheet(`<h2 class="sheet-title">Diagnostic de lecture</h2>
     <p class="muted">« ${esc(t.title)} » — ${esc(t.artist)}</p>
-    <div data-diag><p class="muted">Le serveur cherche et télécharge le titre… (jusqu'à une minute)</p></div>`);
+    <div data-diag></div>`);
   const box = $("[data-diag]", wrap);
-  let r;
-  try {
-    r = await api(`/admin/diagnose/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}`, { method: "POST" });
-  } catch (e) { box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
-  if (!r.tried) { box.innerHTML = `<p><span class="pill-state">Prêt</span></p><p class="muted">${esc(r.message)}</p>`; return; }
+  const path = `/admin/diagnose/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}`;
   const dur = (d) => (d ? fmt(d) : "?");
   const row = (title, sub) => `<div class="set-row"><span class="set-text"><b>${title}</b><small>${sub}</small></span></div>`;
-  const ref = r.track;
-  box.innerHTML = `
-    <p><span class="pill-state ${r.ready ? "" : "bad"}">${r.ready ? "Prêt" : "Échec"}</span> ${r.ready ? "" : esc(r.result)}</p>
-    ${ref ? `<p class="muted">Référence : ${esc(ref.title)} — ${esc(ref.artist)}${ref.album ? ` · ${esc(ref.album)}` : ""} · ${dur(ref.duration_seconds)} · ${ref.preview ? "extrait officiel disponible" : "pas d'extrait officiel"}</p>` : ""}
-    <h3 class="set-head">Sources essayées</h3>
-    <div class="set-group">${r.tried.length ? r.tried.map((c) => row(
-      `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)}</small>`,
-      `${esc(c.artist)} — ${esc(c.outcome || "?")}`)).join("") : row("Aucune", "Aucun résultat n'a passé le tri ci-dessous")}</div>
-    <h3 class="set-head">Résultats des recherches</h3>
-    <div class="set-group">${r.found.length ? r.found.map((c) => row(
-      `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)} · score ${c.score}</small>`,
-      `${esc(c.artist)} — ${c.rejected ? `écarté : ${esc(c.rejected)}` : "acceptable"}`)).join("") : row("Aucun résultat", "YouTube et SoundCloud n'ont rien renvoyé")}</div>`;
+  const run = async () => {
+    box.innerHTML = `<p class="muted">Le serveur cherche et télécharge le titre… (jusqu'à une minute)</p>`;
+    let r;
+    try { r = await api(path, { method: "POST" }); } catch (e) { box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; return; }
+    if (!r.tried) { box.innerHTML = `<p><span class="pill-state">Prêt</span></p><p class="muted">${esc(r.message)}</p>`; return; }
+    const ref = r.track;
+    box.innerHTML = `
+      <p><span class="pill-state ${r.ready ? "" : "bad"}">${r.ready ? "Prêt" : "Échec"}</span> ${r.ready ? "" : esc(r.result)}</p>
+      ${ref ? `<p class="muted">Référence : ${esc(ref.title)} — ${esc(ref.artist)}${ref.album ? ` · ${esc(ref.album)}` : ""} · ${dur(ref.duration_seconds)} · ${ref.preview ? "extrait officiel disponible" : "pas d'extrait officiel"}</p>` : ""}
+      ${r.excluded ? `<p class="muted">${plural(r.excluded, "source")} écartée${r.excluded > 1 ? "s" : ""} avec « Mauvaise version ? » pour ce titre.</p>
+        <div class="pill-row"><button class="btn small" data-unreject>Réautoriser et réessayer</button></div>` : ""}
+      <h3 class="set-head">Sources essayées</h3>
+      <div class="set-group">${r.tried.length ? r.tried.map((c) => row(
+        `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)}</small>`,
+        `${esc(c.artist)} — ${esc(c.outcome || "?")}`)).join("") : row("Aucune", "Aucun résultat n'a passé le tri ci-dessous")}</div>
+      <h3 class="set-head">Résultats des recherches</h3>
+      <div class="set-group">${r.found.length ? r.found.map((c) => row(
+        `${esc(c.title)} <small>· ${esc(c.platform)} · ${dur(c.duration_seconds)} · score ${c.score}</small>`,
+        `${esc(c.artist)} — ${c.rejected ? `écarté : ${esc(c.rejected)}` : "acceptable"}`)).join("") : row("Aucun résultat", "YouTube et SoundCloud n'ont rien renvoyé")}</div>`;
+    const unreject = $("[data-unreject]", box);
+    if (unreject) unreject.onclick = async () => {
+      unreject.disabled = true;
+      try { await api(`${path}/unreject`, { method: "POST" }); } catch (e) { toast(e.message); unreject.disabled = false; return; }
+      run();
+    };
+  };
+  run();
 }
 
 // ── Moments : réactions posées à un instant du titre ──────────────────────

@@ -155,3 +155,15 @@ async def diagnose_track(source: str, source_id: str, deps: ApiDeps = Depends(re
     if report is None:
         return {"ready": True, "message": "Ce titre est déjà prêt sur le serveur : il se lance depuis le cache."}
     return {"ready": report["result"] == "ok", **report}
+
+
+@router.post("/diagnose/{source}/{source_id}/unreject")
+async def unreject_sources(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
+    """Réautorise les sources écartées par « Mauvaise version ? » pour ce
+    titre : quand la seule version disponible a été signalée, le titre ne
+    se lance plus du tout. Elles repassent la vérification par empreinte."""
+    count = await deps.repo.unreject_sources(source, source_id)
+    stream.forget_track_failures(source, source_id)
+    stream.forget_live_source(source, source_id)
+    logger.info("%d source(s) réautorisée(s) pour %s:%s", count, source, source_id)
+    return {"unrejected": count}
