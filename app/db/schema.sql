@@ -164,9 +164,33 @@ CREATE TABLE IF NOT EXISTS playlists (
     import_error TEXT,
     visibility TEXT NOT NULL DEFAULT 'private',
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    -- Rapport d'import : titres retenus mais à vérifier, et titres ajoutés
+    -- par la dernière resynchronisation ; date de celle-ci.
+    import_uncertain INTEGER NOT NULL DEFAULT 0,
+    import_added INTEGER NOT NULL DEFAULT 0,
+    synced_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists (user_id, updated_at DESC);
+
+-- Rapport d'import d'une playlist, titre par titre (services/playlist_import.py) :
+-- le titre lu à la source, ce qui a été retenu, et pourquoi. `origin_key`
+-- reconnaît un titre déjà importé à la resynchronisation ; `fixed` : corrigé
+-- à la main, plus jamais remis en cause.
+CREATE TABLE IF NOT EXISTS playlist_import_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    playlist_id INTEGER NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    origin_key TEXT NOT NULL,
+    original TEXT NOT NULL,
+    status TEXT NOT NULL,
+    reason TEXT,
+    matched TEXT,
+    entry_id INTEGER,
+    fixed INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_import_items ON playlist_import_items (playlist_id, position);
 
 -- Morceaux d'une playlist, recopiés tels quels (pas de nouvelle requête au
 -- catalogue pour l'afficher). Un même titre peut y figurer deux fois : une

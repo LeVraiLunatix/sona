@@ -9,6 +9,7 @@ from app.providers.deezer import DeezerClient
 from app.providers.lastfm_auth import LastfmAuthClient
 from app.providers.lrclib import LrclibClient
 from app.providers.musicbrainz import MusicBrainzClient
+from app.providers.soundcloud import SoundcloudClient
 from app.providers.spotify import SpotifyClient
 from app.services.lyrics import LyricsService
 
@@ -30,6 +31,8 @@ class ApiDeps:
     musicbrainz: MusicBrainzClient | None = None
     # Paroles multi-sources avec cache (sinon LRCLIB seul, sans cache).
     lyrics: LyricsService | None = None
+    # SoundCloud (import de playlists et de likes) ; sinon le client commun.
+    soundcloud: SoundcloudClient | None = None
     account: Account | None = None
     is_admin: bool = False
     user_id_override: int | None = None

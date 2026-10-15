@@ -258,12 +258,23 @@ class FakeRepo:
     def __init__(self):
         self.updates = []
         self.tracks = []
+        self.items = []
 
     async def playlist_update(self, playlist_id, **fields):
         self.updates.append(fields)
 
     async def playlist_add_tracks(self, playlist_id, tracks):
         self.tracks = tracks
+        return list(range(1, len(tracks) + 1))
+
+    async def import_items_add(self, playlist_id, items):
+        self.items.extend(items)
+
+    async def import_counts(self, playlist_id):
+        counts = {}
+        for item in self.items:
+            counts[item.status] = counts.get(item.status, 0) + 1
+        return counts
 
 
 def test_run_import_matches_on_deezer_and_keeps_order(monkeypatch):
@@ -292,6 +303,12 @@ def test_run_import_matches_on_deezer_and_keeps_order(monkeypatch):
     assert [t.uid for t in deps.repo.tracks] == ["deezer:1", "spotify:S2", "deezer:2"]
     final = deps.repo.updates[-1]
     assert final == {"import_status": "done", "import_done": 4, "import_missing": 1, "import_error": None}
+    # Rapport titre par titre : ISRC et titre exact trouvés, Spotify sans
+    # équivalent à vérifier, Apple sans identifiant introuvable.
+    assert [(i.status, i.entry_id) for i in deps.repo.items] == [
+        ("found", 1), ("uncertain", 2), ("found", 3), ("missing", None),
+    ]
+    assert deps.repo.updates[-2]["import_uncertain"] == 1
     assert deps.repo.updates[0]["name"] == "Import"
 
 

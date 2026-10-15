@@ -1174,16 +1174,22 @@ async function viewUserPlaylist(id) {
     const timer = setTimeout(() => location.hash === `#/playlist/${id}` && route(), 2500);
     onLeave(() => clearTimeout(timer));
   }
-  setTimeout(() => $("[data-pl-menu]")?.addEventListener("click", () => playlistMenu(p)));
+  setTimeout(() => {
+    $("[data-pl-menu]")?.addEventListener("click", () => playlistMenu(p));
+    $("[data-import-report]")?.addEventListener("click", () => importReport(p));
+  });
+  const synced = p.origin_url && p.synced_at && SOURCE_NAMES[p.origin] ? `Synchronisée avec ${SOURCE_NAMES[p.origin]} ${since(p.synced_at)}` : "";
+  const progress = importing ? `<div class="import-progress"><div class="bar"><i style="width:${p.import_total ? Math.round((100 * p.import_done) / p.import_total) : 4}%"></i></div>
+    <span>${p.import_total ? `Rapprochement des titres… ${p.import_done} / ${p.import_total}` : "Lecture de la playlist…"}</span></div>` : "";
   const vis = VISIBILITY[p.visibility] || VISIBILITY.private;
   return page(hero({
     cover: p.cover_url, covers: p.covers, kind: p.is_owner ? `Playlist · ${vis[0]}` : `Playlist de ${p.owner_name || "un ami"}`, title: p.name,
     by: p.description || "",
-    info: [plural(tracks.length, "titre"), total ? minutesLabel(total / 60) : "",
-      importing ? `Import… ${p.import_done}/${p.import_total ?? "?"}` : p.import_missing ? `${p.import_missing} introuvable(s)` : ""].filter(Boolean).join(" · "),
+    info: [plural(tracks.length, "titre"), total ? minutesLabel(total / 60) : "", synced].filter(Boolean).join(" · "),
     list: tracks.length ? register(tracks, p.name, ctx) : "",
     extra: `<button class="btn ghost icon-only" data-pl-menu title="Options">${icons.more}</button>`,
-  }) + (p.import_error ? `<p class="error-text">${esc(p.import_error)}</p>` : "")
+  }) + progress + importBanner(p)
+    + (p.import_error ? `<p class="${p.import_status === "failed" ? "error-text" : "muted"}">${esc(p.import_error)}</p>` : "")
     + (tracks.length ? trackTable(tracks, p.name, { ctx }) : empty("♫", "Playlist vide", "Ajoute des titres avec le bouton … d'un titre, ou depuis le lecteur.")));
 }
 
@@ -1203,9 +1209,10 @@ function playlistMenu(p) {
         await api(`/me/playlists/${p.id}`, { method: "PATCH", body: JSON.stringify({ visibility: key }) });
         toast(`Playlist ${label.toLowerCase()}`); route();
       } }))) });
-    if (p.origin) items.push({ icon: icons.download, label: "Réimporter depuis la source", run: async () => {
-      await api(`/me/playlists/${p.id}/reimport`, { method: "POST" }); toast("Réimport lancé"); route();
+    if (p.origin_url && p.import_status !== "importing") items.push({ icon: icons.repeat, label: `Resynchroniser avec ${sourceName(p.origin)}`, sub: "Ajoute les titres apparus depuis (se fait aussi chaque jour)", run: async () => {
+      try { await api(`/me/playlists/${p.id}/sync`, { method: "POST" }); toast("Resynchronisation lancée"); route(); } catch (e) { toast(e.message); }
     } });
+    if (p.origin && p.import_status === "done") items.push({ icon: icons.check, label: "Rapport d'import", sub: "Trouvés, à vérifier, introuvables", run: () => importReport(p) });
   }
   items.push({ icon: icons.wave, label: "Blind test sur cette playlist", run: () => { bt.pending = { mode: "playlist", ref: String(p.id), label: p.name }; go("#/blindtest"); } });
   if (p.is_owner) {
@@ -1266,7 +1273,7 @@ async function viewLibrary(kind) {
           href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name,
           subtitle: importing ? `Import… ${p.import_done}/${p.import_total ?? "?"}` : p.import_status === "failed" ? "Import impossible" : `${plural(p.track_count, "titre")}${p.is_owner === false ? ` · ${p.owner_name}` : ""}`,
         });
-      }).join("")}</div>` : empty("♫", "Aucune playlist", "Crée ta première playlist, ou importe-en une depuis Spotify, Apple Music ou Deezer.")}</section>`;
+      }).join("")}</div>` : empty("♫", "Aucune playlist", "Crée ta première playlist, ou importe-en une depuis Spotify, Apple Music, Deezer, YouTube ou SoundCloud.")}</section>`;
   } else if (kind === "tracks") {
     const data = await api("/library/track?limit=500").catch(() => ({ items: [] }));
     const tracks = (data.items || []).map((i) => i.track || { source: i.source, source_id: i.source_id, title: i.title, artist: i.subtitle || "", cover_url: i.cover_url }).filter((t) => t.source_id);
@@ -1308,8 +1315,8 @@ async function newPlaylist(tracks = []) {
 
 async function importPlaylist() {
   const url = await askText({
-    title: "Importer une playlist", placeholder: "Lien Spotify, Apple Music, Deezer ou YouTube", confirm: "Importer",
-    hint: "Colle le lien de partage de la playlist : Sona retrouve chaque titre.",
+    title: "Importer une playlist", placeholder: "Lien Spotify, Apple Music, Deezer, YouTube ou SoundCloud", confirm: "Importer",
+    hint: "Colle le lien de partage d'une playlist publique (ou des likes d'un profil SoundCloud) : Sona retrouve chaque titre, te dit ce qui est à vérifier, et la resynchronise chaque jour.",
   });
   if (!url) return;
   try {
@@ -1317,6 +1324,108 @@ async function importPlaylist() {
     toast("Import lancé");
     go(`#/playlist/${created.id}`);
   } catch (e) { toast(e.message); }
+}
+
+// ── Rapport d'import (trouvés, à vérifier, introuvables) ──────────────────
+const SOURCE_NAMES = { deezer: "Deezer", spotify: "Spotify", apple: "Apple Music", youtube: "YouTube", soundcloud: "SoundCloud" };
+const sourceName = (s) => SOURCE_NAMES[s] || s || "";
+const IMPORT_FILTERS = [["uncertain", "À vérifier"], ["missing", "Introuvables"], ["found", "Trouvés"]];
+
+/** Bandeau d'une playlist importée : ce qu'il reste à vérifier, et la dernière resynchro. */
+function importBanner(p) {
+  if (!p.origin || p.import_status !== "done") return "";
+  const uncertain = p.import_uncertain || 0, missing = p.import_missing || 0, added = p.import_added || 0;
+  if (!uncertain && !missing && !added) return "";
+  const title = uncertain ? plural(uncertain, "titre à vérifier", "titres à vérifier")
+    : missing ? plural(missing, "titre introuvable", "titres introuvables") : plural(added, "nouveau titre", "nouveaux titres");
+  const parts = [];
+  if (uncertain && missing) parts.push(plural(missing, "introuvable"));
+  if (added && (uncertain || missing)) parts.push(`+${added} à la dernière synchro`);
+  parts.push(uncertain || missing ? "Vérifie et corrige en un clic" : "Ajoutés depuis la playlist d'origine");
+  return `<button class="import-banner" data-import-report>${icons.check}<span><b>${esc(title)}</b><small>${esc(parts.join(" · "))}</small></span>${icons.right}</button>`;
+}
+
+async function importReport(p, filter) {
+  let report;
+  try { report = await api(`/me/playlists/${p.id}/import`); } catch (e) { return toast(e.message); }
+  filter = filter || (report.counts.uncertain ? "uncertain" : report.counts.missing ? "missing" : "found");
+  const wrap = openSheet(`<h2 class="sheet-title">Rapport d'import</h2><p class="muted">${esc(p.name)}</p><div class="imp-tiles"></div><div class="imp-list"></div>`, {
+    cls: "import-sheet", onClose: () => location.hash === `#/playlist/${p.id}` && route(),
+  });
+  const paint = () => {
+    $(".imp-tiles", wrap).innerHTML = IMPORT_FILTERS.map(([key, label]) => `<button class="imp-tile ${key === filter ? "on" : ""}" data-imp-filter="${key}"><b>${report.counts[key] || 0}</b><span>${label}</span></button>`).join("");
+    const items = report.items.filter((i) => i.status === filter);
+    $(".imp-list", wrap).innerHTML = items.length ? items.map((i) => {
+      const m = i.matched, o = i.original;
+      const moved = m && (m.title !== o.title || m.artist !== o.artist);
+      return `<div class="imp-row" data-imp-item="${i.id}">
+        <img src="${esc(big((m || o).cover_url, 120))}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="imp-text"><b>${esc(o.title)}</b><span>${esc(o.artist)} · ${esc(sourceName(o.source))}</span>
+          ${moved ? `<span class="imp-to">↳ ${esc(m.title)} — ${esc(m.artist)}</span>` : ""}
+          ${i.reason ? `<small>${esc(i.reason)}</small>` : ""}</div>
+        <div class="imp-actions">
+          ${m && i.status !== "found" ? `<button class="tbtn small" data-imp-act="accept" title="C'est le bon titre">${icons.check}</button>` : ""}
+          <button class="btn ghost small" data-imp-act="fix">Corriger</button>
+          ${i.entry_id ? `<button class="tbtn small" data-imp-act="remove" title="Retirer de la playlist">${icons.trash}</button>` : ""}
+        </div></div>`;
+    }).join("") : `<p class="muted imp-empty">${filter === "found" ? "Aucun titre." : "Rien à corriger ici : tout est en ordre."}</p>`;
+  };
+  const applyItem = (updated) => {
+    const index = report.items.findIndex((i) => i.id === updated.id);
+    if (index < 0) return;
+    const before = report.items[index].status;
+    report.items[index] = updated;
+    if (before !== updated.status) { report.counts[before] -= 1; report.counts[updated.status] = (report.counts[updated.status] || 0) + 1; }
+    paint();
+  };
+  wrap.addEventListener("click", async (e) => {
+    const tile = e.target.closest("[data-imp-filter]");
+    if (tile) { filter = tile.dataset.impFilter; return paint(); }
+    const btn = e.target.closest("[data-imp-act]");
+    if (!btn) return;
+    const item = report.items.find((i) => i.id === Number(btn.closest("[data-imp-item]").dataset.impItem));
+    if (btn.dataset.impAct === "fix") return importFix(p, item, applyItem);
+    btn.disabled = true;
+    try { applyItem(await fixImport(p.id, item.id, { action: btn.dataset.impAct })); toast(btn.dataset.impAct === "accept" ? "Validé" : "Retiré de la playlist"); }
+    catch (err) { toast(err.message); btn.disabled = false; }
+  });
+  paint();
+}
+
+const fixImport = (pid, itemId, body) => api(`/me/playlists/${pid}/import/${itemId}`, { method: "POST", body: JSON.stringify(body) });
+
+/** Corriger un titre : en chercher un autre au catalogue, ou coller un lien YouTube / SoundCloud. */
+function importFix(p, item, onFixed) {
+  const o = item.original;
+  const wrap = openSheet(`<h2 class="sheet-title">Corriger le titre</h2>
+    <p class="muted">${esc(o.title)} — ${esc(o.artist)} · ${esc(sourceName(o.source))}${item.reason ? `<br>${esc(item.reason)}` : ""}</p>
+    <form class="imp-search"><input class="field" name="q" value="${esc(`${o.artist} ${o.title}`)}" placeholder="Titre, artiste" autocomplete="off"><button class="btn small">${icons.search}</button></form>
+    <div class="imp-results"><div class="loading-row"><span class="spinner"></span></div></div>
+    <h3 class="set-head">Ou coller un lien YouTube / SoundCloud</h3>
+    <form class="imp-link"><input class="field" name="url" placeholder="https://youtu.be/… ou https://soundcloud.com/…" autocomplete="off"><button class="btn small">Utiliser</button></form>
+    <p class="muted small-note">Le titre se lira depuis cet audio-là.</p>`, { cls: "import-sheet" });
+  let results = [];
+  const done = (updated) => { onFixed(updated); wrap.querySelector(".sheet-backdrop").click(); toast("Titre corrigé"); };
+  const search = async (q) => {
+    const box = $(".imp-results", wrap);
+    box.innerHTML = `<div class="loading-row"><span class="spinner"></span></div>`;
+    results = ((await api(`/search?q=${encodeURIComponent(q)}`).catch(() => ({ tracks: [] }))).tracks || []).slice(0, 8);
+    box.innerHTML = results.length ? results.map((t, k) => `<button class="imp-pick" data-pick="${k}"><img src="${esc(big(t.cover_url, 120))}" alt=""><span><b>${esc(t.title)}</b><small>${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</small></span><em>${t.duration_seconds ? clock(t.duration_seconds * 1000) : ""}</em></button>`).join("")
+      : `<p class="muted">Aucun résultat.</p>`;
+  };
+  $(".imp-search", wrap).onsubmit = (e) => { e.preventDefault(); search(e.target.q.value.trim()); };
+  $(".imp-results", wrap).onclick = async (e) => {
+    const pick = e.target.closest("[data-pick]");
+    if (!pick) return;
+    try { done(await fixImport(p.id, item.id, { action: "replace", track: cleanTrack(results[Number(pick.dataset.pick)]) })); } catch (err) { toast(err.message); }
+  };
+  $(".imp-link", wrap).onsubmit = async (e) => {
+    e.preventDefault();
+    const url = e.target.url.value.trim();
+    if (!url) return;
+    try { done(await fixImport(p.id, item.id, { action: "link", url })); } catch (err) { toast(err.message); }
+  };
+  search(`${o.artist} ${o.title}`);
 }
 
 // ── Santé de la lecture (admin) ───────────────────────────────────────────

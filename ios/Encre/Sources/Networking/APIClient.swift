@@ -437,9 +437,24 @@ final class APIClient {
         return try await send(try request("/me/playlists/\(id)/order", method: "PUT", bodyData: data))
     }
 
-    /// Relit la playlist d'origine et remplace ses titres (en tâche de fond).
+    /// Resynchronise : relit la playlist d'origine et ajoute les titres
+    /// apparus depuis (en tâche de fond ; les corrections sont gardées).
     func reimportPlaylist(id: Int) async throws -> UserPlaylist {
-        try await send(try request("/me/playlists/\(id)/reimport", method: "POST"))
+        try await send(try request("/me/playlists/\(id)/sync", method: "POST"))
+    }
+
+    /// Rapport d'import titre par titre (`status` : found, uncertain, missing).
+    func importReport(playlistId: Int, status: String? = nil) async throws -> ImportReport {
+        let query = status.map { [URLQueryItem(name: "status", value: $0)] } ?? []
+        return try await send(try request("/me/playlists/\(playlistId)/import", query: query))
+    }
+
+    /// Corrige un titre importé : « accept », « remove », « replace » (`track`)
+    /// ou « link » (`url` YouTube / SoundCloud).
+    func fixImportItem(playlistId: Int, itemId: Int, action: String, track: Track? = nil, url: String? = nil) async throws -> ImportItem {
+        struct Body: Encodable { let action: String; let track: Track?; let url: String? }
+        let data = try encode(Body(action: action, track: track, url: url))
+        return try await send(try request("/me/playlists/\(playlistId)/import/\(itemId)", method: "POST", bodyData: data))
     }
 
     /// Lance l'import (en tâche de fond côté serveur) : la playlist revient

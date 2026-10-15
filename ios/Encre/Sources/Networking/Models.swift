@@ -607,9 +607,19 @@ struct UserPlaylist: Codable, Identifiable, Hashable {
     var isOwner: Bool?
     var ownerName: String?
     var canEdit: Bool?
+    /// Rapport d'import : titres retenus mais à vérifier ; ajoutés par la
+    /// dernière resynchronisation ; date de celle-ci ; lien d'origine.
+    var importUncertain: Int? = nil
+    var importAdded: Int? = nil
+    var syncedAt: String? = nil
+    var originURL: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, covers, origin, entries, visibility
+        case importUncertain = "import_uncertain"
+        case importAdded = "import_added"
+        case syncedAt = "synced_at"
+        case originURL = "origin_url"
         case isOwner = "is_owner"
         case ownerName = "owner_name"
         case canEdit = "can_edit"
@@ -637,15 +647,45 @@ struct UserPlaylist: Codable, Identifiable, Hashable {
     var importFailed: Bool { importStatus == "failed" }
     var tracks: [Track] { (entries ?? []).map(\.track) }
 
-    /// « Spotify », « Apple Music », « Deezer » — d'où vient la playlist.
+    /// « Spotify », « Apple Music », « Deezer »… — d'où vient la playlist.
     var originLabel: String? {
         switch origin {
         case "spotify": "Spotify"
         case "apple": "Apple Music"
         case "deezer": "Deezer"
+        case "youtube": "YouTube"
+        case "soundcloud": "SoundCloud"
         default: nil
         }
     }
+
+    /// Importée depuis un lien : elle se resynchronise.
+    var canSync: Bool { originURL != nil && originLabel != nil }
+    var hasImportReport: Bool { origin != nil && !isImporting && !importFailed }
+}
+
+/// Un titre du rapport d'import : lu à la source, retenu (ou pas), et pourquoi.
+struct ImportItem: Codable, Identifiable, Hashable {
+    var id: Int
+    var position: Int
+    /// « found », « uncertain » ou « missing ».
+    var status: String
+    var reason: String?
+    var original: Track
+    var matched: Track?
+    var entryId: Int?
+    var fixed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, position, status, reason, original, matched, fixed
+        case entryId = "entry_id"
+    }
+}
+
+struct ImportReport: Codable {
+    var playlist: UserPlaylist
+    var counts: [String: Int]
+    var items: [ImportItem]
 }
 
 struct PlaylistEntry: Codable, Identifiable, Hashable {

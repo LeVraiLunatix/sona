@@ -189,11 +189,45 @@ class Playlist:
     visibility: str
     created_at: str
     updated_at: str
+    # Rapport d'import : titres retenus mais à vérifier ; ajoutés par la
+    # dernière resynchronisation ; date de celle-ci.
+    import_uncertain: int = 0
+    import_added: int = 0
+    synced_at: str | None = None
     track_count: int = 0
     duration_seconds: int = 0
     # Pochettes des premiers morceaux : mosaïque quand la playlist n'a pas
     # d'image à elle.
     covers: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ImportItem:
+    """Un titre de la playlist d'origine et ce que l'import en a fait."""
+
+    id: int | None
+    playlist_id: int
+    position: int
+    origin_key: str
+    original: TrackInfo
+    # « found » : retenu sans doute ; « uncertain » : retenu, à vérifier ;
+    # « missing » : introuvable (ou retiré à la main).
+    status: str
+    reason: str | None = None
+    matched: TrackInfo | None = None
+    entry_id: int | None = None
+    fixed: bool = False
+    updated_at: str | None = None
+
+
+def _track_to_json(track: TrackInfo) -> str:
+    return json.dumps(asdict(track), ensure_ascii=False)
+
+
+def _track_from_json(raw: str) -> TrackInfo:
+    data = json.loads(raw)
+    known = TrackInfo.__dataclass_fields__.keys()
+    return TrackInfo(**{k: v for k, v in data.items() if k in known})
 
 
 @dataclass(slots=True)
@@ -204,7 +238,8 @@ class PlaylistEntry:
 
 _PLAYLIST_COLUMNS = (
     "id, user_id, name, description, cover_url, origin, origin_url, import_status, import_total, "
-    "import_done, import_missing, import_error, visibility, created_at, updated_at"
+    "import_done, import_missing, import_error, visibility, created_at, updated_at, "
+    "import_uncertain, import_added, synced_at"
 )
 _PLAYLIST_TRACK_COLUMNS = (
     "source, source_id, title, artist, album, year, duration_seconds, cover_url, "
@@ -1170,6 +1205,7 @@ class Repository:
         allowed = {
             "name", "description", "cover_url", "import_status", "import_total",
             "import_done", "import_missing", "import_error", "visibility",
+            "import_uncertain", "import_added", "synced_at",
         }
         unknown = set(fields) - allowed
         if unknown:
@@ -1201,29 +1237,48 @@ class Repository:
             entries.append(PlaylistEntry(entry_id=entry_id, track=TrackInfo(**d)))
         return entries
 
-    async def playlist_add_tracks(self, playlist_id: int, tracks: list[TrackInfo]) -> None:
-        """Ajoute des morceaux à la fin de la playlist, dans l'ordre donné."""
+    async def playlist_add_tracks(self, playlist_id: int, tracks: list[TrackInfo]) -> list[int]:
+        """Ajoute des morceaux à la fin de la playlist, dans l'ordre donné ;
+        renvoie les identifiants des entrées créées (même ordre)."""
         if not tracks:
-            return
+            return []
         cursor = await self._db.conn.execute(
             "SELECT COALESCE(MAX(position), -1) AS p FROM playlist_tracks WHERE playlist_id=?",
             (playlist_id,),
         )
         position = (await cursor.fetchone())["p"] + 1
         now = _now()
-        await self._db.conn.executemany(
-            f"""INSERT INTO playlist_tracks (playlist_id, position, {_PLAYLIST_TRACK_COLUMNS}, added_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
+        entry_ids: list[int] = []
+        for i, t in enumerate(tracks):
+            cursor = await self._db.conn.execute(
+                f"""INSERT INTO playlist_tracks (playlist_id, position, {_PLAYLIST_TRACK_COLUMNS}, added_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     playlist_id, position + i, t.source, t.source_id, t.title, t.artist, t.album,
                     t.year, t.duration_seconds, t.cover_url, t.artist_source_id, t.album_source_id, now,
-                )
-                for i, t in enumerate(tracks)
-            ],
-        )
+                ),
+            )
+            entry_ids.append(cursor.lastrowid)
         await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (now, playlist_id))
         await self._db.conn.commit()
+        return entry_ids
+
+    async def playlist_replace_entry(self, playlist_id: int, entry_id: int, track: TrackInfo) -> bool:
+        """Remplace le morceau d'une entrée, à la même place (correction d'un
+        titre importé). Faux si l'entrée n'existe plus."""
+        cursor = await self._db.conn.execute(
+            """UPDATE playlist_tracks SET source=?, source_id=?, title=?, artist=?, album=?, year=?,
+               duration_seconds=?, cover_url=?, artist_source_id=?, album_source_id=?
+               WHERE playlist_id=? AND id=?""",
+            (
+                track.source, track.source_id, track.title, track.artist, track.album, track.year,
+                track.duration_seconds, track.cover_url, track.artist_source_id, track.album_source_id,
+                playlist_id, entry_id,
+            ),
+        )
+        await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (_now(), playlist_id))
+        await self._db.conn.commit()
+        return cursor.rowcount > 0
 
     async def playlist_clear_tracks(self, playlist_id: int) -> None:
         await self._db.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=?", (playlist_id,))
@@ -1250,6 +1305,88 @@ class Repository:
         )
         await self._db.conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (_now(), playlist_id))
         await self._db.conn.commit()
+
+    # -- Rapport d'import (playlist_import_items) -------------------------
+
+    @staticmethod
+    def _import_item(row) -> ImportItem:
+        return ImportItem(
+            id=row["id"], playlist_id=row["playlist_id"], position=row["position"],
+            origin_key=row["origin_key"], original=_track_from_json(row["original"]),
+            status=row["status"], reason=row["reason"],
+            matched=_track_from_json(row["matched"]) if row["matched"] else None,
+            entry_id=row["entry_id"], fixed=bool(row["fixed"]), updated_at=row["updated_at"],
+        )
+
+    async def import_items_add(self, playlist_id: int, items: list[ImportItem]) -> None:
+        now = _now()
+        await self._db.conn.executemany(
+            """INSERT INTO playlist_import_items
+               (playlist_id, position, origin_key, original, status, reason, matched, entry_id, fixed, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                (
+                    playlist_id, item.position, item.origin_key, _track_to_json(item.original), item.status,
+                    item.reason, _track_to_json(item.matched) if item.matched else None, item.entry_id,
+                    int(item.fixed), now,
+                )
+                for item in items
+            ],
+        )
+        await self._db.conn.commit()
+
+    async def import_items(self, playlist_id: int, status: str | None = None) -> list[ImportItem]:
+        if status:
+            cursor = await self._db.conn.execute(
+                "SELECT * FROM playlist_import_items WHERE playlist_id=? AND status=? ORDER BY position, id",
+                (playlist_id, status),
+            )
+        else:
+            cursor = await self._db.conn.execute(
+                "SELECT * FROM playlist_import_items WHERE playlist_id=? ORDER BY position, id", (playlist_id,)
+            )
+        return [self._import_item(r) for r in await cursor.fetchall()]
+
+    async def import_item(self, playlist_id: int, item_id: int) -> ImportItem | None:
+        cursor = await self._db.conn.execute(
+            "SELECT * FROM playlist_import_items WHERE playlist_id=? AND id=?", (playlist_id, item_id)
+        )
+        row = await cursor.fetchone()
+        return self._import_item(row) if row else None
+
+    async def import_item_update(
+        self, item_id: int, *, status: str, reason: str | None, matched: TrackInfo | None,
+        entry_id: int | None, fixed: bool,
+    ) -> None:
+        await self._db.conn.execute(
+            """UPDATE playlist_import_items SET status=?, reason=?, matched=?, entry_id=?, fixed=?, updated_at=?
+               WHERE id=?""",
+            (status, reason, _track_to_json(matched) if matched else None, entry_id, int(fixed), _now(), item_id),
+        )
+        await self._db.conn.commit()
+
+    async def import_items_clear(self, playlist_id: int) -> None:
+        await self._db.conn.execute("DELETE FROM playlist_import_items WHERE playlist_id=?", (playlist_id,))
+        await self._db.conn.commit()
+
+    async def import_counts(self, playlist_id: int) -> dict[str, int]:
+        cursor = await self._db.conn.execute(
+            "SELECT status, COUNT(*) AS n FROM playlist_import_items WHERE playlist_id=? GROUP BY status",
+            (playlist_id,),
+        )
+        return {r["status"]: r["n"] for r in await cursor.fetchall()}
+
+    async def playlists_to_sync(self, synced_before: str) -> list[Playlist]:
+        """Playlists importées depuis un lien, pas resynchronisées depuis
+        `synced_before` (ni en cours d'import) : la resynchronisation
+        automatique."""
+        cursor = await self._db.conn.execute(
+            f"""SELECT {_PLAYLIST_COLUMNS} FROM playlists
+                WHERE origin_url IS NOT NULL AND import_status != 'importing'
+                  AND COALESCE(synced_at, created_at) < ? ORDER BY COALESCE(synced_at, created_at)""",
+            (synced_before,),
+        )
+        return [Playlist(**dict(r)) for r in await cursor.fetchall()]
 
     async def playlists_fail_interrupted_imports(self) -> None:
         """Au démarrage : un import resté « en cours » a été coupé par un

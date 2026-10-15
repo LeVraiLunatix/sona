@@ -10,11 +10,12 @@ from app.providers import youtube
 from app.providers.apple import AppleMusicClient, AppleMusicError
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 from app.providers.deezer import DeezerError
+from app.providers.soundcloud import SoundcloudError, shared_client as soundcloud_client
 from app.providers.spotify import SpotifyError
 from app.providers.youtube import YoutubeError
 from app.services import resolver
 
-ProviderErrors = (DeezerError, AppleMusicError, SpotifyError, YoutubeError)
+ProviderErrors = (DeezerError, AppleMusicError, SpotifyError, YoutubeError, SoundcloudError)
 
 
 class UnknownSourceError(Exception):
@@ -59,6 +60,9 @@ async def _get_track(deps: Deps, source: str, source_id: str) -> TrackInfo:
         return await deps.spotify.get_track(source_id)
     if source == "youtube":
         return await youtube.get_video_info(source_id)
+    if source == "soundcloud":
+        # Titre qui n'existe que sur SoundCloud (importé d'une playlist ou d'un lien).
+        return await soundcloud_client().get_track(source_id)
     raise UnknownSourceError(source)
 
 

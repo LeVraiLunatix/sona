@@ -588,6 +588,10 @@ async def iter_audio_sources(
     `found` : reçoit tous les résultats de recherche, retenus ou non (pour
     le diagnostic d'un titre qui ne se lance pas).
     """
+    if track.source == "soundcloud":
+        # Titre SoundCloud (importé tel quel) : son audio à lui, rien à chercher.
+        yield known_source(track, f"soundcloud:{track.source_id}")
+        return
     if track.source == "youtube":
         yield Candidate(
             video_id=track.source_id,

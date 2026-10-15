@@ -189,8 +189,8 @@ struct NewPlaylistSheet: View {
     }
 }
 
-/// Import d'une playlist Deezer, Spotify ou Apple Music par son lien de
-/// partage.
+/// Import d'une playlist Deezer, Spotify, Apple Music, YouTube (Music) ou
+/// SoundCloud (playlist ou likes) par son lien de partage.
 struct ImportPlaylistSheet: View {
     var onStarted: (UserPlaylist) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -201,17 +201,8 @@ struct ImportPlaylistSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 10) {
-                    ForEach(["Spotify", "Apple Music", "Deezer"], id: \.self) { name in
-                        Text(name)
-                            .font(Typo.caption)
-                            .foregroundStyle(Tone.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(Tone.surfaceStrong))
-                    }
-                }
-                Text("Dans l'app d'origine : Partager › Copier le lien, puis colle-le ici. La playlist doit être publique.")
+                FlowChips(names: ["Spotify", "Apple Music", "Deezer", "YouTube Music", "YouTube", "SoundCloud"])
+                Text("Dans l'app d'origine : Partager › Copier le lien, puis colle-le ici. La playlist doit être publique (sur SoundCloud, les likes d'un profil aussi). Chaque titre est retrouvé au catalogue, avec un rapport de ce qui est sûr, à vérifier ou introuvable ; la playlist se resynchronise ensuite toute seule chaque jour.")
                     .font(Typo.rowSubtitle)
                     .foregroundStyle(Tone.secondary)
 
@@ -292,6 +283,35 @@ struct ImportPlaylistSheet: View {
             errorMessage = error.localizedDescription
         }
         isSending = false
+    }
+}
+
+/// Pastilles des plateformes, qui passent à la ligne quand il le faut.
+private struct FlowChips: View {
+    let names: [String]
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(names)
+            VStack(alignment: .leading, spacing: 8) {
+                row(Array(names.prefix(3)))
+                row(Array(names.dropFirst(3)))
+            }
+        }
+    }
+
+    private func row(_ items: [String]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(items, id: \.self) { name in
+                Text(name)
+                    .font(Typo.caption)
+                    .foregroundStyle(Tone.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Tone.surfaceStrong))
+                    .fixedSize()
+            }
+        }
     }
 }
 

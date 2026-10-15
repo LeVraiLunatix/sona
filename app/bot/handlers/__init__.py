@@ -8,6 +8,7 @@ from app.bot.handlers import (
     announce,
     artist,
     history,
+    imports,
     inline,
     library,
     links,
@@ -31,6 +32,7 @@ def setup_routers(dp: Dispatcher) -> None:
     dp.include_router(settings.router)
     dp.include_router(admin.router)
     dp.include_router(announce.router)
+    dp.include_router(imports.router)
     # Suggestions au-dessus du champ de saisie (mode inline) : un type
     # d'update à part, jamais en concurrence avec les messages.
     dp.include_router(inline.router)

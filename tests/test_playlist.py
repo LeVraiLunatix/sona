@@ -286,27 +286,32 @@ def test_a_youtube_playlist_still_works(ecrans):
     assert ecrans[-1].params == {"source": "youtube", "id": "PLabc", "page": 1}
 
 
-def test_a_spotify_playlist_is_refused_with_a_clear_message(monkeypatch, ecrans):
-    """« Lien non reconnu » laisserait croire à un lien cassé."""
+def test_a_spotify_playlist_is_offered_for_import(monkeypatch, ecrans):
+    """Le bot n'affiche pas les playlists Spotify : il propose de l'importer
+    (plutôt qu'un « lien non reconnu » qui laisserait croire à un lien cassé)."""
+    from app.bot.handlers import imports
+
     affiche = {}
 
     async def show_text(bot, target, text, markup):
-        affiche["text"] = text
+        affiche["text"], affiche["markup"] = text, markup
         return target
 
     monkeypatch.setattr(links, "show_text", show_text)
     monkeypatch.setattr(navigation, "current_target", lambda user_id: None)
     monkeypatch.setattr(navigation, "set_target", lambda user_id, target: None)
-    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER))
+    url = "https://open.spotify.com/playlist/37i9dQ"
+    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER), text=url)
     lien = SimpleNamespace(source="spotify", kind="playlist", ref="37i9dQ")
 
     asyncio.run(links._handle_detected_link(SimpleNamespace(bot=None), message, lien))
 
-    assert affiche["text"] == errors.PLAYLIST_UNSUPPORTED
-    assert "Spotify" in affiche["text"] and "Apple Music" in affiche["text"]
+    assert "Playlist Spotify" in affiche["text"]
+    assert affiche["markup"].inline_keyboard[0][0].text == "📥 Importer"
+    assert imports._pending[USER] == url
 
 
-def test_an_apple_playlist_is_refused_too(monkeypatch, ecrans):
+def test_soundcloud_likes_are_offered_for_import_too(monkeypatch, ecrans):
     affiche = {}
 
     async def show_text(bot, target, text, markup):
@@ -316,9 +321,10 @@ def test_an_apple_playlist_is_refused_too(monkeypatch, ecrans):
     monkeypatch.setattr(links, "show_text", show_text)
     monkeypatch.setattr(navigation, "current_target", lambda user_id: None)
     monkeypatch.setattr(navigation, "set_target", lambda user_id, target: None)
-    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER))
-    lien = SimpleNamespace(source="apple", kind="playlist", ref="pl.123")
+    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER),
+                              text="https://soundcloud.com/a/likes")
+    lien = SimpleNamespace(source="soundcloud", kind="likes", ref="https://soundcloud.com/a/likes")
 
     asyncio.run(links._handle_detected_link(SimpleNamespace(bot=None), message, lien))
 
-    assert affiche["text"] == errors.PLAYLIST_UNSUPPORTED
+    assert "Playlist SoundCloud" in affiche["text"]

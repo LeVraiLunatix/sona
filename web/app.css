@@ -700,6 +700,40 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .center { text-align: center; justify-content: center; }
 .eyebrow { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
 .error-text { color: #ff453a; font-weight: 500; }
+/* Import de playlist : avancement, bandeau du rapport, feuille de rapport. */
+.import-progress { max-width: 620px; margin: 4px 0 18px; display: grid; gap: 8px; color: var(--text-2); font-size: 14px; }
+.import-progress .bar { height: 6px; border-radius: 999px; background: var(--fill); overflow: hidden; }
+.import-progress .bar i { display: block; height: 100%; border-radius: inherit; background: var(--text); transition: width .6s var(--ease); }
+.import-banner { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 620px; margin: 0 0 18px; padding: 14px 16px; border-radius: 16px; background: var(--fill); text-align: left; }
+.import-banner:hover { background: var(--fill-strong); }
+.import-banner > svg { width: 22px; height: 22px; flex: none; }
+.import-banner > svg:last-child { width: 16px; height: 16px; opacity: .45; margin-left: auto; }
+.import-banner span { display: grid; gap: 2px; }
+.import-banner small { opacity: .6; font-size: 12.5px; }
+.imp-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 14px; }
+.imp-tile { display: grid; gap: 2px; padding: 12px 8px; border-radius: 14px; background: var(--fill); text-align: center; }
+.imp-tile b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.imp-tile span { font-size: 12.5px; opacity: .7; }
+.imp-tile.on { background: var(--text); color: var(--bg); }
+.imp-tile.on span { opacity: .75; }
+.imp-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--hairline); }
+.imp-row img, .imp-pick img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--fill); }
+.imp-text { display: grid; gap: 2px; min-width: 0; }
+.imp-text b, .imp-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-text span { font-size: 13px; opacity: .6; }
+.imp-text .imp-to { opacity: .85; }
+.imp-text small { font-size: 12px; opacity: .45; }
+.imp-actions { display: flex; gap: 6px; align-items: center; }
+.imp-empty { padding: 24px 0; text-align: center; }
+.imp-search, .imp-link { display: flex; gap: 8px; margin: 10px 0; }
+.imp-search .field, .imp-link .field { flex: 1; min-width: 0; }
+.imp-results { display: grid; gap: 2px; max-height: 46vh; overflow-y: auto; }
+.imp-pick { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 8px; border-radius: 10px; text-align: left; }
+.imp-pick:hover { background: var(--fill); }
+.imp-pick span { display: grid; gap: 2px; min-width: 0; }
+.imp-pick small { opacity: .6; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-pick em { font-style: normal; opacity: .5; font-variant-numeric: tabular-nums; font-size: 13px; }
+.small-note { font-size: 12.5px; }
 .hidden { display: none !important; }
 .btn.small { height: 30px; padding: 0 14px; font-size: 13px; }
 .btn.big { height: 52px; padding: 0 30px; font-size: 17px; border-radius: 999px; }

@@ -22,7 +22,7 @@ from app.api.routers import (
 from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
 from app.config import load_settings
-from app.services import karaoke as karaoke_service, stream_health, youtube_session, ytdlp_updater
+from app.services import karaoke as karaoke_service, playlist_import, stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
 from app.services.lyrics import LyricsService
 from app.db.database import Database
@@ -98,17 +98,20 @@ async def lifespan(app: FastAPI):
     # les sauvegardes quotidiennes en charge — jamais pendant les tests.
     backups = None
     watcher = None
+    syncer = None
     if "PYTEST_CURRENT_TEST" not in os.environ:
         if not settings.bot_token:
             backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
         watcher = asyncio.create_task(_watch_streaming(app.state.deps))
+        # Playlists importées : leurs nouveaux titres, une fois par jour.
+        syncer = asyncio.create_task(playlist_import.auto_sync_loop(app.state.deps))
         # Karaoké : la nuit, séparation des titres les plus écoutés.
         karaoke_service.start_nightly(app.state.deps)
         asyncio.create_task(asyncio.to_thread(ytdlp_updater.ensure_cron))
     try:
         yield
     finally:
-        for task in (backups, watcher):
+        for task in (backups, watcher, syncer):
             if task is not None:
                 task.cancel()
         karaoke_service.reset()

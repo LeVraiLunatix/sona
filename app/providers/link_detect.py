@@ -30,13 +30,27 @@ _YOUTUBE_SHORT_RE = re.compile(r"youtu\.be/([A-Za-z0-9_-]{6,})", re.IGNORECASE)
 _YOUTUBE_PLAYLIST_RE = re.compile(
     r"(?:music\.)?youtube\.com/playlist\?[^ ]*\blist=([A-Za-z0-9_-]+)", re.IGNORECASE
 )
+# SoundCloud : « compte/sets/playlist », « compte/likes », « compte/titre ».
+_SOUNDCLOUD_RE = re.compile(
+    r"(?:www\.|m\.)?soundcloud\.com/([A-Za-z0-9_-]+)(?:/(sets)/([A-Za-z0-9_-]+)|/(likes)\b|/([A-Za-z0-9_-]+))?",
+    re.IGNORECASE,
+)
+_SOUNDCLOUD_SHORT_RE = re.compile(r"on\.soundcloud\.com/\S+", re.IGNORECASE)
+# Pages du site, pas des comptes ; et pages d'un compte qui ne sont pas des titres.
+_SOUNDCLOUD_RESERVED = frozenset({
+    "discover", "search", "you", "stream", "charts", "upload", "settings", "pages", "mobile", "jobs",
+    "terms-of-use", "imprint", "people", "tags", "stations", "messages", "notifications", "signin",
+})
+_SOUNDCLOUD_PAGES = frozenset({
+    "tracks", "albums", "reposts", "followers", "following", "popular-tracks", "comments", "spotlight",
+})
 
 
 @dataclass(slots=True)
 class DetectedLink:
-    source: str  # "deezer" | "spotify" | "apple" | "youtube"
-    kind: str  # "track" | "album" | "artist" | "playlist"
-    ref: str  # id, or for apple: "<store>:<id>", for youtube video id
+    source: str  # "deezer" | "spotify" | "apple" | "youtube" | "soundcloud"
+    kind: str  # "track" | "album" | "artist" | "playlist" | "likes" (SoundCloud)
+    ref: str  # id, or for apple: "<store>:<id>", for youtube video id, for soundcloud the canonical URL
 
 
 def extract_first_url(text: str) -> str | None:
@@ -77,6 +91,23 @@ def _parse(url: str) -> DetectedLink | None:
     if m:
         return DetectedLink("youtube", "track", m.group(1))
 
+    return _parse_soundcloud(url)
+
+
+def _parse_soundcloud(url: str) -> DetectedLink | None:
+    m = _SOUNDCLOUD_RE.search(url)
+    if not m or m.group(1).lower() in _SOUNDCLOUD_RESERVED:
+        return None
+    user = m.group(1)
+    # Adresse d'API (« api.soundcloud.com/tracks/123 », voir `track_url`).
+    if user.lower() == "tracks" and (m.group(5) or "").isdigit():
+        return DetectedLink("soundcloud", "track", f"https://api.soundcloud.com/tracks/{m.group(5)}")
+    if m.group(2):
+        return DetectedLink("soundcloud", "playlist", f"https://soundcloud.com/{user}/sets/{m.group(3)}")
+    if m.group(4):
+        return DetectedLink("soundcloud", "likes", f"https://soundcloud.com/{user}/likes")
+    if m.group(5) and m.group(5).lower() not in _SOUNDCLOUD_PAGES:
+        return DetectedLink("soundcloud", "track", f"https://soundcloud.com/{user}/{m.group(5)}")
     return None
 
 
@@ -94,7 +125,7 @@ async def resolve_link(text: str) -> DetectedLink | None:
     if detected:
         return detected
 
-    if _DEEZER_SHORT_RE.search(url):
+    if _DEEZER_SHORT_RE.search(url) or _SOUNDCLOUD_SHORT_RE.search(url):
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
                 resp = await client.head(url)
@@ -119,6 +150,8 @@ def track_url(track: TrackInfo) -> str | None:
         return f"https://open.spotify.com/track/{track.source_id}"
     if track.source == "youtube":
         return f"https://www.youtube.com/watch?v={track.source_id}"
+    if track.source == "soundcloud":
+        return f"https://api.soundcloud.com/tracks/{track.source_id}"
     if track.source == "apple" and track.album_source_id:
         # Apple Music n'a pas d'URL de morceau isolée : c'est l'album + ?i=<id>.
         return f"https://music.apple.com/us/album/song/{track.album_source_id}?i={track.source_id}"

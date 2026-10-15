@@ -6,6 +6,7 @@ from app.bot.callbacks import (
     AccessCB,
     AdminCB,
     AlbumCB,
+    ImportCB,
     ArtistCB,
     HistoryCB,
     LibraryCB,
@@ -43,7 +44,10 @@ def home_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="Bibliothèque", callback_data=LibraryCB(action="menu").pack()),
             InlineKeyboardButton(text="Historique", callback_data=HistoryCB(action="menu").pack()),
         ],
-        [InlineKeyboardButton(text="Paramètres", callback_data=SettingsCB(action="menu").pack())],
+        [
+            InlineKeyboardButton(text="Mes playlists", callback_data=ImportCB(action="list").pack()),
+            InlineKeyboardButton(text="Paramètres", callback_data=SettingsCB(action="menu").pack()),
+        ],
     )
 
 

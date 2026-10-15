@@ -25,8 +25,8 @@ LINK_UNRECOGNIZED = "Lien non reconnu ou contenu indisponible."
 # d'Apple ne donne pas le contenu des playlists : autant le dire clairement
 # plutôt que de laisser croire à un lien cassé.
 PLAYLIST_UNSUPPORTED = (
-    "Les playlists Spotify et Apple Music ne sont pas prises en charge.\n"
-    "Les playlists Deezer et YouTube, oui : colle plutôt un de ces liens."
+    "Ce lien de playlist ne s'affiche pas ici.\n"
+    "Importe-le plutôt : /importer <lien>."
 )
 
 # Écoute : un message par cause réelle plutôt qu'un « indisponible » unique —

@@ -69,6 +69,16 @@ class AdminCB(CallbackData, prefix="admin"):
     id: str | None = None
 
 
+class ImportCB(CallbackData, prefix="imp"):
+    """Import de playlists (handlers/imports.py)."""
+
+    action: str  # go | list | view | sync | play | report | accept | remove
+    pid: int = 0
+    item: int = 0
+    status: str = ""
+    page: int = 1
+
+
 class AccessCB(CallbackData, prefix="access"):
     """Boutons accessibles aux utilisateurs pas encore autorisés (voir
     `app/bot/access.py`) — le filtre de whitelist les laisse volontairement

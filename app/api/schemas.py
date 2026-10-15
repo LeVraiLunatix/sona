@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.db.repository import HistoryItem, LibraryItem, Playlist, PlaylistEntry, UserSettings
+from app.db.repository import HistoryItem, ImportItem, LibraryItem, Playlist, PlaylistEntry, UserSettings
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 
 
@@ -236,6 +236,12 @@ class PlaylistOut(BaseModel):
     owner_name: str | None = None
     # Peut ajouter, retirer, déplacer des titres (propriétaire, ou playlist à plusieurs).
     can_edit: bool = True
+    # Rapport d'import : titres retenus mais à vérifier ; ajoutés par la
+    # dernière resynchronisation ; date de celle-ci ; lien d'origine.
+    import_uncertain: int = 0
+    import_added: int = 0
+    synced_at: str | None = None
+    origin_url: str | None = None
 
     @classmethod
     def from_playlist(cls, p: Playlist, viewer_id: int | None = None, owner_name: str | None = None) -> "PlaylistOut":
@@ -247,7 +253,47 @@ class PlaylistOut(BaseModel):
             import_missing=p.import_missing, import_error=p.import_error, updated_at=p.updated_at,
             visibility=p.visibility, is_owner=is_owner, owner_name=None if is_owner else owner_name,
             can_edit=is_owner or p.visibility == "collaborative",
+            import_uncertain=p.import_uncertain, import_added=p.import_added, synced_at=p.synced_at,
+            origin_url=p.origin_url if is_owner else None,
         )
+
+
+class ImportItemOut(BaseModel):
+    """Un titre du rapport d'import : lu à la source, retenu (ou pas), et pourquoi."""
+
+    id: int
+    position: int
+    status: str  # « found » | « uncertain » | « missing »
+    reason: str | None
+    original: Track
+    matched: Track | None
+    entry_id: int | None
+    fixed: bool
+
+    @classmethod
+    def from_item(cls, item: ImportItem) -> "ImportItemOut":
+        return cls(
+            id=item.id, position=item.position, status=item.status, reason=item.reason,
+            original=Track.from_info(item.original),
+            matched=Track.from_info(item.matched) if item.matched else None,
+            entry_id=item.entry_id, fixed=item.fixed,
+        )
+
+
+class ImportReportOut(BaseModel):
+    playlist: PlaylistOut
+    counts: dict[str, int]
+    items: list[ImportItemOut]
+
+
+class ImportFixIn(BaseModel):
+    """Correction d'un titre importé : « accept » (c'est le bon), « remove »
+    (le retirer), « replace » (`track`, choisi dans la recherche) ou « link »
+    (`url` : lien YouTube ou SoundCloud)."""
+
+    action: str
+    track: Track | None = None
+    url: str | None = Field(default=None, max_length=500)
 
 
 class PlaylistEntryOut(BaseModel):

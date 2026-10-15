@@ -452,6 +452,10 @@ Toutes les routes (sauf `/health`) exigent l'en-tête
 | `GET /tracks\|albums\|playlists\|artists/{source}/{id}` | Fiche détaillée (et sous-routes `/top-tracks`, `/albums`, `/related`, `/radio` pour un artiste). |
 | `GET /browse/radios`, `GET /radios/{id}/tracks` | Radios thématiques Deezer triées à la main ; chaque appel à `/tracks` est un nouveau tirage. |
 | `GET /lyrics?title=&artist=&album=&duration=&refresh=` | Paroles de la meilleure source ([LRCLIB](https://lrclib.net), NetEase, Musixmatch avec `MUSIXMATCH_TOKEN`), vérifiées sur le titre, l'artiste et la durée (±2 s) : mot par mot quand elles existent (`words`, avec `time` et `end`), sinon ligne par ligne, sinon brutes. `sync` (`word`, `line`, `none`), `source` et `language` (ISO 639-1) disent ce qu'on a eu. Gardées en base, absences comprises ; `refresh=true` cherche de nouveau. 404 si inconnues. |
+| `POST /me/playlists/import` (`{"url": …}`) | Importe une playlist Deezer, Spotify, Apple Music, YouTube / YouTube Music ou SoundCloud (playlist ou likes publics) en tâche de fond : chaque titre est rapproché de Deezer (ISRC, titre, artiste, version, durée). |
+| `GET /me/playlists/{id}/import?status=` | Rapport d'import titre par titre : `found` (sûr), `uncertain` (retenu, à vérifier : durée un peu différente, titre approchant, pas d'équivalent au catalogue), `missing` (introuvable), avec la raison. |
+| `POST /me/playlists/{id}/import/{item}` | Corrige un titre : `{"action": "accept"}`, `"remove"`, `"replace"` (+ `track` choisi dans la recherche) ou `"link"` (+ `url` YouTube / SoundCloud ; pour un admin, sur un titre du catalogue, le lien devient sa source audio comme « Choisir la source » du diagnostic). |
+| `POST /me/playlists/{id}/sync` | Resynchronise : relit la playlist d'origine et n'ajoute que les nouveaux titres (corrections et ordre gardés). Se fait aussi tout seul une fois par jour. |
 | `POST /plays` · `GET /plays/recent` | Écoutes terminées envoyées par l'app (moitié du titre ou 4 min, comme Last.fm), par lots, doublons ignorés. |
 | `GET /stats?period=day\|week\|month\|year\|all&offset=0&tz=Europe/Paris` | Stats d'écoute façon Wrapped pour n'importe quelle période : écoutes, minutes, tops artistes/titres/albums, courbe, heures, jours, découvertes, série de jours. |
 | `GET/POST /stats/import/lastfm` | Import (en tâche de fond, reprise automatique) de l'historique Last.fm de `LASTFM_USER` — nécessite `LASTFM_API_KEY`. |
@@ -493,10 +497,11 @@ d'appel réseau réel pour rester rapide et déterministe en CI.
 ## Limitations connues
 
 - **Playlists** : les playlists Deezer et YouTube s'ouvrent (gabarit Album,
-  avec pagination et « Tout écouter »). Spotify et Apple Music, non :
-  Spotify demande des identifiants d'API absents du serveur, et l'API
-  gratuite d'Apple ne donne pas le contenu des playlists. Le lien est alors
-  refusé avec un message qui le dit.
+  avec pagination et « Tout écouter »). Les autres (Spotify, Apple Music,
+  SoundCloud, likes SoundCloud) ne s'affichent pas telles quelles : le bot
+  propose de les importer dans les playlists Sona (`/importer <lien>`,
+  `/playlists`), avec un rapport de ce qui est sûr, à vérifier ou
+  introuvable.
 - **Recherche de la source** : si aucun résultat YouTube ne ressemble
   suffisamment au morceau (titre *et* durée), Sona préfère annoncer « Aucune
   source audio trouvée » plutôt que d'envoyer un autre morceau. Sur un titre

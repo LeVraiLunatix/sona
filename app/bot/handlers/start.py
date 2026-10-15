@@ -22,9 +22,10 @@ async def render_home(deps: Deps, target: RenderTarget, user_id: int, params: di
 @navigation.register("link_help")
 async def render_link_help(deps: Deps, target: RenderTarget, user_id: int, params: dict) -> RenderTarget:
     text = (
-        "Colle un lien Deezer, Spotify, Apple Music ou YouTube directement dans "
-        "la conversation.\n\nSona reconnaît automatiquement le morceau, l'album, "
-        "l'artiste ou la playlist et l'affiche aussitôt — pas besoin de menu."
+        "Colle un lien Deezer, Spotify, Apple Music, YouTube ou SoundCloud directement "
+        "dans la conversation.\n\nSona reconnaît automatiquement le morceau, l'album, "
+        "l'artiste ou la playlist et l'affiche aussitôt — pas besoin de menu. Une "
+        "playlist s'importe aussi dans tes playlists Sona : /importer <lien>."
     )
     return await show_text(deps.bot, target, text, keyboards.link_help_keyboard())
 

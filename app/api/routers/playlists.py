@@ -1,5 +1,7 @@
 """Playlists de l'utilisateur : création, ajout / retrait / réordonnancement
-de morceaux, et import depuis Deezer, Spotify ou Apple Music.
+de morceaux, et import depuis Deezer, Spotify, Apple Music, YouTube (Music)
+ou SoundCloud — avec son rapport titre par titre, ses corrections et sa
+resynchronisation.
 
 Préfixe `/me/playlists` : `/playlists/{source}/{id}` (catalogue) désigne
 déjà les playlists publiques des plateformes.
@@ -7,10 +9,16 @@ déjà les playlists publiques des plateformes.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.auth import require_token
+from app.api.routers import stream
 from app.api.schemas import (
+    ImportFixIn,
+    ImportItemOut,
+    ImportReportOut,
     PlaylistAddTracks,
     PlaylistCreate,
     PlaylistDetailOut,
@@ -26,10 +34,12 @@ from app.api.state import ApiDeps
 from app.db.repository import PLAYLIST_VISIBILITIES, Playlist
 from app.providers.base import TrackInfo
 from app.services import playlist_import
+from app.services.resolver import ResolutionError, source_from_url
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/me/playlists", tags=["playlists"])
 
-KNOWN_SOURCES = {"deezer", "apple", "spotify", "youtube"}
+KNOWN_SOURCES = {"deezer", "apple", "spotify", "youtube", "soundcloud"}
 
 
 async def _owned(deps: ApiDeps, playlist_id: int) -> Playlist:
@@ -109,15 +119,83 @@ async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depend
 
 
 @router.post("/{playlist_id}/reimport", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{playlist_id}/sync", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
 async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
-    """Relit la playlist d'origine (Deezer, Spotify, Apple Music) et remplace
-    ses titres — pour récupérer les ajouts, ou un import incomplet."""
+    """Resynchronise une playlist importée : relit la playlist d'origine et
+    ajoute les titres apparus depuis (les corrections et l'ordre sont
+    gardés). Se fait aussi tout seul, une fois par jour."""
     playlist = await _owned(deps, playlist_id)
     try:
         await playlist_import.start_reimport(deps, playlist)
     except playlist_import.PlaylistImportError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return await _out(deps, await _owned(deps, playlist_id))
+
+
+@router.get("/{playlist_id}/import", response_model=ImportReportOut)
+async def import_report(
+    playlist_id: int,
+    status_filter: str | None = Query(None, alias="status", description="found, uncertain ou missing"),
+    deps: ApiDeps = Depends(require_token),
+) -> ImportReportOut:
+    """Rapport d'import titre par titre : trouvés, à vérifier, introuvables."""
+    playlist = await _owned(deps, playlist_id)
+    counts = await deps.repo.import_counts(playlist_id)
+    items = await deps.repo.import_items(playlist_id, status_filter)
+    return ImportReportOut(
+        playlist=await _out(deps, playlist),
+        counts={key: counts.get(key, 0) for key in ("found", "uncertain", "missing")},
+        items=[ImportItemOut.from_item(i) for i in items],
+    )
+
+
+@router.post("/{playlist_id}/import/{item_id}", response_model=ImportItemOut)
+async def fix_import_item(
+    playlist_id: int, item_id: int, payload: ImportFixIn, deps: ApiDeps = Depends(require_token)
+) -> ImportItemOut:
+    """Corrige un titre importé : le valider, le retirer, en choisir un autre
+    dans la recherche, ou coller un lien YouTube / SoundCloud."""
+    playlist = await _owned(deps, playlist_id)
+    try:
+        if payload.action == "replace":
+            if payload.track is None:
+                raise playlist_import.PlaylistImportError("Choisis le titre à mettre à la place.")
+            _check_tracks([payload.track])
+            item = await playlist_import.fix_item(deps, playlist, item_id, "replace", payload.track.to_info())
+        elif payload.action == "link":
+            item = await _fix_with_link(deps, playlist, item_id, (payload.url or "").strip())
+        elif payload.action in ("accept", "remove"):
+            item = await playlist_import.fix_item(deps, playlist, item_id, payload.action)
+        else:
+            raise playlist_import.PlaylistImportError("Correction inconnue (accept, remove, replace ou link).")
+    except playlist_import.PlaylistImportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return ImportItemOut.from_item(item)
+
+
+async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: str):
+    """Lien YouTube / SoundCloud collé pour un titre importé. Pour un admin,
+    sur un titre du catalogue : le lien devient la source audio du titre
+    (comme « Choisir la source » du diagnostic), pour tout le monde — la
+    fiche, les paroles et la radio restent. Sinon : le titre du lien prend
+    sa place dans la playlist."""
+    item = await deps.repo.import_item(playlist.id, item_id)
+    if item is None:
+        raise playlist_import.PlaylistImportError("Ce titre n'est pas dans le rapport d'import.")
+    matched = item.matched
+    if deps.is_admin and matched is not None and matched.source not in ("youtube", "soundcloud"):
+        try:
+            video_id = await source_from_url(url)
+        except ResolutionError as exc:
+            raise playlist_import.PlaylistImportError(str(exc)) from exc
+        await deps.repo.unreject_source(matched.source, matched.source_id, video_id)
+        await deps.repo.stream_source_set(matched.source, matched.source_id, video_id)
+        stream.forget_track_failures(matched.source, matched.source_id)
+        stream.allow_source(matched.source, matched.source_id, video_id)
+        logger.info("Source %s choisie à l'import pour %s", video_id, matched.uid)
+        return await playlist_import.fix_item(deps, playlist, item_id, "accept")
+    track = await playlist_import.track_from_link(url)
+    return await playlist_import.fix_item(deps, playlist, item_id, "replace", track)
 
 
 @router.post("/import-tracks", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)

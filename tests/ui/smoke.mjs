@@ -47,6 +47,14 @@ const jsonRoutes = {
     { time: 0, text: "Ligne un", words: [{ time: 0, text: "Ligne ", end: 0.4 }, { time: 0.4, text: "un", end: 0.9 }] },
     { time: 1, text: "" }, { time: 2, text: "Ligne deux" }] },
   "/search": { query_id: "q", provider: "deezer", total: 1, tracks: [track(1)] },
+  "/me/playlists/5": { id: 5, name: "Importée", description: null, cover_url: null, covers: [], origin: "soundcloud", origin_url: "https://soundcloud.com/a/sets/b",
+    track_count: 2, duration_seconds: 6, import_status: "done", import_total: 3, import_done: 3, import_missing: 1, import_uncertain: 1, import_added: 0,
+    import_error: null, synced_at: new Date().toISOString(), updated_at: new Date().toISOString(), visibility: "private", is_owner: true, can_edit: true,
+    entries: [{ entry_id: 1, track: track(1) }, { entry_id: 2, track: track(2) }] },
+  "/me/playlists/5/import": { playlist: {}, counts: { found: 1, uncertain: 1, missing: 1 }, items: [
+    { id: 1, position: 0, status: "found", reason: null, original: track(1, { source: "soundcloud" }), matched: track(1), entry_id: 1, fixed: false },
+    { id: 2, position: 1, status: "uncertain", reason: "Durée différente (6 s d'écart)", original: track(2, { source: "soundcloud", title: "Titre deux" }), matched: track(2), entry_id: 2, fixed: false },
+    { id: 3, position: 2, status: "missing", reason: "Introuvable", original: track(3, { source: "soundcloud" }), matched: null, entry_id: null, fixed: false }] },
 };
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ["--autoplay-policy=no-user-gesture-required", "--no-sandbox"] });
@@ -125,7 +133,23 @@ await page.evaluate(() => {
 await page.waitForSelector("#np .np-gl.on", { timeout: 5000 }).then(() => out("fond vivant: ok"), () => out("fond vivant: absents"));
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
 await page.keyboard.press("Escape");
-// 8. aide raccourcis
+// 8. rapport d'import d'une playlist (bandeau, filtres, correction)
+await page.goto(`http://localhost:${port}/web/#/playlist/5`);
+await page.waitForSelector(".import-banner", { timeout: 5000 }).then(() => out("bandeau d'import: ok"), () => out("bandeau d'import: absent"));
+out(`synchronisation: ${await page.$eval(".hero", (e) => /Synchronisée avec SoundCloud/.test(e.textContent)).catch(() => false)}`);
+await page.click(".import-banner").catch(() => {});
+await page.waitForSelector(".imp-row", { timeout: 5000 }).catch(() => {});
+out(`à vérifier: ${await page.$$eval(".imp-row", (e) => e.map((x) => x.querySelector("b").textContent).join("|"))}`);
+if (process.env.SHOT_IMPORT) { await page.waitForTimeout(400); await page.screenshot({ path: process.env.SHOT_IMPORT }); }
+await page.click("[data-imp-filter='missing']").catch(() => {});
+out(`introuvables: ${await page.$$eval(".imp-row", (e) => e.length)}`);
+await page.click(".imp-row [data-imp-act='fix']").catch(() => {});
+await page.waitForSelector(".imp-pick", { timeout: 5000 }).then(() => out("correction (recherche): ok"), () => out("correction (recherche): absente"));
+await page.keyboard.press("Escape");
+await page.keyboard.press("Escape");
+// Fermer le rapport recharge la fiche de la playlist : on attend la fin.
+await page.waitForTimeout(800);
+// 9. aide raccourcis
 await page.keyboard.press("Escape");
 await page.keyboard.press("?");
 out(`aide raccourcis: ${await page.$$eval(".shortcuts .sc", (e) => e.length)} lignes`);

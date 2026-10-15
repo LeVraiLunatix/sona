@@ -7,7 +7,7 @@ from aiogram.types import Message
 
 from app.bot import errors, keyboards, navigation
 from app.bot.deps import Deps
-from app.bot.handlers import announce
+from app.bot.handlers import announce, imports
 from app.bot.handlers.search import start_search
 from app.bot.handlers.track import autoplay_enabled, play_callback_data, play_track
 from app.bot.navigation import Screen
@@ -45,6 +45,15 @@ async def _handle_detected_link(deps: Deps, message: Message, detected: Detected
     await navigation.goto(deps, user_id, chat_id, Screen("link_loading"))
 
     allowed_kinds = _SUPPORTED_KINDS.get(detected.source, set())
+    if detected.kind in ("playlist", "likes") and detected.kind not in allowed_kinds:
+        # Playlist que le bot n'affiche pas (Spotify, Apple Music, SoundCloud) :
+        # elle s'importe dans les playlists Sona.
+        label = {"spotify": "Spotify", "apple": "Apple Music", "soundcloud": "SoundCloud"}.get(detected.source, "")
+        text, markup = imports.offer(user_id, message.text or "", label)
+        target = navigation.current_target(user_id)
+        new_target = await show_text(deps.bot, target, text, markup)
+        navigation.set_target(user_id, new_target)
+        return
     if detected.kind not in allowed_kinds:
         # Un « lien non reconnu » sur une playlist Spotify laisserait croire à
         # un lien cassé : on dit ce qui n'est pas pris en charge.

@@ -15,6 +15,7 @@ struct UserPlaylistView: View {
     @State private var renaming = false
     @State private var newName = ""
     @State private var confirmingDelete = false
+    @State private var showsReport = false
 
     var body: some View {
         Group {
@@ -60,9 +61,14 @@ struct UserPlaylistView: View {
                                 Label("Partage", systemImage: "person.2")
                             }
                             .pickerStyle(.menu)
-                            if let origin = playlist.originLabel, !playlist.isImporting {
+                            if let origin = playlist.originLabel, playlist.canSync, !playlist.isImporting {
                                 Button { Task { await reimport() } } label: {
-                                    Label("Mettre à jour depuis \(origin)", systemImage: "arrow.triangle.2.circlepath")
+                                    Label("Resynchroniser avec \(origin)", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            if playlist.hasImportReport {
+                                Button { showsReport = true } label: {
+                                    Label("Rapport d'import", systemImage: "checklist")
                                 }
                             }
                             Button {
@@ -91,6 +97,9 @@ struct UserPlaylistView: View {
         ) {
             Button("Supprimer", role: .destructive) { Task { await delete() } }
         }
+        .sheet(isPresented: $showsReport, onDismiss: { Task { await load() } }) {
+            ImportReportView(playlistId: playlistId)
+        }
         .task { await load() }
         .task(id: playlist?.isImporting) {
             // Suivi de l'import : recharge tant que le serveur travaille.
@@ -114,7 +123,12 @@ struct UserPlaylistView: View {
                     .foregroundStyle(Tone.danger)
                     .padding(.vertical, 8)
                     .plainRow()
-            } else if entries.isEmpty {
+            } else if playlist.hasImportReport, (playlist.importUncertain ?? 0) + playlist.importMissing > 0 || (playlist.importAdded ?? 0) > 0 {
+                ImportSummaryCard(playlist: playlist) { showsReport = true }
+                    .padding(.bottom, 8)
+                    .plainRow()
+            }
+            if !playlist.isImporting, !playlist.importFailed, entries.isEmpty {
                 EmptyState(
                     systemImage: "music.note.list",
                     title: "Playlist vide",
@@ -190,7 +204,7 @@ struct UserPlaylistView: View {
                 if let owner = playlist.ownerName, !playlist.mine {
                     Text("Par \(owner)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                 } else if let origin = playlist.originLabel {
-                    Text("Importée de \(origin)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                    Text(syncLine(playlist, origin: origin)).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                 }
                 if playlist.visibility != nil && playlist.visibility != "private" {
                     Label(playlist.visibilityLabel, systemImage: playlist.visibility == "collaborative" ? "person.2.badge.plus" : "person.2")
@@ -226,6 +240,13 @@ struct UserPlaylistView: View {
         .font(Typo.rowSubtitle)
         .foregroundStyle(Tone.secondary)
         .padding(.vertical, 12)
+    }
+
+    private func syncLine(_ playlist: UserPlaylist, origin: String) -> String {
+        // Le serveur date à la microseconde : `relative` ne lit que les secondes.
+        guard playlist.canSync, let raw = playlist.syncedAt else { return "Importée de \(origin)" }
+        let ago = relative(raw.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression))
+        return ago.isEmpty ? "Importée de \(origin)" : "Synchronisée avec \(origin) \(ago)"
     }
 
     private func footer(_ playlist: UserPlaylist) -> String {

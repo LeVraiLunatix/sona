@@ -28,6 +28,10 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     # Appareils : nom choisi, et « oublié » (pas réenregistré tout seul).
     ("connect_saved", "label", "TEXT"),
     ("connect_saved", "hidden", "INTEGER NOT NULL DEFAULT 0"),
+    # Rapport d'import et resynchronisation des playlists importées.
+    ("playlists", "import_uncertain", "INTEGER NOT NULL DEFAULT 0"),
+    ("playlists", "import_added", "INTEGER NOT NULL DEFAULT 0"),
+    ("playlists", "synced_at", "TEXT"),
 )
 
 
