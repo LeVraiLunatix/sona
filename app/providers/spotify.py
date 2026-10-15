@@ -83,6 +83,12 @@ def _track_from_json(d: dict) -> TrackInfo:
         # rend un morceau Spotify vérifiable, Spotify ne servant plus
         # d'extrait sur une bonne partie de son catalogue.
         isrc=(d.get("external_ids") or {}).get("isrc") or None,
+        disc_number=d.get("disc_number") or None,
+        track_number=d.get("track_number") or None,
+        artists=[
+            {"name": a["name"], "source_id": a.get("id"), "role": "main" if i == 0 else "featured"}
+            for i, a in enumerate(artists) if a.get("name")
+        ],
     )
 
 

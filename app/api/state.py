@@ -8,6 +8,7 @@ from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
 from app.providers.lastfm_auth import LastfmAuthClient
 from app.providers.lrclib import LrclibClient
+from app.providers.musicbrainz import MusicBrainzClient
 from app.providers.spotify import SpotifyClient
 
 
@@ -24,6 +25,8 @@ class ApiDeps:
     spotify: SpotifyClient
     lrclib: LrclibClient
     lastfm_auth: LastfmAuthClient | None = None
+    # Crédits détaillés (compositeur, producteur…) ; absent = crédits Deezer seuls.
+    musicbrainz: MusicBrainzClient | None = None
     account: Account | None = None
     is_admin: bool = False
     user_id_override: int | None = None

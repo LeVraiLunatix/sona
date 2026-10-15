@@ -20,6 +20,9 @@ class Track(BaseModel):
     artist_source_id: str | None = None
     album_source_id: str | None = None
     bpm: float | None = None
+    disc_number: int | None = None
+    track_number: int | None = None
+    artists: list[dict] = []
 
     @classmethod
     def from_info(cls, t: TrackInfo) -> "Track":
@@ -35,6 +38,9 @@ class Track(BaseModel):
             artist_source_id=t.artist_source_id,
             album_source_id=t.album_source_id,
             bpm=t.bpm,
+            disc_number=t.disc_number,
+            track_number=t.track_number,
+            artists=t.artists,
         )
 
     def to_info(self) -> TrackInfo:
@@ -49,6 +55,9 @@ class Track(BaseModel):
             cover_url=self.cover_url,
             artist_source_id=self.artist_source_id,
             album_source_id=self.album_source_id,
+            disc_number=self.disc_number,
+            track_number=self.track_number,
+            artists=self.artists,
         )
 
 

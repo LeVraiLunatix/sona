@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
@@ -132,6 +133,18 @@ def _lyrics_from_json(d: dict) -> Lyrics | None:
     return None
 
 
+def _norm(text: str) -> str:
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text.casefold()) if ch.isalnum())
+
+
+def _same_artist(d: dict, artist: str) -> bool:
+    """Artiste de l'entrée LRCLIB = le nôtre (l'un contient l'autre, sans
+    casse ni accents) : garde-fou des recherches larges, où des paroles
+    d'un autre morceau de même titre seraient pire que pas de paroles."""
+    theirs, ours = _norm(str(d.get("artistName") or "")), _norm(artist)
+    return bool(theirs and ours) and (theirs in ours or ours in theirs)
+
+
 def _duration_ok(d: dict, duration: int | None) -> bool:
     if duration is None or not d.get("duration"):
         return True
@@ -174,37 +187,75 @@ class LrclibClient:
             self._cache.popitem(last=False)
         return lyrics
 
-    async def _lookup(self, title: str, artist: str, album: str | None, duration: int | None) -> Lyrics | None:
-        # 1) Correspondance exacte (titre, artiste, album, durée à ±2 s côté
-        #    LRCLIB) : la plus fiable quand elle répond.
+    async def _exact(self, title: str, artist: str, album: str | None, duration: int | None) -> Lyrics | None:
+        params: dict = {"track_name": title, "artist_name": artist}
         if duration:
-            params = {"track_name": title, "artist_name": artist, "duration": duration}
-            if album:
-                params["album_name"] = album
-            response = await self._request("/get", params)
-            if response.status_code == 200:
-                found = _lyrics_from_json(response.json())
-                if found:
-                    return found
+            params["duration"] = duration
+        if album:
+            params["album_name"] = album
+        response = await self._request("/get", params)
+        if response.status_code == 200 and isinstance(response.json(), dict):
+            return _lyrics_from_json(response.json())
+        return None
 
-        # 2) Recherche avec le titre nettoyé et l'artiste principal : rattrape
-        #    les « (feat. X) », « - Remastered », artistes multiples... En
-        #    préférant une entrée synchronisée de durée compatible.
-        response = await self._request(
-            "/search", {"track_name": clean_title(title), "artist_name": main_artist(artist)}
-        )
+    async def _search(self, params: dict) -> list[dict]:
+        response = await self._request("/search", params)
         if response.status_code != 200:
-            return None
-        results = [d for d in response.json() if isinstance(d, dict)]
+            return []
+        return [d for d in response.json() if isinstance(d, dict)]
+
+    @staticmethod
+    def _best(results: list[dict], duration: int | None) -> Lyrics | None:
+        """Entrée de durée compatible, synchronisée de préférence."""
         candidates = [d for d in results if _duration_ok(d, duration)]
         candidates.sort(key=lambda d: (not d.get("syncedLyrics"), not d.get("plainLyrics")))
         for d in candidates:
             found = _lyrics_from_json(d)
             if found:
                 return found
-        # 3) Aucune version de même durée : les paroles brutes d'une autre
+        return None
+
+    async def _lookup(self, title: str, artist: str, album: str | None, duration: int | None) -> Lyrics | None:
+        cleaned, lead = clean_title(title), main_artist(artist)
+
+        # 1) Correspondance exacte (titre, artiste, album, durée à ±2 s côté
+        #    LRCLIB) : la plus fiable quand elle répond.
+        if duration:
+            found = await self._exact(title, artist, album, duration)
+            if found:
+                return found
+        # 2) Même chose avec le titre nettoyé et l'artiste principal : le
+        #    plus souvent, LRCLIB ne connaît ni le « (feat. X) » ni les
+        #    artistes en featuring.
+        if duration and (cleaned, lead) != (title, artist):
+            found = await self._exact(cleaned, lead, album, duration)
+            if found:
+                return found
+
+        # 3) Recherche avec le titre nettoyé et l'artiste principal : rattrape
+        #    les « - Remastered », artistes multiples... En préférant une
+        #    entrée synchronisée de durée compatible.
+        results = await self._search({"track_name": cleaned, "artist_name": lead})
+        found = self._best(results, duration)
+        if found:
+            return found
+        # 4) Recherche libre « artiste titre » : rattrape les graphies
+        #    différentes (accents, « & » / « et », ponctuation).
+        free = await self._search({"q": f"{lead} {cleaned}"})
+        found = self._best([d for d in free if _same_artist(d, lead)], duration)
+        if found:
+            return found
+        # 5) Titre seul, artiste comparé plus largement (l'un contient
+        #    l'autre) : « Ziak » / « Ziak & Co »...
+        if duration:
+            alone = [d for d in await self._search({"track_name": cleaned})
+                     if d.get("duration") and _same_artist(d, lead)]
+            found = self._best(alone, duration)
+            if found:
+                return found
+        # 6) Aucune version de même durée : les paroles brutes d'une autre
         #    version restent justes, seul l'horodatage serait décalé.
-        for d in results:
+        for d in results + [d for d in free if _same_artist(d, lead)]:
             if d.get("plainLyrics") and not d.get("instrumental"):
                 return _lyrics_from_json({"plainLyrics": d["plainLyrics"]})
         return None

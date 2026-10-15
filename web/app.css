@@ -444,6 +444,25 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .lyrics p.near { filter: blur(.6px); }
 .lyrics.plain p { filter: none; color: rgba(255,255,255,.85); cursor: default; font-size: 26px; }
 .lyrics .none { color: rgba(255,255,255,.5); font-size: 22px; font-weight: 600; filter: none; }
+/* Crédits d'un titre : sous les paroles / la file, et dans la feuille « Crédits du titre ». */
+.credits { height: 100%; overflow-y: auto; scrollbar-width: none; padding: 8vh 4px 12vh; }
+.credits::-webkit-scrollbar { display: none; }
+.credits.light { height: auto; padding: 0 0 12px; }
+.credits .none { opacity: .6; font-weight: 600; }
+.credits .cr-title { margin: 0 0 14px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.credits .cr { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: .5px solid rgba(127,127,127,.3); font-size: 14.5px; line-height: 1.35; }
+.credits .cl { opacity: .6; }
+.credits .cv { font-weight: 600; }
+.credits .link { font: inherit; color: inherit; text-decoration: underline; text-decoration-color: rgba(127,127,127,.5); text-underline-offset: 3px; cursor: pointer; padding: 0; }
+.credits .link:hover { color: var(--accent); }
+.credits .cr-none { margin: 14px 0 0; font-size: 13px; opacity: .55; }
+.feat { color: var(--text-2); }
+.np .feat { color: inherit; opacity: .75; }
+.tr.current .feat { color: inherit; opacity: .8; }
+/* Album en plusieurs disques : « Disque 1 », « Disque 2 »… */
+.disc-head { display: flex; align-items: center; gap: 8px; margin: 18px 0 4px; padding: 0 12px 8px; border-bottom: .5px solid var(--hairline); font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--text-2); }
+.disc-head:first-child { margin-top: 4px; }
+.disc-head .icon { font-size: 16px; }
 .queue { height: 100%; overflow-y: auto; padding: 6vh 0; }
 .queue h3 { font-size: 15px; font-weight: 700; margin: 0 0 12px; color: rgba(255,255,255,.85); }
 .qrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 8px; width: 100%; text-align: left; }

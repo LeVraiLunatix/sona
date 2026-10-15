@@ -23,6 +23,11 @@ ce qu'un navigateur ne sait pas faire.
   position, volume, paroles synchronisées, file d'attente et recherche (le
   titre choisi se lance sur le PC). Aucune app à installer : c'est une page
   servie par le PC ; on peut l'ajouter à l'écran d'accueil.
+- **Artistes en featuring, disques et crédits** : « feat. X » à côté de l'artiste
+  (liste, lecteur, album), albums en plusieurs disques séparés (« Disque 1 »,
+  « Disque 2 »…), et un onglet « Crédits » à côté des paroles (artistes, label,
+  date, genres, compositeurs et producteurs quand MusicBrainz les connaît) ;
+  aussi dans le menu « ⋯ » d'un titre.
 - **Paroles en surimpression** : les paroles synchronisées par-dessus les
   autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
   clique au travers. Réglages, zone de notification ou raccourci clavier.

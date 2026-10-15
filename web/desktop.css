@@ -539,6 +539,8 @@ html.desktop:not(.drawer-open) .drawer { visibility: hidden; }
 .drawer-body .lyrics.plain p { font-size: 17px; }
 .drawer-body .lyrics .none { font-size: 16px; padding: 0 4px; }
 .drawer-body .queue { padding: 6px 10px 20px; }
+.drawer-body .credits { padding: 18px 20px 40px; }
+.drawer-body .credits .cr { grid-template-columns: 92px minmax(0, 1fr); }
 .drawer-body .queue h3 { padding: 0 8px; color: var(--text-2); font-size: 13px; }
 .drawer-empty { color: var(--text-3); text-align: center; margin-top: 40%; }
 @media (max-width: 1180px) { html.desktop { --drawer-w: 320px; } }

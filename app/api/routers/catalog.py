@@ -7,7 +7,7 @@ from app.api.schemas import Album, Artist, Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import djradio
+from app.services import credits, djradio
 
 router = APIRouter(tags=["catalog"])
 
@@ -29,6 +29,19 @@ async def get_track(source: str, source_id: str, deps: ApiDeps = Depends(require
     # une fois pour toutes, la bibliothèque n'aura plus à le redemander.
     await deps.repo.library_fill_track(deps.user_id, track)
     return Track.from_info(track)
+
+
+@router.get("/tracks/{source}/{source_id}/credits")
+async def get_track_credits(
+    source: str,
+    source_id: str,
+    details: bool = Query(True, description="Label, genres, compositeurs, producteurs… (plus lent)"),
+    deps: ApiDeps = Depends(require_token),
+) -> dict:
+    """Crédits d'un titre (artistes, label, compositeurs…). Contrairement à
+    `/tracks/...`, ne touche pas à l'historique : l'app l'appelle à chaque
+    changement de titre."""
+    return await _handle(credits.build(deps, source, source_id, details))
 
 
 @router.get("/albums/{source}/{source_id}", response_model=Album)

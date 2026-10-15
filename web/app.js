@@ -30,7 +30,23 @@ const cleanTrack = (t) => ({
   source: t.source, source_id: String(t.source_id), title: t.title || t.name || "", artist: t.artist || t.subtitle || "",
   album: t.album || null, year: t.year || null, duration_seconds: t.duration_seconds || null, cover_url: t.cover_url || null,
   artist_source_id: t.artist_source_id || null, album_source_id: t.album_source_id || null,
+  ...(t.artists?.length ? { artists: t.artists } : {}), disc_number: t.disc_number || null, track_number: t.track_number || null,
 });
+/** Texte sans accents ni ponctuation, mots séparés par des espaces : comparer des noms d'artistes. */
+const words = (x) => ` ${String(x || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+/** Artistes en featuring pas déjà visibles dans le nom de l'artiste ni dans le titre (« (feat. X) »). */
+function featuredOf(t) {
+  const seen = words(`${t.artist} ${t.title}`);
+  return (t.artists || []).filter((a) => a?.name && !seen.includes(words(a.name)));
+}
+/** « feat. X, Y » à la suite du nom de l'artiste ; avec `links`, chaque invité ouvre sa fiche. */
+function featHtml(t, links = false) {
+  const f = featuredOf(t);
+  if (!f.length) return "";
+  return ` <span class="feat">feat. ${f.map((a) => links && a.source_id
+    ? `<span class="link" data-artist="${esc(t.source)}/${esc(a.source_id)}">${esc(a.name)}</span>` : esc(a.name)).join(", ")}</span>`;
+}
+const artistsText = (t) => [t.artist, ...featuredOf(t).map((a) => a.name)].join(", ");
 const isMobile = () => matchMedia("(max-width: 760px)").matches;
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -122,6 +138,7 @@ const icons = {
   search: ic("M10.5 3a7.5 7.5 0 0 1 6 12l4.3 4.3a1 1 0 0 1-1.4 1.4L15 16.5A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"),
   listen: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1.8 6.3c-.5-.3-1.2 0-1.2.7v6c0 .7.7 1 1.2.7l5-3c.5-.3.5-1.1 0-1.4z"),
   browse: ic("M4 3h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm10 0h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM4 13h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1zm10 0h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"),
+  disc: ic("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"),
   note: ic("M19 3.2v11.3a3.5 3.5 0 1 1-2-3.2V7.4L10 9v7.5a3.5 3.5 0 1 1-2-3.2V6.2c0-.5.3-.9.8-1l9-2c.6-.1 1.2.3 1.2 1z"),
   list: ic("M4 5h12a1 1 0 1 1 0 2H4a1 1 0 0 1 0-2zm0 6h12a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2zm0 6h7a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2zm15-4.5v4.1a2.4 2.4 0 1 1-1.5-2.2V11c0-.4.3-.8.7-.8l2.5-.6a.8.8 0 0 1 .3 1.5z"),
   heart: ic("M12 20.3c-.3 0-.6-.1-.8-.3C5.3 14.9 2.5 12 2.5 8.5A4.8 4.8 0 0 1 7.3 3.6c1.9 0 3.5 1 4.7 2.6 1.2-1.6 2.8-2.6 4.7-2.6a4.8 4.8 0 0 1 4.8 4.9c0 3.5-2.8 6.4-8.7 11.5-.2.2-.5.3-.8.3zM7.3 5.6A2.8 2.8 0 0 0 4.5 8.5c0 2.5 2.3 5 7.5 9.4 5.2-4.4 7.5-6.9 7.5-9.4a2.8 2.8 0 0 0-2.8-2.9c-1.5 0-2.7 1-3.8 2.8a1 1 0 0 1-1.8 0c-1.1-1.8-2.3-2.8-3.8-2.8z"),
@@ -407,7 +424,7 @@ function renderShell() {
     <header class="mhead" id="mhead"></header>
     <main class="content scroll" id="content"></main>
     ${desktop ? `<aside class="drawer" id="drawer" aria-label="Paroles et file d'attente">
-      <div class="drawer-head"><div class="drawer-tabs"><button data-dtab="lyrics">Paroles</button><button data-dtab="queue">À suivre</button></div>
+      <div class="drawer-head"><div class="drawer-tabs"><button data-dtab="lyrics">Paroles</button><button data-dtab="credits">Crédits</button><button data-dtab="queue">À suivre</button></div>
         <button class="tbtn small" data-dfull title="Lecteur plein écran">${icons.miniPlayer}</button><button class="tbtn small" data-dclose title="Fermer">${icons.close}</button></div>
       <div class="drawer-body" id="drawer-body"></div></aside>` : ""}
     <div class="mp" id="mp"></div>
@@ -658,18 +675,24 @@ function feature({ href, cover, eyebrow, title, subtitle, play }) {
     ${play ? `<button class="play-fab" data-play="${play}" aria-label="Lecture">${icons.play}</button>` : ""}</a>`;
 }
 
-function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null } = {}) {
+function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null, discs = false } = {}) {
   tracks = (tracks || []).filter((t) => t && t.source && t.source_id);
   const list = register(tracks, name, ctx);
   const current = state.queue[state.index];
+  // Album en plusieurs disques : un intitulé « Disque N » avant chacun, et la
+  // numérotation repart de 1 à chaque disque.
+  const multi = discs && discOf(tracks) > 1;
   return `<div class="tracks" data-list="${list}">${tracks.map((t, i) => {
     const on = sameTrack(t, current);
     const liked = state.liked.has(`${t.source}:${t.source_id}`);
-    return `<div class="tr ${on ? "current" : ""}" data-i="${i}" role="button" tabindex="0">
-      <span class="n">${on ? bars() : `<span>${numbers ? i + 1 : ""}</span>`}${icons.play}</span>
+    const head = multi && (i === 0 || t.disc_number !== tracks[i - 1].disc_number)
+      ? `<div class="disc-head">${icons.disc} Disque ${t.disc_number || 1}</div>` : "";
+    const num = multi && t.track_number ? t.track_number : i + 1;
+    return `${head}<div class="tr ${on ? "current" : ""}" data-i="${i}" role="button" tabindex="0">
+      <span class="n">${on ? bars() : `<span>${numbers ? num : ""}</span>`}${icons.play}</span>
       <img src="${esc(big(t.cover_url, 120))}" alt="" loading="lazy">
       <span style="min-width:0"><div class="ti">${esc(t.title)}</div>
-        <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(t.source)}/${esc(t.artist_source_id)}">${esc(t.artist)}</span>` : esc(t.artist)}</div></span>
+        <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(t.source)}/${esc(t.artist_source_id)}">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t, true)}</div></span>
       <span class="al">${showAlbum && t.album ? (t.album_source_id ? `<span class="link" data-album="${esc(t.source)}/${esc(t.album_source_id)}">${esc(t.album)}</span>` : esc(t.album)) : ""}</span>
       <span class="d">${t.duration_seconds ? fmt(t.duration_seconds) : ""}</span>
       <span class="acts">
@@ -680,6 +703,9 @@ function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null
   }).join("")}</div>`;
 }
 
+/** Nombre de disques d'une liste de titres (1 si la source ne le dit pas). */
+const discOf = (tracks) => Math.max(1, ...tracks.map((t) => t.disc_number || 1));
+
 function trackGrid(tracks, name) {
   tracks = (tracks || []).filter((t) => t && t.source && t.source_id);
   const list = register(tracks, name);
@@ -687,7 +713,7 @@ function trackGrid(tracks, name) {
   return `<div class="track-grid" data-list="${list}">${tracks.map((t, i) => `
     <button class="mini ${sameTrack(t, current) ? "current" : ""}" data-i="${i}">
       <img src="${esc(big(t.cover_url, 120))}" alt="" loading="lazy">
-      <span style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}</div></span>
+      <span style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}${featHtml(t)}</div></span>
       <span></span></button>`).join("")}</div>`;
 }
 
@@ -1021,10 +1047,10 @@ async function viewAlbum(source, id, isPlaylist = false) {
   return page(hero({
     cover: album.cover_url, kind: isPlaylist ? "Playlist" : "Album", title: album.title, by: album.artist,
     byHref: album.artist_source_id && !isPlaylist ? `#/artist/${album.source}/${album.artist_source_id}` : "",
-    info: [album.year?.slice(0, 4), plural(tracks.length, "titre"), total ? minutesLabel(total / 60) : ""].filter(Boolean).join(" · "), list,
+    info: [album.year?.slice(0, 4), plural(tracks.length, "titre"), !isPlaylist && discOf(tracks) > 1 ? `${discOf(tracks)} disques` : "", total ? minutesLabel(total / 60) : ""].filter(Boolean).join(" · "), list,
     extra: (isPlaylist ? "" : likeButton("album", album.source, album.source_id, state.likedAlbums))
       + `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`,
-  }) + trackTable(tracks, album.title, { showAlbum: isPlaylist }));
+  }) + trackTable(tracks, album.title, { showAlbum: isPlaylist, discs: !isPlaylist }));
 }
 
 async function viewArtist(source, id) {
@@ -1401,15 +1427,16 @@ function playAt(index, { position = 0 } = {}) {
   reportNowPlaying(t, position);
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: t.title, artist: t.artist, album: t.album || "",
+      title: t.title, artist: artistsText(t), album: t.album || "",
       artwork: t.cover_url ? [{ src: big(t.cover_url, 512), sizes: "512x512", type: "image/jpeg" }] : [],
     });
   }
-  document.title = `${t.title} · ${t.artist}`;
+  document.title = `${t.title} · ${artistsText(t)}`;
   renderTopbar();
   renderNowPlaying();
   refreshCurrentMarks();
   loadLyrics(t);
+  loadFeats(t);
   loadMoments(t);
   singTrackChanged(t);
   // Dernier titre de la file : la suite est préparée pendant l'écoute.
@@ -1509,7 +1536,7 @@ function renderTopbar() {
     ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
-        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${esc(t.artist)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
+        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${esc(t.artist)}${featHtml(t)}${t.album ? ` — ${esc(t.album)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
@@ -1584,7 +1611,7 @@ function renderMini() {
   mp.innerHTML = `<div class="mp-inner" data-mp="open">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
-      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${esc(t.artist)}` : esc(t.artist)}</div></div>
+      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${esc(t.artist)}${featHtml(t)}` : `${esc(t.artist)}${featHtml(t)}`}</div></div>
     <button class="mp-btn" data-mp="toggle" aria-label="Lecture/Pause">${paused ? icons.play : icons.pause}</button>
     <button class="mp-btn" data-mp="next" aria-label="Suivant">${icons.next}</button>
     <div class="mp-progress"><div class="fill" id="mp-fill"></div></div></div>`;
@@ -1655,6 +1682,7 @@ function renderDrawer() {
   state.lastLyric = -1;
   if (!state.queue[state.index]) $("#drawer-body").innerHTML = `<p class="drawer-empty">Rien en lecture.</p>`;
   else if (state.drawer === "queue") renderQueue();
+  else if (state.drawer === "credits") renderCredits();
   else { renderLyrics(); syncLyrics(true); }
 }
 
@@ -1706,14 +1734,14 @@ function renderNowPlaying() {
     <div class="np-bg"><img src="${esc(big(t.cover_url, 300))}" alt=""></div>
     <div class="np-top">
       <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>${grip()}
-      <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>${grip()}
+      <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "credits" ? "on" : ""}" data-np="credits">Crédits</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>${grip()}
       <div class="np-top-right"><button class="tbtn" data-np="more" title="Plus d'options">${icons.more}</button><button class="tbtn" data-np="devices" title="Sona Connect">${icons.devices}</button></div>
     </div>
     <div class="np-body">
       <div class="np-left">
         <img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt="">
         <div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
-          <div class="a">${t.artist_source_id ? `<span class="link" data-np="artist">${esc(t.artist)}</span>` : esc(t.artist)}</div></div>
+          <div class="a">${t.artist_source_id ? `<span class="link" data-np="artist">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t)}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button></div>
         <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>
           <div class="np-times"><span id="np-cur">0:00</span><span id="np-rem">-0:00</span></div></div>
@@ -1731,7 +1759,7 @@ function renderNowPlaying() {
     </div>`;
   bindNowPlaying(np, t);
   bindNpVolume(np);
-  if (state.npTab === "queue") renderQueue(); else renderLyrics();
+  if (state.npTab === "queue") renderQueue(); else if (state.npTab === "credits") renderCredits(); else renderLyrics();
   renderSing();
   renderMoments();
   updateProgress();
@@ -1750,12 +1778,12 @@ function renderNowPlayingMobile(np, t) {
       ${view === "art"
         ? `<div class="np-stage" data-np-swipe><img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt=""></div>`
         : `<div class="np-mini-head"><img src="${esc(big(t.cover_url, 200))}" alt="" data-np="art">
-            <div class="np-meta-s"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}</div></div>
+            <div class="np-meta-s"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}${featHtml(t)}</div></div>
             <button class="tbtn ${liked ? "on" : ""}" data-np="like">${liked ? icons.heartFill : icons.heart}</button>
             <button class="tbtn" data-np="more">${icons.more}</button></div>
           <div class="np-stage np-panel" id="np-right"></div>`}
       ${view === "art" ? `<div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
-          <div class="a">${t.artist_source_id ? `<span class="link" data-np="artist">${esc(t.artist)}</span>` : esc(t.artist)}</div></div>
+          <div class="a">${t.artist_source_id ? `<span class="link" data-np="artist">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t)}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" aria-label="J'aime">${liked ? icons.heartFill : icons.heart}</button>
           <button class="tbtn" data-np="more" aria-label="Plus d'options">${icons.more}</button></div>` : ""}
       <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>
@@ -1791,7 +1819,7 @@ function bindNowPlaying(np, t) {
     const mobile = isMobile();
     if (act === "close") closeNowPlaying();
     if (act === "devices") { e.stopPropagation(); toggleDevices(); }
-    if (act === "lyrics" || act === "queue") {
+    if (act === "lyrics" || act === "queue" || act === "credits") {
       state.npTab = mobile && state.npTab === act ? "art" : act;
       renderNowPlaying(); renderTopbar();
     }
@@ -1886,11 +1914,102 @@ async function loadLyrics(t) {
   if (t.album) q.set("album", t.album);
   if (t.duration_seconds) q.set("duration", t.duration_seconds);
   let lyrics = null;
-  try { lyrics = await api(`/lyrics?${q}`); } catch {}
+  // « Pas de paroles » (404) est définitif ; un service de paroles injoignable
+  // ou lent (502, réseau) mérite deux nouvelles tentatives.
+  for (const wait of [0, 2000, 5000]) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    if (!sameTrack(t, state.queue[state.index])) return;
+    try { lyrics = await api(`/lyrics?${q}`); break; } catch (e) { if (e.status === 404) break; }
+  }
   if (!sameTrack(t, state.queue[state.index])) return;
   state.lyrics = { lines: lyrics?.lines || [], synced: !!lyrics?.synced, instrumental: !!lyrics?.instrumental };
   state.lastLyric = -1;
   if (panelTab() === "lyrics") renderLyrics();
+}
+
+// ── Crédits et artistes en featuring ─────────────────────────────────────
+
+const creditsCache = new Map();
+
+/** Crédits d'un titre (mis en cache). `full` : avec label, compositeurs, producteurs… (plus lent). */
+async function loadCredits(t, full = false) {
+  const key = `${trackKey(t)}${full ? ":full" : ""}`;
+  if (!creditsCache.has(key)) {
+    creditsCache.set(key, api(`/tracks/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}/credits${full ? "" : "?details=false"}`)
+      .catch(() => { creditsCache.delete(key); return null; }));
+  }
+  return creditsCache.get(key);
+}
+
+/** Les résultats de recherche ne donnent que l'artiste principal : à chaque lecture, on va chercher les invités. */
+async function loadFeats(t) {
+  if (t.artists?.length || !["deezer", "spotify"].includes(t.source)) return;
+  const data = await loadCredits(t);
+  if (!data?.artists?.length) return;
+  t.artists = data.artists;
+  if (!sameTrack(t, state.queue[state.index]) || !featuredOf(t).length) return;
+  renderTopbar();
+  if (state.npOpen) renderNowPlaying();
+  if ("mediaSession" in navigator && navigator.mediaSession.metadata) navigator.mediaSession.metadata.artist = artistsText(t);
+  document.title = `${t.title} · ${artistsText(t)}`;
+}
+
+const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+function dateLabel(d) {
+  const m = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(d || "");
+  if (!m) return d || "";
+  return [m[3] && +m[3], m[2] && MONTHS[+m[2] - 1], m[1]].filter(Boolean).join(" ");
+}
+
+function creditsHTML(t, d) {
+  const row = (label, value) => value ? `<div class="cr"><span class="cl">${esc(label)}</span><span class="cv">${value}</span></div>` : "";
+  const artistLink = (a) => a.source_id ? `<button class="link" data-credit-artist="${esc(t.source)}/${esc(a.source_id)}">${esc(a.name)}</button>` : esc(a.name);
+  const artists = d?.artists?.length ? d.artists : [{ name: t.artist, source_id: t.artist_source_id, role: "main" }];
+  const main = artists.filter((a) => a.role !== "featured"), feats = artists.filter((a) => a.role === "featured");
+  const written = d?.credits || [];
+  const disc = d?.disc_number && d?.track_number ? `Disque ${d.disc_number} · piste ${d.track_number}` : "";
+  const rows = [
+    row(main.length > 1 ? "Artistes" : "Artiste", main.map(artistLink).join(", ")),
+    row("Featuring", feats.map(artistLink).join(", ")),
+    ...written.map((c) => row(c.role, c.names.map(esc).join(", "))),
+    row("Album", [t.album && esc(t.album), disc && esc(disc)].filter(Boolean).join(" · ")),
+    row("Label", esc(d?.label || "")),
+    row("Sortie", esc(dateLabel(d?.release_date))),
+    row("Genres", (d?.genres || []).map(esc).join(", ")),
+    row("Durée", d?.duration_seconds ? fmt(d.duration_seconds) : ""),
+    row("ISRC", esc(d?.isrc || "")),
+  ].join("");
+  return `<h3 class="cr-title">${esc(t.title)}</h3>${rows}${written.length ? "" : `<p class="cr-none">Compositeurs et producteurs : pas encore connus pour ce titre.</p>`}`;
+}
+
+function bindCredits(root) {
+  $$("[data-credit-artist]", root).forEach((b) => (b.onclick = () => {
+    root.closest(".sheet-wrap")?.close?.();
+    closeNowPlaying();
+    go(`#/artist/${b.dataset.creditArtist}`);
+  }));
+}
+
+/** Onglet « Crédits » du tiroir et du lecteur (titre en cours). */
+async function renderCredits() {
+  const t = state.queue[state.index];
+  if (!t || !panelBox()) return;
+  panelBox().innerHTML = `<div class="credits"><p class="none">Chargement des crédits…</p></div>`;
+  const data = await loadCredits(t, true);
+  const box = panelBox();
+  if (!box || panelTab() !== "credits" || !sameTrack(t, state.queue[state.index])) return;
+  box.innerHTML = `<div class="credits">${creditsHTML(t, data)}</div>`;
+  bindCredits(box);
+}
+
+/** Crédits de n'importe quel titre, dans une feuille (menu « ⋯ »). */
+async function creditsSheet(t) {
+  const wrap = openSheet(`<div class="credits light"><p class="none">Chargement des crédits…</p></div>`);
+  const data = await loadCredits(t, true);
+  const body = $(".credits", wrap);
+  if (!body) return;
+  body.innerHTML = creditsHTML(t, data);
+  bindCredits(body);
 }
 
 function renderLyrics() {
@@ -3646,6 +3765,7 @@ function trackMenu(t, ctx = null, index = -1) {
       icon: d.kind === "iphone" ? icons.phone : icons.laptop, label: `Écouter sur ${d.name}`,
       sub: "Le titre se lance sur cet appareil", run: () => playOnDevice(d, ctx?.tracks?.length ? ctx.tracks : [t], ctx?.tracks?.length ? Math.max(0, index) : 0, ctx?.name),
     })),
+    { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
     { icon: icons.share, label: "Partager", run: () => shareTrack(t) },
   ], { header });
 }

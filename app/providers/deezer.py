@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import unicodedata
 
@@ -13,6 +14,13 @@ API_BASE = "https://api.deezer.com"
 # Morceaux ramenés d'un coup pour une recherche chez un artiste : le lot est
 # filtré par artiste puis paginé. 100 est le maximum par requête chez Deezer.
 ARTIST_SEARCH_POOL = 100
+# Les titres imbriqués dans /album/<id> ne portent ni numéro de disque ni
+# artistes en featuring : on relit chaque fiche titre. Deezer limite à
+# 50 requêtes / 5 s : lecture étalée, plafonnée en nombre de titres et en temps.
+ALBUM_DETAIL_MAX_TRACKS = 100
+ALBUM_DETAIL_CONCURRENCY = 4
+ALBUM_DETAIL_PAUSE = 0.3
+ALBUM_DETAIL_BUDGET = 12.0
 
 
 def _artist_key(name: str) -> str:
@@ -49,6 +57,22 @@ def _largest_image(d: dict, prefix: str) -> str | None:
     return d.get(f"{prefix}_xl") or d.get(f"{prefix}_big") or d.get(f"{prefix}_medium")
 
 
+def _contributors(d: dict) -> list[dict]:
+    """`contributors` d'une fiche titre Deezer (rôle « Main » ou
+    « Featured ») → artistes crédités, sans doublon."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for c in d.get("contributors") or []:
+        name = (c.get("name") or "").strip()
+        key = _artist_key(name)
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        role = "featured" if str(c.get("role") or "").lower().startswith("feat") else "main"
+        out.append({"name": name, "source_id": str(c["id"]) if c.get("id") else None, "role": role})
+    return out
+
+
 def _track_from_json(d: dict) -> TrackInfo:
     album = d.get("album") or {}
     artist = d.get("artist") or {}
@@ -66,6 +90,9 @@ def _track_from_json(d: dict) -> TrackInfo:
         preview_url=d.get("preview") or None,
         isrc=d.get("isrc") or None,
         bpm=float(d["bpm"]) if isinstance(d.get("bpm"), (int, float)) and d["bpm"] > 0 else None,
+        disc_number=d.get("disk_number") or None,
+        track_number=d.get("track_position") or None,
+        artists=_contributors(d),
     )
 
 
@@ -169,7 +196,54 @@ class DeezerClient:
                 "release_date": data.get("release_date"),
             }
             tracks.append(_track_from_json(merged))
+        await self._add_track_details(tracks)
         return _album_from_json(data, tracks)
+
+    async def get_album_meta(self, album_id: str) -> dict:
+        """Label, date de sortie et genres d'un album, pour les crédits."""
+        data = await self._get(f"/album/{album_id}")
+        genres = [g.get("name") for g in (data.get("genres") or {}).get("data", []) if g.get("name")]
+        return {
+            "label": data.get("label") or None,
+            "release_date": data.get("release_date") or None,
+            "genres": genres,
+            "upc": data.get("upc") or None,
+        }
+
+    async def _add_track_details(self, tracks: list[TrackInfo]) -> None:
+        """Complète les titres d'un album avec disque, position et artistes
+        crédités (feats), lus sur leur fiche. Au mieux : un titre dont la
+        fiche ne répond pas reste tel quel."""
+        if not tracks or len(tracks) > ALBUM_DETAIL_MAX_TRACKS:
+            return
+        gate = asyncio.Semaphore(ALBUM_DETAIL_CONCURRENCY)
+
+        async def one(track: TrackInfo) -> None:
+            async with gate:
+                try:
+                    full = _track_from_json(await self._get(f"/track/{track.source_id}"))
+                except (DeezerError, ValueError, KeyError):
+                    return
+                finally:
+                    await asyncio.sleep(ALBUM_DETAIL_PAUSE)
+            track.disc_number = full.disc_number
+            track.track_number = full.track_number
+            track.artists = full.artists
+            track.isrc = track.isrc or full.isrc
+            track.bpm = track.bpm or full.bpm
+
+        try:
+            await asyncio.wait_for(asyncio.gather(*(one(t) for t in tracks)), ALBUM_DETAIL_BUDGET)
+        except asyncio.TimeoutError:
+            logger.info("Album Deezer : fiches des titres lues en partie seulement")
+        # Titres sans fiche : ils suivent le disque du précédent (Deezer
+        # liste les titres disque après disque).
+        disc = None
+        for track in tracks:
+            if track.disc_number:
+                disc = track.disc_number
+            elif disc:
+                track.disc_number = disc
 
     async def get_playlist(self, playlist_id: str) -> AlbumInfo:
         """Playlist Deezer, présentée comme un album.

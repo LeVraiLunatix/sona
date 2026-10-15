@@ -24,6 +24,15 @@ class TrackInfo:
     isrc: str | None = None
     # Tempo (Deezer, fiche complète seulement) : pour l'AutoMix.
     bpm: float | None = None
+    # Disque et position dans l'album : de quoi afficher « Disque 1 / Disque 2 »
+    # pour un album en plusieurs disques.
+    disc_number: int | None = None
+    track_number: int | None = None
+    # Tous les artistes crédités : `{"name", "source_id", "role"}` avec
+    # `role` = "main" ou "featured". Vide quand la source ne les donne pas
+    # (résultats de recherche Deezer, par exemple) — `artist` reste alors
+    # le seul nom connu.
+    artists: list[dict] = field(default_factory=list)
 
     @property
     def uid(self) -> str:
