@@ -6860,7 +6860,7 @@ function iphoneBody() {
         : "Ta musique, tes playlists et Sona Connect sur l'iPhone. Signée avec ton compte Apple, gratuitement."}</p>
       ${busy ? `<div class="iph-progress"><div class="iph-progress-head"><b>${esc(PHASES[progress?.phase] || busy)}</b><span>${pct != null ? `${pct} %` : ""}</span></div>
         <div class="iph-bar ${pct == null ? "indeterminate" : ""}"><i style="width:${pct ?? 30}%"></i></div></div>`
-        : `<div class="iph-actions">${action}${installed ? `<button class="btn ghost" data-iph="menu">${icons.more}</button>` : ""}</div>
+        : `<div class="iph-actions">${action}<button class="btn ghost" data-iph="menu" title="Plus d'options">${icons.more}</button></div>
         ${why ? `<p class="iph-why">${why}</p>` : ""}`}
       ${m.error && !busy ? `<p class="iph-error">${esc(m.error)}</p>` : ""}
     </div></div>`;
@@ -6931,12 +6931,13 @@ function bindIphone() {
     if (act === "renew") return run("renew", { udid });
     if (act === "add-account") return appleLoginSheet();
     if (act === "menu") {
+      const installed = device && (iph.state?.apps || []).some((a) => a.udid === device.udid);
       return actionSheet("Sona sur l'iPhone", [
-        { icon: icons.download, label: "Réinstaller la dernière version", run: () => run("install", { udid }) },
+        ...(installed ? [{ icon: icons.download, label: "Réinstaller la dernière version", run: () => run("install", { udid }) }] : []),
         { icon: icons.install, label: "Installer un fichier .ipa…", sub: "Une version précise de Sona", run: async () => { const file = await desktop.iphonePick(); if (file) run("installFile", { udid, file }); } },
         { icon: icons.lock, label: "Réinitialiser l'appareil Apple", sub: "Si Apple refuse les connexions : il redemandera un code", run: async () => { if (await confirmSheet("Réinitialiser l'appareil présenté à Apple ?", "Réinitialiser")) run("resetDevice", {}, "Appareil Apple réinitialisé"); } },
         { icon: icons.list, label: "Ouvrir le journal", run: () => desktop.iphoneLogs().then((ok) => !ok && toast("Rien dans le journal pour l'instant")) },
-        { icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "Sona reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) },
+        ...(installed ? [{ icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "Sona reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) }] : []),
       ]);
     }
     const dev = target("[data-iph-device]");
