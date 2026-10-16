@@ -222,6 +222,8 @@ pub fn humanize(chain: &str) -> String {
     let has = |needles: &[&str]| needles.iter().any(|n| lower.contains(n));
     let message = if has(&["429", "too many requests"]) {
         "Apple limite les tentatives depuis ce PC. Patiente quelques minutes avant de réessayer."
+    } else if has(&["-80045", "cannot be completed at this time"]) {
+        "Apple refuse pour le moment les connexions depuis ce PC ou ce réseau, quel que soit le compte. Essaie avec le partage de connexion d’un téléphone, ou réessaie dans quelques heures sans insister."
     } else if has(&["-22406", "correct password"]) {
         "Mot de passe Apple incorrect. Vérifie-le et réessaie."
     } else if has(&["additional authentication", "2fa", "two-factor", "trusted device", "sms"]) {
