@@ -247,7 +247,7 @@ pub fn humanize(chain: &str) -> String {
     } else if has(&["error sending request", "dns error", "failed to lookup", "timed out", "connect error", "tls handshake"]) {
         "Apple est injoignable pour le moment. Vérifie ta connexion Internet, puis réessaie."
     } else if has(&["log in to apple id", "login again", "srp"]) {
-        "Connexion au compte Apple impossible. Vérifie l’adresse et le mot de passe, puis réessaie."
+        "Apple a refusé la connexion. Si le mot de passe est bon, vérifie l’heure de ce PC, désactive VPN et antivirus le temps d’essayer, ou réinitialise l’appareil Apple (menu ⋯), puis réessaie. Le détail est dans le journal (Réglages › iPhone)."
     } else if has(&["developer request", "list developer", "provisioning profile", "app token", "url bag", "grandslam"]) {
         "Apple n’a pas répondu comme prévu. Réessaie dans un instant."
     } else if chain.is_ascii() {
