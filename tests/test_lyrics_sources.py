@@ -324,3 +324,77 @@ def test_endpoint_reports_source_sync_and_language(tmp_path: Path, monkeypatch):
         body = got.json()
         assert (body["source"], body["sync"], body["synced"]) == ("netease", "word", True)
         assert body["lines"][1]["words"][0] == {"time": 3.0, "text": "Au ", "end": 3.3}
+
+
+# -- Recherche automatique ---------------------------------------------------
+
+def _expire(repo, key):
+    async def run_():
+        await repo._db.conn.execute("UPDATE lyrics_cache SET expires_at='2000-01-01T00:00:00+00:00' WHERE cache_key=?", (key,))
+        await repo._db.conn.commit()
+
+    run(run_())
+
+
+def test_absence_is_searched_again_by_itself(repo):
+    lrclib = FakeLrclib(None)
+    service = LyricsService(repo, lrclib)
+    assert run(service.get("Titre", "Artiste", None, 200)) is None
+    assert run(service.get("Titre", "Artiste", None, 200)) is None
+    assert lrclib.calls == 1
+    # Le délai passé (30 min), la demande suivante cherche de nouveau.
+    _expire(repo, cache_key("Titre", "Artiste", 200))
+    lrclib.result = LINE
+    assert run(service.get("Titre", "Artiste", None, 200)).source == "lrclib"
+    assert lrclib.calls == 2
+
+
+def test_stale_lyrics_stay_while_better_ones_are_searched(repo):
+    netease = FakeNetease([NeteaseSong(1, "Titre", "Artiste", None, 200)], {})
+    service = LyricsService(repo, FakeLrclib(LINE), netease)
+    assert run(service.get("Titre", "Artiste", None, 200)).sync == "line"
+
+    # Périmées : affichées tout de suite, et NetEase a maintenant le mot par mot.
+    _expire(repo, cache_key("Titre", "Artiste", 200))
+    netease._lyrics = {1: WORD}
+
+    async def twice():
+        first = await service.get("Titre", "Artiste", None, 200)
+        await asyncio.gather(*service._upgrades.values())
+        return first, await service.get("Titre", "Artiste", None, 200)
+
+    first, then = run(twice())
+    assert first.sync == "line" and (then.sync, then.source) == ("word", "netease")
+
+
+def test_upgrade_never_replaces_lyrics_with_worse(repo):
+    lrclib = FakeLrclib(LINE)
+    service = LyricsService(repo, lrclib)
+    run(service.get("Titre", "Artiste", None, 200))
+    _expire(repo, cache_key("Titre", "Artiste", 200))
+    lrclib.result = None  # plus rien à la source
+
+    async def twice():
+        await service.get("Titre", "Artiste", None, 200)
+        await asyncio.gather(*service._upgrades.values())
+        return await service.get("Titre", "Artiste", None, 200)
+
+    assert run(twice()).lyrics == LINE
+
+
+def test_second_pass_with_the_bare_title():
+    from app.services.lyrics import base_title
+
+    assert base_title('Song (From "Film") - 2019 Mix') == "Song"
+    assert base_title("Djadja") == "Djadja"
+
+
+def test_bare_title_finds_lyrics_the_full_title_missed(repo):
+    class PickyLrclib(FakeLrclib):
+        async def get_lyrics(self, title, artist, album=None, duration=None):
+            self.calls += 1
+            return LINE if title == "Song" else None
+
+    lrclib = PickyLrclib()
+    result = run(LyricsService(repo, lrclib).get('Song (From "Film")', "Artiste", None, 200))
+    assert result.lyrics == LINE and lrclib.calls == 2

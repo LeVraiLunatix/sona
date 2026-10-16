@@ -2436,20 +2436,40 @@ function lyricsSourceLabel(ly) {
   return `Paroles : ${name}${ly.sync === "word" ? " · mot par mot" : ly.sync === "line" ? " · ligne par ligne" : ""}`;
 }
 
-async function loadLyrics(t, refresh = false) {
+const LYRICS_RANK = { word: 2, line: 1 };
+const lyricsQuery = (t) => {
   const q = new URLSearchParams({ title: t.title, artist: t.artist });
   if (t.album) q.set("album", t.album);
   if (t.duration_seconds) q.set("duration", t.duration_seconds);
-  if (refresh) q.set("refresh", "true");
+  return q;
+};
+
+/** Paroles du titre en cours. Rien à relancer à la main : le serveur
+ * recherche de nouveau les paroles absentes et en cherche de meilleures en
+ * arrière-plan ; ici, une erreur (réseau, source injoignable) est
+ * réessayée, et des paroles moins précises que « mot par mot » sont
+ * redemandées une fois, 20 s plus tard. */
+async function loadLyrics(t) {
   let lyrics = null;
-  // « Pas de paroles » (404) est définitif ; un service de paroles injoignable
-  // ou lent (502, réseau) mérite deux nouvelles tentatives.
-  for (const wait of [0, 2000, 5000]) {
+  // « Pas de paroles » (404) : le serveur réessaiera de lui-même ; un
+  // service injoignable ou lent (502, réseau) mérite de nouvelles tentatives.
+  for (const wait of [0, 2000, 5000, 15000]) {
     if (wait) await new Promise((r) => setTimeout(r, wait));
     if (!sameTrack(t, state.queue[state.index])) return;
-    try { lyrics = await api(`/lyrics?${q}`); break; } catch (e) { if (e.status === 404) break; }
+    try { lyrics = await api(`/lyrics?${lyricsQuery(t)}`); break; } catch (e) { if (e.status === 404) break; }
   }
   if (!sameTrack(t, state.queue[state.index])) return;
+  applyLyrics(lyrics);
+  if (lyrics && !lyrics.instrumental && lyrics.sync !== "word") {
+    setTimeout(async () => {
+      if (!sameTrack(t, state.queue[state.index])) return;
+      const better = await api(`/lyrics?${lyricsQuery(t)}`).catch(() => null);
+      if (better && sameTrack(t, state.queue[state.index]) && (LYRICS_RANK[better.sync] || 0) > (LYRICS_RANK[state.lyrics?.sync] || 0)) applyLyrics(better);
+    }, 20000);
+  }
+}
+
+function applyLyrics(lyrics) {
   const lines = lyrics?.lines || [];
   const synced = !!lyrics?.synced;
   if (synced) lines.forEach((l, i) => { if (l.text) l.timed = timedWords(l, nextLyricTime(lines, i)); });
@@ -2567,10 +2587,8 @@ function renderLyrics() {
   const ly = state.lyrics;
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
   const cur = state.queue[state.index];
-  const refreshBtn = `<button class="lyr-refresh" data-lyr-refresh>Chercher ${ly.lines.length ? "de meilleures paroles" : "encore"}</button>`;
   if (!ly.lines.length) {
-    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas de paroles pour ce titre."}</p>${ly.instrumental ? "" : refreshBtn}</div>`;
-    bindLyricsRefresh(box, cur);
+    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">Sona les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
     return;
   }
   const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
@@ -2583,9 +2601,8 @@ function renderLyrics() {
     if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w">${esc(w.text)}</span>`).join("")}</p>`;
     return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
   };
-  const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}${refreshBtn}</div>`;
+  const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
   box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map(line).join("")}${foot}</div>`;
-  bindLyricsRefresh(box, cur);
   if (ly.synced) {
     $$("[data-l]", box).forEach((p) => (p.onclick = () => {
       const time = ly.lines[+p.dataset.l].time;
@@ -2600,11 +2617,6 @@ function renderLyrics() {
   }
   state.lastLyric = -1;
   syncLyrics(true);
-}
-
-function bindLyricsRefresh(box, cur) {
-  const btn = $("[data-lyr-refresh]", box);
-  if (btn && cur) btn.onclick = () => { state.lyrics = null; renderLyrics(); loadLyrics(cur, true); };
 }
 
 // Remplissage mot par mot de la ligne en cours, à chaque image (60 i/s au

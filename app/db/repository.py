@@ -1577,6 +1577,19 @@ class Repository:
             return None
         return (json.loads(row["payload"]) if row["payload"] else None), row["source"], row["language"]
 
+    async def lyrics_cache_peek(self, key: str) -> tuple[dict | None, str | None, str | None, bool] | None:
+        """Comme `lyrics_cache_get`, mais rend aussi une entrée expirée, avec
+        `expired` à vrai : de quoi afficher les paroles déjà connues pendant
+        qu'on en cherche de meilleures."""
+        cursor = await self._db.conn.execute(
+            "SELECT payload, source, language, expires_at FROM lyrics_cache WHERE cache_key=?", (key,)
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        payload = json.loads(row["payload"]) if row["payload"] else None
+        return payload, row["source"], row["language"], row["expires_at"] <= _now()
+
     async def lyrics_cache_set(
         self, key: str, payload: dict | None, source: str | None, language: str | None, ttl: timedelta
     ) -> None:

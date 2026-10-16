@@ -12,7 +12,10 @@ mot près, puis à la ligne, puis le texte brut — et, à précision égale, la
 mieux appariée.
 
 Le résultat est gardé en base (`lyrics_cache`), absences comprises : le
-lecteur redemande les paroles à chaque titre, sur chaque appareil.
+lecteur redemande les paroles à chaque titre, sur chaque appareil. Rien à
+relancer à la main : une absence est recherchée de nouveau toute seule
+(au plus tard 30 min après), et des paroles à la ligne ou brutes restent
+affichées pendant qu'on en cherche de meilleures, en arrière-plan.
 """
 
 from __future__ import annotations
@@ -42,11 +45,15 @@ SOURCE_TIMEOUT = 15.0
 MIN_SCORE = 0.6
 
 # Durées de vie du cache : des paroles au mot près ne s'amélioreront pas ;
-# une absence ou des paroles à la ligne, si (les bases s'enrichissent).
+# des paroles à la ligne ou brutes, si (les bases s'enrichissent) — passé
+# ce délai, elles restent affichées et on en cherche de meilleures en
+# arrière-plan. Une absence, elle, est recherchée de nouveau dès la demande
+# suivante, une fois le délai passé (bien plus court si une source était en
+# panne).
 TTL_WORD = timedelta(days=120)
-TTL_OTHER = timedelta(days=14)
-TTL_MISSING = timedelta(days=3)
-TTL_MISSING_AFTER_ERROR = timedelta(hours=6)
+TTL_OTHER = timedelta(days=3)
+TTL_MISSING = timedelta(minutes=30)
+TTL_MISSING_AFTER_ERROR = timedelta(minutes=5)
 
 # À précision et correspondance égales : LRCLIB (base ouverte, relue par
 # des humains), puis Musixmatch, puis NetEase.
@@ -278,6 +285,15 @@ def lyrics_from_dict(data: dict) -> Lyrics:
     )
 
 
+def base_title(title: str) -> str:
+    """Titre sans aucune mention entre parenthèses ni après un tiret
+    (« Song (From "Film") - 2019 Mix » → « Song ») : seconde chance quand
+    les sources ne connaissent pas le titre complet."""
+    stripped = re.sub(r"\s*[\(\[].*?[\)\]]", "", title)
+    stripped = re.split(r"\s[-–—]\s", stripped, maxsplit=1)[0]
+    return stripped.strip() or title
+
+
 def cache_key(title: str, artist: str, duration: int | None) -> str:
     """Même morceau, même clé : sans « (feat. X) », « - Remastered », ni
     artistes invités. La durée sépare les versions (live, radio edit)."""
@@ -295,16 +311,26 @@ class LyricsService:
         # Deux appareils qui demandent le même titre en même temps : une
         # seule recherche.
         self._pending: dict[str, asyncio.Future] = {}
+        # Recherches de meilleures paroles en arrière-plan (une par titre).
+        self._upgrades: dict[str, asyncio.Task] = {}
 
     async def get(
         self, title: str, artist: str, album: str | None = None, duration: int | None = None, *, refresh: bool = False
     ) -> LyricsResult | None:
         key = cache_key(title, artist, duration)
         if not refresh:
-            cached = await self._repo.lyrics_cache_get(key)
+            cached = await self._repo.lyrics_cache_peek(key)
             if cached is not None:
-                payload, source, language = cached
-                return LyricsResult(lyrics_from_dict(payload), source, language) if payload else None
+                payload, source, language, expired = cached
+                if payload:
+                    known = LyricsResult(lyrics_from_dict(payload), source, language)
+                    if expired:
+                        # Paroles connues tout de suite ; de meilleures, peut-être, au prochain affichage.
+                        self._upgrade_later(key, title, artist, album, duration, known)
+                    return known
+                if not expired:
+                    return None
+                # Absence périmée : on cherche de nouveau, tout de suite.
 
         pending = self._pending.get(key)
         if pending is not None:
@@ -331,9 +357,68 @@ class LyricsService:
     async def forget(self, title: str, artist: str, duration: int | None) -> None:
         await self._repo.lyrics_cache_delete(cache_key(title, artist, duration))
 
+    def _upgrade_later(self, key, title, artist, album, duration, known: LyricsResult) -> None:
+        if key in self._upgrades or key in self._pending:
+            return
+        task = asyncio.create_task(self._upgrade(key, title, artist, album, duration, known))
+        self._upgrades[key] = task
+        task.add_done_callback(lambda _: self._upgrades.pop(key, None))
+
+    async def _upgrade(self, key, title, artist, album, duration, known: LyricsResult) -> None:
+        """Paroles périmées : on cherche de nouveau, et on ne garde le
+        nouveau résultat que s'il est au moins aussi précis — sinon les
+        anciennes paroles restent, pour un nouveau délai."""
+        try:
+            found, errors = await self._search(title, artist, album, duration)
+        except LyricsError:
+            found, errors = None, ["toutes les sources"]
+        except Exception:  # noqa: BLE001 — une tâche de fond ne doit rien casser
+            logger.exception("Paroles : recherche en arrière-plan de %s - %s", artist, title)
+            return
+        if found is not None and _tier(found.lyrics) >= _tier(known.lyrics):
+            await self._store(key, found, errors)
+            if _tier(found.lyrics) > _tier(known.lyrics):
+                logger.info("Paroles améliorées pour %s - %s : %s (%s)", artist, title, found.source, found.sync)
+            return
+        ttl = TTL_MISSING if errors else (TTL_WORD if known.sync == "word" else TTL_OTHER)
+        await self._repo.lyrics_cache_set(key, lyrics_to_dict(known.lyrics), known.source, known.language, ttl)
+
     async def _lookup(
         self, key: str, title: str, artist: str, album: str | None, duration: int | None
     ) -> LyricsResult | None:
+        result, errors = await self._search(title, artist, album, duration)
+        if result is None:
+            ttl = TTL_MISSING_AFTER_ERROR if errors else TTL_MISSING
+            await self._repo.lyrics_cache_set(key, None, None, None, ttl)
+            return None
+        await self._store(key, result, errors)
+        return result
+
+    async def _store(self, key: str, result: LyricsResult, errors: list[str]) -> None:
+        ttl = TTL_WORD if result.sync == "word" else TTL_OTHER
+        # Une source muette par erreur aurait peut-être eu mieux : on
+        # retentera plus tôt.
+        if errors:
+            ttl = min(ttl, TTL_MISSING)
+        await self._repo.lyrics_cache_set(key, lyrics_to_dict(result.lyrics), result.source, result.language, ttl)
+
+    async def _search(
+        self, title: str, artist: str, album: str | None, duration: int | None
+    ) -> tuple[LyricsResult | None, list[str]]:
+        """Meilleures paroles de toutes les sources (et les sources en
+        erreur). Rien trouvé : seconde passe avec le titre sans ses mentions
+        (« (From "Film") », « - 2019 Mix »). Lève LyricsError si aucune
+        source n'a répondu."""
+        result, errors = await self._search_once(title, artist, album, duration)
+        relaxed = base_title(title)
+        if result is None and relaxed != clean_title(title):
+            again, more = await self._search_once(relaxed, artist, album, duration)
+            result, errors = again, errors + more
+        return result, errors
+
+    async def _search_once(
+        self, title: str, artist: str, album: str | None, duration: int | None
+    ) -> tuple[LyricsResult | None, list[str]]:
         sources = [("lrclib", self._from_lrclib(title, artist, album, duration))]
         if self._netease is not None:
             sources.append(("netease", self._from_netease(title, artist, album, duration)))
@@ -357,25 +442,17 @@ class LyricsService:
         if not candidates:
             if errors and len(errors) == len(sources):
                 raise LyricsError(" ; ".join(errors))
-            ttl = TTL_MISSING_AFTER_ERROR if errors else TTL_MISSING
-            await self._repo.lyrics_cache_set(key, None, None, None, ttl)
-            return None
+            return None, errors
 
         for candidate in candidates:
             candidate.lyrics = _without_header(candidate.lyrics, title, artist)
         best = max(candidates, key=lambda c: (_tier(c.lyrics), c.score, SOURCE_PRIORITY.get(c.source, 0)))
         language = best.language or (None if best.lyrics.instrumental else detect_language(best.lyrics))
         result = LyricsResult(best.lyrics, best.source, language)
-        ttl = TTL_WORD if result.sync == "word" else TTL_OTHER
-        # Une source muette par erreur aurait peut-être eu mieux : on
-        # retentera plus tôt.
-        if errors:
-            ttl = min(ttl, TTL_MISSING)
-        await self._repo.lyrics_cache_set(key, lyrics_to_dict(result.lyrics), result.source, result.language, ttl)
         logger.info(
             "Paroles %s - %s : %s (%s, note %.2f)", artist, title, best.source, result.sync, best.score,
         )
-        return result
+        return result, errors
 
     async def _from_lrclib(self, title, artist, album, duration) -> _Candidate | None:
         # LRCLIB fait déjà sa propre correspondance (titre nettoyé, artiste

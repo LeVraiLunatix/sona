@@ -70,11 +70,8 @@ struct LyricsView: View {
             case .loading:
                 ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
             case .unavailable(let message):
-                VStack(spacing: 18) {
-                    EmptyState(systemImage: "quote.bubble", title: "Paroles indisponibles", message: message)
-                    retryButton
-                }
-                .frame(maxHeight: .infinity)
+                EmptyState(systemImage: "quote.bubble", title: "Paroles indisponibles", message: message)
+                    .frame(maxHeight: .infinity)
             case .loaded(let lyrics):
                 if lyrics.instrumental {
                     EmptyState(systemImage: "pianokeys", title: "Instrumental", message: "Pas de paroles, juste la musique.")
@@ -224,23 +221,14 @@ struct LyricsView: View {
         .mask { EdgeFade() }
     }
 
-    /// Sous les paroles : leur source et leur précision, et de quoi les
-    /// chercher de nouveau (le serveur les garde en cache).
+    /// Sous les paroles : leur source et leur précision.
     private func footer(_ lyrics: Lyrics) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        Group {
             if let name = lyrics.sourceName {
                 Text(Self.sourceLine(name, sync: lyrics.sync))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.4))
             }
-            Button {
-                Task { await load(refresh: true) }
-            } label: {
-                Label("Chercher de meilleures paroles", systemImage: "arrow.clockwise")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
-            }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 8)
@@ -254,42 +242,60 @@ struct LyricsView: View {
         }
     }
 
-    private var retryButton: some View {
-        Button {
-            Task { await load(refresh: true) }
-        } label: {
-            Label("Chercher encore", systemImage: "arrow.clockwise")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background(Capsule().fill(Color.white.opacity(0.15)))
+    /// Tout se fait tout seul : le serveur recherche de nouveau les paroles
+    /// absentes et en cherche de meilleures en arrière-plan ; ici, une
+    /// erreur (réseau, source injoignable) est réessayée sans rien demander,
+    /// et des paroles moins précises que « mot par mot » sont redemandées
+    /// une fois, le temps que le serveur ait peut-être trouvé mieux.
+    private func load() async {
+        state = .loading
+        for (attempt, delay) in [0, 3, 10, 30].enumerated() {
+            if delay > 0 {
+                try? await Task.sleep(for: .seconds(delay))
+            }
+            guard !Task.isCancelled else { return }
+            do {
+                if let lyrics = try await APIClient.shared.lyrics(for: track) {
+                    show(lyrics)
+                    if lyrics.sync != "word" && !lyrics.instrumental {
+                        await lookForBetter(than: lyrics)
+                    }
+                } else {
+                    state = .unavailable("Pas encore de paroles pour ce morceau. Sona les recherche de nouveau d'elle-même, régulièrement.")
+                }
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                if attempt == 0 {
+                    // Première erreur : on le dit, et on réessaie en silence.
+                    state = .unavailable("Les paroles n'ont pas pu être chargées. Nouvel essai en cours…")
+                }
+            }
         }
-        .buttonStyle(.pressable(scale: 0.94))
+        state = .unavailable("Les paroles n'ont pas pu être chargées. Sona réessaiera au prochain titre.")
     }
 
-    private func load(refresh: Bool = false) async {
-        state = .loading
-        do {
-            if let lyrics = try await APIClient.shared.lyrics(for: track, refresh: refresh) {
-                translations = [:]
-                options.translating = false
-                translationConfig = nil
-                if let language = lyrics.language {
-                    options.foreign = language != "fr"
-                } else {
-                    let recognizer = NLLanguageRecognizer()
-                    recognizer.processString(lyrics.lines.map(\.text).joined(separator: "\n"))
-                    options.foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
-                }
-                state = .loaded(lyrics)
-            } else {
-                state = .unavailable("Pas de paroles connues pour ce morceau.")
-            }
-        } catch {
-            guard !Task.isCancelled else { return }
-            state = .unavailable("Les paroles n'ont pas pu être chargées.")
+    private func lookForBetter(than current: Lyrics) async {
+        try? await Task.sleep(for: .seconds(20))
+        guard !Task.isCancelled, let better = try? await APIClient.shared.lyrics(for: track) else { return }
+        let rank = ["word": 2, "line": 1]
+        if rank[better.sync ?? "", default: 0] > rank[current.sync ?? "", default: 0] {
+            withAnimation(Motion.smooth) { show(better) }
         }
+    }
+
+    private func show(_ lyrics: Lyrics) {
+        translations = [:]
+        options.translating = false
+        translationConfig = nil
+        if let language = lyrics.language {
+            options.foreign = language != "fr"
+        } else {
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(lyrics.lines.map(\.text).joined(separator: "\n"))
+            options.foreign = recognizer.dominantLanguage.map { $0 != .french } ?? false
+        }
+        state = .loaded(lyrics)
     }
 }
 

@@ -471,9 +471,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 @keyframes lyr-breath { 50% { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { .lyrics p.gap.on { animation: none; } }
 .lyr-foot { margin-top: 2.4em; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.4); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.lyr-refresh { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.65); background: none; padding: 0; }
-.lyr-refresh:hover { color: #fff; }
-.lyrics .none + .lyr-refresh { margin-top: 14px; }
+.lyrics .lyr-later { font-size: 14px; font-weight: 500; color: rgba(255,255,255,.4); filter: none; cursor: default; margin-top: -.3em; }
 /* Crédits d'un titre : sous les paroles / la file, et dans la feuille « Crédits du titre ». */
 .credits { height: 100%; overflow-y: auto; scrollbar-width: none; padding: 8vh 4px 12vh; }
 .credits::-webkit-scrollbar { display: none; }
