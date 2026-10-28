@@ -2608,7 +2608,7 @@ function renderLyrics() {
   // instrumentale (ligne vide) : trois points qui s'allument.
   const line = (l, i) => {
     if (ly.synced && !l.text) return `<p data-l="${i}" class="gap" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i></p>`;
-    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w${w.held ? " held" : ""}"${w.held ? ` style="margin-inline:${(0.022 * [...w.text.trim()].length).toFixed(2)}em"` : ""}>${w.held ? heldLetters(w.text) : esc(w.text)}</span>${w.held ? esc(w.text.slice(w.text.trimEnd().length)) : ""}`).join("")}</p>`;
+    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w${w.held ? " held" : ""}"${w.held ? ` style="--m:${(0.022 * [...w.text.trim()].length).toFixed(2)}"` : ""}>${w.held ? heldLetters(w.text) : esc(w.text)}</span>${w.held ? esc(w.text.slice(w.text.trimEnd().length)) : ""}`).join("")}</p>`;
     return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
   };
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;

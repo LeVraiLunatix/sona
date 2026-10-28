@@ -806,9 +806,9 @@ private struct KaraokeWord: View {
                             .foregroundStyle(Color.white.opacity(0.4 + 0.6 * p))
                     }
                 }
-                // Place réservée au mot grossi, pour qu'il ne passe pas sur
-                // ses voisins.
-                .padding(.horizontal, 0.62 * count)
+                // La marge suit le grossissement : le mot pousse ses voisins
+                // au lieu de passer dessus, et ne bouge pas au repos.
+                .padding(.horizontal, still ? 0 : 0.62 * count * held)
             } else {
                 Text(body)
                     .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
