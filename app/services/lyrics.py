@@ -41,7 +41,11 @@ SYNC_DURATION_TOLERANCE = 2.0
 # Au-delà, ce n'est plus le même enregistrement du tout.
 MAX_DURATION_GAP = 30.0
 # Temps laissé à chaque source avant de passer sans elle.
-SOURCE_TIMEOUT = 15.0
+SOURCE_TIMEOUT = 8.0
+# Dès qu'une source a répondu avec des paroles synchronisées, les autres ont ce
+# délai pour faire mieux (mot par mot) ; passé ce délai on répond tout de suite
+# et elles finissent en arrière-plan, le cache s'améliore à leur arrivée.
+FAST_GRACE = 0.5
 MIN_SCORE = 0.6
 
 # Durées de vie du cache : des paroles au mot près ne s'amélioreront pas ;
@@ -313,6 +317,8 @@ class LyricsService:
         self._pending: dict[str, asyncio.Future] = {}
         # Recherches de meilleures paroles en arrière-plan (une par titre).
         self._upgrades: dict[str, asyncio.Task] = {}
+        # Sources lentes qui finissent après la réponse (références gardées).
+        self._background: set[asyncio.Task] = set()
 
     async def get(
         self, title: str, artist: str, album: str | None = None, duration: int | None = None, *, refresh: bool = False
@@ -386,7 +392,14 @@ class LyricsService:
     async def _lookup(
         self, key: str, title: str, artist: str, album: str | None, duration: int | None
     ) -> LyricsResult | None:
-        result, errors = await self._search(title, artist, album, duration)
+        async def late(final: LyricsResult | None, errs: list[str], early: LyricsResult) -> None:
+            # Les sources lentes ont fini après la réponse : on garde leurs
+            # paroles si elles sont plus précises (au prochain affichage).
+            if final is not None and _tier(final.lyrics) > _tier(early.lyrics):
+                await self._store(key, final, errs)
+                logger.info("Paroles améliorées pour %s - %s : %s (%s)", artist, title, final.source, final.sync)
+
+        result, errors = await self._search(title, artist, album, duration, on_late=late)
         if result is None:
             ttl = TTL_MISSING_AFTER_ERROR if errors else TTL_MISSING
             await self._repo.lyrics_cache_set(key, None, None, None, ttl)
@@ -403,13 +416,13 @@ class LyricsService:
         await self._repo.lyrics_cache_set(key, lyrics_to_dict(result.lyrics), result.source, result.language, ttl)
 
     async def _search(
-        self, title: str, artist: str, album: str | None, duration: int | None
+        self, title: str, artist: str, album: str | None, duration: int | None, on_late=None
     ) -> tuple[LyricsResult | None, list[str]]:
         """Meilleures paroles de toutes les sources (et les sources en
         erreur). Rien trouvé : seconde passe avec le titre sans ses mentions
         (« (From "Film") », « - 2019 Mix »). Lève LyricsError si aucune
         source n'a répondu."""
-        result, errors = await self._search_once(title, artist, album, duration)
+        result, errors = await self._search_once(title, artist, album, duration, on_late)
         relaxed = base_title(title)
         if result is None and relaxed != clean_title(title):
             again, more = await self._search_once(relaxed, artist, album, duration)
@@ -417,33 +430,87 @@ class LyricsService:
         return result, errors
 
     async def _search_once(
-        self, title: str, artist: str, album: str | None, duration: int | None
+        self, title: str, artist: str, album: str | None, duration: int | None, on_late=None
     ) -> tuple[LyricsResult | None, list[str]]:
-        sources = [("lrclib", self._from_lrclib(title, artist, album, duration))]
+        """Interroge toutes les sources en même temps. Avec `on_late` (demande de
+        l'utilisateur) : dès qu'une a des paroles synchronisées, les autres ont
+        `FAST_GRACE` pour faire mieux ; sinon on répond avec ce qu'on a et elles
+        finissent en arrière-plan (`on_late` reçoit alors le résultat final, les
+        erreurs et la réponse déjà donnée). Sans `on_late` (recherche de fond) :
+        on attend toutes les sources."""
+        jobs = [("lrclib", self._from_lrclib(title, artist, album, duration))]
         if self._netease is not None:
-            sources.append(("netease", self._from_netease(title, artist, album, duration)))
+            jobs.append(("netease", self._from_netease(title, artist, album, duration)))
         if self._musixmatch is not None:
-            sources.append(("musixmatch", self._from_musixmatch(title, artist, album, duration)))
-
-        outcomes = await asyncio.gather(
-            *(asyncio.wait_for(job, SOURCE_TIMEOUT) for _, job in sources), return_exceptions=True
-        )
+            jobs.append(("musixmatch", self._from_musixmatch(title, artist, album, duration)))
+        names: dict[asyncio.Future, str] = {
+            asyncio.ensure_future(asyncio.wait_for(job, SOURCE_TIMEOUT)): name for name, job in jobs
+        }
         candidates: list[_Candidate] = []
         errors: list[str] = []
-        for (name, _), outcome in zip(sources, outcomes):
-            if isinstance(outcome, BaseException):
-                if not isinstance(outcome, (LyricsError, asyncio.TimeoutError)):
-                    logger.exception("Paroles : la source %s a planté", name, exc_info=outcome)
-                errors.append(f"{name} : {outcome or type(outcome).__name__}")
-                continue
-            if outcome is not None:
-                candidates.append(outcome)
+
+        def absorb(done) -> None:
+            for task in done:
+                name = names[task]
+                try:
+                    outcome = task.result()
+                except (LyricsError, asyncio.TimeoutError, asyncio.CancelledError) as exc:
+                    errors.append(f"{name} : {exc or type(exc).__name__}")
+                except Exception as exc:  # noqa: BLE001 — une source qui plante ne doit pas tout casser
+                    logger.exception("Paroles : la source %s a planté", name, exc_info=exc)
+                    errors.append(f"{name} : {exc or type(exc).__name__}")
+                else:
+                    if outcome is not None:
+                        candidates.append(outcome)
+
+        pending = set(names)
+        loop = asyncio.get_running_loop()
+        deadline: float | None = None
+        try:
+            while pending:
+                timeout = None if deadline is None else max(0.0, deadline - loop.time())
+                done, pending = await asyncio.wait(pending, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+                if not done:
+                    break
+                absorb(done)
+                if candidates and on_late is not None:
+                    best_tier = max(_tier(c.lyrics) for c in candidates)
+                    if best_tier >= 3:
+                        break
+                    if best_tier >= 2 and deadline is None:
+                        deadline = loop.time() + FAST_GRACE
+        except asyncio.CancelledError:
+            for task in pending:
+                task.cancel()
+            raise
 
         if not candidates:
-            if errors and len(errors) == len(sources):
+            if pending:
+                for task in pending:
+                    task.cancel()
+            if errors and len(errors) == len(jobs):
                 raise LyricsError(" ; ".join(errors))
             return None, errors
 
+        result = self._pick(candidates, title, artist)
+        if pending and on_late is not None:
+            async def finish() -> None:
+                try:
+                    done, _ = await asyncio.wait(pending)
+                    absorb(done)
+                    await on_late(self._pick(candidates, title, artist), errors, result)
+                except Exception:  # noqa: BLE001 — tâche de fond
+                    logger.exception("Paroles : fin de recherche de %s - %s", artist, title)
+
+            task = asyncio.create_task(finish())
+            self._background.add(task)
+            task.add_done_callback(self._background.discard)
+        else:
+            for task in pending:
+                task.cancel()
+        return result, errors
+
+    def _pick(self, candidates: list[_Candidate], title: str, artist: str) -> LyricsResult:
         for candidate in candidates:
             candidate.lyrics = _without_header(candidate.lyrics, title, artist)
         best = max(candidates, key=lambda c: (_tier(c.lyrics), c.score, SOURCE_PRIORITY.get(c.source, 0)))
@@ -452,7 +519,7 @@ class LyricsService:
         logger.info(
             "Paroles %s - %s : %s (%s, note %.2f)", artist, title, best.source, result.sync, best.score,
         )
-        return result, errors
+        return result
 
     async def _from_lrclib(self, title, artist, album, duration) -> _Candidate | None:
         # LRCLIB fait déjà sa propre correspondance (titre nettoyé, artiste
