@@ -730,14 +730,11 @@ struct KaraokeLine: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: !player.isPlaying)) { _ in
             let now = player.exactPositionSeconds + 0.1 + offset
-            words.reduce(Text("")) { text, word in
-                let progress = word.end > word.start ? min(1, max(0, (now - word.start) / (word.end - word.start))) : 1
-                // Le mot chanté s'allume et monte d'un rien, comme porté par
-                // la voix (immobile avec « Réduire les animations »).
-                let lift = reduceMotion ? 0 : 1.6 * progress
-                return text + Text(word.text)
-                    .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
-                    .baselineOffset(lift)
+            // Un mot = une vue : il peut monter, grossir et s'illuminer seul.
+            WordFlowLayout {
+                ForEach(Array(words.enumerated()), id: \.offset) { _, word in
+                    KaraokeWord(word: word, now: now, still: reduceMotion)
+                }
             }
         }
     }
@@ -770,6 +767,72 @@ struct KaraokeLine: View {
             let length = duration * weights[index] / total
             defer { cursor += length }
             return TimedWord(start: cursor, end: cursor + length, text: index + 1 < tokens.count ? token + " " : token)
+        }
+    }
+}
+
+/// Un mot de la ligne chantée, façon Musique : il s'allume au fil de sa durée,
+/// monte d'un rien, et s'il est tenu longtemps il grossit et rayonne avant de
+/// retomber en douceur. Immobile avec « Réduire les animations ».
+private struct KaraokeWord: View {
+    let word: KaraokeLine.TimedWord
+    let now: Double
+    let still: Bool
+
+    var body: some View {
+        let duration = max(0.05, word.end - word.start)
+        let progress = min(1, max(0, (now - word.start) / duration))
+        let rise = min(1, max(0, (now - word.start) / min(0.35, duration * 0.6)))
+        let fall = now > word.end ? min(1, max(0, 1 - (now - word.end) / 0.4)) : 1
+        let lift = rise * rise * (3 - 2 * rise) * fall
+        // Seuls les mots tenus (≥ 0,6 s, plein effet à 1,6 s) grossissent.
+        let held = lift * min(1, max(0, (duration - 0.6) / 1.0))
+        let hasGap = word.text.last?.isWhitespace == true
+        Text(word.text.trimmingCharacters(in: .whitespaces))
+            .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
+            .scaleEffect(still ? 1 : 1 + 0.1 * held, anchor: .bottom)
+            .offset(y: still ? 0 : -2 * lift)
+            .shadow(color: .white.opacity(still ? 0 : 0.8 * held), radius: 10 * held)
+            .layoutValue(key: WordGapKey.self, value: hasGap)
+    }
+}
+
+private struct WordGapKey: LayoutValueKey {
+    static let defaultValue = true
+}
+
+/// Mots posés l'un après l'autre, retour à la ligne à la largeur proposée.
+/// L'espace entre deux mots n'existe que si la source en met un (les
+/// syllabes d'un même mot se touchent).
+private struct WordFlowLayout: Layout {
+    private let space: CGFloat = 8
+
+    private func rows(_ subviews: Subviews, width: CGFloat) -> (frames: [CGRect], size: CGSize) {
+        var frames: [CGRect] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + 2
+                rowHeight = 0
+            }
+            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
+            x += size.width + (sub[WordGapKey.self] ? space : 0)
+            rowHeight = max(rowHeight, size.height)
+            maxX = max(maxX, x)
+        }
+        return (frames, CGSize(width: min(width, maxX), height: y + rowHeight))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        rows(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = rows(subviews, width: bounds.width)
+        for (sub, frame) in zip(subviews, layout.frames) {
+            sub.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
         }
     }
 }

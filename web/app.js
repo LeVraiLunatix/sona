@@ -2636,7 +2636,8 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 // fluide et exactement calé sur la musique. `LYRICS_LEAD` compense l'avance du
 // ressenti sur le son ; le décalage réglé pour le titre s'ajoute.
 const LYRICS_LEAD = 0.08;
-const lyricsClockState = { ct: -1, at: 0 };
+const reduceLyricsMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const lyricsClockState ={ ct: -1, at: 0 };
 function lyricsClock() {
   const ct = audio.currentTime;
   const perf = performance.now();
@@ -2668,7 +2669,20 @@ function lyricsFrame() {
   const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
   if (p && line.timed?.length) {
     const spans = p.children;
-    line.timed.forEach((w, k) => spans[k]?.style.setProperty("--p", clamp01((now - w.start) / (w.end - w.start)).toFixed(3)));
+    line.timed.forEach((w, k) => {
+      const s = spans[k];
+      if (!s) return;
+      s.style.setProperty("--p", clamp01((now - w.start) / (w.end - w.start)).toFixed(3));
+      if (reduceLyricsMotion.matches) return;
+      // Le mot chanté monte un peu (--g) ; s'il est tenu longtemps il grossit
+      // et s'illumine (--e), puis retombe en douceur une fois fini.
+      const dur = w.end - w.start;
+      const rise = clamp01((now - w.start) / Math.min(0.35, dur * 0.6));
+      const fall = now > w.end ? clamp01(1 - (now - w.end) / 0.4) : 1;
+      const g = rise * rise * (3 - 2 * rise) * fall;
+      s.style.setProperty("--g", g.toFixed(3));
+      s.style.setProperty("--e", (g * clamp01((dur - 0.6) / 1.0)).toFixed(3));
+    });
   } else if (p?.classList.contains("gap")) {
     const end = nextLyricTime(ly.lines, i) ?? line.time + 4;
     p.style.setProperty("--p", clamp01((now - line.time) / Math.max(0.1, end - line.time)).toFixed(3));

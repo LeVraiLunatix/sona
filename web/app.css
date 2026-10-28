@@ -458,7 +458,13 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .lyrics .none { color: rgba(255,255,255,.5); font-size: 22px; font-weight: 600; filter: none; }
 /* Ligne en cours remplie mot par mot, de gauche à droite, avec un bord fondu
    (--p : avancement du mot, de 0 à 1, posé à chaque image). */
+/* Chaque mot est une boîte à part (white-space: pre garde l'espace de fin) pour
+   pouvoir monter (--g), grossir et s'illuminer (--e) quand il est tenu. */
+.lyrics p .w { display: inline-block; white-space: pre; transform-origin: 50% 85%; }
 .lyrics p.on .w {
+  transform: translateY(calc(var(--g, 0) * -.07em)) scale(calc(1 + var(--e, 0) * .1));
+  filter: drop-shadow(0 0 calc(var(--e, 0) * .5em) rgba(255, 255, 255, calc(var(--e, 0) * .85)));
+  will-change: transform;
   color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255,255,255,.38) calc(var(--p, 0) * 116% + 8%));
 }
