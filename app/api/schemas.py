@@ -138,6 +138,9 @@ class LyricsOut(BaseModel):
     source: str | None = None
     # Langue des paroles (code ISO 639-1), quand on la reconnaît.
     language: str | None = None
+    # Horodatage d'une autre version du morceau (durée proche) : la synchro
+    # peut être décalée, l'app laisse la régler.
+    approximate: bool = False
 
 
 class SearchResponse(BaseModel):
