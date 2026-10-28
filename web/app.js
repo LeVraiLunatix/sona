@@ -2410,7 +2410,11 @@ function timedWords(line, next) {
   if (line.words?.length) {
     return line.words.map((w, i) => {
       const following = w.end ?? (i + 1 < line.words.length ? line.words[i + 1].time : Math.min(next ?? w.time + 1, w.time + 1.2));
-      return { start: w.time, end: Math.max(w.time + 0.05, following), text: w.text };
+      // Un mot suivi d'une longue pause ne se remplit pas pendant toute la
+      // pause : on plafonne à une durée de chant plausible.
+      const sung = 0.5 + 0.12 * w.text.trim().length;
+      const end = following - w.time > 1.5 ? Math.min(following, w.time + sung) : following;
+      return { start: w.time, end: Math.max(w.time + 0.05, end), text: w.text };
     });
   }
   const tokens = (line.text || "").split(/\s+/).filter(Boolean);
@@ -2625,14 +2629,40 @@ function renderLyrics() {
 // le relance à la reprise.
 let lyricsRaf = 0;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+// Horloge unique des paroles (ligne active ET mots). `audio.currentTime`
+// n'avance que par paliers (10 à 250 ms selon le navigateur) : entre deux
+// paliers on l'extrapole avec l'horloge haute résolution, pour un remplissage
+// fluide et exactement calé sur la musique. `LYRICS_LEAD` compense l'avance du
+// ressenti sur le son ; le décalage réglé pour le titre s'ajoute.
+const LYRICS_LEAD = 0.08;
+const lyricsClockState = { ct: -1, at: 0 };
+function lyricsClock() {
+  const ct = audio.currentTime;
+  const perf = performance.now();
+  if (ct !== lyricsClockState.ct) { lyricsClockState.ct = ct; lyricsClockState.at = perf; }
+  const elapsed = audio.paused ? 0 : Math.min(0.3, (perf - lyricsClockState.at) / 1000) * (audio.playbackRate || 1);
+  const cur = state.queue[state.index];
+  return ct + elapsed + LYRICS_LEAD + (cur ? lyricsOffset(cur) : 0);
+}
+
+function lyricsActiveIndex(lines, now) {
+  let active = -1;
+  for (let i = 0; i < lines.length; i++) { if (lines[i].time != null && lines[i].time <= now) active = i; else if (lines[i].time > now) break; }
+  return active;
+}
+
 function lyricsFrame() {
   lyricsRaf = 0;
   const ly = state.lyrics;
   if (panelTab() !== "lyrics" || !ly?.synced || audio.paused) return;
   const box = panelBox()?.querySelector("#lyr");
   if (!box) return;
-  const cur = state.queue[state.index];
-  const now = audio.currentTime + 0.1 + (cur ? lyricsOffset(cur) : 0);
+  lyricsRaf = requestAnimationFrame(lyricsFrame);
+  const now = lyricsClock();
+  // Le changement de ligne suit la même horloge que les mots (60 i/s, pas
+  // seulement aux ~4 `timeupdate` par seconde).
+  if (lyricsActiveIndex(ly.lines, now) !== state.lastLyric) syncLyrics();
   const i = state.lastLyric;
   const line = ly.lines[i];
   const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
@@ -2643,17 +2673,13 @@ function lyricsFrame() {
     const end = nextLyricTime(ly.lines, i) ?? line.time + 4;
     p.style.setProperty("--p", clamp01((now - line.time) / Math.max(0.1, end - line.time)).toFixed(3));
   }
-  lyricsRaf = requestAnimationFrame(lyricsFrame);
 }
 
 function syncLyrics(force) {
   if (panelTab() !== "lyrics" || !state.lyrics?.synced) return;
   if (!lyricsRaf && !audio.paused) lyricsRaf = requestAnimationFrame(lyricsFrame);
   const lines = state.lyrics.lines;
-  const cur = state.queue[state.index];
-  const now = audio.currentTime + 0.25 + (cur ? lyricsOffset(cur) : 0);
-  let active = -1;
-  for (let i = 0; i < lines.length; i++) { if (lines[i].time != null && lines[i].time <= now) active = i; else if (lines[i].time > now) break; }
+  const active = lyricsActiveIndex(lines, lyricsClock());
   if (active === state.lastLyric && !force) return;
   state.lastLyric = active;
   const box = panelBox()?.querySelector("#lyr");

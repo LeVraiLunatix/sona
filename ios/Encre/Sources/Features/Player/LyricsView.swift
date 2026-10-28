@@ -748,7 +748,11 @@ struct KaraokeLine: View {
             return words.enumerated().map { index, word in
                 let following = word.end
                     ?? (index + 1 < words.count ? words[index + 1].time : min(next ?? word.time + 1, word.time + 1.2))
-                return TimedWord(start: word.time, end: max(word.time + 0.05, following), text: word.text)
+                // Un mot suivi d'une longue pause ne se remplit pas pendant
+                // toute la pause : on plafonne à une durée de chant plausible.
+                let sung = 0.5 + 0.12 * Double(word.text.trimmingCharacters(in: .whitespaces).count)
+                let end = following - word.time > 1.5 ? min(following, word.time + sung) : following
+                return TimedWord(start: word.time, end: max(word.time + 0.05, end), text: word.text)
             }
         }
         let tokens = line.text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
