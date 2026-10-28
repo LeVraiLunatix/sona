@@ -2613,7 +2613,24 @@ function renderLyrics() {
   };
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
   box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map(line).join("")}${foot}</div>`;
+  state.lyrFree = false;
   if (ly.synced) {
+    // Défilement libre : dès que le doigt (ou la molette) touche les paroles,
+    // le flou part et la vue ne bouge plus toute seule, même quand la ligne
+    // change. Quand l'utilisateur lâche et que l'élan s'arrête, tout revient
+    // et la vue se recentre en douceur.
+    const lyr = $("#lyr", box);
+    let touching = false, timer = 0;
+    const hold = () => { state.lyrFree = true; lyr.classList.add("free"); clearTimeout(timer); };
+    const release = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { state.lyrFree = false; lyr.classList.remove("free"); syncLyrics(true, true); }, 1600);
+    };
+    lyr.addEventListener("touchstart", () => { touching = true; hold(); }, { passive: true });
+    lyr.addEventListener("touchend", () => { touching = false; release(); }, { passive: true });
+    lyr.addEventListener("touchcancel", () => { touching = false; release(); }, { passive: true });
+    lyr.addEventListener("wheel", () => { hold(); release(); }, { passive: true });
+    lyr.addEventListener("scroll", () => { if (state.lyrFree && !touching) release(); }, { passive: true });
     $$("[data-l]", box).forEach((p) => (p.onclick = () => {
       const time = ly.lines[+p.dataset.l].time;
       if (time != null) { audio.currentTime = Math.max(0, time - lyricsOffset(cur)); if (audio.paused) audio.play(); }
@@ -2643,14 +2660,28 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 // ressenti sur le son ; le décalage réglé pour le titre s'ajoute.
 const LYRICS_LEAD = 0.08;
 const reduceLyricsMotion = matchMedia("(prefers-reduced-motion: reduce)");
-const lyricsClockState ={ ct: -1, at: 0 };
+const lyricsClockState = { ct: -1, at: 0, est: 0, perf: 0, val: 0 };
 function lyricsClock() {
-  const ct = audio.currentTime;
+  const s = lyricsClockState;
   const perf = performance.now();
-  if (ct !== lyricsClockState.ct) { lyricsClockState.ct = ct; lyricsClockState.at = perf; }
-  const elapsed = audio.paused ? 0 : Math.min(0.3, (perf - lyricsClockState.at) / 1000) * (audio.playbackRate || 1);
+  if (perf - s.perf < 2) return s.val; // déjà calculée pour cette image
+  const ct = audio.currentTime;
+  if (ct !== s.ct) { s.ct = ct; s.at = perf; }
+  const rate = audio.playbackRate || 1;
+  // Pause, saut ou tampon vide : l'horloge suit `currentTime` sans extrapoler.
+  const frozen = audio.paused || audio.seeking || audio.readyState < 3;
+  const raw = ct + (frozen ? 0 : Math.min(0.3, (perf - s.at) / 1000) * rate);
+  const dt = Math.min(0.2, (perf - s.perf) / 1000);
+  s.perf = perf;
+  // Estimation lissée : elle avance à la vitesse de lecture et se recale
+  // doucement sur la mesure, au lieu de sauter à chaque palier de
+  // `currentTime` (ni avance, ni retard qui oscille). Un vrai saut (> 0,4 s)
+  // la recale d'un coup.
+  if (frozen || Math.abs(raw - s.est - dt * rate) > 0.4) s.est = raw;
+  else s.est += dt * rate + (raw - s.est - dt * rate) * 0.25;
   const cur = state.queue[state.index];
-  return ct + elapsed + LYRICS_LEAD + (cur ? lyricsOffset(cur) : 0);
+  s.val = s.est + LYRICS_LEAD + (cur ? lyricsOffset(cur) : 0);
+  return s.val;
 }
 
 function lyricsActiveIndex(lines, now) {
@@ -2702,7 +2733,9 @@ function lyricsFrame() {
   }
 }
 
-function syncLyrics(force) {
+// `smooth` : recentrage animé même quand `force` (reprise après un défilement
+// libre de l'utilisateur).
+function syncLyrics(force, smooth) {
   if (panelTab() !== "lyrics" || !state.lyrics?.synced) return;
   if (!lyricsRaf && !audio.paused) lyricsRaf = requestAnimationFrame(lyricsFrame);
   const lines = state.lyrics.lines;
@@ -2716,7 +2749,8 @@ function syncLyrics(force) {
     p.classList.toggle("near", Math.abs(i - active) === 1);
   });
   const el = box.querySelector("p.on") || box.querySelector("p");
-  if (el) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.36, behavior: force ? "auto" : "smooth" });
+  // Pas de recentrage tant que l'utilisateur fait défiler les paroles.
+  if (el && !state.lyrFree) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.36, behavior: force && !smooth ? "auto" : "smooth" });
 }
 
 // ── Karaoké (voix / instru séparées par IA sur le serveur) ───────────────
