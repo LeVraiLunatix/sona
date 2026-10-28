@@ -2405,7 +2405,7 @@ function renderQueue() {
 /** Mots horodatés d'une ligne : ceux de la source quand elle les donne
  * (paroles mot par mot), sinon une estimation — chaque mot reçoit une part de
  * la ligne selon sa longueur, sans s'étirer sur une longue pause. */
-function timedWordsRaw(line, next) {
+function timedWordsRaw(line, next, pace = 0.085) {
   const start = line.time ?? 0;
   if (line.words?.length) {
     return line.words.map((w, i) => {
@@ -2422,9 +2422,11 @@ function timedWordsRaw(line, next) {
   }
   const tokens = (line.text || "").split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
-  const natural = tokens.reduce((s, x) => s + x.length, 0) * 0.085 + 0.8;
+  const natural = tokens.reduce((s, x) => s + x.length, 0) * pace + 0.4;
   const duration = Math.max(0.6, Math.min(natural, (next ?? start + natural) - start - 0.15));
-  const weights = tokens.map((x) => x.length + 2);
+  // Un mot qui finit une proposition (virgule, point…) garde un temps de plus :
+  // la voix y respire avant de repartir.
+  const weights = tokens.map((x) => x.length + 2 + (/[,.;:!?…)]$/.test(x) ? 2 : 0));
   const total = weights.reduce((a, b) => a + b, 0);
   let cursor = start;
   return tokens.map((tok, i) => {
@@ -2439,8 +2441,8 @@ function timedWordsRaw(line, next) {
  * parenthèses (« (ouais) ») est un « back » (`back: true`, sans parenthèses),
  * affiché en petit sous la ligne et allumé quand il est chanté, et non collé
  * à la fin de la ligne. Une ligne faite seulement de backs reste telle quelle. */
-function timedWords(line, next) {
-  const words = timedWordsRaw(line, next);
+function timedWords(line, next, pace) {
+  const words = timedWordsRaw(line, next, pace);
   let depth = 0;
   words.forEach((w) => {
     const opens = (w.text.match(/\(/g) || []).length, closes = (w.text.match(/\)/g) || []).length;
@@ -2454,6 +2456,24 @@ function timedWords(line, next) {
     w.held = w.held && [...w.text.trim()].length >= 3;
   });
   return words;
+}
+
+/** Vitesse de chant du titre (secondes par lettre), tirée de ses propres
+ * lignes : celles qui s'enchaînent sans pause (rap, couplets serrés) disent à
+ * quelle vitesse la voix va vraiment. On prend la plus rapide du tiers le plus
+ * serré, plutôt qu'une vitesse unique pour tous les titres. */
+function lyricsPace(lines) {
+  const ratios = [];
+  lines.forEach((l, i) => {
+    const n = nextLyricTime(lines, i);
+    const chars = (l.text || "").length;
+    if (l.time == null || n == null || chars < 12) return;
+    const gap = n - l.time;
+    if (gap >= 1 && gap <= 9) ratios.push((gap - 0.25) / chars);
+  });
+  if (ratios.length < 4) return 0.085;
+  ratios.sort((a, b) => a - b);
+  return Math.max(0.05, Math.min(0.16, ratios[Math.floor(ratios.length * 0.3)]));
 }
 
 /** Mot tenu : une boîte par lettre (l'espace de fin reste hors des lettres). */
@@ -2503,7 +2523,8 @@ async function loadLyrics(t) {
 function applyLyrics(lyrics) {
   const lines = lyrics?.lines || [];
   const synced = !!lyrics?.synced;
-  if (synced) lines.forEach((l, i) => { if (l.text) l.timed = timedWords(l, nextLyricTime(lines, i)); });
+  const pace = synced ? lyricsPace(lines) : 0.085;
+  if (synced) lines.forEach((l, i) => { if (l.text) l.timed = timedWords(l, nextLyricTime(lines, i), pace); });
   state.lyrics = {
     lines, synced, instrumental: !!lyrics?.instrumental,
     sync: lyrics?.sync || (synced ? "line" : "none"), source: lyrics?.source || null,
@@ -2623,8 +2644,8 @@ function renderLyrics() {
     return;
   }
   const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
-      <button data-lyr-off="-0.5" aria-label="Retarder les paroles">−</button>
-      <span class="lyr-val" id="lyr-val">${offsetLabel(lyricsOffset(cur))}</span><button data-lyr-off="0.5" aria-label="Avancer les paroles">+</button></div>` : "";
+      <button data-lyr-off="-0.1" aria-label="Retarder les paroles">−</button>
+      <span class="lyr-val" id="lyr-val">${offsetLabel(lyricsOffset(cur))}</span><button data-lyr-off="0.1" aria-label="Avancer les paroles">+</button></div>` : "";
   // Ligne en cours remplie mot par mot (un <span> par mot) ; pause
   // instrumentale (ligne vide) : trois points qui s'allument.
   const line = (l, i) => {
@@ -2661,12 +2682,25 @@ function renderLyrics() {
       const time = ly.lines[+p.dataset.l].time;
       if (time != null) { audio.currentTime = Math.max(0, time - lyricsOffset(cur)); if (audio.paused) audio.play(); }
     }));
-    $$("[data-lyr-off]", box).forEach((b) => (b.onclick = () => {
-      setLyricsOffset(cur, lyricsOffset(cur) + Number(b.dataset.lyrOff));
-      const val = $("#lyr-val", box);
-      if (val) val.textContent = offsetLabel(lyricsOffset(cur));
-      syncLyrics(true);
-    }));
+    // Décalage fin : 0,1 s par appui, et en continu (de plus en plus vite) en
+    // restant appuyé.
+    $$("[data-lyr-off]", box).forEach((b) => {
+      const step = () => {
+        setLyricsOffset(cur, lyricsOffset(cur) + Number(b.dataset.lyrOff));
+        const val = $("#lyr-val", box);
+        if (val) val.textContent = offsetLabel(lyricsOffset(cur));
+        syncLyrics(true);
+      };
+      let timer = 0, repeat = 0;
+      const stop = () => { clearTimeout(timer); clearInterval(repeat); };
+      b.onpointerdown = (e) => {
+        e.preventDefault();
+        step(); stop();
+        timer = setTimeout(() => { repeat = setInterval(step, 90); }, 450);
+      };
+      b.onpointerup = b.onpointerleave = b.onpointercancel = stop;
+      b.onclick = (e) => { if (e.detail === 0) step(); }; // clavier
+    });
   }
   state.lastLyric = -1;
   syncLyrics(true);

@@ -100,13 +100,21 @@ def parse_words(lyric: str) -> tuple[str, list[LyricsWord] | None]:
     return clean, (words or None)
 
 
+_LRC_OFFSET_RE = re.compile(r"^\s*\[offset:\s*([+-]?\d+)\s*\]", re.IGNORECASE)
+
+
 def parse_lrc(text: str) -> list[LyricsLine]:
     """Une ligne LRC peut porter plusieurs horodatages (refrain répété) :
     une entrée par horodatage, le tout trié par temps. Les balises de
-    métadonnées (`[ar:...]`, `[offset:...]`) ne correspondent pas au motif
-    et sont ignorées."""
+    métadonnées (`[ar:...]`) ne correspondent pas au motif et sont ignorées.
+    `[offset:±ms]` est appliqué : positif, les paroles arrivent plus tôt."""
     lines: list[LyricsLine] = []
+    shift = 0.0
     for raw in text.splitlines():
+        tag = _LRC_OFFSET_RE.match(raw)
+        if tag:
+            shift = -int(tag.group(1)) / 1000
+            continue
         stamps = list(_LRC_LINE_RE.finditer(raw))
         if not stamps:
             continue
@@ -119,6 +127,11 @@ def parse_lrc(text: str) -> list[LyricsLine]:
                 delta = start - _stamp(stamps[0].group(1), stamps[0].group(2))
                 shifted = [LyricsWord(w.time + delta, w.text) for w in words]
             lines.append(LyricsLine(time=start, text=lyric, words=shifted))
+    if shift:
+        for line in lines:
+            line.time = max(0.0, (line.time or 0.0) + shift)
+            for word in line.words or []:
+                word.time = max(0.0, word.time + shift)
     lines.sort(key=lambda line: line.time or 0.0)
     return lines
 
