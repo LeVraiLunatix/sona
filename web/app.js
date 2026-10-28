@@ -2495,28 +2495,87 @@ const lyricsQuery = (t) => {
   return q;
 };
 
+// Paroles déjà vues : en mémoire (tout de suite) et dans le navigateur (d'une
+// séance à l'autre), pour qu'un titre déjà écouté affiche ses paroles sans
+// attendre le réseau. Les titres suivants de la file sont préchargés.
+const lyricsMem = new Map();
+const lyricsInflight = new Map();
+const LYR_CACHE_MAX = 12, LYR_CACHE_BYTES = 120000;
+function lyricsCacheGet(t) {
+  const k = trackKey(t);
+  if (lyricsMem.has(k)) return lyricsMem.get(k);
+  try {
+    const raw = store.get(`sona.lyr.${k}`);
+    const ly = raw ? JSON.parse(raw) : null;
+    if (ly?.lines?.length) { lyricsMem.set(k, ly); return ly; }
+  } catch {}
+  return null;
+}
+function lyricsCachePut(t, ly) {
+  if (!ly?.lines?.length) return;
+  const k = trackKey(t);
+  lyricsMem.delete(k);
+  lyricsMem.set(k, ly);
+  while (lyricsMem.size > 60) lyricsMem.delete(lyricsMem.keys().next().value);
+  try {
+    const raw = JSON.stringify(ly);
+    if (raw.length > LYR_CACHE_BYTES) return;
+    const index = JSON.parse(store.get("sona.lyr.index") || "[]").filter((x) => x !== k);
+    index.push(k);
+    while (index.length > LYR_CACHE_MAX) store.set(`sona.lyr.${index.shift()}`, null);
+    store.set(`sona.lyr.${k}`, raw);
+    store.set("sona.lyr.index", JSON.stringify(index));
+  } catch {}
+}
+/** Une seule requête par titre, partagée entre l'affichage et le préchargement. */
+function lyricsRequest(t) {
+  const k = trackKey(t);
+  if (!lyricsInflight.has(k)) {
+    lyricsInflight.set(k, api(`/lyrics?${lyricsQuery(t)}`)
+      .then((ly) => { lyricsCachePut(t, ly); return ly; })
+      .finally(() => lyricsInflight.delete(k)));
+  }
+  return lyricsInflight.get(k);
+}
+function prefetchLyrics() {
+  for (const t of state.queue.slice(state.index + 1, state.index + 3)) {
+    if (t && !lyricsCacheGet(t) && !lyricsInflight.has(trackKey(t))) lyricsRequest(t).catch(() => {});
+  }
+}
+
 /** Paroles du titre en cours. Rien à relancer à la main : le serveur
  * recherche de nouveau les paroles absentes et en cherche de meilleures en
  * arrière-plan ; ici, une erreur (réseau, source injoignable) est
- * réessayée, et des paroles moins précises que « mot par mot » sont
- * redemandées une fois, 20 s plus tard. */
+ * réessayée sans rien demander. Un titre déjà vu s'affiche aussitôt. */
 async function loadLyrics(t) {
-  let lyrics = null;
-  // « Pas de paroles » (404) : le serveur réessaiera de lui-même ; un
-  // service injoignable ou lent (502, réseau) mérite de nouvelles tentatives.
-  for (const wait of [0, 2000, 5000, 15000]) {
-    if (wait) await new Promise((r) => setTimeout(r, wait));
+  let lyrics = lyricsCacheGet(t);
+  if (lyrics) {
+    applyLyrics(lyrics);
+  } else {
+    // « Pas de paroles » (404) : le serveur réessaiera de lui-même ; un
+    // service injoignable ou lent (502, réseau) mérite de nouvelles tentatives.
+    for (const wait of [0, 1500, 4000, 12000]) {
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      if (!sameTrack(t, state.queue[state.index])) return;
+      try { lyrics = await lyricsRequest(t); break; } catch (e) { if (e.status === 404) break; }
+    }
     if (!sameTrack(t, state.queue[state.index])) return;
-    try { lyrics = await api(`/lyrics?${lyricsQuery(t)}`); break; } catch (e) { if (e.status === 404) break; }
+    applyLyrics(lyrics);
   }
-  if (!sameTrack(t, state.queue[state.index])) return;
-  applyLyrics(lyrics);
+  prefetchLyrics();
   if (lyrics && !lyrics.instrumental && lyrics.sync !== "word") {
-    setTimeout(async () => {
+    // Le serveur finit sa recherche en arrière-plan (mot par mot, par
+    // exemple) : on revérifie tôt, puis plus tard.
+    for (const delay of [3000, 10000, 30000]) {
+      await new Promise((r) => setTimeout(r, delay));
       if (!sameTrack(t, state.queue[state.index])) return;
       const better = await api(`/lyrics?${lyricsQuery(t)}`).catch(() => null);
-      if (better && sameTrack(t, state.queue[state.index]) && (LYRICS_RANK[better.sync] || 0) > (LYRICS_RANK[state.lyrics?.sync] || 0)) applyLyrics(better);
-    }, 20000);
+      if (better && (LYRICS_RANK[better.sync] || 0) > (LYRICS_RANK[state.lyrics?.sync] || 0)) {
+        lyricsCachePut(t, better);
+        if (sameTrack(t, state.queue[state.index])) applyLyrics(better);
+        return;
+      }
+    }
   }
 }
 

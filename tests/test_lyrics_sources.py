@@ -367,6 +367,33 @@ def test_stale_lyrics_stay_while_better_ones_are_searched(repo):
     assert first.sync == "line" and (then.sync, then.source) == ("word", "netease")
 
 
+def test_slow_source_does_not_delay_the_answer_and_upgrades_the_cache(repo, monkeypatch):
+    import app.services.lyrics as lyrics_module
+
+    monkeypatch.setattr(lyrics_module, "FAST_GRACE", 0.05)
+
+    class SlowNetease(FakeNetease):
+        async def search(self, title, artist):
+            await asyncio.sleep(0.4)
+            return await super().search(title, artist)
+
+    netease = SlowNetease([NeteaseSong(1, "Titre", "Artiste", None, 200)], {1: WORD})
+    service = LyricsService(repo, FakeLrclib(LINE), netease)
+
+    async def scenario():
+        started = asyncio.get_running_loop().time()
+        first = await service.get("Titre", "Artiste", None, 200)
+        elapsed = asyncio.get_running_loop().time() - started
+        await asyncio.gather(*service._background)
+        return first, elapsed, await service.get("Titre", "Artiste", None, 200)
+
+    first, elapsed, then = run(scenario())
+    # Réponse immédiate avec LRCLIB (ligne), sans attendre NetEase ; le cache
+    # a ensuite reçu le mot par mot.
+    assert first.sync == "line" and elapsed < 0.3
+    assert (then.sync, then.source) == ("word", "netease")
+
+
 def test_upgrade_never_replaces_lyrics_with_worse(repo):
     lrclib = FakeLrclib(LINE)
     service = LyricsService(repo, lrclib)
