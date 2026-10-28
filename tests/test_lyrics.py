@@ -39,6 +39,14 @@ def test_parse_lrc_sorts_and_expands_repeated_timestamps():
     ]
 
 
+def test_parse_lrc_applies_offset_tag():
+    # Positif : les paroles arrivent plus tôt ; négatif : plus tard.
+    assert [l.time for l in parse_lrc("[offset:+500]\n[00:10.00]A\n[00:12.00]B")] == [9.5, 11.5]
+    assert [l.time for l in parse_lrc("[offset:-250]\n[00:10.00]A")] == [10.25]
+    words = parse_lrc("[offset:1000]\n[00:10.00]<00:10.00>Je <00:10.50>suis")[0].words
+    assert [w.time for w in words] == [9.0, 9.5]
+
+
 def test_clean_title_and_main_artist():
     assert clean_title("Yesterday - Remastered 2009") == "Yesterday"
     assert clean_title("Djadja (feat. Maluma)") == "Djadja"
