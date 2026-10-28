@@ -466,6 +466,11 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
   color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255,255,255,.38) calc(var(--p, 0) * 116% + 8%));
 }
+/* Chœurs (« (ouais) ») : en petit sous la ligne, allumés quand ils sont chantés. */
+.lyrics p .bk { display: block; margin-top: .25em; font-size: .55em; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
+.lyrics p.on .bk .w {
+  background-image: linear-gradient(90deg, rgba(255,255,255,.85) calc(var(--p, 0) * 116% - 8%), rgba(255,255,255,.3) calc(var(--p, 0) * 116% + 8%));
+}
 /* Pause instrumentale : trois points qui respirent et s'allument au fil de la pause. */
 /* Note tenue : le remplissage passe aux lettres. La marge suit le grossissement (--e) :
    le mot pousse ses voisins au lieu de passer dessus, sans bouger au repos. */

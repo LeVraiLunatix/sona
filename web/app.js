@@ -2405,7 +2405,7 @@ function renderQueue() {
 /** Mots horodatés d'une ligne : ceux de la source quand elle les donne
  * (paroles mot par mot), sinon une estimation — chaque mot reçoit une part de
  * la ligne selon sa longueur, sans s'étirer sur une longue pause. */
-function timedWords(line, next) {
+function timedWordsRaw(line, next) {
   const start = line.time ?? 0;
   if (line.words?.length) {
     return line.words.map((w, i) => {
@@ -2433,6 +2433,27 @@ function timedWords(line, next) {
     cursor += len;
     return w;
   });
+}
+
+/** Mots horodatés d'une ligne, chœurs repérés : tout ce qui est entre
+ * parenthèses (« (ouais) ») est un « back » (`back: true`, sans parenthèses),
+ * affiché en petit sous la ligne et allumé quand il est chanté, et non collé
+ * à la fin de la ligne. Une ligne faite seulement de backs reste telle quelle. */
+function timedWords(line, next) {
+  const words = timedWordsRaw(line, next);
+  let depth = 0;
+  words.forEach((w) => {
+    const opens = (w.text.match(/\(/g) || []).length, closes = (w.text.match(/\)/g) || []).length;
+    w.back = depth > 0 || opens > 0;
+    depth = Math.max(0, depth + opens - closes);
+  });
+  if (!words.some((w) => w.back) || words.every((w) => w.back)) { words.forEach((w) => { w.back = false; }); return words; }
+  words.forEach((w) => {
+    if (!w.back) return;
+    w.text = w.text.replace(/[()]/g, "").replace(/[,;.]+(?=\s*$)/, "");
+    w.held = w.held && [...w.text.trim()].length >= 3;
+  });
+  return words;
 }
 
 /** Mot tenu : une boîte par lettre (l'espace de fin reste hors des lettres). */
@@ -2608,7 +2629,12 @@ function renderLyrics() {
   // instrumentale (ligne vide) : trois points qui s'allument.
   const line = (l, i) => {
     if (ly.synced && !l.text) return `<p data-l="${i}" class="gap" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i></p>`;
-    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w${w.held ? " held" : ""}"${w.held ? ` style="--m:${(0.022 * [...w.text.trim()].length).toFixed(2)}"` : ""}>${w.held ? heldLetters(w.text) : esc(w.text)}</span>${w.held ? esc(w.text.slice(w.text.trimEnd().length)) : ""}`).join("")}</p>`;
+    if (ly.synced && l.timed?.length) {
+      const word = (w, k) => `<span class="w${w.held ? " held" : ""}" data-k="${k}"${w.held ? ` style="--m:${(0.022 * [...w.text.trim()].length).toFixed(2)}"` : ""}>${w.held ? heldLetters(w.text) : esc(w.text)}</span>${w.held ? esc(w.text.slice(w.text.trimEnd().length)) : ""}`;
+      const main = l.timed.map((w, k) => (w.back ? "" : word(w, k))).join("");
+      const backs = l.timed.map((w, k) => (w.back ? word(w, k) : "")).join("");
+      return `<p data-l="${i}">${main}${backs ? `<span class="bk">${backs}</span>` : ""}</p>`;
+    }
     return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
   };
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
@@ -2705,7 +2731,9 @@ function lyricsFrame() {
   const line = ly.lines[i];
   const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
   if (p && line.timed?.length) {
-    const spans = p.children;
+    // Les mots dans l'ordre du chant (les backs sont rangés à part dans le DOM).
+    if (!p._w) { p._w = []; p.querySelectorAll("[data-k]").forEach((el) => { p._w[+el.dataset.k] = el; }); }
+    const spans = p._w;
     line.timed.forEach((w, k) => {
       const s = spans[k];
       if (!s) return;
