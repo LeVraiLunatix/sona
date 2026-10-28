@@ -799,24 +799,22 @@ private struct KaraokeWord: View {
                 // Un seul balayage continu sur tout le mot : la lettre se
                 // remplit pendant que le front passe, la vague suit ce front.
                 let count = Double(letters.count)
-                let front = progress * (count + 2) - 1
                 HStack(spacing: 0) {
                     ForEach(Array(letters.enumerated()), id: \.offset) { index, letter in
                         let p = min(1, max(0, progress * count - Double(index)))
-                        let d = (front - Double(index) - 0.5) / 2
-                        let wave = abs(d) < 1 ? pow(cos(d * Double.pi / 2), 2) : 0
                         Text(String(letter))
                             .foregroundStyle(Color.white.opacity(0.4 + 0.6 * p))
-                            .offset(y: still ? 0 : -3 * wave)
                     }
                 }
+                // Place réservée au mot grossi, pour qu'il ne passe pas sur
+                // ses voisins.
+                .padding(.horizontal, 0.62 * count)
             } else {
                 Text(body)
                     .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
             }
         }
-            .scaleEffect(still ? 1 : 1 + 0.1 * held, anchor: .bottom)
-            .offset(y: still ? 0 : -2 * lift)
+            .scaleEffect(still ? 1 : 1 + 0.08 * held, anchor: .center)
             .shadow(color: .white.opacity(still ? 0 : 0.8 * held), radius: 10 * held)
             .layoutValue(key: WordGapKey.self, value: hasGap)
     }

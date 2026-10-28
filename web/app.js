@@ -2611,7 +2611,7 @@ function renderLyrics() {
   // instrumentale (ligne vide) : trois points qui s'allument.
   const line = (l, i) => {
     if (ly.synced && !l.text) return `<p data-l="${i}" class="gap" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i></p>`;
-    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w${w.held ? " held" : ""}">${w.held ? heldLetters(w.text) : esc(w.text)}</span>`).join("")}</p>`;
+    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w${w.held ? " held" : ""}"${w.held ? ` style="margin-inline:${(0.022 * [...w.text.trim()].length).toFixed(2)}em"` : ""}>${w.held ? heldLetters(w.text) : esc(w.text)}</span>`).join("")}</p>`;
     return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
   };
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
@@ -2686,24 +2686,17 @@ function lyricsFrame() {
         // Les lettres s'allument l'une après l'autre sur toute la note et
         // se soulèvent à tour de rôle, comme une vague portée par la voix.
         // Un seul balayage continu sur tout le mot : la lettre j se remplit
-        // pendant que le front passe, et la vague (--c) suit ce front.
+        // pendant que le front passe.
         const n = s.children.length, P = clamp01((now - w.start) / (w.end - w.start));
-        const front = P * (n + 2) - 1;
-        for (let j = 0; j < n; j++) {
-          const d = (front - j - 0.5) / 2;
-          const c = s.children[j];
-          c.style.setProperty("--p", clamp01(P * n - j).toFixed(3));
-          if (!reduceLyricsMotion.matches) c.style.setProperty("--c", (Math.abs(d) < 1 ? Math.cos(d * Math.PI / 2) ** 2 : 0).toFixed(3));
-        }
+        for (let j = 0; j < n; j++) s.children[j].style.setProperty("--p", clamp01(P * n - j).toFixed(3));
       }
       if (reduceLyricsMotion.matches) return;
-      // Le mot chanté monte un peu (--g) ; s'il est tenu longtemps il grossit
-      // et s'illumine (--e), puis retombe en douceur une fois fini.
+      // Un mot tenu longtemps grossit et s'illumine (--e), puis retombe en
+      // douceur une fois fini. Rien ne rebondit.
       const dur = w.end - w.start;
       const rise = clamp01((now - w.start) / Math.min(0.35, dur * 0.6));
       const fall = now > w.end ? clamp01(1 - (now - w.end) / 0.4) : 1;
       const g = rise * rise * (3 - 2 * rise) * fall;
-      s.style.setProperty("--g", g.toFixed(3));
       s.style.setProperty("--e", (g * clamp01((dur - 0.5) / 0.6)).toFixed(3));
     });
   } else if (p?.classList.contains("gap")) {
