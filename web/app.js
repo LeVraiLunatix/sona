@@ -2410,7 +2410,14 @@ function timedWords(line, next) {
   if (line.words?.length) {
     return line.words.map((w, i) => {
       const following = w.end ?? (i + 1 < line.words.length ? line.words[i + 1].time : Math.min(next ?? w.time + 1, w.time + 1.2));
-      return { start: w.time, end: Math.max(w.time + 0.05, following), text: w.text };
+      // Fin devinée (pas donnée par la source) et longue pause derrière : on
+      // plafonne à une durée de chant plausible. Une fin donnée est respectée,
+      // sinon une note tenue serait raccourcie.
+      const sung = 0.5 + 0.12 * w.text.trim().length;
+      const end = w.end == null && following - w.time > 1.5 ? Math.min(following, w.time + sung) : following;
+      const dur = Math.max(w.time + 0.05, end) - w.time;
+      // Note tenue (« frontièèères ») : animée lettre par lettre.
+      return { start: w.time, end: w.time + dur, text: w.text, held: dur >= 0.9 && [...w.text.trim()].length >= 3 };
     });
   }
   const tokens = (line.text || "").split(/\s+/).filter(Boolean);
@@ -2428,7 +2435,10 @@ function timedWords(line, next) {
   });
 }
 
-const nextLyricTime = (lines, i) => lines.slice(i + 1).find((l) => l.time != null)?.time ?? null;
+/** Mot tenu : une boîte par lettre (l'espace de fin reste hors des lettres). */
+const heldLetters = (text) => [...text.trimEnd()].map((c) => `<span class="ch">${esc(c)}</span>`).join("");
+
+const nextLyricTime =(lines, i) => lines.slice(i + 1).find((l) => l.time != null)?.time ?? null;
 const LYRICS_SOURCES = { lrclib: "LRCLIB", netease: "NetEase", musixmatch: "Musixmatch" };
 function lyricsSourceLabel(ly) {
   if (!ly?.source) return "";
@@ -2598,7 +2608,7 @@ function renderLyrics() {
   // instrumentale (ligne vide) : trois points qui s'allument.
   const line = (l, i) => {
     if (ly.synced && !l.text) return `<p data-l="${i}" class="gap" aria-hidden="true"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i></p>`;
-    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w">${esc(w.text)}</span>`).join("")}</p>`;
+    if (ly.synced && l.timed?.length) return `<p data-l="${i}">${l.timed.map((w) => `<span class="w${w.held ? " held" : ""}"${w.held ? ` style="--m:${(0.022 * [...w.text.trim()].length).toFixed(2)}"` : ""}>${w.held ? heldLetters(w.text) : esc(w.text)}</span>${w.held ? esc(w.text.slice(w.text.trimEnd().length)) : ""}`).join("")}</p>`;
     return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
   };
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
@@ -2625,35 +2635,78 @@ function renderLyrics() {
 // le relance à la reprise.
 let lyricsRaf = 0;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+// Horloge unique des paroles (ligne active ET mots). `audio.currentTime`
+// n'avance que par paliers (10 à 250 ms selon le navigateur) : entre deux
+// paliers on l'extrapole avec l'horloge haute résolution, pour un remplissage
+// fluide et exactement calé sur la musique. `LYRICS_LEAD` compense l'avance du
+// ressenti sur le son ; le décalage réglé pour le titre s'ajoute.
+const LYRICS_LEAD = 0.08;
+const reduceLyricsMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const lyricsClockState ={ ct: -1, at: 0 };
+function lyricsClock() {
+  const ct = audio.currentTime;
+  const perf = performance.now();
+  if (ct !== lyricsClockState.ct) { lyricsClockState.ct = ct; lyricsClockState.at = perf; }
+  const elapsed = audio.paused ? 0 : Math.min(0.3, (perf - lyricsClockState.at) / 1000) * (audio.playbackRate || 1);
+  const cur = state.queue[state.index];
+  return ct + elapsed + LYRICS_LEAD + (cur ? lyricsOffset(cur) : 0);
+}
+
+function lyricsActiveIndex(lines, now) {
+  let active = -1;
+  for (let i = 0; i < lines.length; i++) { if (lines[i].time != null && lines[i].time <= now) active = i; else if (lines[i].time > now) break; }
+  return active;
+}
+
 function lyricsFrame() {
   lyricsRaf = 0;
   const ly = state.lyrics;
   if (panelTab() !== "lyrics" || !ly?.synced || audio.paused) return;
   const box = panelBox()?.querySelector("#lyr");
   if (!box) return;
-  const cur = state.queue[state.index];
-  const now = audio.currentTime + 0.1 + (cur ? lyricsOffset(cur) : 0);
+  lyricsRaf = requestAnimationFrame(lyricsFrame);
+  const now = lyricsClock();
+  // Le changement de ligne suit la même horloge que les mots (60 i/s, pas
+  // seulement aux ~4 `timeupdate` par seconde).
+  if (lyricsActiveIndex(ly.lines, now) !== state.lastLyric) syncLyrics();
   const i = state.lastLyric;
   const line = ly.lines[i];
   const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
   if (p && line.timed?.length) {
     const spans = p.children;
-    line.timed.forEach((w, k) => spans[k]?.style.setProperty("--p", clamp01((now - w.start) / (w.end - w.start)).toFixed(3)));
+    line.timed.forEach((w, k) => {
+      const s = spans[k];
+      if (!s) return;
+      s.style.setProperty("--p", clamp01((now - w.start) / (w.end - w.start)).toFixed(3));
+      if (w.held) {
+        // Les lettres s'allument l'une après l'autre sur toute la note et
+        // se soulèvent à tour de rôle, comme une vague portée par la voix.
+        // Un seul balayage continu sur tout le mot : la lettre j se remplit
+        // pendant que le front passe.
+        const n = s.children.length, P = clamp01((now - w.start) / (w.end - w.start));
+        for (let j = 0; j < n; j++) s.children[j].style.setProperty("--p", clamp01(P * n - j).toFixed(3));
+      }
+      if (reduceLyricsMotion.matches) return;
+      // Un mot tenu longtemps grossit et s'illumine (--e), puis retombe en
+      // douceur une fois fini. Rien ne rebondit.
+      const dur = w.end - w.start;
+      const rise = clamp01((now - w.start) / Math.min(0.35, dur * 0.6));
+      const fall = now > w.end ? clamp01(1 - (now - w.end) / 0.4) : 1;
+      const g = rise * rise * (3 - 2 * rise) * fall;
+      s.style.setProperty("--e", (g * clamp01((dur - 0.5) / 0.6)).toFixed(3));
+    });
   } else if (p?.classList.contains("gap")) {
     const end = nextLyricTime(ly.lines, i) ?? line.time + 4;
     p.style.setProperty("--p", clamp01((now - line.time) / Math.max(0.1, end - line.time)).toFixed(3));
   }
-  lyricsRaf = requestAnimationFrame(lyricsFrame);
 }
 
 function syncLyrics(force) {
   if (panelTab() !== "lyrics" || !state.lyrics?.synced) return;
   if (!lyricsRaf && !audio.paused) lyricsRaf = requestAnimationFrame(lyricsFrame);
   const lines = state.lyrics.lines;
-  const cur = state.queue[state.index];
-  const now = audio.currentTime + 0.25 + (cur ? lyricsOffset(cur) : 0);
-  let active = -1;
-  for (let i = 0; i < lines.length; i++) { if (lines[i].time != null && lines[i].time <= now) active = i; else if (lines[i].time > now) break; }
+  const active = lyricsActiveIndex(lines, lyricsClock());
   if (active === state.lastLyric && !force) return;
   state.lastLyric = active;
   const box = panelBox()?.querySelector("#lyr");
