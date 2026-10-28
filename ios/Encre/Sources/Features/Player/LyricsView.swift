@@ -745,10 +745,12 @@ struct KaraokeLine: View {
             return words.enumerated().map { index, word in
                 let following = word.end
                     ?? (index + 1 < words.count ? words[index + 1].time : min(next ?? word.time + 1, word.time + 1.2))
-                // Un mot suivi d'une longue pause ne se remplit pas pendant
-                // toute la pause : on plafonne à une durée de chant plausible.
+                // Fin devinée (pas donnée par la source) et longue pause
+                // derrière : on plafonne à une durée de chant plausible. Une
+                // fin donnée est respectée, sinon une note tenue serait
+                // raccourcie.
                 let sung = 0.5 + 0.12 * Double(word.text.trimmingCharacters(in: .whitespaces).count)
-                let end = following - word.time > 1.5 ? min(following, word.time + sung) : following
+                let end = word.end == nil && following - word.time > 1.5 ? min(following, word.time + sung) : following
                 return TimedWord(start: word.time, end: max(word.time + 0.05, end), text: word.text)
             }
         }
@@ -786,10 +788,29 @@ private struct KaraokeWord: View {
         let fall = now > word.end ? min(1, max(0, 1 - (now - word.end) / 0.4)) : 1
         let lift = rise * rise * (3 - 2 * rise) * fall
         // Seuls les mots tenus (≥ 0,6 s, plein effet à 1,6 s) grossissent.
-        let held = lift * min(1, max(0, (duration - 0.6) / 1.0))
+        let held = lift * min(1, max(0, (duration - 0.5) / 0.6))
         let hasGap = word.text.last?.isWhitespace == true
-        Text(word.text.trimmingCharacters(in: .whitespaces))
-            .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
+        let body = word.text.trimmingCharacters(in: .whitespaces)
+        Group {
+            if duration >= 0.9, body.count >= 3 {
+                // Note tenue (« frontièèères ») : les lettres s'allument l'une
+                // après l'autre sur toute la note et se soulèvent en vague.
+                let letters = Array(body)
+                let window = duration * 0.35
+                HStack(spacing: 0) {
+                    ForEach(Array(letters.enumerated()), id: \.offset) { index, letter in
+                        let start = word.start + (duration - window) * (letters.count > 1 ? Double(index) / Double(letters.count - 1) : 0)
+                        let p = min(1, max(0, (now - start) / window))
+                        Text(String(letter))
+                            .foregroundStyle(Color.white.opacity(0.4 + 0.6 * p))
+                            .offset(y: still ? 0 : -3 * sin(Double.pi * p))
+                    }
+                }
+            } else {
+                Text(body)
+                    .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
+            }
+        }
             .scaleEffect(still ? 1 : 1 + 0.1 * held, anchor: .bottom)
             .offset(y: still ? 0 : -2 * lift)
             .shadow(color: .white.opacity(still ? 0 : 0.8 * held), radius: 10 * held)

@@ -469,6 +469,14 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
   background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255,255,255,.38) calc(var(--p, 0) * 116% + 8%));
 }
 /* Pause instrumentale : trois points qui respirent et s'allument au fil de la pause. */
+/* Note tenue : le remplissage passe aux lettres, qui se soulèvent en vague. */
+.lyrics p.on .w.held { background-image: none; }
+.lyrics p .w.held .ch { display: inline-block; }
+.lyrics p.on .w.held .ch {
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255,255,255,.38) calc(var(--p, 0) * 116% + 8%));
+  transform: translateY(calc(var(--c, 0) * -.08em));
+}
 .lyrics p.gap { display: flex; gap: .3em; align-items: center; height: 1em; filter: none; cursor: default; }
 .lyrics p.gap i { width: .3em; height: .3em; border-radius: 50%; background: currentColor; }
 .lyrics p.gap:not(.on) { font-size: 18px; opacity: .45; }
