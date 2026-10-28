@@ -796,14 +796,18 @@ private struct KaraokeWord: View {
                 // Note tenue (« frontièèères ») : les lettres s'allument l'une
                 // après l'autre sur toute la note et se soulèvent en vague.
                 let letters = Array(body)
-                let window = duration * 0.35
+                // Un seul balayage continu sur tout le mot : la lettre se
+                // remplit pendant que le front passe, la vague suit ce front.
+                let count = Double(letters.count)
+                let front = progress * (count + 2) - 1
                 HStack(spacing: 0) {
                     ForEach(Array(letters.enumerated()), id: \.offset) { index, letter in
-                        let start = word.start + (duration - window) * (letters.count > 1 ? Double(index) / Double(letters.count - 1) : 0)
-                        let p = min(1, max(0, (now - start) / window))
+                        let p = min(1, max(0, progress * count - Double(index)))
+                        let d = (front - Double(index) - 0.5) / 2
+                        let wave = abs(d) < 1 ? pow(cos(d * Double.pi / 2), 2) : 0
                         Text(String(letter))
                             .foregroundStyle(Color.white.opacity(0.4 + 0.6 * p))
-                            .offset(y: still ? 0 : -3 * sin(Double.pi * p))
+                            .offset(y: still ? 0 : -3 * wave)
                     }
                 }
             } else {

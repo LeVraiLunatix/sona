@@ -2685,13 +2685,15 @@ function lyricsFrame() {
       if (w.held) {
         // Les lettres s'allument l'une après l'autre sur toute la note et
         // se soulèvent à tour de rôle, comme une vague portée par la voix.
-        const n = s.children.length, win = (w.end - w.start) * 0.35;
+        // Un seul balayage continu sur tout le mot : la lettre j se remplit
+        // pendant que le front passe, et la vague (--c) suit ce front.
+        const n = s.children.length, P = clamp01((now - w.start) / (w.end - w.start));
+        const front = P * (n + 2) - 1;
         for (let j = 0; j < n; j++) {
-          const ls = w.start + (w.end - w.start - win) * (n > 1 ? j / (n - 1) : 0);
-          const lp = clamp01((now - ls) / win);
+          const d = (front - j - 0.5) / 2;
           const c = s.children[j];
-          c.style.setProperty("--p", lp.toFixed(3));
-          if (!reduceLyricsMotion.matches) c.style.setProperty("--c", Math.sin(Math.PI * lp).toFixed(3));
+          c.style.setProperty("--p", clamp01(P * n - j).toFixed(3));
+          if (!reduceLyricsMotion.matches) c.style.setProperty("--c", (Math.abs(d) < 1 ? Math.cos(d * Math.PI / 2) ** 2 : 0).toFixed(3));
         }
       }
       if (reduceLyricsMotion.matches) return;
