@@ -96,6 +96,34 @@ def test_plain_lyrics_of_another_version_rather_than_nothing():
     assert lyrics == Lyrics(synced=False, lines=[LyricsLine(None, "A"), LyricsLine(None, "B")])
 
 
+def test_synced_lyrics_of_a_close_version_beat_plain_text():
+    # Aucune version de même durée en synchro : celle d'une version proche (9 s
+    # d'écart) est gardée, marquée approximative, plutôt que le texte brut.
+    def handler(request):
+        if request.url.path == "/api/get":
+            return httpx.Response(404)
+        return httpx.Response(200, json=[
+            {"artistName": "Artiste", "duration": 189, "syncedLyrics": "[00:01.00]A\n[00:03.00]B", "plainLyrics": "A\nB"},
+            {"artistName": "Artiste", "duration": 400, "syncedLyrics": "[00:01.00]Trop loin"},
+        ])
+
+    lyrics = asyncio.run(fake_lrclib(handler).get_lyrics("Titre", "Artiste", None, 180))
+    assert lyrics.synced and lyrics.approximate
+    assert [(line.time, line.text) for line in lyrics.lines] == [(1.0, "A"), (3.0, "B")]
+
+
+def test_plain_text_of_the_exact_version_gives_way_to_synced_close_version():
+    def handler(request):
+        if request.url.path == "/api/get":
+            return httpx.Response(200, json={"plainLyrics": "Brut seulement"})
+        return httpx.Response(200, json=[
+            {"artistName": "Artiste", "duration": 185, "syncedLyrics": "[00:02.00]Synchro"},
+        ])
+
+    lyrics = asyncio.run(fake_lrclib(handler).get_lyrics("Titre", "Artiste", None, 180))
+    assert lyrics.synced and lyrics.approximate and lyrics.lines[0].text == "Synchro"
+
+
 def test_instrumental_and_not_found():
     instrumental = fake_lrclib(lambda r: httpx.Response(200, json={"instrumental": True}))
     assert asyncio.run(instrumental.get_lyrics("T", "A", None, 100)) == Lyrics(synced=False, instrumental=True)
@@ -137,6 +165,7 @@ def test_lyrics_endpoint(client):
     assert got.status_code == 200
     assert got.json() == {
         "synced": True, "instrumental": False, "sync": "line", "source": "lrclib", "language": None,
+        "approximate": False,
         "lines": [{"time": 1.5, "text": "Salut", "words": None, "end": None}],
     }
 

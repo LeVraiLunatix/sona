@@ -2484,10 +2484,13 @@ const LYRICS_SOURCES = { lrclib: "LRCLIB", netease: "NetEase", musixmatch: "Musi
 function lyricsSourceLabel(ly) {
   if (!ly?.source) return "";
   const name = LYRICS_SOURCES[ly.source] || ly.source;
-  return `Paroles : ${name}${ly.sync === "word" ? " · mot par mot" : ly.sync === "line" ? " · ligne par ligne" : ""}`;
+  return `Paroles : ${name}${ly.sync === "word" ? " · mot par mot" : ly.sync === "line" ? " · ligne par ligne" : ""}${ly.approximate ? " · synchro approximative, règle-la avec + / −" : ""}`;
 }
 
 const LYRICS_RANK = { word: 2, line: 1 };
+/** Précision des paroles : mot par mot > ligne par ligne > synchro
+ * approximative (autre version du titre) > texte brut. */
+const lyricsRank = (ly) => (ly ? (ly.approximate ? 0.5 : LYRICS_RANK[ly.sync] || 0) : 0);
 const lyricsQuery = (t) => {
   const q = new URLSearchParams({ title: t.title, artist: t.artist });
   if (t.album) q.set("album", t.album);
@@ -2563,14 +2566,14 @@ async function loadLyrics(t) {
     applyLyrics(lyrics);
   }
   prefetchLyrics();
-  if (lyrics && !lyrics.instrumental && lyrics.sync !== "word") {
+  if (lyrics && !lyrics.instrumental && (lyrics.sync !== "word" || lyrics.approximate)) {
     // Le serveur finit sa recherche en arrière-plan (mot par mot, par
     // exemple) : on revérifie tôt, puis plus tard.
     for (const delay of [3000, 10000, 30000]) {
       await new Promise((r) => setTimeout(r, delay));
       if (!sameTrack(t, state.queue[state.index])) return;
       const better = await api(`/lyrics?${lyricsQuery(t)}`).catch(() => null);
-      if (better && (LYRICS_RANK[better.sync] || 0) > (LYRICS_RANK[state.lyrics?.sync] || 0)) {
+      if (better && lyricsRank(better) > lyricsRank(state.lyrics)) {
         lyricsCachePut(t, better);
         if (sameTrack(t, state.queue[state.index])) applyLyrics(better);
         return;
@@ -2587,6 +2590,7 @@ function applyLyrics(lyrics) {
   state.lyrics = {
     lines, synced, instrumental: !!lyrics?.instrumental,
     sync: lyrics?.sync || (synced ? "line" : "none"), source: lyrics?.source || null,
+    approximate: !!lyrics?.approximate,
   };
   state.lastLyric = -1;
   if (panelTab() === "lyrics") renderLyrics();

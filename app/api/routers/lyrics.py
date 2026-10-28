@@ -46,6 +46,7 @@ async def get_lyrics(
         synced=lyrics.synced,
         instrumental=lyrics.instrumental,
         sync=result.sync,
+        approximate=lyrics.approximate,
         source=result.source,
         language=result.language,
         lines=[

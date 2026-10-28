@@ -42,6 +42,9 @@ SYNC_DURATION_TOLERANCE = 2.0
 MAX_DURATION_GAP = 30.0
 # Temps laissé à chaque source avant de passer sans elle.
 SOURCE_TIMEOUT = 8.0
+# Jusqu'à cet écart de durée, les paroles synchronisées d'une autre version
+# restent synchronisées, marquées « approximatives » (mieux que le texte brut).
+APPROX_DURATION_TOLERANCE = 12.0
 # Dès qu'une source a répondu avec des paroles synchronisées, les autres ont ce
 # délai pour faire mieux (mot par mot) ; passé ce délai on répond tout de suite
 # et elles finissent en arrière-plan, le cache s'améliore à leur arrivée.
@@ -182,9 +185,19 @@ def sync_level(lyrics: Lyrics) -> str:
 
 
 def _tier(lyrics: Lyrics) -> int:
+    """0 instrumental, 1 texte brut, 2 synchro approximative, 3 ligne par
+    ligne, 4 mot par mot."""
     if lyrics.instrumental:
         return 0
-    return {"word": 3, "line": 2, "none": 1}[sync_level(lyrics)]
+    level = sync_level(lyrics)
+    if level != "none" and lyrics.approximate:
+        return 2
+    return {"word": 4, "line": 3, "none": 1}[level]
+
+
+def _ttl(lyrics: Lyrics) -> timedelta:
+    # Seul un mot par mot sûr ne s'améliorera plus.
+    return TTL_WORD if sync_level(lyrics) == "word" and not lyrics.approximate else TTL_OTHER
 
 
 def _without_header(lyrics: Lyrics, title: str, artist: str) -> Lyrics:
@@ -201,6 +214,17 @@ def _without_header(lyrics: Lyrics, title: str, artist: str) -> Lyrics:
     if len(lines) == len(lyrics.lines):
         return lyrics
     return Lyrics(synced=lyrics.synced, instrumental=lyrics.instrumental, lines=lines)
+
+
+def _fit_timing(lyrics: Lyrics, timing_ok: bool, found_duration: float | None, duration: float | None) -> Lyrics:
+    """Autre version du morceau : horodatage gardé tel quel si les durées
+    concordent, gardé mais « approximatif » si elles sont proches, sinon
+    retiré."""
+    if timing_ok:
+        return lyrics
+    if lyrics.synced and found_duration and duration and abs(found_duration - duration) <= APPROX_DURATION_TOLERANCE:
+        return Lyrics(synced=True, lines=lyrics.lines, approximate=True)
+    return _unsynced(lyrics)
 
 
 def _unsynced(lyrics: Lyrics) -> Lyrics:
@@ -265,6 +289,7 @@ def lyrics_to_dict(lyrics: Lyrics) -> dict:
     return {
         "synced": lyrics.synced,
         "instrumental": lyrics.instrumental,
+        "approximate": lyrics.approximate,
         "lines": [
             {
                 "time": line.time, "end": line.end, "text": line.text,
@@ -279,6 +304,7 @@ def lyrics_from_dict(data: dict) -> Lyrics:
     return Lyrics(
         synced=bool(data.get("synced")),
         instrumental=bool(data.get("instrumental")),
+        approximate=bool(data.get("approximate")),
         lines=[
             LyricsLine(
                 time=line.get("time"), text=line.get("text") or "", end=line.get("end"),
@@ -301,7 +327,7 @@ def base_title(title: str) -> str:
 def cache_key(title: str, artist: str, duration: int | None) -> str:
     """Même morceau, même clé : sans « (feat. X) », « - Remastered », ni
     artistes invités. La durée sépare les versions (live, radio edit)."""
-    return f"{_compact(clean_title(title))}|{_compact(main_artist(artist))}|{duration or ''}"
+    return f"v2|{_compact(clean_title(title))}|{_compact(main_artist(artist))}|{duration or ''}"
 
 
 # -- Service -----------------------------------------------------------------
@@ -386,7 +412,7 @@ class LyricsService:
             if _tier(found.lyrics) > _tier(known.lyrics):
                 logger.info("Paroles améliorées pour %s - %s : %s (%s)", artist, title, found.source, found.sync)
             return
-        ttl = TTL_MISSING if errors else (TTL_WORD if known.sync == "word" else TTL_OTHER)
+        ttl = TTL_MISSING if errors else _ttl(known.lyrics)
         await self._repo.lyrics_cache_set(key, lyrics_to_dict(known.lyrics), known.source, known.language, ttl)
 
     async def _lookup(
@@ -408,7 +434,7 @@ class LyricsService:
         return result
 
     async def _store(self, key: str, result: LyricsResult, errors: list[str]) -> None:
-        ttl = TTL_WORD if result.sync == "word" else TTL_OTHER
+        ttl = _ttl(result.lyrics)
         # Une source muette par erreur aurait peut-être eu mieux : on
         # retentera plus tôt.
         if errors:
@@ -475,9 +501,9 @@ class LyricsService:
                 absorb(done)
                 if candidates and on_late is not None:
                     best_tier = max(_tier(c.lyrics) for c in candidates)
-                    if best_tier >= 3:
+                    if best_tier >= 4:
                         break
-                    if best_tier >= 2 and deadline is None:
+                    if best_tier >= 3 and deadline is None:
                         deadline = loop.time() + FAST_GRACE
         except asyncio.CancelledError:
             for task in pending:
@@ -540,7 +566,7 @@ class LyricsService:
         for (score, timing_ok), song in scored[:2]:
             lyrics = await self._netease.lyrics(song.id)
             if lyrics:
-                return _Candidate(lyrics if timing_ok else _unsynced(lyrics), "netease", score)
+                return _Candidate(_fit_timing(lyrics, timing_ok, song.duration, duration), "netease", score)
         return None
 
     async def _from_musixmatch(self, title, artist, album, duration) -> _Candidate | None:
@@ -553,4 +579,6 @@ class LyricsService:
             logger.debug("Musixmatch propose %r - %r : écarté", meta["artist"], meta["title"])
             return None
         score, timing_ok = verdict
-        return _Candidate(lyrics if timing_ok else _unsynced(lyrics), "musixmatch", score, meta.get("language"))
+        return _Candidate(
+            _fit_timing(lyrics, timing_ok, meta.get("duration"), duration), "musixmatch", score, meta.get("language"),
+        )

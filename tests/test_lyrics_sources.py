@@ -226,8 +226,8 @@ def test_word_level_beats_line_level(repo):
 
 
 def test_line_level_prefers_lrclib_and_wrong_duration_loses_sync(repo):
-    # NetEase connaît une version 10 s plus longue : texte gardé, synchro non.
-    netease = FakeNetease([NeteaseSong(1, "Titre", "Artiste", None, 210)], {1: WORD})
+    # NetEase connaît une version 20 s plus longue : texte gardé, synchro non.
+    netease = FakeNetease([NeteaseSong(1, "Titre", "Artiste", None, 220)], {1: WORD})
     service = LyricsService(repo, FakeLrclib(LINE), netease)
     result = run(service.get("Titre", "Artiste", None, 200))
     assert (result.source, result.sync) == ("lrclib", "line")
@@ -236,6 +236,24 @@ def test_line_level_prefers_lrclib_and_wrong_duration_loses_sync(repo):
     plain = run(alone.get("Titre", "Artiste", None, 200, refresh=True))
     assert (plain.source, plain.sync) == ("netease", "none")
     assert plain.lyrics.lines[1].time is None
+
+
+def test_close_version_keeps_approximate_timing_but_exact_one_wins(repo):
+    # 10 s d'écart : le mot par mot de NetEase reste, marqué approximatif.
+    netease = FakeNetease([NeteaseSong(1, "Titre", "Artiste", None, 210)], {1: WORD})
+    only = LyricsService(repo, FakeLrclib(None), netease)
+    approx = run(only.get("Titre", "Artiste", None, 200))
+    assert (approx.source, approx.sync, approx.lyrics.approximate) == ("netease", "word", True)
+    assert approx.lyrics.lines[1].words
+
+    # Une synchro exacte de LRCLIB (ligne par ligne) passe avant l'approximative.
+    both = LyricsService(repo, FakeLrclib(LINE), netease)
+    exact = run(both.get("Titre", "Artiste", None, 200, refresh=True))
+    assert (exact.source, exact.sync, exact.lyrics.approximate) == ("lrclib", "line", False)
+
+    # L'indication survit au cache (sérialisation).
+    assert lyrics_from_dict(lyrics_to_dict(approx.lyrics)).approximate
+    assert not lyrics_from_dict(lyrics_to_dict(exact.lyrics)).approximate
 
 
 def test_musixmatch_wrong_song_is_rejected(repo):

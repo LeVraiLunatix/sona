@@ -23,6 +23,9 @@ USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/LeVraiLunatix/sona
 # c'est probablement une autre version (live, remix, radio edit) dont les
 # paroles synchronisées seraient décalées.
 DURATION_TOLERANCE = 3
+# Écart de durée jusqu'auquel les paroles synchronisées d'une autre version
+# valent mieux que le texte brut (synchro approximative).
+APPROX_TOLERANCE = 12
 CACHE_SIZE = 256
 
 _LRC_LINE_RE = re.compile(r"\[(\d+):(\d+(?:[.:]\d+)?)\]")
@@ -68,6 +71,9 @@ class Lyrics:
     synced: bool
     instrumental: bool = False
     lines: list[LyricsLine] = field(default_factory=list)
+    # Horodatage d'une autre version du morceau (durée proche mais pas la même) :
+    # utile, sans être garanti juste — l'app le dit et laisse régler le décalage.
+    approximate: bool = False
 
 
 def clean_title(title: str) -> str:
@@ -234,6 +240,41 @@ class LrclibClient:
 
     async def _lookup(self, title: str, artist: str, album: str | None, duration: int | None) -> Lyrics | None:
         cleaned, lead = clean_title(title), main_artist(artist)
+        pool: list[dict] = []
+        found = await self._steps(title, artist, album, duration, cleaned, lead, pool)
+        if found is not None and (found.synced or found.instrumental):
+            return found
+        # Seulement du texte brut (ou rien) : les paroles synchronisées d'une
+        # autre version, de durée proche, valent mieux — l'app les marque
+        # « synchro approximative ».
+        if duration:
+            if not pool:
+                pool = await self._search({"track_name": cleaned, "artist_name": lead})
+            close = sorted(
+                (d for d in pool if d.get("syncedLyrics") and d.get("duration") and _same_artist(d, lead)
+                 and abs(float(d["duration"]) - duration) <= APPROX_TOLERANCE),
+                key=lambda d: abs(float(d["duration"]) - duration),
+            )
+            for d in close:
+                approx = _lyrics_from_json({"syncedLyrics": d["syncedLyrics"]})
+                if approx:
+                    approx.approximate = True
+                    return approx
+        if found is not None:
+            return found
+        # Aucune version utilisable : les paroles brutes d'une autre version
+        # restent justes, seul l'horodatage serait décalé.
+        for d in pool:
+            if d.get("plainLyrics") and not d.get("instrumental"):
+                return _lyrics_from_json({"plainLyrics": d["plainLyrics"]})
+        return None
+
+    async def _steps(
+        self, title: str, artist: str, album: str | None, duration: int | None,
+        cleaned: str, lead: str, pool: list[dict],
+    ) -> Lyrics | None:
+        """Étapes 1 à 5 de la recherche ; les entrées vues par les recherches
+        s'accumulent dans `pool`."""
 
         # 1) Correspondance exacte (titre, artiste, album, durée à ±2 s côté
         #    LRCLIB) : la plus fiable quand elle répond.
@@ -253,12 +294,14 @@ class LrclibClient:
         #    les « - Remastered », artistes multiples... En préférant une
         #    entrée synchronisée de durée compatible.
         results = await self._search({"track_name": cleaned, "artist_name": lead})
+        pool.extend(results)
         found = self._best(results, duration)
         if found:
             return found
         # 4) Recherche libre « artiste titre » : rattrape les graphies
         #    différentes (accents, « & » / « et », ponctuation).
         free = await self._search({"q": f"{lead} {cleaned}"})
+        pool.extend(d for d in free if _same_artist(d, lead))
         found = self._best([d for d in free if _same_artist(d, lead)], duration)
         if found:
             return found
@@ -267,12 +310,8 @@ class LrclibClient:
         if duration:
             alone = [d for d in await self._search({"track_name": cleaned})
                      if d.get("duration") and _same_artist(d, lead)]
+            pool.extend(alone)
             found = self._best(alone, duration)
             if found:
                 return found
-        # 6) Aucune version de même durée : les paroles brutes d'une autre
-        #    version restent justes, seul l'horodatage serait décalé.
-        for d in results + [d for d in free if _same_artist(d, lead)]:
-            if d.get("plainLyrics") and not d.get("instrumental"):
-                return _lyrics_from_json({"plainLyrics": d["plainLyrics"]})
         return None
