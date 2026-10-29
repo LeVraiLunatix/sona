@@ -1,7 +1,7 @@
 {
-  "name": "Sona",
-  "short_name": "Sona",
-  "description": "Ta musique, tes playlists, tes paroles et tes stats.",
+  "name": "alyra",
+  "short_name": "alyra",
+  "description": "alyra. ta musique, en clair : paroles mot à mot, playlists, stats et soirées.",
   "lang": "fr",
   "dir": "ltr",
   "id": "./",
@@ -10,8 +10,8 @@
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#0E1014",
+  "theme_color": "#0E1014",
   "categories": ["music", "entertainment"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

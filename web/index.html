@@ -3,26 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sona</title>
-<meta name="description" content="Sona : ta musique, tes playlists, tes paroles et tes stats — sur ordinateur et sur ton téléphone.">
-<!-- Adresse du serveur Sona (API). À changer ici si le serveur change d'adresse. -->
+<title>alyra.</title>
+<meta name="description" content="alyra. : ta musique, tes playlists, tes paroles et tes stats, sur ordinateur et sur ton téléphone.">
+<!-- Adresse du serveur (API). À changer ici si le serveur change d'adresse. -->
 <meta name="sona-server" content="https://141-253-108-13.sslip.io">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#0E1014">
 <!-- Appli installable : « Sur l'écran d'accueil » (iPhone) ou « Installer l'appli » (Android). -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Sona">
+<meta name="apple-mobile-web-app-title" content="alyra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<!-- Logo : un « a » en verre et son point allumé (utilisé avec <use href="#ay-mark">) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><linearGradient id="ay-lg" gradientUnits="userSpaceOnUse" x1="10" y1="14" x2="46" y2="54"><stop offset="0" stop-color="#fff" stop-opacity=".88"/><stop offset="1" stop-color="#fff" stop-opacity=".3"/></linearGradient><filter id="ay-lf" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="1.8"/></filter><mask id="ay-lm" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><g fill="none" stroke="#fff" stroke-width="6"><circle cx="27" cy="34" r="14"/><path d="M41 20V48" stroke-linecap="round"/></g></mask><mask id="ay-lo" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><g fill="none" stroke="#fff" stroke-width="7.6"><circle cx="27" cy="34" r="14"/><path d="M41 20V48" stroke-linecap="round"/></g><g fill="none" stroke="#000" stroke-width="4.8"><circle cx="27" cy="34" r="14"/><path d="M41 20V48" stroke-linecap="round"/></g></mask></defs><symbol id="ay-mark" viewBox="0 0 64 64"><g transform="translate(-1.1 -2)"><rect x="0" y="0" width="64" height="64" fill="url(#ay-lg)" mask="url(#ay-lm)"/><path d="M16.3 28.2A13.8 13.8 0 0 1 24.2 20.4" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="1.1" stroke-linecap="round"/><path d="M42.3 24.5V36" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".9" stroke-linecap="round"/><circle cx="52.6" cy="47.4" r="4.4" fill="#fff" filter="url(#ay-lf)" opacity=".95"/><circle cx="52.6" cy="47.4" r="3.6" fill="#fff"/></g></symbol></svg>
 <div id="root"></div>
 <audio id="audio" preload="auto"></audio>
 <script src="app.js"></script>

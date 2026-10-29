@@ -117,7 +117,7 @@ out(`après filtre singles, étagères: ${await page.$$eval("#artist-disco .sect
 await page.keyboard.press("l");
 await page.waitForSelector(".np.open, #np-right, #drawer-body .lyrics", { timeout: 5000 }).catch(() => {});
 out(`outils paroles: ${await page.$$eval(".lyr-tools", (e) => e.length)}`);
-await page.click("[data-lyr-off='0.5']").catch((e) => out("décalage: " + e.message.split("\n")[0]));
+await page.click("[data-lyr-off='0.1']").catch((e) => out("décalage: " + e.message.split("\n")[0]));
 out(`valeur décalage: ${await page.$eval("#lyr-val", (e) => e.textContent).catch(() => "?")}`);
 out(`mots de la 1re ligne: ${await page.$$eval("#lyr [data-l='0'] .w", (e) => e.map((x) => x.textContent.trim()).join("|"))}`);
 out(`mots estimés de la 3e ligne: ${await page.$$eval("#lyr [data-l='2'] .w", (e) => e.length)}`);

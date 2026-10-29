@@ -477,7 +477,7 @@ struct ConnectDevicesSection: View {
             Text("Sona Connect")
         } footer: {
             Text(connect.otherDevices.isEmpty
-                 ? "Ouvre Sona sur ton ordinateur (soonaa.vercel.app) : il apparaîtra ici."
+                 ? "Ouvre alyra sur ton ordinateur : il apparaîtra ici."
                  : "La musique continue sur l'appareil choisi, à la même seconde.")
         }
         .task { await connect.sync() }
