@@ -29,6 +29,8 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   // Flux audio servi sous /web ? jamais : seulement les fichiers du site.
   if (request.headers.has("range")) return;
+  // Page de présentation : autre page du même site, jamais gardée à la place de l'app.
+  if (url.pathname === scope.pathname + "presentation" || url.pathname === scope.pathname + "presentation.html") return;
 
   if (url.pathname.includes("/icons/")) {
     event.respondWith(caches.match(request).then((hit) => hit || fetch(request).then((res) => keep(request, res))));

@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1014">
+<title>alyra. ta musique, en clair.</title>
+<meta name="description" content="Paroles mot à mot, soirées, relais entre appareils. Ouvre alyra dans le navigateur ou installe-la sur iPhone, Android et Windows.">
+<meta property="og:title" content="alyra. ta musique, en clair.">
+<meta property="og:description" content="Paroles mot à mot, soirées, relais entre appareils.">
+<meta property="og:type" content="website">
+<link rel="icon" href="/icons/favicon-64.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Page unique : un fond graphite où dérivent trois taches de couleur, et du verre par-dessus (nav, cartes, téléphone).
+   Une seule police, aucune couleur d'accent : la couleur vient des taches, la lumière vient du blanc. */
+:root {
+  --bg: #0E1014;
+  --ink: #F4F6F8;
+  --ink-2: rgba(244, 246, 248, .74);
+  --ink-3: rgba(244, 246, 248, .52);
+  --line: rgba(255, 255, 255, .14);
+  --blue: #3D5A99;
+  --plum: #7A4A7E;
+  --sand: #B98557;
+  --font: "Inter Tight", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 17px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 60; background: var(--bg); }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 8px; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { text-wrap: balance; }
+
+/* Fond vivant */
+.ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.blob { position: absolute; border-radius: 50%; will-change: transform; }
+.b1 { left: -14vw; top: -18vh; width: 70vw; height: 70vw; max-width: 980px; max-height: 980px; background: radial-gradient(circle at 40% 40%, var(--blue), rgba(61, 90, 153, 0) 68%); animation: drift1 26s ease-in-out infinite alternate; }
+.b2 { right: -16vw; top: 6vh; width: 66vw; height: 66vw; max-width: 940px; max-height: 940px; background: radial-gradient(circle at 50% 50%, var(--plum), rgba(122, 74, 126, 0) 68%); animation: drift2 31s ease-in-out infinite alternate; }
+.b3 { left: 22vw; bottom: -30vh; width: 70vw; height: 54vw; max-width: 980px; max-height: 760px; background: radial-gradient(circle at 50% 40%, var(--sand), rgba(185, 133, 87, 0) 68%); opacity: .6; animation: drift3 36s ease-in-out infinite alternate; }
+@keyframes drift1 { to { transform: translate(8vw, 10vh) scale(1.08); } }
+@keyframes drift2 { to { transform: translate(-9vw, 12vh) scale(.94); } }
+@keyframes drift3 { to { transform: translate(-10vw, -8vh) scale(1.1); } }
+
+/* Verre : flou, reflet de bord, lueur qui suit le pointeur */
+.glass {
+  position: relative; isolation: isolate;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .045));
+  -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 -1px 0 rgba(255, 255, 255, .05), 0 14px 40px rgba(0, 0, 0, .3);
+}
+.glass::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .06) 38%, rgba(255, 255, 255, .06) 62%, rgba(255, 255, 255, .34));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.glass::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1; opacity: 0; transition: opacity .35s;
+  background: radial-gradient(260px circle at var(--mx, 30%) var(--my, 0%), rgba(255, 255, 255, .2), transparent 62%);
+}
+.glass:hover::before { opacity: 1; }
+
+.wrap { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.tag { font-family: var(--mono); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.lit { text-shadow: 0 0 .32em rgba(255, 255, 255, .95); animation: glow 3.4s ease-in-out infinite; }
+@keyframes glow { 50% { text-shadow: 0 0 .7em rgba(255, 255, 255, 1), 0 0 .2em rgba(255, 255, 255, .8); } }
+.mark { width: 34px; height: 34px; flex: none; display: block; }
+
+/* Navigation */
+.nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 50; margin-top: calc(env(safe-area-inset-top, 0px) + 12px); border-radius: 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 8px 7px 20px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 24px; letter-spacing: -.05em; min-height: 44px; }
+.nav-links { display: flex; align-items: center; gap: 2px; }
+.nav-links a { min-height: 44px; padding: 0 14px; display: flex; align-items: center; border-radius: 22px; font-weight: 600; font-size: 15px; color: var(--ink-2); transition: color .2s, background .2s; }
+.nav-links a:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+.nav-links a.btn-solid { color: #0E1014; background: var(--ink); }
+.nav-links a.btn-solid:hover { color: #0E1014; background: #fff; }
+.btn { position: relative; overflow: hidden; transform: translate(var(--tx, 0px), var(--ty, 0px)); min-height: 52px; padding: 0 26px; border-radius: 26px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -.015em; transition: transform .25s var(--ease), box-shadow .25s; }
+.btn:hover { transform: translate(var(--tx, 0px), calc(var(--ty, 0px) - 2px)); }
+.btn-solid::before { content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 36%; background: linear-gradient(100deg, transparent, rgba(14, 16, 20, .13), transparent); transform: skewX(-20deg); animation: sheen 4.6s ease-in-out infinite; }
+@keyframes sheen { 0%, 62% { left: -60%; } 100% { left: 130%; } }
+.btn-solid { background: var(--ink); color: #0E1014; box-shadow: 0 10px 30px rgba(255, 255, 255, .16); }
+.btn-solid:hover { box-shadow: 0 14px 40px rgba(255, 255, 255, .28); }
+.btn-glass { font-weight: 600; }
+.btn-sm { min-height: 44px; padding: 0 20px; border-radius: 22px; font-size: 15px; }
+
+/* Accroche */
+.hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 40px; align-items: center; padding: clamp(48px, 8vw, 104px) 0 clamp(56px, 8vw, 112px); }
+.hero h1 { font-weight: 800; font-size: clamp(56px, 9.4vw, 148px); line-height: .88; letter-spacing: -.055em; word-spacing: .1em; }
+.hero p.lead { margin-top: 28px; font-size: clamp(18px, 1.7vw, 22px); line-height: 1.45; color: var(--ink-2); max-width: 520px; letter-spacing: -.01em; }
+.cta-row { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
+.hero .tag { margin-bottom: 22px; display: flex; align-items: center; gap: 10px; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 12px #fff; animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+.platforms { margin-top: 22px; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--ink-3); }
+
+/* Téléphone */
+.stage { display: flex; justify-content: center; perspective: 1400px; }
+.phone { width: min(320px, 86vw); height: 650px; border-radius: 52px; padding: 0; overflow: hidden; transform: rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); transition: transform .35s var(--ease); transform-style: preserve-3d; }
+.phone .inner { position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: inherit; }
+.phone .pb1 { position: absolute; left: -90px; top: -70px; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle at 40% 40%, var(--sand), rgba(185, 133, 87, 0) 66%); }
+.phone .pb2 { position: absolute; right: -130px; bottom: -40px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--plum), rgba(122, 74, 126, 0) 66%); }
+.phone .pb3 { position: absolute; left: -100px; bottom: -120px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--blue), rgba(61, 90, 153, 0) 66%); }
+.ph-head { position: absolute; z-index: 2; top: 30px; left: 22px; right: 22px; display: flex; align-items: center; gap: 12px; }
+.cover { flex: none; background: linear-gradient(145deg, var(--sand), var(--plum) 60%, var(--blue)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+.ph-head .cover { width: 46px; height: 46px; border-radius: 13px; }
+.ph-title { font-weight: 700; font-size: 17px; letter-spacing: -.02em; line-height: 1.15; }
+.ph-sub { font-size: 14px; color: var(--ink-2); }
+.phone .ph-lyr { position: absolute; z-index: 1; top: 104px; left: 0; right: 0; height: 410px; --fs: 27px; }
+.ph-foot { position: absolute; z-index: 2; left: 22px; right: 22px; bottom: 26px; display: flex; flex-direction: column; gap: 14px; }
+.bar { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .22); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--ink); }
+.ctrls { display: flex; align-items: center; justify-content: center; gap: 22px; }
+.play { position: relative; width: 60px; height: 60px; border-radius: 50%; background: var(--ink); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 28px rgba(0, 0, 0, .35); transition: transform .2s var(--ease); }
+.play:active { transform: scale(.94); }
+.play::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .75); animation: ring 2.6s ease-out infinite; pointer-events: none; }
+@keyframes ring { from { transform: scale(1); opacity: .75; } to { transform: scale(1.9); opacity: 0; } }
+.skip { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; opacity: .9; }
+
+/* Paroles (même rendu que l'app) */
+.lyr { position: relative; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 80%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 80%, transparent); }
+.list { position: relative; padding: 0 24px; transition: transform .8s var(--ease); will-change: transform; }
+.ln { margin: 0 0 .62em; font-weight: 800; font-size: var(--fs, 30px); line-height: 1.14; letter-spacing: -.035em; word-spacing: .06em; color: rgba(255, 255, 255, .36); filter: blur(1.5px); cursor: pointer; transform-origin: left center; transition: color .5s, filter .6s, transform .6s var(--ease); }
+.ln.near { filter: blur(.7px); }
+.ln.on { color: #fff; filter: none; transform: scale(1.03); }
+.w { display: inline-block; white-space: pre; transform-origin: 50% 85%; }
+.ln.on .w { color: transparent; -webkit-background-clip: text; background-clip: text; background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .38) calc(var(--p, 0) * 116% + 8%)); }
+.ln.on .w.held { background-image: none; transform: scale(calc(1 + var(--e, 0) * .08)); margin-inline: calc(var(--e, 0) * var(--m, 0) * 1em); filter: drop-shadow(0 0 calc(var(--e, 0) * .5em) rgba(255, 255, 255, calc(var(--e, 0) * .85))); }
+.w.held .ch { display: inline-block; }
+.ln.on .w.held .ch { color: transparent; -webkit-background-clip: text; background-clip: text; background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .38) calc(var(--p, 0) * 116% + 8%)); }
+.bk { display: block; margin-top: .22em; font-size: .56em; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; }
+[data-glow="off"] .ln.on .w.held { transform: none; filter: none; margin-inline: 0; }
+[data-backs="off"] .bk { display: none; }
+[data-blur="off"] .ln { filter: none; color: rgba(255, 255, 255, .55); }
+[data-blur="off"] .ln.on { color: #fff; }
+
+/* Sections */
+section { position: relative; z-index: 1; }
+.sec { padding: clamp(56px, 8vw, 112px) 0; }
+.sec h2 { font-weight: 800; font-size: clamp(40px, 6.4vw, 92px); line-height: .94; letter-spacing: -.05em; word-spacing: .08em; max-width: 880px; }
+.sec .intro { margin-top: 22px; font-size: clamp(17px, 1.5vw, 20px); color: var(--ink-2); max-width: 560px; letter-spacing: -.01em; }
+.split { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
+.demo { border-radius: 44px; height: 560px; overflow: hidden; position: relative; }
+.demo .lyr { position: absolute; inset: 0; --fs: clamp(30px, 3.6vw, 46px); }
+.demo .list { padding: 0 36px; }
+.demo-bar { position: absolute; z-index: 3; left: 22px; right: 22px; bottom: 20px; display: flex; align-items: center; gap: 14px; padding: 8px 10px; border-radius: 30px; }
+.demo-bar .bar { flex: 1; }
+.demo-bar .t { font-family: var(--mono); font-size: 12px; color: var(--ink-2); min-width: 3.4em; text-align: right; }
+.demo-bar .play { width: 44px; height: 44px; box-shadow: none; }
+.toggles { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 8px; }
+.tog { min-height: 44px; padding: 0 18px; border-radius: 22px; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 10px; color: var(--ink-2); transition: color .2s, background .2s; }
+.tog .dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; transition: background .2s, box-shadow .2s; }
+.tog[aria-pressed="true"] { color: #0E1014; background: var(--ink); }
+.tog[aria-pressed="true"]::after { display: none; }
+.tog[aria-pressed="true"] .dot { background: #0E1014; border-color: #0E1014; }
+.hint { margin-top: 18px; }
+
+.trio { margin-top: 56px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.card { border-radius: 36px; padding: 28px; display: flex; flex-direction: column; gap: 12px; min-height: 420px; min-width: 0; }
+.card h3 { font-weight: 800; font-size: 32px; letter-spacing: -.04em; line-height: 1; }
+.card p { color: var(--ink-2); font-size: 16px; line-height: 1.45; }
+.card .vis { margin-top: auto; height: 190px; display: flex; align-items: center; justify-content: center; position: relative; }
+
+.eq { display: flex; gap: 6px; align-items: flex-end; height: 80px; }
+.eq i { width: 8px; border-radius: 4px; background: var(--ink); animation: eq 1.2s ease-in-out infinite; height: 20%; }
+.eq i:nth-child(2) { animation-delay: -.3s; } .eq i:nth-child(3) { animation-delay: -.7s; } .eq i:nth-child(4) { animation-delay: -.2s; }
+.eq i:nth-child(5) { animation-delay: -.9s; } .eq i:nth-child(6) { animation-delay: -.5s; } .eq i:nth-child(7) { animation-delay: -1.1s; }
+@keyframes eq { 0%, 100% { height: 18%; } 50% { height: 100%; } }
+.avs { display: flex; margin-bottom: 18px; }
+.avs span { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; background: rgba(255, 255, 255, .2); border: 2px solid rgba(255, 255, 255, .45); margin-left: -10px; }
+.avs span:first-child { margin-left: 0; }
+.party { display: flex; flex-direction: column; align-items: center; }
+
+.quiz { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.quiz .q { font-weight: 700; font-size: 15px; letter-spacing: -.02em; color: var(--ink); }
+.quiz .opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.opt { min-height: 44px; border-radius: 22px; font-weight: 600; font-size: 15px; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .18); transition: background .2s, transform .2s var(--ease), color .2s; }
+.opt:hover { background: rgba(255, 255, 255, .2); transform: translateY(-1px); }
+.opt.ok { background: var(--ink); color: #0E1014; box-shadow: 0 0 24px rgba(255, 255, 255, .55); }
+.opt.no { opacity: .4; }
+.quiz .res { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--ink-2); min-height: 1.4em; }
+
+.feat { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); }
+.feat > div { padding: 26px 24px 26px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.feat b { display: block; font-weight: 800; font-size: 26px; letter-spacing: -.04em; line-height: 1.05; }
+.feat span { display: block; margin-top: 6px; color: var(--ink-2); font-size: 16px; line-height: 1.4; }
+
+/* Installer */
+.install { border-radius: 44px; padding: clamp(24px, 4vw, 48px); margin-top: 44px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-radius: 30px; width: fit-content; max-width: 100%; }
+.tab { min-height: 44px; padding: 0 20px; border-radius: 24px; font-weight: 600; font-size: 15px; color: var(--ink-2); transition: background .2s, color .2s; }
+.tab[aria-selected="true"] { background: var(--ink); color: #0E1014; }
+.panel { margin-top: 32px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); gap: clamp(24px, 4vw, 56px); align-items: center; }
+.panel[hidden] { display: none; }
+.panel h3 { font-weight: 800; font-size: clamp(30px, 4vw, 52px); letter-spacing: -.045em; word-spacing: .06em; line-height: .98; }
+.steps { margin: 22px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; counter-reset: s; }
+.steps li { counter-increment: s; display: flex; gap: 14px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--line); font-size: 17px; color: var(--ink-2); }
+.steps li::before { content: counter(s); font-family: var(--mono); font-size: 13px; color: var(--ink-3); min-width: 1.2em; }
+.steps b { color: var(--ink); font-weight: 600; }
+.panel .btn { margin-top: 26px; }
+.pvis { border-radius: 32px; min-height: 260px; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.pvis svg { width: 100%; max-width: 280px; height: auto; display: block; }
+
+.faq { margin-top: 44px; display: grid; gap: 10px; max-width: 880px; }
+.faq details { border-radius: 26px; padding: 0 24px; }
+.faq summary { list-style: none; cursor: pointer; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-weight: 700; font-size: 20px; letter-spacing: -.03em; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-family: var(--mono); font-size: 22px; font-weight: 400; color: var(--ink-2); transition: transform .3s var(--ease); }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { padding: 0 0 22px; color: var(--ink-2); font-size: 17px; max-width: 640px; }
+
+.final { text-align: center; padding: clamp(72px, 10vw, 140px) 0; display: flex; flex-direction: column; align-items: center; gap: 30px; }
+.final .big { font-weight: 800; font-size: clamp(88px, 22vw, 320px); line-height: .8; letter-spacing: -.07em; }
+.final .mark { width: clamp(64px, 8vw, 104px); height: clamp(64px, 8vw, 104px); }
+footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padding: 28px 0 calc(32px + env(safe-area-inset-bottom, 0px)); }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; color: var(--ink-3); font-size: 15px; }
+.foot nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.foot nav a { min-height: 44px; padding: 0 12px; display: flex; align-items: center; font-weight: 600; }
+.foot nav a:hover { color: #fff; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 80; transform: translate(-50%, 24px); opacity: 0; pointer-events: none; padding: 14px 22px; border-radius: 26px; font-weight: 600; font-size: 15px; transition: opacity .3s, transform .4s var(--ease); max-width: calc(100vw - 40px); text-align: center; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+
+/* ── Mouvement ───────────────────────────────────────────────────────── */
+@keyframes rise { from { opacity: 0; translate: 0 46px; filter: blur(12px); } to { opacity: 1; translate: 0 0; filter: none; } }
+@keyframes rise-soft { from { opacity: 0; translate: 0 56px; scale: .965; } to { opacity: 1; translate: 0 0; scale: 1; } }
+@keyframes phone-in { from { opacity: 0; translate: 0 90px; rotate: 6deg; scale: .86; } to { opacity: 1; translate: 0 0; rotate: 0deg; scale: 1; } }
+@keyframes float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -14px; } }
+@keyframes marquee { to { transform: translateX(-50%); } }
+.hero .tag { animation: rise .9s var(--ease) .1s both; }
+.hero h1 .wd { display: inline-block; animation: rise 1.05s var(--ease) both; animation-delay: calc(.15s + var(--i) * .1s); }
+.hero h1 .lt { display: inline-block; transition: translate .3s var(--ease), scale .3s var(--ease), text-shadow .3s; will-change: translate, scale; }
+.hero .lead { animation: rise .9s var(--ease) .62s both; }
+.hero .cta-row { animation: rise .9s var(--ease) .78s both; }
+.hero .platforms { animation: rise .9s var(--ease) .94s both; }
+.float { animation: phone-in 1.3s var(--ease) .25s both, float 7s ease-in-out 1.6s infinite; }
+.rv { animation: rise linear both; }
+.rvg { animation: rise-soft linear both; }
+@supports (animation-timeline: view()) {
+  .rv, .rvg { animation-timeline: view(); animation-range: entry 4% cover 26%; }
+}
+@supports not (animation-timeline: view()) { .rv, .rvg { animation: none; } }
+.ambient { --sy: 0; }
+.b1 { translate: 0 calc(var(--sy) * -.09px); }
+.b2 { translate: 0 calc(var(--sy) * -.15px); }
+.b3 { translate: 0 calc(var(--sy) * -.05px); }
+
+.progress { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top, 0px); height: 3px; z-index: 70; pointer-events: none; }
+.progress i { display: block; height: 100%; transform-origin: left; transform: scaleX(var(--sp, 0)); background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff); box-shadow: 0 0 16px #fff, 0 0 4px #fff; }
+
+.marquee { position: relative; z-index: 1; width: 100vw; margin-left: calc(50% - 50vw); overflow: hidden; padding: 30px 0; border-block: 1px solid var(--line); -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent); mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent); }
+.marquee .skew { transform: skewX(var(--skew, 0deg)); transition: transform .2s linear; }
+.marquee .track { display: flex; align-items: center; gap: 44px; width: max-content; animation: marquee 46s linear infinite; will-change: transform; }
+.marquee:hover .track { animation-play-state: paused; }
+.marquee .track span { font-weight: 800; font-size: clamp(52px, 9vw, 132px); line-height: 1; letter-spacing: -.05em; white-space: nowrap; }
+.marquee .track span.o { color: transparent; -webkit-text-stroke: 1.5px rgba(255, 255, 255, .62); }
+.marquee .track i { width: clamp(14px, 1.8vw, 24px); height: clamp(14px, 1.8vw, 24px); border-radius: 50%; background: #fff; flex: none; box-shadow: 0 0 22px #fff, 0 0 6px #fff; }
+
+
+.card { transform: perspective(900px) rotateX(var(--crx, 0deg)) rotateY(var(--cry, 0deg)); transition: transform .35s var(--ease); }
+.panel:not([hidden]) { animation: rise .7s var(--ease) both; }
+.panel:not([hidden]) .steps li { animation: rise .7s var(--ease) both; }
+.panel:not([hidden]) .steps li:nth-child(1) { animation-delay: .12s; }
+.panel:not([hidden]) .steps li:nth-child(2) { animation-delay: .2s; }
+.panel:not([hidden]) .steps li:nth-child(3) { animation-delay: .28s; }
+.panel:not([hidden]) .steps li:nth-child(4) { animation-delay: .36s; }
+.panel:not([hidden]) .pvis svg { animation: phone-in .9s var(--ease) .15s both; }
+.final .big .lt { display: inline-block; transition: translate .4s var(--ease), text-shadow .4s; cursor: default; }
+.final .big .lt:hover { translate: 0 -.07em; text-shadow: 0 0 .28em rgba(255, 255, 255, .9); }
+
+/* Curseur : un point de lumière qui laisse une traînée (souris seulement) */
+.cursor { position: fixed; left: 0; top: 0; z-index: 95; pointer-events: none; display: none; }
+.has-cursor .cursor { display: block; }
+.cursor .dot { position: fixed; left: 0; top: 0; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; will-change: transform; }
+.cursor .dot.lead { width: 12px; height: 12px; margin: -6px 0 0 -6px; box-shadow: 0 0 20px #fff, 0 0 6px #fff; transition: scale .25s var(--ease); }
+.cursor[data-hover="1"] .dot.lead { scale: 2.6; background: rgba(255, 255, 255, .22); box-shadow: 0 0 0 1px rgba(255, 255, 255, .85), 0 0 24px rgba(255, 255, 255, .55); }
+@media (hover: hover) and (pointer: fine) { .has-cursor .nav a, .has-cursor .btn { cursor: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero .tag, .hero h1 .wd, .hero .lead, .hero .cta-row, .hero .platforms, .float, .rv, .rvg, .panel, .panel .steps li, .panel .pvis svg { animation: none !important; }
+  .marquee .track, .btn-solid::before, .lit, .play::before { animation: none; }
+  .cursor { display: none !important; }
+}
+
+@media (max-width: 960px) {
+  .hero, .split, .panel { grid-template-columns: minmax(0, 1fr); }
+  .trio { grid-template-columns: minmax(0, 1fr); }
+  .card { min-height: 0; }
+  .feat { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nav-links a.hide-s { display: none; }
+  .demo { height: 500px; }
+}
+@media (max-width: 560px) {
+  .feat { grid-template-columns: minmax(0, 1fr); }
+  .nav { padding-left: 14px; }
+  .brand { font-size: 22px; }
+  .nav-links a:not(.btn) { display: none; }
+  .phone { height: 600px; }
+  .phone .ph-lyr { height: 360px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .blob, .eq i, .pulse { animation: none; }
+  .phone, .list { transition: none; }
+}
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<!-- Symbole du logo : un « a » à une seule panse (anneau et tige fusionnés), en verre, et son point allumé -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><linearGradient id="lg" gradientUnits="userSpaceOnUse" x1="10" y1="14" x2="46" y2="54"><stop offset="0" stop-color="#fff" stop-opacity=".88"/><stop offset="1" stop-color="#fff" stop-opacity=".3"/></linearGradient><filter id="lf" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="1.8"/></filter><mask id="lm" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><g fill="none" stroke="#fff" stroke-width="6"><circle cx="27" cy="34" r="14"/><path d="M41 20V48" stroke-linecap="round"/></g></mask><mask id="lo" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><g fill="none" stroke="#fff" stroke-width="7.6"><circle cx="27" cy="34" r="14"/><path d="M41 20V48" stroke-linecap="round"/></g><g fill="none" stroke="#000" stroke-width="4.8"><circle cx="27" cy="34" r="14"/><path d="M41 20V48" stroke-linecap="round"/></g></mask></defs><symbol id="mark" viewBox="0 0 64 64"><g transform="translate(-1.1 -2)"><rect x="0" y="0" width="64" height="64" fill="url(#lg)" mask="url(#lm)"/><path d="M16.3 28.2A13.8 13.8 0 0 1 24.2 20.4" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="1.1" stroke-linecap="round"/><path d="M42.3 24.5V36" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".9" stroke-linecap="round"/><circle cx="52.6" cy="47.4" r="4.4" fill="#fff" filter="url(#lf)" opacity=".95"/><circle cx="52.6" cy="47.4" r="3.6" fill="#fff"/></g></symbol></svg>
+
+<div class="ambient" id="ambient" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+<div class="progress" aria-hidden="true"><i id="prog"></i></div>
+<div class="cursor" id="cursor" aria-hidden="true"></div>
+
+<div class="wrap">
+  <header class="nav glass" id="haut">
+    <a class="brand" href="#haut" aria-label="alyra, retour en haut"><svg class="mark" aria-hidden="true"><use href="#mark"/></svg><span>alyra<span class="lit">.</span></span></a>
+    <nav class="nav-links" aria-label="Navigation principale">
+      <a href="#paroles" class="hide-s">paroles</a>
+      <a href="#ensemble" class="hide-s">ensemble</a>
+      <a href="#installer">installer</a>
+      <a href="#faq" class="hide-s">questions</a>
+      <a href="#" class="btn btn-solid btn-sm" data-open>ouvrir.</a>
+    </nav>
+  </header>
+
+  <section class="hero" aria-labelledby="titre">
+    <div>
+      <div class="tag"><span class="pulse"></span>sur validation.</div>
+      <h1 id="titre" aria-label="ta musique, en clair."><span class="wd" style="--i:0" aria-hidden="true">ta</span> <span class="wd" style="--i:1" aria-hidden="true">musique,</span> <span class="wd" style="--i:2" aria-hidden="true">en</span> <span class="wd" style="--i:3" aria-hidden="true">clair<span class="lit">.</span></span></h1>
+      <p class="lead">paroles mot à mot. soirées. relais. un seul endroit pour écouter, partout où tu es.</p>
+      <div class="cta-row">
+        <a href="#" class="btn btn-solid" data-open>ouvrir dans le navigateur.</a>
+        <a href="#installer" class="btn btn-glass glass" id="cta-install">installer.</a>
+      </div>
+      <div class="platforms">web · iphone · android · windows · telegram</div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="float"><div class="phone glass" id="phone" aria-label="Aperçu animé de l'app : paroles mot à mot">
+        <div class="inner"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
+        <div class="ph-head"><div class="cover"></div><div><div class="ph-title">Sous les néons</div><div class="ph-sub">Lueur</div></div></div>
+        <div class="ph-lyr lyr" id="lyr-phone" data-glow="on" data-backs="on" data-blur="on"></div>
+        <div class="ph-foot">
+          <div class="bar" aria-hidden="true"><i id="bar-phone"></i></div>
+          <div class="ctrls">
+            <button class="skip" type="button" aria-label="Titre précédent"><svg width="28" height="28" viewBox="0 0 24 24" fill="#F4F6F8" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+            <button class="play" type="button" id="play-phone" aria-label="Pause"><svg width="24" height="24" viewBox="0 0 24 24" fill="#0E1014" aria-hidden="true" data-ic="pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
+            <button class="skip" type="button" aria-label="Titre suivant"><svg width="28" height="28" viewBox="0 0 24 24" fill="#F4F6F8" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true"><div class="skew" id="skew"><div class="track"><span class="">paroles mot à mot.</span><i></i><span class="o">relais.</span><i></i><span class="">soirées.</span><i></i><span class="o">blind test.</span><i></i><span class="">hors ligne.</span><i></i><span class="o">chante.</span><i></i><span class="">stats.</span><i></i><span class="o">radios.</span><i></i><span class="">amis.</span><i></i><span class="">paroles mot à mot.</span><i></i><span class="o">relais.</span><i></i><span class="">soirées.</span><i></i><span class="o">blind test.</span><i></i><span class="">hors ligne.</span><i></i><span class="o">chante.</span><i></i><span class="">stats.</span><i></i><span class="o">radios.</span><i></i><span class="">amis.</span><i></i></div></div></div>
+
+  <section class="sec" id="paroles" aria-labelledby="t-paroles">
+    <div class="split">
+      <div>
+        <div class="tag">paroles</div>
+        <h2 id="t-paroles" style="margin-top:16px">chaque mot, à son tour<span class="lit">.</span></h2>
+        <p class="intro">la ligne chantée s'allume mot par mot quand la source le donne, sinon ligne par ligne. une note tenue gonfle et rayonne. les chœurs passent en petit, dessous.</p>
+        <div class="toggles" role="group" aria-label="Réglages de la démo">
+          <button class="tog glass" type="button" aria-pressed="true" data-t="glow"><span class="dot"></span>notes tenues</button>
+          <button class="tog glass" type="button" aria-pressed="true" data-t="backs"><span class="dot"></span>chœurs</button>
+          <button class="tog glass" type="button" aria-pressed="true" data-t="blur"><span class="dot"></span>flou</button>
+        </div>
+        <p class="tag hint">démo, titre fictif. touche une ligne pour y sauter.</p>
+      </div>
+      <div class="demo glass" aria-label="Démo des paroles">
+        <div class="lyr" id="lyr-demo" data-glow="on" data-backs="on" data-blur="on"></div>
+        <div class="demo-bar glass">
+          <button class="play" type="button" id="play-demo" aria-label="Pause"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0E1014" aria-hidden="true" data-ic="pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
+          <div class="bar" aria-hidden="true"><i id="bar-demo"></i></div>
+          <div class="t" id="time-demo">0:05</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="ensemble" aria-labelledby="t-ensemble">
+    <div class="tag">ensemble</div>
+    <h2 id="t-ensemble" style="margin-top:16px">plus fort à plusieurs<span class="lit">.</span></h2>
+    <div class="trio">
+      <article class="card glass">
+        <h3>relais<span class="lit">.</span></h3>
+        <p>lance sur le téléphone, continue sur l'ordinateur. ta lecture te suit.</p>
+        <div class="vis">
+          <svg viewBox="0 0 280 170" width="100%" style="max-width:300px" role="img" aria-label="Un téléphone et un ordinateur reliés, la lecture passe de l'un à l'autre">
+            <rect x="14" y="36" width="52" height="100" rx="12" fill="rgba(255,255,255,.14)" stroke="rgba(255,255,255,.55)"/>
+            <rect x="22" y="48" width="36" height="5" rx="2.5" fill="rgba(255,255,255,.7)"/><rect x="22" y="60" width="26" height="5" rx="2.5" fill="rgba(255,255,255,.35)"/>
+            <rect x="160" y="42" width="104" height="70" rx="10" fill="rgba(255,255,255,.14)" stroke="rgba(255,255,255,.55)"/>
+            <rect x="148" y="118" width="128" height="8" rx="4" fill="rgba(255,255,255,.3)"/>
+            <rect x="172" y="56" width="60" height="6" rx="3" fill="rgba(255,255,255,.7)"/><rect x="172" y="70" width="44" height="6" rx="3" fill="rgba(255,255,255,.35)"/>
+            <path id="rp" d="M70 82C100 40 130 40 156 70" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.5" stroke-dasharray="3 5"/>
+            <circle r="5" fill="#fff"><animateMotion dur="2.6s" repeatCount="indefinite" path="M70 82C100 40 130 40 156 70"/></circle>
+            <circle r="9" fill="#fff" opacity=".35"><animateMotion dur="2.6s" repeatCount="indefinite" path="M70 82C100 40 130 40 156 70"/></circle>
+          </svg>
+        </div>
+      </article>
+      <article class="card glass">
+        <h3>soirées<span class="lit">.</span></h3>
+        <p>même titre, même instant. un lien suffit pour rejoindre.</p>
+        <div class="vis party">
+          <div class="avs" aria-hidden="true"><span>I</span><span>K</span><span>M</span><span>+2</span></div>
+          <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+      </article>
+      <article class="card glass">
+        <h3>blind test<span class="lit">.</span></h3>
+        <p>devine le titre, ou complète la ligne.</p>
+        <div class="vis">
+          <div class="quiz" id="quiz">
+            <div class="q">« tu m'as laissé une … »</div>
+            <div class="opts">
+              <button class="opt" type="button" data-a="0">ombre</button>
+              <button class="opt" type="button" data-a="1">lumière</button>
+              <button class="opt" type="button" data-a="0">trace</button>
+              <button class="opt" type="button" data-a="0">nuit</button>
+            </div>
+            <div class="res" id="quiz-res" aria-live="polite">choisis.</div>
+          </div>
+        </div>
+      </article>
+    </div>
+    <div class="feat">
+      <div><b>hors ligne.</b><span>télécharge des titres, écoute sans réseau.</span></div>
+      <div><b>décalage fin.</b><span>recale les paroles d'un titre, 0,1 s par 0,1 s.</span></div>
+      <div><b>chante.</b><span>la voix baisse, les paroles restent. à toi.</span></div>
+      <div><b>stats.</b><span>ce que tu écoutes, par semaine et par mois.</span></div>
+      <div><b>radios.</b><span>choisis un genre, c'est parti.</span></div>
+      <div><b>amis.</b><span>vois qui écoute quoi, et rejoins-les.</span></div>
+    </div>
+  </section>
+
+  <section class="sec" id="installer" aria-labelledby="t-install">
+    <div class="tag">installer</div>
+    <h2 id="t-install" style="margin-top:16px">installer. ou ouvrir<span class="lit">.</span></h2>
+    <p class="intro">dans le navigateur, rien à télécharger. sur l'écran d'accueil, elle se lance en plein écran comme une app.</p>
+
+    <div class="install glass">
+      <div class="tabs glass" role="tablist" aria-label="Choisis ton appareil">
+        <button class="tab" role="tab" type="button" id="tab-ios" aria-controls="p-ios" aria-selected="false" data-p="ios">iphone</button>
+        <button class="tab" role="tab" type="button" id="tab-android" aria-controls="p-android" aria-selected="false" data-p="android">android</button>
+        <button class="tab" role="tab" type="button" id="tab-windows" aria-controls="p-windows" aria-selected="false" data-p="windows">windows</button>
+        <button class="tab" role="tab" type="button" id="tab-web" aria-controls="p-web" aria-selected="true" data-p="web">navigateur</button>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-ios" aria-labelledby="tab-ios" hidden>
+        <div>
+          <h3>sur iphone<span class="lit">.</span></h3>
+          <ol class="steps">
+            <li><span>ouvre alyra dans <b>safari</b>.</span></li>
+            <li><span>touche <b>partager</b>, en bas de l'écran.</span></li>
+            <li><span>choisis <b>sur l'écran d'accueil</b>.</span></li>
+            <li><span>lance-la : plein écran, comme une app.</span></li>
+          </ol>
+          <a href="#" class="btn btn-solid" data-open>ouvrir dans safari.</a>
+        </div>
+        <div class="pvis glass"><svg viewBox="0 0 200 200" role="img" aria-label="Le bouton partager de Safari"><rect x="60" y="76" width="80" height="84" rx="16" fill="rgba(255,255,255,.14)" stroke="rgba(255,255,255,.6)" stroke-width="2"/><path d="M100 28v82M78 50l22-22 22 22" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-android" aria-labelledby="tab-android" hidden>
+        <div>
+          <h3>sur android<span class="lit">.</span></h3>
+          <ol class="steps">
+            <li><span>ouvre alyra dans <b>chrome</b>.</span></li>
+            <li><span>touche le menu <b>⋮</b>, en haut à droite.</span></li>
+            <li><span>choisis <b>installer l'application</b>.</span></li>
+            <li><span>elle apparaît avec tes apps, sans barre d'adresse.</span></li>
+          </ol>
+          <a href="#" class="btn btn-solid" data-open>ouvrir dans chrome.</a>
+        </div>
+        <div class="pvis glass"><svg viewBox="0 0 200 200" role="img" aria-label="Le menu à trois points du navigateur"><circle cx="100" cy="48" r="11" fill="#fff"/><circle cx="100" cy="100" r="11" fill="#fff"/><circle cx="100" cy="152" r="11" fill="#fff"/></svg></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-windows" aria-labelledby="tab-windows" hidden>
+        <div>
+          <h3>sur windows<span class="lit">.</span></h3>
+          <ol class="steps">
+            <li><span>télécharge <b>l'installateur</b>.</span></li>
+            <li><span>lance-le, puis connecte-toi.</span></li>
+            <li><span>raccourcis clavier, mode jeu et télécommande depuis le téléphone.</span></li>
+          </ol>
+          <a href="#" class="btn btn-solid" data-dl="windows">télécharger pour windows.</a>
+        </div>
+        <div class="pvis glass"><svg viewBox="0 0 200 200" role="img" aria-label="Une fenêtre d'application"><rect x="24" y="44" width="152" height="112" rx="14" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width="2"/><path d="M24 72h152" stroke="rgba(255,255,255,.4)" stroke-width="2"/><circle cx="44" cy="58" r="4" fill="#fff"/><circle cx="58" cy="58" r="4" fill="rgba(255,255,255,.5)"/><rect x="40" y="88" width="56" height="8" rx="4" fill="#fff"/><rect x="40" y="104" width="86" height="8" rx="4" fill="rgba(255,255,255,.4)"/><rect x="40" y="120" width="70" height="8" rx="4" fill="rgba(255,255,255,.4)"/></svg></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-web" aria-labelledby="tab-web">
+        <div>
+          <h3>dans le navigateur<span class="lit">.</span></h3>
+          <ol class="steps">
+            <li><span>clique sur <b>ouvrir</b>.</span></li>
+            <li><span>connecte-toi avec last.fm.</span></li>
+            <li><span>écoute. rien d'autre à faire.</span></li>
+          </ol>
+          <a href="#" class="btn btn-solid" data-open>ouvrir dans le navigateur.</a>
+        </div>
+        <div class="pvis glass"><svg viewBox="0 0 200 200" role="img" aria-label="Une fenêtre de navigateur"><rect x="22" y="40" width="156" height="120" rx="14" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width="2"/><rect x="38" y="52" width="124" height="18" rx="9" fill="rgba(255,255,255,.2)"/><use href="#mark" x="72" y="82" width="56" height="56"/></svg></div>
+      </div>
+    </div>
+    <p class="platforms" style="margin-top:20px">aussi : le bot telegram, et un plugin stream deck pour piloter depuis ton bureau.</p>
+  </section>
+
+  <section class="sec" id="faq" aria-labelledby="t-faq">
+    <div class="tag">questions</div>
+    <h2 id="t-faq" style="margin-top:16px">en bref<span class="lit">.</span></h2>
+    <div class="faq">
+      <details class="glass" open><summary>comment y entrer ?</summary><p>connecte-toi avec last.fm. un administrateur valide ensuite ton compte : tant que ce n'est pas fait, l'accès reste fermé.</p></details>
+      <details class="glass"><summary>ça marche hors ligne ?</summary><p>oui, pour les titres que tu as téléchargés. le reste a besoin d'une connexion.</p></details>
+      <details class="glass"><summary>les paroles sont décalées ?</summary><p>règle le décalage : plus ou moins, par pas de 0,1 s. alyra s'en souvient pour ce titre.</p></details>
+      <details class="glass"><summary>sur quels appareils ?</summary><p>navigateur, iphone, android, windows. plus le bot telegram et un plugin stream deck.</p></details>
+    </div>
+  </section>
+
+  <section class="final" aria-labelledby="t-final">
+    <svg class="mark" aria-hidden="true"><use href="#mark"/></svg>
+    <h2 class="big" id="t-final" aria-label="alyra.">alyra<span class="lit">.</span></h2>
+    <div class="cta-row" style="justify-content:center">
+      <a href="#" class="btn btn-solid" data-open>ouvrir dans le navigateur.</a>
+      <a href="#installer" class="btn btn-glass glass">installer.</a>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap foot">
+    <div style="display:flex;align-items:center;gap:12px"><span style="font-weight:800;font-size:22px;letter-spacing:-.05em;color:var(--ink)">alyra<span class="lit">.</span></span><span>ta musique, en clair.</span></div>
+    <nav aria-label="Pied de page"><a href="/">ouvrir l'app.</a></nav>
+  </div>
+</footer>
+
+<div class="toast glass" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// Adresses : l'app est à la racine de ce site ; Windows, la page de version où l'installateur est publié.
+const LINKS = { app: "/", windows: "https://github.com/LeVraiLunatix/sona/releases/tag/windows" };
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+
+// ── Messages courts ──────────────────────────────────────────────────────
+let toastTimer = 0;
+function toast(msg) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
+}
+function wireLinks() {
+  $$("[data-open]").forEach((a) => {
+    if (LINKS.app) a.href = LINKS.app;
+    else a.addEventListener("click", (e) => { e.preventDefault(); toast("l'adresse de l'app se renseigne avant la mise en ligne."); });
+  });
+  $$("[data-dl]").forEach((a) => {
+    if (LINKS[a.dataset.dl]) { a.href = LINKS[a.dataset.dl]; a.target = "_blank"; a.rel = "noopener"; }
+    else a.addEventListener("click", (e) => { e.preventDefault(); toast("le lien de téléchargement se renseigne avant la mise en ligne."); });
+  });
+}
+wireLinks();
+
+// ── Verre qui réagit au pointeur ─────────────────────────────────────────
+document.addEventListener("pointermove", (e) => {
+  const g = e.target.closest?.(".glass");
+  if (!g) return;
+  const r = g.getBoundingClientRect();
+  g.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+  g.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
+}, { passive: true });
+
+// Téléphone qui s'incline doucement vers le pointeur (pas sur écran tactile, pas en mouvement réduit)
+const stage = $("#stage"), phone = $("#phone");
+if (!reduce.matches && matchMedia("(hover: hover)").matches) {
+  stage.addEventListener("pointermove", (e) => {
+    const r = stage.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+    phone.style.setProperty("--ry", `${(x * 14).toFixed(2)}deg`);
+    phone.style.setProperty("--rx", `${(-y * 10).toFixed(2)}deg`);
+  });
+  stage.addEventListener("pointerleave", () => { phone.style.setProperty("--ry", "0deg"); phone.style.setProperty("--rx", "0deg"); });
+}
+
+// ── Paroles : même principe que dans l'app ───────────────────────────────
+// [mot, début, fin] en secondes ; un espace de fin = espace avant le mot suivant.
+const SONG = [
+  { words: [["J'ai ", .4, .7], ["marché ", .7, 1.2], ["seul ", 1.2, 1.6], ["sous ", 1.6, 1.9], ["la ", 1.9, 2.1], ["pluie", 2.1, 3.6]] },
+  { words: [["Tu ", 4.2, 4.4], ["m'as ", 4.4, 4.7], ["laissé ", 4.7, 5.2], ["une ", 5.2, 5.5], ["lumière", 5.5, 8.4]], backs: [["ouais, ", 7.0, 7.5], ["ouais", 7.6, 8.4]] },
+  { words: [["Et ", 9, 9.2], ["je ", 9.2, 9.4], ["la ", 9.4, 9.6], ["suis ", 9.6, 10], ["les ", 10, 10.2], ["yeux ", 10.2, 10.7], ["fermés", 10.7, 12]] },
+  { words: [["Jusqu'au ", 12.6, 13.2], ["bout ", 13.2, 13.6], ["de ", 13.6, 13.8], ["la ", 13.8, 14], ["nuit", 14, 16.4]] },
+];
+const END = 17.6, START_AT = 4.9, LEAD = .08;
+const lineStart = (l) => l.words[0][1];
+
+function makeWord([text, s, e], k) {
+  const dur = e - s, body = text.trimEnd(), letters = [...body];
+  const held = dur >= .9 && letters.length >= 3;
+  const el = document.createElement("span");
+  el.className = "w" + (held ? " held" : "");
+  el.dataset.k = k;
+  if (held) {
+    el.style.setProperty("--m", (0.022 * letters.length).toFixed(2));
+    letters.forEach((c) => { const ch = document.createElement("span"); ch.className = "ch"; ch.textContent = c; el.appendChild(ch); });
+  } else el.textContent = text;
+  return { el, s, e, held, trailing: held ? text.slice(body.length) : "" };
+}
+
+function buildView(root) {
+  const list = document.createElement("div");
+  list.className = "list";
+  list.style.paddingTop = "34%";
+  list.style.paddingBottom = "50%";
+  root.appendChild(list);
+  const lines = SONG.map((ln, i) => {
+    const p = document.createElement("p");
+    p.className = "ln";
+    p.dataset.i = i;
+    const words = ln.words.map(makeWord);
+    words.forEach((w) => { p.appendChild(w.el); if (w.trailing) p.appendChild(document.createTextNode(w.trailing)); });
+    let backs = [];
+    if (ln.backs) {
+      const bk = document.createElement("span");
+      bk.className = "bk";
+      backs = ln.backs.map((b, k) => makeWord(b, 100 + k));
+      backs.forEach((w) => { bk.appendChild(w.el); if (w.trailing) bk.appendChild(document.createTextNode(w.trailing)); });
+      p.appendChild(bk);
+    }
+    list.appendChild(p);
+    return { p, words, backs, start: lineStart(ln) };
+  });
+  const view = { root, list, lines, active: -2, visible: true };
+  new IntersectionObserver((en) => { view.visible = en[0].isIntersecting; }).observe(root);
+  lines.forEach((l, i) => l.p.addEventListener("click", () => seek(l.start - .2)));
+  return view;
+}
+
+function paintWords(words, now) {
+  for (const w of words) {
+    const dur = w.e - w.s, P = clamp01((now - w.s) / dur);
+    w.el.style.setProperty("--p", P.toFixed(3));
+    if (w.held) {
+      const n = w.el.children.length;
+      for (let j = 0; j < n; j++) w.el.children[j].style.setProperty("--p", clamp01(P * n - j).toFixed(3));
+      if (!reduce.matches) {
+        const rise = clamp01((now - w.s) / Math.min(.35, dur * .6));
+        const fall = now > w.e ? clamp01(1 - (now - w.e) / .4) : 1;
+        const g = rise * rise * (3 - 2 * rise) * fall;
+        w.el.style.setProperty("--e", (g * clamp01((dur - .5) / .6)).toFixed(3));
+      }
+    }
+  }
+}
+
+function updateView(v, now, instant) {
+  let a = -1;
+  v.lines.forEach((l, i) => { if (l.start <= now) a = i; });
+  if (a !== v.active) {
+    v.active = a;
+    v.lines.forEach((l, i) => { l.p.classList.toggle("on", i === a); l.p.classList.toggle("near", a >= 0 && Math.abs(i - a) === 1); });
+    const el = v.lines[Math.max(a, 0)].p;
+    const target = el.offsetTop - v.root.clientHeight * .3;
+    if (instant) { v.list.style.transition = "none"; }
+    v.list.style.transform = `translateY(${-Math.max(0, target)}px)`;
+    if (instant) { void v.list.offsetHeight; v.list.style.transition = ""; }
+  }
+  if (a >= 0) { const l = v.lines[a]; paintWords(l.words, now); paintWords(l.backs, now); }
+}
+
+const views = [buildView($("#lyr-phone")), buildView($("#lyr-demo"))];
+let t = START_AT, playing = true, lastTs = performance.now();
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+function seek(to) { t = Math.max(0, to); setPlaying(true); }
+function setPlaying(on) {
+  playing = on;
+  ["#play-phone", "#play-demo"].forEach((id) => {
+    const b = $(id);
+    b.setAttribute("aria-label", on ? "Pause" : "Lecture");
+    b.querySelector("svg").innerHTML = on ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M8 5l11 7-11 7z"/>';
+  });
+}
+["#play-phone", "#play-demo"].forEach((id) => $(id).addEventListener("click", () => setPlaying(!playing)));
+
+function frame(ts) {
+  if (playing) { t += Math.min(.1, (ts - lastTs) / 1000); if (t >= END) { t = 0; views.forEach((v) => { v.active = -2; }); } }
+  lastTs = ts;
+  const now = t + LEAD, pct = `${(t / END) * 100}%`;
+  views.forEach((v) => { if (v.visible) updateView(v, now, false); });
+  $("#bar-phone").style.width = pct;
+  $("#bar-demo").style.width = pct;
+  $("#time-demo").textContent = fmt(t);
+  requestAnimationFrame(frame);
+}
+views.forEach((v) => updateView(v, START_AT + LEAD, true));
+requestAnimationFrame((ts) => { lastTs = ts; frame(ts); });
+
+$$(".tog").forEach((b) => b.addEventListener("click", () => {
+  const on = b.getAttribute("aria-pressed") !== "true";
+  b.setAttribute("aria-pressed", String(on));
+  $("#lyr-demo").dataset[b.dataset.t] = on ? "on" : "off";
+}));
+
+// ── Blind test miniature ─────────────────────────────────────────────────
+let answered = false;
+$$("#quiz .opt").forEach((b) => b.addEventListener("click", () => {
+  const res = $("#quiz-res");
+  if (answered) {
+    answered = false;
+    $$("#quiz .opt").forEach((o) => o.classList.remove("ok", "no"));
+    res.textContent = "choisis.";
+    return;
+  }
+  answered = true;
+  const good = b.dataset.a === "1";
+  $$("#quiz .opt").forEach((o) => o.classList.add(o.dataset.a === "1" ? "ok" : "no"));
+  res.textContent = good ? "juste. touche pour rejouer." : "raté. c'était « lumière ». touche pour rejouer.";
+}));
+
+// ── Installer : l'onglet de ton appareil s'ouvre tout seul ────────────────
+function showPanel(id) {
+  $$(".tab").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.p === id)));
+  $$(".panel").forEach((p) => { p.hidden = p.id !== `p-${id}`; });
+}
+$$(".tab").forEach((tab, i, all) => {
+  tab.addEventListener("click", () => showPanel(tab.dataset.p));
+  tab.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const next = all[(i + (e.key === "ArrowRight" ? 1 : all.length - 1)) % all.length];
+    next.focus(); showPanel(next.dataset.p);
+  });
+});
+const ua = navigator.userAgent;
+const platform = /iPhone|iPad|iPod/.test(ua) ? "ios" : /Android/.test(ua) ? "android" : /Windows/.test(ua) ? "windows" : "web";
+showPanel(platform);
+const names = { ios: "installer sur iphone.", android: "installer sur android.", windows: "installer sur windows.", web: "installer." };
+$("#cta-install").textContent = names[platform];
+
+// ── Mouvement ─────────────────────────────────────────────────────────────
+const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+const moves = !reduce.matches;
+
+// Classes de révélation au défilement (la CSS ne s'applique que si le navigateur sait le faire)
+$$(".sec h2, .sec .intro, .feat > div").forEach((el) => el.classList.add("rv"));
+$$(".demo, .card, .install, .faq details").forEach((el) => el.classList.add("rvg"));
+
+// Titre : chaque lettre se soulève et brille près du pointeur
+const h1 = $("#titre");
+const letters = [];
+$$(".wd", h1).forEach((wd) => {
+  [...wd.childNodes].forEach((n) => {
+    if (n.nodeType === 3) {
+      const frag = document.createDocumentFragment();
+      [...n.textContent].forEach((c) => { const sp = document.createElement("span"); sp.className = "lt"; sp.textContent = c; sp.setAttribute("aria-hidden", "true"); frag.appendChild(sp); letters.push(sp); });
+      n.replaceWith(frag);
+    } else if (n.classList?.contains("lit")) { n.classList.add("lt"); letters.push(n); }
+  });
+});
+$$(".final .big").forEach((big) => {
+  [...big.childNodes].forEach((n) => {
+    if (n.nodeType === 3) {
+      const frag = document.createDocumentFragment();
+      [...n.textContent].forEach((c) => { const sp = document.createElement("span"); sp.className = "lt"; sp.textContent = c; sp.setAttribute("aria-hidden", "true"); frag.appendChild(sp); });
+      n.replaceWith(frag);
+    } else if (n.classList?.contains("lit")) n.classList.add("lt");
+  });
+});
+if (moves && fine) {
+  let px = -999, py = -999, waving = false;
+  const wave = () => {
+    waving = false;
+    for (const l of letters) {
+      const r = l.getBoundingClientRect(), dx = r.left + r.width / 2 - px, dy = r.top + r.height / 2 - py;
+      const f = Math.max(0, 1 - Math.hypot(dx, dy) / 230);
+      if (f > 0 || l.dataset.on) {
+        l.style.translate = `0 ${(-f * 18).toFixed(1)}px`;
+        l.style.scale = (1 + f * .12).toFixed(3);
+        l.style.textShadow = f > .02 ? `0 0 ${(f * .38).toFixed(2)}em rgba(255,255,255,${(f * .6).toFixed(2)})` : "";
+        l.dataset.on = f > .02 ? "1" : "";
+      }
+    }
+  };
+  h1.parentElement.parentElement.addEventListener("pointermove", (e) => { px = e.clientX; py = e.clientY; if (!waving) { waving = true; requestAnimationFrame(wave); } });
+  h1.parentElement.parentElement.addEventListener("pointerleave", () => { px = py = -999; requestAnimationFrame(wave); });
+}
+
+// Boutons magnétiques et cartes qui s'inclinent
+if (moves && fine) {
+  $$(".btn").forEach((b) => {
+    b.addEventListener("pointermove", (e) => {
+      const r = b.getBoundingClientRect();
+      b.style.setProperty("--tx", `${((e.clientX - r.left - r.width / 2) * .22).toFixed(1)}px`);
+      b.style.setProperty("--ty", `${((e.clientY - r.top - r.height / 2) * .3).toFixed(1)}px`);
+    });
+    b.addEventListener("pointerleave", () => { b.style.setProperty("--tx", "0px"); b.style.setProperty("--ty", "0px"); });
+  });
+  $$(".card").forEach((c) => {
+    c.addEventListener("pointermove", (e) => {
+      const r = c.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+      c.style.setProperty("--cry", `${(x * 10).toFixed(2)}deg`);
+      c.style.setProperty("--crx", `${(-y * 8).toFixed(2)}deg`);
+    });
+    c.addEventListener("pointerleave", () => { c.style.setProperty("--cry", "0deg"); c.style.setProperty("--crx", "0deg"); });
+  });
+}
+
+// Progression de lecture de la page, fond en parallaxe, bandeau qui s'incline avec la vitesse
+const prog = $("#prog"), amb = $("#ambient"), skew = $("#skew");
+let lastY = scrollY, vel = 0, ticking = false;
+function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(scrollStep); } }
+function scrollStep() {
+  ticking = false;
+  const y = scrollY, max = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+  prog.style.setProperty("--sp", clamp01(y / max).toFixed(4));
+  if (moves) amb.style.setProperty("--sy", y.toFixed(0));
+  vel += ((y - lastY) - vel) * .35;
+  lastY = y;
+}
+addEventListener("scroll", onScroll, { passive: true });
+scrollStep();
+if (moves) {
+  (function skewLoop() {
+    vel *= .92;
+    skew.style.setProperty("--skew", `${Math.max(-14, Math.min(14, -vel * .45)).toFixed(2)}deg`);
+    requestAnimationFrame(skewLoop);
+  })();
+}
+
+// Curseur : un point de lumière, et sa traînée
+if (moves && fine) {
+  document.documentElement.classList.add("has-cursor");
+  const cur = $("#cursor"), N = 9, dots = [];
+  for (let i = 0; i < N; i++) {
+    const d = document.createElement("i");
+    d.className = "dot" + (i === 0 ? " lead" : "");
+    d.style.opacity = (i === 0 ? 1 : (1 - i / N) * .55).toFixed(2);
+    d.style.scale = i === 0 ? "" : (1 - i / (N + 2)).toFixed(2);
+    cur.appendChild(d);
+    dots.push({ el: d, x: -100, y: -100 });
+  }
+  let mx = -100, my = -100;
+  addEventListener("pointermove", (e) => { mx = e.clientX; my = e.clientY; }, { passive: true });
+  addEventListener("pointerover", (e) => { cur.dataset.hover = e.target.closest?.("a, button, summary, .opt, .ln") ? "1" : ""; });
+  (function follow() {
+    let tx = mx, ty = my;
+    dots.forEach((d, i) => {
+      d.x += (tx - d.x) * (i === 0 ? .5 : .42); d.y += (ty - d.y) * (i === 0 ? .5 : .42);
+      d.el.style.transform = `translate3d(${d.x.toFixed(1)}px, ${d.y.toFixed(1)}px, 0)`;
+      tx = d.x; ty = d.y;
+    });
+    requestAnimationFrame(follow);
+  })();
+}
+</script>
+</body>
+</html>
