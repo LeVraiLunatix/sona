@@ -1,6 +1,6 @@
-/* Sona pour Windows — habillage « verre liquide » de l'app d'ordinateur.
+/* alyra. pour Windows — habillage « verre liquide » de l'app d'ordinateur.
    Chargé seulement dans l'app (classe `desktop` sur <html>, voir app.js) :
-   Sona web dans un navigateur ne change pas.
+   alyra. web dans un navigateur ne change pas.
 
    Principe : la pochette en cours, très floue, remplit le fond de la
    fenêtre et respire doucement ; par-dessus, des panneaux de verre qui
@@ -22,7 +22,7 @@ html.desktop {
   --text: #f6f6f8;
   --text-2: rgba(246, 246, 248, .66);
   --text-3: rgba(246, 246, 248, .42);
-  --accent-soft: rgba(250, 45, 108, .2);
+  --accent-soft: rgba(255, 255, 255, .18);
   --shadow-art: 0 10px 28px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .3);
   --shadow-pop: 0 28px 70px rgba(0, 0, 0, .55);
   /* Verre */
@@ -38,7 +38,7 @@ html.desktop {
 
 html.desktop body {
   background: var(--bg);
-  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif;
+  font-family: "Inter Tight", "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   user-select: none;
 }
 html.desktop :is(input, textarea, .lyrics, .chat, .page p) { user-select: text; }
@@ -56,9 +56,9 @@ html.desktop .ambient img + img { animation-delay: -20s; animation-direction: al
 html.desktop .ambient img.on { opacity: 1; }
 @keyframes amb-drift { from { transform: scale(1) rotate(0deg); } to { transform: scale(1.2) rotate(12deg) translate(2%, -3%); } }
 html.desktop .ambient .blob { position: absolute; width: 62vmax; height: 62vmax; border-radius: 50%; filter: blur(70px); opacity: .5; mix-blend-mode: screen; transition: opacity 1.2s var(--ease); }
-html.desktop .ambient .b1 { left: -22vmax; top: -26vmax; background: radial-gradient(circle, rgba(150, 95, 255, .75), transparent 66%); animation: amb-float 26s ease-in-out infinite alternate; }
-html.desktop .ambient .b2 { right: -24vmax; top: 10vh; background: radial-gradient(circle, rgba(255, 64, 129, .6), transparent 66%); animation: amb-float 31s ease-in-out infinite alternate-reverse; }
-html.desktop .ambient .b3 { left: 20vw; bottom: -36vmax; background: radial-gradient(circle, rgba(64, 140, 255, .5), transparent 66%); animation: amb-float 36s ease-in-out infinite alternate; }
+html.desktop .ambient .b1 { left: -22vmax; top: -26vmax; background: radial-gradient(circle, rgba(61, 90, 153, .85), transparent 66%); animation: amb-float 26s ease-in-out infinite alternate; }
+html.desktop .ambient .b2 { right: -24vmax; top: 10vh; background: radial-gradient(circle, rgba(122, 74, 126, .7), transparent 66%); animation: amb-float 31s ease-in-out infinite alternate-reverse; }
+html.desktop .ambient .b3 { left: 20vw; bottom: -36vmax; background: radial-gradient(circle, rgba(185, 133, 87, .5), transparent 66%); animation: amb-float 36s ease-in-out infinite alternate; }
 html.desktop.has-art .ambient .blob { opacity: .12; }
 @keyframes amb-float { to { transform: translate(14vw, 10vh) scale(1.18); } }
 /* Assombrit vers les bords : le texte reste lisible quelle que soit la pochette. */
@@ -337,11 +337,11 @@ html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
   html.desktop .ambient img, html.desktop .ambient .blob { animation: none; }
 }
 
-/* ── Sona sur l'iPhone ───────────────────────────────────────────────── */
+/* ── alyra sur l'iPhone ───────────────────────────────────────────────── */
 
 .side-badge:empty { display: none; }
 .side-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center;
-  font-size: 11.5px; font-weight: 700; color: #fff; background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
+  font-size: 11.5px; font-weight: 700; color: var(--on-accent, #fff); background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
 
 .iph-hero {
   display: grid; grid-template-columns: 168px 1fr; gap: 30px; align-items: center; max-width: 980px; padding: 28px 30px; border-radius: 28px; margin-bottom: 22px;
@@ -367,7 +367,7 @@ html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
 .iph-progress-head { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
 .iph-progress-head span { color: var(--text-2); font-variant-numeric: tabular-nums; }
 .iph-bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .3); }
-.iph-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #ff8ab0); box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent); transition: width .3s var(--ease); }
+.iph-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #bfcbe0); box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent); transition: width .3s var(--ease); }
 .iph-bar.indeterminate i { animation: iph-slide 1.3s ease-in-out infinite; }
 @keyframes iph-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 
@@ -383,7 +383,7 @@ html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
 .iph-device:hover { background: rgba(255, 255, 255, .06); }
 .iph-device.on { background: rgba(255, 255, 255, .09); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
 .iph-profile .avatar { width: 40px; height: 40px; font-size: 15px; }
-.iph-profile.on .avatar { background: var(--accent); color: #fff; }
+.iph-profile.on .avatar { background: var(--accent); color: var(--on-accent, #fff); }
 .iph-device-text { min-width: 0; display: flex; flex-direction: column; }
 .iph-device-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .iph-device-text small { color: var(--text-2); font-size: 12.5px; }

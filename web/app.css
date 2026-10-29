@@ -1,5 +1,6 @@
-/* Sona web — dans l'esprit de music.apple.com : barre latérale translucide,
-   lecteur en haut, grandes pochettes, lecteur plein écran avec paroles. */
+/* alyra. web — verre liquide : barre latérale translucide, lecteur en haut,
+   grandes pochettes, lecteur plein écran avec paroles. Voir le bloc « alyra. »
+   à la fin du fichier pour les couleurs, la police et la matière. */
 
 :root {
   --bg: #f5f5f7;
@@ -90,7 +91,7 @@ img { display: block; }
   min-height: 0;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 14px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #a06bff, #ff4f8b); display: grid; place-items: center; box-shadow: 0 4px 12px rgba(160, 107, 255, 0.35); }
+.brand-mark { width: 30px; height: 30px; }
 .brand-mark svg { width: 18px; height: 18px; }
 .side-search { position: relative; margin: 0 4px 12px; }
 .side-search input {
@@ -324,7 +325,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 
 .btn {
   display: inline-flex; align-items: center; gap: 8px; height: 36px; white-space: nowrap; padding: 0 20px; border-radius: 8px;
-  background: var(--accent); color: #fff; font-weight: 600; font-size: 14.5px;
+  background: var(--accent); color: var(--on-accent, #fff); font-weight: 600; font-size: 14.5px;
   transition: filter .15s, transform .15s var(--ease);
 }
 .btn:hover { filter: brightness(1.08); }
@@ -553,7 +554,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .login .wait { color: var(--text-2); font-size: 15px; }
 .link-btn { color: var(--accent); font-weight: 600; margin-top: 10px; text-decoration: underline; }
 
-/* ── Sona Connect ─────────────────────────────────────────────────────── */
+/* ── Relais ─────────────────────────────────────────────────────── */
 
 .lcd.remote { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .on-device { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-weight: 600; }
@@ -571,7 +572,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .resume .eyebrow { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--accent); }
 .resume .t { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .resume .s { font-size: 13.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.resume-cta { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.resume-cta { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font-weight: 600; font-size: 14px; white-space: nowrap; }
 
 .devices-pop {
   position: fixed; top: 76px; right: 20px; width: 340px; max-width: calc(100vw - 24px); z-index: 60;
@@ -592,7 +593,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .dp-device { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; width: 100%; padding: 9px 8px; border-radius: 10px; text-align: left; }
 .dp-device:hover { background: var(--fill); }
 .dp-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--fill-strong); font-size: 20px; color: var(--text-2); }
-.dp-device.playing .dp-icon { background: var(--accent); color: #fff; }
+.dp-device.playing .dp-icon { background: var(--accent); color: var(--on-accent, #fff); }
 .dp-device .n { display: block; font-weight: 600; font-size: 14.5px; }
 .dp-device .st { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dp-device.playing .st { color: var(--accent); }
@@ -686,7 +687,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .dev-vol { display: flex; align-items: center; gap: 10px; color: var(--text-3); margin: 4px 6px 12px; }
 .dev-vol input { flex: 1; }
 
-/* État de Sona */
+/* État d'alyra */
 .st-row { display: grid; grid-template-columns: 12px 1fr; gap: 14px; align-items: center; }
 .st-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-3); }
 .st-dot.ok { background: #30d158; box-shadow: 0 0 0 3px rgba(48, 209, 88, .18); }
@@ -1197,7 +1198,7 @@ span.chip { cursor: default; }
     --head-h: 48px; --tab-h: 64px; --tab-gap: max(10px, calc(var(--safe-bottom) - 12px)); --mini-h: 58px;
     color-scheme: dark;
   }
-  html, body { background: #000; overscroll-behavior: none; }
+  html, body { background: var(--bg); overscroll-behavior: none; }
   body { font-size: 16px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   input, textarea { -webkit-user-select: text; user-select: text; }
   .app { display: block; height: 100dvh; }
@@ -1220,7 +1221,7 @@ span.chip { cursor: default; }
   .mhead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 25;
     height: calc(var(--safe-top) + var(--head-h)); padding: var(--safe-top) 10px 0; border-bottom: .5px solid transparent;
     transition: background .25s var(--ease), border-color .25s; }
-  .mhead.edge { background: rgba(0, 0, 0, .72); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); border-bottom-color: var(--hairline); }
+  .mhead.edge { background: rgba(14, 16, 20, .55); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); border-bottom-color: var(--hairline); }
   .mh-left { display: flex; min-width: 0; }
   .mh-title { font-size: 17px; font-weight: 700; max-width: 52vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .25s var(--ease); }
   .mhead.scrolled .mh-title { opacity: 1; transform: none; }
@@ -1239,7 +1240,7 @@ span.chip { cursor: default; }
     border: .5px solid rgba(255,255,255,.14); box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 .5px 0 rgba(255,255,255,.12); transition: transform .35s var(--ease), opacity .3s; }
   .tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 999px; color: var(--text-2); font-size: 10px; font-weight: 600; transition: background .2s, color .2s; }
   .tabbar button .icon { font-size: 23px; }
-  .tabbar button.active { color: #fff; background: rgba(255,255,255,.13); }
+  .tabbar button.active { color: #fff; background: rgba(255,255,255,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
   .tabbar button:active { transform: scale(.94); }
 
   /* Mini-lecteur flottant au-dessus des onglets */
@@ -1361,7 +1362,7 @@ span.chip { cursor: default; }
   .menu-item:active { background: var(--fill); }
   .sheet .pill-row .btn { flex: 1; }
 
-  /* Sona Connect en feuille du bas */
+  /* Relais en feuille du bas */
   .devices-pop.as-sheet { top: auto !important; right: 0 !important; left: 0; bottom: 0; width: auto; max-width: none; border-radius: 24px 24px 0 0;
     padding: 14px 14px calc(var(--safe-bottom) + 14px); background: rgba(28,28,30,.96); animation: sheetUp .35s cubic-bezier(.32, .72, 0, 1) both; z-index: 85; }
   @keyframes sheetUp { from { transform: translateY(100%); } }
@@ -1473,7 +1474,7 @@ span.chip { cursor: default; }
 
 /* Reconnaître un titre */
 .rec { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0 8px; text-align: center; }
-.rec-pulse { width: 110px; height: 110px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 44px; animation: rec-pulse 1.2s ease-in-out infinite; margin-bottom: 8px; }
+.rec-pulse { width: 110px; height: 110px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent, #fff); font-size: 44px; animation: rec-pulse 1.2s ease-in-out infinite; margin-bottom: 8px; }
 @keyframes rec-pulse { 50% { box-shadow: 0 0 0 22px color-mix(in srgb, var(--accent) 18%, transparent); } }
 .rec-art { width: 180px; height: 180px; border-radius: 14px; object-fit: cover; box-shadow: 0 16px 40px rgba(0,0,0,.4); background: var(--fill); }
 .rec-title { font-size: 20px; margin-top: 6px; }
@@ -1490,3 +1491,99 @@ span.chip { cursor: default; }
 .bio-foot { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
 .bio-foot .link-btn { margin-top: 0; }
 .bio-src { font-size: 12.5px; color: var(--text-3); }
+
+
+/* ═══ alyra. — liquid glass ═══════════════════════════════════════════════════
+   Une seule apparence, sombre : fond graphite où passent trois taches de
+   couleur, du verre translucide par-dessus, du blanc pour tout ce qui est
+   actif. Aucune couleur de marque : la seule couleur de l'écran est celle de
+   la pochette. Police : Inter Tight, serrée. Ce bloc vient en dernier : il
+   reprend les variables du début du fichier (et celles de la version mobile). */
+
+:root {
+  --font: "Inter Tight", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --bg: #0e1014;
+  --bg-elevated: #171a21;
+  --sidebar: rgba(255, 255, 255, 0.055);
+  --glass: rgba(24, 28, 38, 0.56);
+  --hairline: rgba(255, 255, 255, 0.12);
+  --fill: rgba(255, 255, 255, 0.07);
+  --fill-strong: rgba(255, 255, 255, 0.14);
+  --text: #f4f6f8;
+  --text-2: rgba(244, 246, 248, 0.72);
+  --text-3: rgba(244, 246, 248, 0.5);
+  --accent: #f4f6f8;
+  --accent-2: #bfcbe0;
+  --accent-soft: rgba(255, 255, 255, 0.18);
+  --on-accent: #0e1014;
+  --shadow-art: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --shadow-pop: 0 28px 70px rgba(0, 0, 0, 0.6);
+  --radius-art: 16px;
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  color-scheme: dark;
+}
+html { background: var(--bg); }
+/* le fond coloré (body::before) passe derrière le contenu : body ne peint donc pas son propre fond */
+html:not(.desktop) body { background: transparent; }
+body { font-family: var(--font); letter-spacing: -0.005em; }
+button, input, textarea, select { font-family: inherit; }
+
+/* Fond : trois taches de couleur derrière le verre (le site ; l'app Windows a son propre fond vivant) */
+html:not(.desktop) body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(62vmax 62vmax at 6% -10%, rgba(61, 90, 153, 0.85), transparent 68%),
+    radial-gradient(58vmax 58vmax at 104% 12%, rgba(122, 74, 126, 0.7), transparent 68%),
+    radial-gradient(64vmax 46vmax at 40% 112%, rgba(185, 133, 87, 0.5), transparent 68%);
+  animation: ay-drift 46s ease-in-out infinite alternate;
+}
+@keyframes ay-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-2%, 3%, 0) scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { html:not(.desktop) body::before { animation: none; } }
+
+/* Titres : gras, serrés */
+.page-title { letter-spacing: -0.045em; word-spacing: 0.05em; }
+.section-head h2 { letter-spacing: -0.035em; }
+
+/* Le nom : « alyra. », le point allumé */
+.lit { text-shadow: 0 0 0.32em rgba(255, 255, 255, 0.9); }
+.brand { gap: 8px; font-size: 24px; font-weight: 700; letter-spacing: -0.05em; }
+.brand-mark { width: 34px; height: 34px; border-radius: 0; background: none; box-shadow: none; display: block; flex: none; }
+.brand-mark svg { width: 34px; height: 34px; display: block; }
+
+/* Verre : bords lumineux, ombre profonde */
+.sidebar { box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07); }
+.topbar { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.07); }
+.side-link { border-radius: 12px; }
+.side-link.active { background: var(--fill-strong); box-shadow: var(--glass-edge); }
+.btn { border-radius: 999px; height: 38px; box-shadow: 0 8px 22px rgba(255, 255, 255, 0.12); }
+.btn.ghost { box-shadow: var(--glass-edge); }
+.chip { box-shadow: var(--glass-edge); }
+.toast { border-radius: 999px; box-shadow: var(--glass-edge), var(--shadow-pop); }
+.sheet {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08)), rgba(22, 26, 36, 0.72);
+  -webkit-backdrop-filter: blur(40px) saturate(190%); backdrop-filter: blur(40px) saturate(190%);
+  border-radius: 28px; box-shadow: var(--glass-edge), var(--shadow-pop);
+}
+.sheet-backdrop { background: rgba(8, 10, 14, 0.55); }
+.card .art-wrap { box-shadow: var(--shadow-art); }
+.focus-pill { background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(190%); backdrop-filter: blur(28px) saturate(190%); box-shadow: var(--glass-edge), 0 10px 30px rgba(0, 0, 0, 0.4); }
+.focus-pill.rest { background: var(--glass); }
+
+/* Connexion */
+.login-bg {
+  background:
+    radial-gradient(44% 44% at 22% 24%, rgba(61, 90, 153, 0.9), transparent 70%),
+    radial-gradient(42% 42% at 78% 36%, rgba(122, 74, 126, 0.75), transparent 70%),
+    radial-gradient(46% 38% at 50% 88%, rgba(185, 133, 87, 0.55), transparent 70%);
+}
+.login-card {
+  max-width: 420px; padding: 40px 34px 34px; border-radius: 40px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
+  -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
+  box-shadow: var(--glass-edge), 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+.login-mark { width: 92px; height: 92px; display: block; margin: 0 auto 18px; filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.4)); }
+.login h1 { font-size: 56px; letter-spacing: -0.06em; }
+.login p { font-size: 18px; margin-bottom: 28px; }
+.login .btn { height: 52px; padding: 0 30px; font-size: 17px; font-weight: 700; letter-spacing: -0.015em; }
+@media (max-width: 760px) { .login-card { padding: 34px 24px 28px; border-radius: 34px; } .login h1 { font-size: 48px; } }

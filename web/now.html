@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>J'écoute · Sona</title>
-<meta name="theme-color" content="#000000">
+<title>J'écoute · alyra</title>
+<meta name="theme-color" content="#0E1014">
 <link rel="icon" type="image/png" sizes="64x64" href="/web/icons/favicon-64.png">
 <!-- Page publique « J'écoute » (servie par le serveur sur /p/<lien>) : ce
      que le compte écoute en ce moment, rafraîchi toutes les 10 secondes. -->
@@ -70,7 +70,7 @@ function render() {
   const who = `<div class="who">${data.avatar_url ? `<img src="${esc(data.avatar_url)}" alt="">` : ""}${esc(data.name)}</div>`;
   if (!t) {
     bg.style.backgroundImage = "";
-    card.innerHTML = `${who}<p class="empty">Rien en ce moment.</p><p class="foot">Écoute avec <b>Sona</b></p>`;
+    card.innerHTML = `${who}<p class="empty">Rien en ce moment.</p><p class="foot">Écoute avec <b>alyra</b></p>`;
     return;
   }
   bg.style.backgroundImage = t.cover_url ? `url("${t.cover_url.replace(/"/g, "%22")}")` : "";
@@ -86,8 +86,8 @@ function render() {
     <h1>${esc(t.title)}</h1>
     <p class="artist">${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</p>
     ${bar}
-    <p class="foot">Écoute avec <b>Sona</b></p>`;
-  document.title = `${t.title} — ${t.artist} · Sona`;
+    <p class="foot">Écoute avec <b>alyra</b></p>`;
+  document.title = `${t.title} — ${t.artist} · alyra`;
   tick();
 }
 
