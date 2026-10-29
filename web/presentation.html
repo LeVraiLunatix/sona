@@ -333,8 +333,9 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padd
       <a href="#paroles" class="hide-s">paroles</a>
       <a href="#ensemble" class="hide-s">ensemble</a>
       <a href="#installer">installer</a>
+      <a href="#compte" class="hide-s">compte</a>
       <a href="#faq" class="hide-s">questions</a>
-      <a href="#" class="btn btn-solid btn-sm" data-open>ouvrir.</a>
+      <a href="#" class="btn btn-solid btn-sm" data-open data-out="se connecter." data-in="écouter.">se connecter.</a>
     </nav>
   </header>
 
@@ -344,7 +345,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padd
       <h1 id="titre" aria-label="ta musique, en clair."><span class="wd" style="--i:0" aria-hidden="true">ta</span> <span class="wd" style="--i:1" aria-hidden="true">musique,</span> <span class="wd" style="--i:2" aria-hidden="true">en</span> <span class="wd" style="--i:3" aria-hidden="true">clair<span class="lit">.</span></span></h1>
       <p class="lead">paroles mot à mot. soirées. relais. un seul endroit pour écouter, partout où tu es.</p>
       <div class="cta-row">
-        <a href="#" class="btn btn-solid" data-open>ouvrir dans le navigateur.</a>
+        <a href="#" class="btn btn-solid" data-open data-out="créer un compte." data-in="écouter.">créer un compte.</a>
         <a href="#installer" class="btn btn-glass glass" id="cta-install">installer.</a>
       </div>
       <div class="platforms">web · iphone · android · windows · telegram</div>
@@ -518,6 +519,33 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padd
     <p class="platforms" style="margin-top:20px">aussi : le bot telegram, et un plugin stream deck pour piloter depuis ton bureau.</p>
   </section>
 
+  <section class="sec" id="compte" aria-labelledby="t-compte">
+    <div class="tag">compte</div>
+    <h2 id="t-compte" style="margin-top:16px">un compte, trois étapes<span class="lit">.</span></h2>
+    <p class="intro">alyra te connecte avec last.fm : pas de mot de passe de plus à retenir.</p>
+    <div class="trio">
+      <article class="card glass" style="min-height:0">
+        <div class="tag">étape 1</div>
+        <h3>last.fm<span class="lit">.</span></h3>
+        <p>crée un compte last.fm si tu n'en as pas encore.</p>
+        <a class="btn btn-glass glass btn-sm" style="margin-top:14px;align-self:flex-start" href="https://www.last.fm/join" target="_blank" rel="noopener">créer un compte last.fm.</a>
+      </article>
+      <article class="card glass" style="min-height:0">
+        <div class="tag">étape 2</div>
+        <h3>connexion<span class="lit">.</span></h3>
+        <p>touche « se connecter avec last.fm », puis autorise alyra sur la page last.fm.</p>
+      </article>
+      <article class="card glass" style="min-height:0">
+        <div class="tag">étape 3</div>
+        <h3>validation<span class="lit">.</span></h3>
+        <p>un administrateur valide ton compte. tant que ce n'est pas fait, l'accès reste fermé : reviens plus tard.</p>
+      </article>
+    </div>
+    <div class="cta-row">
+      <a href="#" class="btn btn-solid" data-open data-out="continuer avec last.fm." data-in="écouter.">continuer avec last.fm.</a>
+    </div>
+  </section>
+
   <section class="sec" id="faq" aria-labelledby="t-faq">
     <div class="tag">questions</div>
     <h2 id="t-faq" style="margin-top:16px">en bref<span class="lit">.</span></h2>
@@ -533,7 +561,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padd
     <svg class="mark" aria-hidden="true"><use href="#mark"/></svg>
     <h2 class="big" id="t-final" aria-label="alyra.">alyra<span class="lit">.</span></h2>
     <div class="cta-row" style="justify-content:center">
-      <a href="#" class="btn btn-solid" data-open>ouvrir dans le navigateur.</a>
+      <a href="#" class="btn btn-solid" data-open data-out="créer un compte." data-in="écouter.">créer un compte.</a>
       <a href="#installer" class="btn btn-glass glass">installer.</a>
     </div>
   </section>
@@ -550,7 +578,9 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padd
 
 <script>
 // Adresses : l'app est à la racine de ce site ; Windows, la page de version où l'installateur est publié.
-const LINKS = { app: "/", windows: "https://github.com/LeVraiLunatix/sona/releases/tag/windows" };
+let loggedIn = false;
+try { loggedIn = !!localStorage.getItem("sona.token"); } catch { /* navigation privée : on suppose non connecté */ }
+const LINKS = { app: loggedIn ? "/" : "/?connexion", windows: "https://github.com/LeVraiLunatix/sona/releases/tag/windows" };
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -577,6 +607,8 @@ function wireLinks() {
   });
 }
 wireLinks();
+// Connecté : « écouter » ramène à l'app. Pas connecté : « se connecter », « créer un compte », vers la connexion.
+$$("[data-open][data-in]").forEach((a) => { a.textContent = loggedIn ? a.dataset.in : a.dataset.out; });
 
 // ── Verre qui réagit au pointeur ─────────────────────────────────────────
 document.addEventListener("pointermove", (e) => {
