@@ -226,8 +226,23 @@ async function boot() {
     if (await exchangeLastfm(store.get("sona.pendingLastfm"), true)) return startApp();
     return renderLogin(null, true);
   }
-  if (!token) return renderLogin();
+  if (!token) return landing();
   startApp();
+}
+
+/** Pas connecté, sur le site : la page de présentation d'abord (on s'y connecte ou on y crée son compte).
+    Directement la connexion pour : l'app installée, l'app Windows, `?connexion` (bouton de la présentation),
+    et un lien de soirée en attente (l'invité doit se connecter pour rejoindre). Sans page de présentation à
+    cette adresse (serveur de l'API, test local), on garde la connexion. */
+async function landing() {
+  const direct = standalone || desktop || new URLSearchParams(location.search).has("connexion") || store.get("sona.joinParty");
+  if (!direct) {
+    try {
+      const res = await fetch("presentation", { method: "HEAD", cache: "no-store" });
+      if (res.ok) { location.replace("presentation"); return; }
+    } catch { /* réseau coupé : la connexion */ }
+  }
+  renderLogin();
 }
 
 /** Sans réseau : la page « Téléchargés », et la lecture de ce qui est sur l'appareil. */
@@ -359,7 +374,7 @@ function signOut() {
   store.set("sona.token", null);
   audio.pause();
   partyLeave(true);
-  renderLogin();
+  landing();
 }
 
 function registerServiceWorker() {
