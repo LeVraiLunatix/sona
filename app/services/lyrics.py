@@ -64,7 +64,7 @@ TTL_MISSING_AFTER_ERROR = timedelta(minutes=5)
 
 # À précision et correspondance égales : LRCLIB (base ouverte, relue par
 # des humains), puis Musixmatch, puis NetEase.
-SOURCE_PRIORITY = {"lrclib": 3, "musixmatch": 2, "netease": 1}
+SOURCE_PRIORITY = {"lrclib": 4, "musixmatch": 3, "netease": 2, "genius": 1}
 
 
 @dataclass(slots=True)
@@ -333,11 +333,12 @@ def cache_key(title: str, artist: str, duration: int | None) -> str:
 # -- Service -----------------------------------------------------------------
 
 class LyricsService:
-    def __init__(self, repo, lrclib, netease=None, musixmatch=None) -> None:
+    def __init__(self, repo, lrclib, netease=None, musixmatch=None, genius=None) -> None:
         self._repo = repo
         self._lrclib = lrclib
         self._netease = netease
         self._musixmatch = musixmatch
+        self._genius = genius
         # Deux appareils qui demandent le même titre en même temps : une
         # seule recherche.
         self._pending: dict[str, asyncio.Future] = {}
@@ -469,6 +470,8 @@ class LyricsService:
             jobs.append(("netease", self._from_netease(title, artist, album, duration)))
         if self._musixmatch is not None:
             jobs.append(("musixmatch", self._from_musixmatch(title, artist, album, duration)))
+        if self._genius is not None:
+            jobs.append(("genius", self._from_genius(title, artist)))
         names: dict[asyncio.Future, str] = {
             asyncio.ensure_future(asyncio.wait_for(job, SOURCE_TIMEOUT)): name for name, job in jobs
         }
@@ -567,6 +570,18 @@ class LyricsService:
             lyrics = await self._netease.lyrics(song.id)
             if lyrics:
                 return _Candidate(_fit_timing(lyrics, timing_ok, song.duration, duration), "netease", score)
+        return None
+
+    async def _from_genius(self, title, artist) -> _Candidate | None:
+        # Texte brut seulement : n'emporte la mise que si personne n'a mieux.
+        songs = await self._genius.search(clean_title(title), main_artist(artist))
+        for song in songs:
+            verdict = match(title, artist, None, None, song.title, song.artist, None, None)
+            if not verdict:
+                continue
+            lyrics = await self._genius.lyrics(song)
+            if lyrics:
+                return _Candidate(lyrics, "genius", verdict[0])
         return None
 
     async def _from_musixmatch(self, title, artist, album, duration) -> _Candidate | None:

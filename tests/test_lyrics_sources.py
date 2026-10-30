@@ -443,3 +443,21 @@ def test_bare_title_finds_lyrics_the_full_title_missed(repo):
     lrclib = PickyLrclib()
     result = run(LyricsService(repo, lrclib).get('Song (From "Film")', "Artiste", None, 200))
     assert result.lyrics == LINE and lrclib.calls == 2
+
+
+# -- Genius ------------------------------------------------------------------
+
+def test_genius_page_parsing():
+    from app.providers.genius import parse_lyrics_page
+
+    page = (
+        '<div>Contributors</div><div data-lyrics-container="true" class="x">[Couplet 1]<br/>Première ligne<br/>'
+        '<a href="#"><span>Deuxième &amp; ligne</span></a><br/><br/>[Refrain]<br/>Troisième</div>'
+        '<div data-lyrics-container="true">Quatrième<div>imbriquée</div></div>3Embed'
+    )
+    lyrics = parse_lyrics_page(page)
+    assert lyrics is not None and not lyrics.synced
+    assert [line.text for line in lyrics.lines] == [
+        "Première ligne", "Deuxième & ligne", "", "Troisième", "Quatrième" "imbriquée",
+    ]
+    assert parse_lyrics_page("<html>rien</html>") is None
