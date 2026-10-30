@@ -75,7 +75,7 @@ def test_smart_playlists(client):
 
 def test_web_page_and_stream_token(client):
     page = client.get("/web/")
-    assert page.status_code == 200 and "Sona" in page.text
+    assert page.status_code == 200 and "alyra" in page.text
     assert client.get("/web", follow_redirects=False).status_code in (302, 307)
     assert "#/home" in client.get("/web/app.js").text or "viewHome" in client.get("/web/app.js").text
     assert client.get("/web/app.css").headers["content-type"].startswith("text/css")

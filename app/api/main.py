@@ -34,6 +34,7 @@ from app.providers.lastfm_auth import LastfmAuthClient
 from app.providers.lrclib import LrclibClient
 from app.providers.musicbrainz import MusicBrainzClient
 from app.providers.musixmatch import MusixmatchClient
+from app.providers.genius import GeniusClient
 from app.providers.netease import NeteaseClient
 from app.providers.spotify import SpotifyClient
 
@@ -72,6 +73,7 @@ async def lifespan(app: FastAPI):
     lrclib = LrclibClient()
     netease = NeteaseClient() if settings.lyrics_extra_sources else None
     musixmatch = MusixmatchClient(settings.musixmatch_token) if settings.lyrics_extra_sources else None
+    genius = GeniusClient() if settings.lyrics_extra_sources else None
     musicbrainz = MusicBrainzClient()
     lastfm_auth = (
         LastfmAuthClient(settings.lastfm_api_key, settings.lastfm_api_secret)
@@ -91,7 +93,7 @@ async def lifespan(app: FastAPI):
         lrclib=lrclib,
         lastfm_auth=lastfm_auth,
         musicbrainz=musicbrainz,
-        lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch),
+        lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch, genius),
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
@@ -119,7 +121,7 @@ async def lifespan(app: FastAPI):
         await apple.aclose()
         await spotify.aclose()
         await lrclib.aclose()
-        for client in (netease, musixmatch):
+        for client in (netease, musixmatch, genius):
             if client is not None:
                 await client.aclose()
         await musicbrainz.aclose()
