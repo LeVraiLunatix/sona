@@ -1,0 +1,76 @@
+package fr.lunatix.alyra;
+
+import android.text.InputType;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import org.json.JSONObject;
+
+final class SettingsScreen extends Screen {
+    private final EditText url, token;
+    private final TextView status;
+
+    SettingsScreen(MainActivity a) {
+        super(a);
+        page = new Page(a);
+        page.title("Réglages");
+        page.section("Serveur Sona");
+        page.note("Adresse de l'API (run_api.py) et jeton API_TOKEN du serveur.");
+        url = field("http://192.168.1.48:8000", Api.base, false);
+        token = field("Jeton API", Api.token, true);
+        status = UI.text(a, "", 16, UI.MUTED, UI.regular);
+        LinearLayout actions = page.actions();
+        actions.addView(UI.button(a, "Enregistrer et tester", true, this::saveAndTest));
+        page.add(status);
+        page.section("À propos");
+        page.note("Alyra pour Android TV — lit ta musique Sona. Dans le lecteur : gauche/droite sur la barre = ±10 s, touches média prises en charge.");
+    }
+
+    private EditText field(String hint, String value, boolean secret) {
+        EditText e = new EditText(a);
+        e.setHint(hint);
+        e.setHintTextColor(UI.MUTED);
+        e.setText(value);
+        e.setTextColor(UI.TEXT);
+        e.setTextSize(18);
+        e.setTypeface(UI.regular);
+        e.setSingleLine(true);
+        e.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        e.setInputType(secret
+                ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+                : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        e.setPadding(UI.dp(18), UI.dp(12), UI.dp(18), UI.dp(12));
+        e.setBackground(UI.shape(UI.RAISED, 0, 0, 12));
+        e.setOnFocusChangeListener((v, has) ->
+                v.setBackground(has ? UI.shape(0xFF2F3A3E, UI.CYAN, UI.dp(2), 12) : UI.shape(UI.RAISED, 0, 0, 12)));
+        a.keyboardOnClick(e);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(UI.dp(560), ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = UI.dp(10);
+        page.col.addView(e, lp);
+        return e;
+    }
+
+    private void saveAndTest() {
+        Api.save(url.getText().toString(), token.getText().toString());
+        status.setTextColor(UI.MUTED);
+        status.setText("Test en cours…");
+        Api.async(() -> {
+            Api.get("/health");
+            JSONObject s = new JSONObject(Api.get("/settings")); // exige le jeton
+            return s.optString("quality", "?");
+        }, q -> {
+            status.setTextColor(UI.CYAN);
+            status.setText("Connecté — qualité " + q + ". Enregistré.");
+            Api.async(() -> { Api.loadLiked(); return true; }, ok -> {}, m -> {});
+        }, msg -> {
+            status.setTextColor(UI.MAGENTA);
+            status.setText("Échec : " + msg);
+        });
+    }
+
+    @Override View view() { return page.root(); }
+}
