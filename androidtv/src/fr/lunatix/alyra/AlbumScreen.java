@@ -39,13 +39,13 @@ final class AlbumScreen extends Screen {
         LinearLayout info = new LinearLayout(a);
         info.setOrientation(LinearLayout.VERTICAL);
         info.setPadding(UI.dp(28), 0, 0, 0);
-        TextView t = UI.text(a, al.title, 34, UI.TEXT, UI.semibold);
+        TextView t = UI.heading(a, al.title, 38);
         t.setMaxLines(2);
         info.addView(t);
         String meta = (al.artist == null ? "" : al.artist)
                 + (al.year != null ? "  ·  " + al.year : "")
                 + (al.tracks.size() > 0 ? "  ·  " + al.tracks.size() + " titres" : "");
-        info.addView(UI.text(a, meta, 17, UI.SOFT, UI.italic));
+        info.addView(UI.text(a, meta, 17, UI.TEXT2, UI.regular));
 
         LinearLayout actions = new LinearLayout(a);
         actions.setGravity(Gravity.CENTER_VERTICAL);

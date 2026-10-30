@@ -32,7 +32,7 @@ final class SearchScreen extends Screen {
 
         box = new EditText(a);
         box.setHint("Titre, artiste, album ou lien Spotify / Deezer / YouTube…");
-        box.setHintTextColor(UI.MUTED);
+        box.setHintTextColor(UI.TEXT3);
         box.setTextColor(UI.TEXT);
         box.setTextSize(20);
         box.setTypeface(UI.regular);
@@ -42,7 +42,7 @@ final class SearchScreen extends Screen {
         box.setPadding(UI.dp(22), UI.dp(14), UI.dp(22), UI.dp(14));
         box.setBackground(UI.shape(UI.RAISED, 0, 0, 28));
         box.setOnFocusChangeListener((v, has) ->
-                v.setBackground(has ? UI.shape(0xFF2F3A3E, UI.CYAN, UI.dp(2), 28) : UI.shape(UI.RAISED, 0, 0, 28)));
+                v.setBackground(has ? UI.shape(UI.FILL_FOCUS, UI.ACCENT, UI.dp(2), 28) : UI.shape(UI.RAISED, 0, 0, 28)));
         a.keyboardOnClick(box);
         box.setOnEditorActionListener((v, action, ev) -> {
             if (action == EditorInfo.IME_ACTION_SEARCH || action == EditorInfo.IME_ACTION_DONE) {
@@ -64,7 +64,7 @@ final class SearchScreen extends Screen {
 
     private void hint(String s) {
         results.removeAllViews();
-        TextView t = UI.text(a, s, 16, UI.MUTED, UI.italic);
+        TextView t = UI.text(a, s, 16, UI.TEXT3, UI.regular);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(14);
         results.addView(t, lp);
@@ -118,13 +118,13 @@ final class SearchScreen extends Screen {
             a.ensureFocus();
         }, m -> {
             if (my != serial) return;
-            TextView e = UI.text(a, m, 17, UI.MAGENTA, UI.regular);
+            TextView e = UI.text(a, m, 17, UI.ERR, UI.regular);
             results.addView(e);
         });
     }
 
     private TextView sectionTitle(String s) {
-        TextView t = UI.text(a, s, 22, UI.TEXT, UI.semibold);
+        TextView t = UI.heading(a, s, 24);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(22);
         lp.bottomMargin = UI.dp(8);
@@ -188,7 +188,7 @@ final class SearchScreen extends Screen {
     }
 
     private void resolveLink(String q, int my) {
-        TextView t = UI.text(a, "Résolution du lien…", 16, UI.MUTED, UI.italic);
+        TextView t = UI.text(a, "Résolution du lien…", 16, UI.TEXT3, UI.regular);
         results.addView(t);
         Api.async(() -> Api.resolve(q), o -> {
             if (my != serial) return;

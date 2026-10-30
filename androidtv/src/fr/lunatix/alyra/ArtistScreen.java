@@ -54,7 +54,7 @@ final class ArtistScreen extends Screen {
         LinearLayout info = new LinearLayout(a);
         info.setOrientation(LinearLayout.VERTICAL);
         info.setPadding(UI.dp(28), 0, 0, 0);
-        info.addView(UI.text(a, ar.name, 38, UI.TEXT, UI.semibold));
+        info.addView(UI.heading(a, ar.name, 42));
         LinearLayout actions = new LinearLayout(a);
         actions.setGravity(Gravity.CENTER_VERTICAL);
         actions.setPadding(0, UI.dp(16), 0, 0);

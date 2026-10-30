@@ -1,7 +1,8 @@
 # Alyra pour Android TV
 
-Port Android TV de l'app iOS (Encre / Alyra) : même API privée de Sona, même
-design sombre (Source Serif 4, cyan/magenta). Java pur sans AndroidX ni
+Port Android TV d'alyra. : même API privée de Sona, mêmes principes visuels
+que le site (Inter Tight, fond graphite à taches de couleur, verre, blanc pour l'actif, logo « a »
+lumineux), mise en page façon Spotify TV (menu à icônes, tuiles d'accès rapide, étagères, barre de lecture en bas). Java pur sans AndroidX ni
 Gradle, comme le launcher `D:\Code\tvlauncher`.
 
 ## Fonctions

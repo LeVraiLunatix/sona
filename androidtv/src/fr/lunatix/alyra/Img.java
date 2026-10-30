@@ -37,6 +37,23 @@ final class Img {
         });
     }
 
+    /** Couleur dominante d'une image (teinte du lecteur plein ecran), calculee hors thread UI. */
+    static void dominant(String url, Api.Done<Integer> done) {
+        if (url == null) return;
+        POOL.execute(() -> {
+            Bitmap b = fetch(url, 24);
+            if (b == null) return;
+            Bitmap one = Bitmap.createScaledBitmap(b, 1, 1, true);
+            int px = one.getPixel(0, 0);
+            float[] hsv = new float[3];
+            android.graphics.Color.colorToHSV(px, hsv);
+            hsv[1] = Math.min(1f, hsv[1] * 1.15f);
+            hsv[2] = Math.max(hsv[2], 0.55f);
+            int out = android.graphics.Color.HSVToColor(hsv);
+            Api.MAIN.post(() -> done.ok(out));
+        });
+    }
+
     /** Pour les besoins hors vue (ex. vignette de notification). */
     static Bitmap fetch(String url, int targetPx) {
         try {

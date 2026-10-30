@@ -22,7 +22,7 @@ final class SettingsScreen extends Screen {
         page.note("Adresse de l'API (run_api.py) et jeton API_TOKEN du serveur.");
         url = field("http://192.168.1.48:8000", Api.base, false);
         token = field("Jeton API", Api.token, true);
-        status = UI.text(a, "", 16, UI.MUTED, UI.regular);
+        status = UI.text(a, "", 16, UI.TEXT3, UI.regular);
         LinearLayout actions = page.actions();
         actions.addView(UI.button(a, "Enregistrer et tester", true, this::saveAndTest));
         page.add(status);
@@ -33,7 +33,7 @@ final class SettingsScreen extends Screen {
     private EditText field(String hint, String value, boolean secret) {
         EditText e = new EditText(a);
         e.setHint(hint);
-        e.setHintTextColor(UI.MUTED);
+        e.setHintTextColor(UI.TEXT3);
         e.setText(value);
         e.setTextColor(UI.TEXT);
         e.setTextSize(18);
@@ -46,7 +46,7 @@ final class SettingsScreen extends Screen {
         e.setPadding(UI.dp(18), UI.dp(12), UI.dp(18), UI.dp(12));
         e.setBackground(UI.shape(UI.RAISED, 0, 0, 12));
         e.setOnFocusChangeListener((v, has) ->
-                v.setBackground(has ? UI.shape(0xFF2F3A3E, UI.CYAN, UI.dp(2), 12) : UI.shape(UI.RAISED, 0, 0, 12)));
+                v.setBackground(has ? UI.shape(UI.FILL_FOCUS, UI.ACCENT, UI.dp(2), 12) : UI.shape(UI.RAISED, 0, 0, 12)));
         a.keyboardOnClick(e);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(UI.dp(560), ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(10);
@@ -56,18 +56,18 @@ final class SettingsScreen extends Screen {
 
     private void saveAndTest() {
         Api.save(url.getText().toString(), token.getText().toString());
-        status.setTextColor(UI.MUTED);
+        status.setTextColor(UI.TEXT3);
         status.setText("Test en cours…");
         Api.async(() -> {
             Api.get("/health");
             JSONObject s = new JSONObject(Api.get("/settings")); // exige le jeton
             return s.optString("quality", "?");
         }, q -> {
-            status.setTextColor(UI.CYAN);
+            status.setTextColor(UI.ACCENT);
             status.setText("Connecté — qualité " + q + ". Enregistré.");
             Api.async(() -> { Api.loadLiked(); return true; }, ok -> {}, m -> {});
         }, msg -> {
-            status.setTextColor(UI.MAGENTA);
+            status.setTextColor(UI.ERR);
             status.setText("Échec : " + msg);
         });
     }

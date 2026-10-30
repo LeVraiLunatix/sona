@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -25,21 +26,39 @@ import java.util.ArrayList;
 import fr.lunatix.alyra.Models.Track;
 
 public class MainActivity extends Activity implements Player.Listener {
-    private static final String[] TABS = {"Écouter", "Rechercher", "Bibliothèque", "Radios", "Réglages"};
-    private static final int RAIL_DP = 210;
+    private static final String[] TABS = {"Accueil", "Recherche", "Bibliothèque", "Radios", "Réglages"};
+    private static final int[] TAB_ICONS = {IconView.HOME, IconView.SEARCH, IconView.LIBRARY, IconView.RADIO, IconView.SETTINGS};
+    private static final int SIDE_DP = 230;
 
     private FrameLayout content;
-    private LinearLayout rail;
-    private final TextView[] railItems = new TextView[TABS.length];
+    private LinearLayout side;
+    private final View[] navItems = new View[TABS.length];
+    private final IconView[] navIcons = new IconView[TABS.length];
+    private final TextView[] navLabels = new TextView[TABS.length];
     private final Screen[] tabScreens = new Screen[TABS.length];
     private final ArrayList<Screen> stack = new ArrayList<>();
     private int tab = -1;
     private NowPlaying now;
-    private View mini;
-    private ImageView miniCover;
-    private TextView miniTitle, miniArtist;
-    private IconView miniPlay;
+    private View bar;
+    private ImageView barCover;
+    private TextView barTitle, barArtist;
+    private IconView barPlay, barHeart, barPrev, barNext;
+    private BarProgress barProgress;
     private FrameLayout root;
+
+    /** Filet de progression tout fin en haut de la barre de lecture. */
+    static final class BarProgress extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        BarProgress(Context c) { super(c); }
+        @Override protected void onDraw(Canvas c) {
+            int dur = Player.I.duration();
+            float f = dur > 0 ? Math.min(1f, Player.I.position() / (float) dur) : 0f;
+            p.setColor(UI.FILL_STRONG);
+            c.drawRect(0, 0, getWidth(), getHeight(), p);
+            p.setColor(UI.ACCENT);
+            c.drawRect(0, 0, getWidth() * f, getHeight(), p);
+        }
+    }
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -50,19 +69,20 @@ public class MainActivity extends Activity implements Player.Listener {
 
         root = new FrameLayout(this);
         root.setBackgroundColor(UI.BG);
+        root.addView(new Brand.Background(this), UI.fill());
         setContentView(root);
 
         LinearLayout h = new LinearLayout(this);
         h.setOrientation(LinearLayout.HORIZONTAL);
         root.addView(h, UI.fill());
 
-        buildRail();
-        h.addView(rail, new LinearLayout.LayoutParams(UI.dp(RAIL_DP), ViewGroup.LayoutParams.MATCH_PARENT));
+        buildSide();
+        h.addView(side, new LinearLayout.LayoutParams(UI.dp(SIDE_DP), ViewGroup.LayoutParams.MATCH_PARENT));
         content = new FrameLayout(this);
         content.setClipChildren(false);
         h.addView(content, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
-        buildMini();
+        buildBar();
         now = new NowPlaying(this);
         root.addView(now.root, UI.fill());
 
@@ -133,33 +153,45 @@ public class MainActivity extends Activity implements Player.Listener {
         }, 4000);
     }
 
-    // ---- rail -------------------------------------------------------------
+    // ---- menu lateral -----------------------------------------------------
 
-    private void buildRail() {
-        rail = new LinearLayout(this);
-        rail.setOrientation(LinearLayout.VERTICAL);
-        rail.setBackgroundColor(0xFF0E0D0E);
-        rail.setPadding(UI.dp(14), UI.dp(34), UI.dp(14), UI.dp(20));
-        TextView logo = UI.text(this, "Alyra", 34, UI.TEXT, UI.semibold);
-        logo.setPadding(UI.dp(14), 0, 0, UI.dp(30));
-        rail.addView(logo);
+    private void buildSide() {
+        side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setBackground(UI.shape(0x0DFFFFFF, 0, 0, 0));
+        side.setPadding(UI.dp(18), UI.dp(34), UI.dp(14), UI.dp(20));
+        View logo = Brand.lockup(this, 34, 26);
+        LinearLayout.LayoutParams lg = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lg.leftMargin = UI.dp(4);
+        lg.bottomMargin = UI.dp(34);
+        side.addView(logo, lg);
         for (int i = 0; i < TABS.length; i++) {
             final int idx = i;
-            TextView t = UI.text(this, TABS[i], 19, UI.SOFT, UI.regular);
-            t.setPadding(UI.dp(16), UI.dp(12), UI.dp(12), UI.dp(12));
-            UI.focusable(t, 12, true, 1.0f);
-            t.setOnClickListener(v -> selectTab(idx));
-            // ouvrir un onglet des qu'il prend le focus serait trop nerveux : on attend OK
+            LinearLayout item = new LinearLayout(this);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setPadding(UI.dp(14), UI.dp(11), UI.dp(12), UI.dp(11));
+            UI.focusable(item, 14, true, 1.0f);
+            IconView ic = new IconView(this, TAB_ICONS[i], 26, UI.TEXT2);
+            item.addView(ic, new LinearLayout.LayoutParams(UI.dp(26), UI.dp(26)));
+            TextView t = UI.text(this, TABS[i], 18, UI.TEXT2, UI.semibold);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            tp.leftMargin = UI.dp(14);
+            item.addView(t, tp);
+            item.setOnClickListener(v -> selectTab(idx));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = UI.dp(4);
-            rail.addView(t, lp);
-            railItems[i] = t;
+            side.addView(item, lp);
+            navItems[i] = item;
+            navIcons[i] = ic;
+            navLabels[i] = t;
         }
     }
 
     int contentWidthDp() {
-        return Math.round(getResources().getDisplayMetrics().widthPixels / UI.density) - RAIL_DP;
+        return Math.round(getResources().getDisplayMetrics().widthPixels / UI.density) - SIDE_DP;
     }
 
     void selectTab(int i) {
@@ -177,8 +209,13 @@ public class MainActivity extends Activity implements Player.Listener {
             tabScreens[i] = i == 0 ? new HomeScreen(this) : new LibraryScreen(this); // donnees fraiches
         }
         stack.add(tabScreens[i]);
-        for (int k = 0; k < railItems.length; k++)
-            railItems[k].setTextColor(k == i ? UI.CYAN : UI.SOFT);
+        for (int k = 0; k < navItems.length; k++) {
+            boolean on = k == i;
+            navLabels[k].setTextColor(on ? UI.TEXT : UI.TEXT2);
+            navIcons[k].setTint(on ? UI.TEXT : UI.TEXT2);
+            // l'onglet actif garde une plaque de verre meme sans focus
+            ((LinearLayout) navItems[k]).setForeground(on ? UI.shape(UI.FILL_STRONG, 0, 0, 14) : null);
+        }
         display();
     }
 
@@ -193,10 +230,10 @@ public class MainActivity extends Activity implements Player.Listener {
         View v = top.view();
         if (v.getParent() != null) ((ViewGroup) v.getParent()).removeView(v);
         content.addView(v, UI.fill());
-        content.addView(mini);
-        updateMini();
+        content.addView(bar);
+        updateBar();
         top.onShow();
-        Api.MAIN.post(content::requestFocus); // le focus passe du rail au contenu
+        Api.MAIN.post(content::requestFocus); // le focus passe du menu au contenu
     }
 
     /** Donne le focus au contenu s'il n'est nulle part (apres un chargement, un changement d'ecran). */
@@ -207,72 +244,109 @@ public class MainActivity extends Activity implements Player.Listener {
         }
     }
 
-    // ---- mini-lecteur -----------------------------------------------------
+    // ---- barre de lecture -------------------------------------------------
 
-    private void buildMini() {
-        LinearLayout m = new LinearLayout(this);
-        m.setOrientation(LinearLayout.HORIZONTAL);
-        m.setGravity(Gravity.CENTER_VERTICAL);
-        m.setPadding(UI.dp(14), UI.dp(8), UI.dp(14), UI.dp(8));
-        UI.focusable(m, 18, true, 1.02f);
-        m.setBackground(miniBg());
-        miniCover = UI.cover(this, 52, 8);
-        m.addView(miniCover);
+    private void buildBar() {
+        LinearLayout b = new LinearLayout(this);
+        b.setOrientation(LinearLayout.VERTICAL);
+        b.setBackground(UI.shape(UI.GLASS, UI.HAIR, UI.dp(1), 16));
+        b.setClipToOutline(true);
+        b.setOutlineProvider(new UI.RoundOutline(UI.dp(16)));
+
+        barProgress = new BarProgress(this);
+        b.addView(barProgress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UI.dp(3)));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(UI.dp(10), UI.dp(8), UI.dp(14), UI.dp(8));
+        b.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // gauche : pochette + titre (ouvre le lecteur plein ecran)
+        LinearLayout left = new LinearLayout(this);
+        left.setGravity(Gravity.CENTER_VERTICAL);
+        left.setPadding(UI.dp(4), UI.dp(4), UI.dp(8), UI.dp(4));
+        UI.focusable(left, 12, true, 1.0f);
+        barCover = UI.cover(this, 54, 8);
+        left.addView(barCover);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        miniTitle = UI.oneLine(UI.text(this, "", 17, UI.TEXT, UI.semibold));
-        miniArtist = UI.oneLine(UI.text(this, "", 14, UI.MUTED, UI.regular));
-        col.addView(miniTitle);
-        col.addView(miniArtist);
+        barTitle = UI.oneLine(UI.text(this, "", 17, UI.TEXT, UI.semibold));
+        barArtist = UI.oneLine(UI.text(this, "", 14, UI.TEXT3, UI.regular));
+        col.addView(barTitle);
+        col.addView(barArtist);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         cp.leftMargin = UI.dp(14);
-        m.addView(col, cp);
-        miniPlay = new IconView(this, IconView.PLAY, 46, true);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(UI.dp(46), UI.dp(46));
-        ip.leftMargin = UI.dp(12);
-        miniPlay.setOnClickListener(v -> Player.I.toggle());
-        m.addView(miniPlay, ip);
-        m.setOnClickListener(v -> openNowPlaying());
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(UI.dp(640), UI.dp(70), Gravity.BOTTOM | Gravity.START);
-        lp.leftMargin = UI.dp(40);
-        lp.bottomMargin = UI.dp(20);
-        m.setLayoutParams(lp);
-        m.setVisibility(View.GONE);
-        mini = m;
+        left.addView(col, cp);
+        left.setOnClickListener(v -> openNowPlaying());
+        row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        barPrev = barButton(row, IconView.PREV, 44, false);
+        barPlay = barButton(row, IconView.PLAY, 52, true);
+        barNext = barButton(row, IconView.NEXT, 44, false);
+        barHeart = barButton(row, IconView.HEART, 44, false);
+        barPrev.setOnClickListener(v -> Player.I.previous());
+        barPlay.setOnClickListener(v -> Player.I.toggle());
+        barNext.setOnClickListener(v -> Player.I.next());
+        barHeart.setOnClickListener(v -> toggleLike());
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        lp.leftMargin = UI.dp(36);
+        lp.rightMargin = UI.dp(36);
+        lp.bottomMargin = UI.dp(18);
+        b.setLayoutParams(lp);
+        b.setVisibility(View.GONE);
+        bar = b;
     }
 
-    private android.graphics.drawable.Drawable miniBg() {
-        android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
-        sl.addState(new int[]{android.R.attr.state_focused}, UI.shape(0xFF2F3A3E, UI.CYAN, UI.dp(2), 18));
-        sl.addState(new int[]{}, UI.shape(0xF0242325, 0, 0, 18));
-        return sl;
+    private IconView barButton(LinearLayout row, int type, int sizeDp, boolean accent) {
+        IconView v = new IconView(this, type, sizeDp, accent);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(UI.dp(sizeDp), UI.dp(sizeDp));
+        lp.leftMargin = UI.dp(10);
+        row.addView(v, lp);
+        return v;
     }
 
-    private String miniKey;
+    private void toggleLike() {
+        Track t = Player.I.current();
+        if (t == null) return;
+        boolean like = !Api.isLiked(t.key());
+        barHeart.setType(like ? IconView.HEART_ON : IconView.HEART);
+        Api.async(() -> { Api.setLiked(t, like); return true; }, ok -> {}, m -> {
+            toast(m);
+            updateBar();
+        });
+    }
 
-    private void updateMini() {
+    private String barKey;
+
+    private void updateBar() {
         Track t = Player.I.current();
         if (t == null || Player.I.state() == Player.IDLE) {
-            mini.setVisibility(View.GONE);
+            bar.setVisibility(View.GONE);
             return;
         }
-        mini.setVisibility(View.VISIBLE);
-        if (!t.key().equals(miniKey)) {
-            miniKey = t.key();
-            miniTitle.setText(t.title);
-            miniArtist.setText(t.artist == null ? "" : t.artist);
-            Img.load(miniCover, t.coverUrl, UI.dp(52));
+        bar.setVisibility(View.VISIBLE);
+        if (!t.key().equals(barKey)) {
+            barKey = t.key();
+            barTitle.setText(t.title);
+            barArtist.setText(t.artist == null ? "" : t.artist);
+            Img.load(barCover, t.coverUrl, UI.dp(54));
         }
         int st = Player.I.state();
-        miniPlay.setType(st == Player.PLAYING ? IconView.PAUSE : st == Player.LOADING ? IconView.LOADING : IconView.PLAY);
+        barPlay.setType(st == Player.PLAYING ? IconView.PAUSE : st == Player.LOADING ? IconView.LOADING : IconView.PLAY);
+        barHeart.setType(Api.isLiked(t.key()) ? IconView.HEART_ON : IconView.HEART);
+        barPrev.setAlpha(Player.I.hasPrevious() ? 1f : .4f);
+        barNext.setAlpha(Player.I.hasNext() ? 1f : .4f);
+        barProgress.invalidate();
     }
 
-    @Override public void onChange() { updateMini(); }
+    @Override public void onChange() { updateBar(); }
 
     @Override protected void onStart() {
         super.onStart();
         Player.I.addListener(this);
-        updateMini();
+        updateBar();
     }
 
     @Override protected void onStop() {

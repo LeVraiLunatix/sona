@@ -29,7 +29,7 @@ abstract class Screen {
      * serveur (ordre d'affichage preserve), et les masque si rien n'arrive.
      */
     <T> void asyncRow(String title, Callable<List<T>> work, Maker<T> maker) {
-        TextView t = UI.text(a, title, 22, UI.TEXT, UI.semibold);
+        TextView t = UI.heading(a, title, 24);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(22);
@@ -73,12 +73,12 @@ abstract class Screen {
     }
 
     View albumCard(Album al) {
-        return UI.card(a, al.title, al.artist, al.coverUrl, false, 150,
+        return UI.card(a, al.title, al.artist, al.coverUrl, false, 160,
                 () -> a.push(new AlbumScreen(a, al.source, al.sourceId, false)));
     }
 
     View artistCard(Artist ar) {
-        return UI.card(a, ar.name, null, ar.pictureUrl, true, 130,
+        return UI.card(a, ar.name, null, ar.pictureUrl, true, 140,
                 () -> a.push(new ArtistScreen(a, ar.source, ar.sourceId)));
     }
 }

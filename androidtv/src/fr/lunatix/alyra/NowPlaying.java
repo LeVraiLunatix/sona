@@ -23,6 +23,7 @@ final class NowPlaying implements Player.Listener {
     private final TextView title, artist, album, status, upNext, elapsed, remaining;
     private final Progress bar;
     private final IconView prev, play, next, heart;
+    private final Brand.Background bg;
     private String shownKey;
 
     /** Barre de progression focalisable : gauche/droite = -/+ 10 s. */
@@ -41,12 +42,12 @@ final class NowPlaying implements Player.Listener {
             float th = UI.dp(isFocused() ? 8 : 5);
             float y = h / 2f;
             r.set(0, y - th / 2, w, y + th / 2);
-            p.setColor(UI.RAISED);
+            p.setColor(UI.FILL_STRONG);
             c.drawRoundRect(r, th / 2, th / 2, p);
             int dur = Player.I.duration();
             float f = dur > 0 ? Math.min(1f, Player.I.position() / (float) dur) : 0f;
             r.set(0, y - th / 2, w * f, y + th / 2);
-            p.setColor(UI.CYAN);
+            p.setColor(UI.ACCENT);
             c.drawRoundRect(r, th / 2, th / 2, p);
             if (isFocused()) {
                 p.setColor(UI.TEXT);
@@ -67,6 +68,8 @@ final class NowPlaying implements Player.Listener {
         root.setBackgroundColor(UI.BG);
         root.setVisibility(View.GONE);
         root.setClickable(true);
+        bg = new Brand.Background(a);
+        root.addView(bg, UI.fill());
 
         LinearLayout h = new LinearLayout(a);
         h.setOrientation(LinearLayout.HORIZONTAL);
@@ -82,14 +85,14 @@ final class NowPlaying implements Player.Listener {
         col.setPadding(UI.dp(50), 0, 0, 0);
         h.addView(col, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        title = UI.text(a, "", 36, UI.TEXT, UI.semibold);
+        title = UI.heading(a, "", 40);
         title.setMaxLines(2);
         col.addView(title);
-        artist = UI.oneLine(UI.text(a, "", 22, UI.CYAN, UI.italic));
+        artist = UI.oneLine(UI.text(a, "", 22, UI.TEXT2, UI.semibold));
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         ap.topMargin = UI.dp(8);
         col.addView(artist, ap);
-        album = UI.oneLine(UI.text(a, "", 16, UI.MUTED, UI.regular));
+        album = UI.oneLine(UI.text(a, "", 16, UI.TEXT3, UI.regular));
         col.addView(album);
 
         bar = new Progress(a);
@@ -98,8 +101,8 @@ final class NowPlaying implements Player.Listener {
         col.addView(bar, bp);
 
         LinearLayout times = new LinearLayout(a);
-        elapsed = UI.text(a, "0:00", 14, UI.MUTED, UI.regular);
-        remaining = UI.text(a, "", 14, UI.MUTED, UI.regular);
+        elapsed = UI.text(a, "0:00", 14, UI.TEXT3, UI.regular);
+        remaining = UI.text(a, "", 14, UI.TEXT3, UI.regular);
         remaining.setGravity(Gravity.END);
         times.addView(elapsed, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         times.addView(remaining, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -107,6 +110,10 @@ final class NowPlaying implements Player.Listener {
 
         LinearLayout controls = new LinearLayout(a);
         controls.setGravity(Gravity.CENTER_VERTICAL);
+        controls.setClipChildren(false);
+        controls.setClipToPadding(false); // l'anneau de focus agrandi depasse du bouton
+        col.setClipChildren(false);
+        h.setClipChildren(false);
         controls.setPadding(0, UI.dp(16), 0, UI.dp(10)); // marge pour l'anneau de focus agrandi
         prev = icon(controls, IconView.PREV, 56, false);
         play = icon(controls, IconView.PLAY, 72, true);
@@ -118,11 +125,11 @@ final class NowPlaying implements Player.Listener {
         next.setOnClickListener(v -> Player.I.next());
         heart.setOnClickListener(v -> toggleLike());
 
-        status = UI.text(a, "", 16, UI.MAGENTA, UI.regular);
+        status = UI.text(a, "", 16, UI.ERR, UI.regular);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         sp.topMargin = UI.dp(16);
         col.addView(status, sp);
-        upNext = UI.oneLine(UI.text(a, "", 15, UI.MUTED, UI.italic));
+        upNext = UI.oneLine(UI.text(a, "", 15, UI.TEXT3, UI.regular));
         LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         up.topMargin = UI.dp(8);
         col.addView(upNext, up);
@@ -171,6 +178,9 @@ final class NowPlaying implements Player.Listener {
             artist.setText(t.artist == null ? "" : t.artist);
             album.setText(t.album == null ? "" : t.album);
             Img.load(cover, t.coverUrl, UI.dp(300));
+            bg.setTint(0);
+            final String key = shownKey;
+            Img.dominant(t.coverUrl, c -> { if (key.equals(shownKey)) bg.setTint(c); });
         }
         int st = Player.I.state();
         play.setType(st == Player.PLAYING ? IconView.PAUSE : st == Player.LOADING ? IconView.LOADING : IconView.PLAY);

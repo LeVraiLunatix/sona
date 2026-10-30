@@ -1,27 +1,41 @@
-# Genere res/drawable-nodpi/icon.png et banner.png (police Source Serif 4, couleurs Encre)
+# Genere res/drawable-nodpi/icon.png (logo officiel alyra.) et banner.png (bandeau TV 320x180).
+# Entree : D:\Code\_assets\alyra\icon-512.png (web/icons/icon-512.png du repo, branche master).
 Add-Type -AssemblyName System.Drawing
 $root = $PSScriptRoot
+$logo = [System.Drawing.Image]::FromFile('D:\Code\_assets\alyra\icon-512.png')
 $pfc = New-Object System.Drawing.Text.PrivateFontCollection
-$pfc.AddFontFile("$root\assets\fonts\SourceSerif4-SemiBold.ttf")
+$pfc.AddFontFile("$root\assets\fonts\InterTight-Bold.ttf")
 $fam = $pfc.Families[0]
-function Make($w, $h, $size, $out, $dots) {
-    $b = New-Object System.Drawing.Bitmap $w, $h
-    $g = [System.Drawing.Graphics]::FromImage($b)
-    $g.SmoothingMode = 'AntiAlias'; $g.TextRenderingHint = 'AntiAlias'
-    $g.Clear([System.Drawing.ColorTranslator]::FromHtml('#121112'))
-    $cy = [System.Drawing.ColorTranslator]::FromHtml('#28B8E0')
-    $mg = [System.Drawing.ColorTranslator]::FromHtml('#FF4FA0')
-    $r = [int]($h * 0.34)
-    $g.FillEllipse((New-Object System.Drawing.SolidBrush $cy), [int]($w*0.5 - $r*1.1), [int]($h*0.5 - $r), 2*$r, 2*$r)
-    $g.FillEllipse((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(205, $mg))), [int]($w*0.5 - $r*0.1), [int]($h*0.5 - $r*0.9), 2*$r, 2*$r)
-    $f = New-Object System.Drawing.Font $fam, $size, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
-    $sf = New-Object System.Drawing.StringFormat; $sf.Alignment = 'Center'; $sf.LineAlignment = 'Center'
-    $rect = New-Object System.Drawing.RectangleF 0, 0, $w, $h
-    if ($dots) { $g.DrawString('Alyra', $f, (New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#F4F1EF'))), $rect, $sf) }
-    else { $g.DrawString('A', $f, (New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#121112'))), $rect, $sf) }
-    $b.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-    $g.Dispose(); $b.Dispose()
-}
 New-Item -ItemType Directory -Force "$root\res\drawable-nodpi" | Out-Null
-Make 320 180 64 "$root\res\drawable-nodpi\banner.png" $true
-Make 256 256 150 "$root\res\drawable-nodpi\icon.png" $false
+
+# icone carree
+$b = New-Object System.Drawing.Bitmap 256, 256
+$g = [System.Drawing.Graphics]::FromImage($b)
+$g.InterpolationMode = 'HighQualityBicubic'
+$g.DrawImage($logo, 0, 0, 256, 256)
+$b.Save("$root\res\drawable-nodpi\icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $b.Dispose()
+
+# banniere : fond graphite + taches, logo, nom
+$w = 320; $h = 180
+$b = New-Object System.Drawing.Bitmap $w, $h
+$g = [System.Drawing.Graphics]::FromImage($b)
+$g.SmoothingMode = 'AntiAlias'; $g.TextRenderingHint = 'AntiAliasGridFit'; $g.InterpolationMode = 'HighQualityBicubic'
+$g.Clear([System.Drawing.ColorTranslator]::FromHtml('#0e1014'))
+function Blob($cx, $cy, $r, $a, $r8, $g8, $b8) {
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $path.AddEllipse($cx - $r, $cy - $r, 2 * $r, 2 * $r)
+    $br = New-Object System.Drawing.Drawing2D.PathGradientBrush $path
+    $br.CenterColor = [System.Drawing.Color]::FromArgb($a, $r8, $g8, $b8)
+    $br.SurroundColors = @([System.Drawing.Color]::FromArgb(0, $r8, $g8, $b8))
+    $g.FillEllipse($br, $cx - $r, $cy - $r, 2 * $r, 2 * $r)
+}
+Blob 20 -20 200 215 61 90 153
+Blob 330 30 170 180 122 74 126
+Blob 130 200 190 128 185 133 87
+$g.DrawImage($logo, 38, 50, 76, 76)
+$f = New-Object System.Drawing.Font $fam, 44, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
+$white = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#f4f6f8'))
+$g.DrawString('alyra.', $f, $white, 118, 62)
+$b.Save("$root\res\drawable-nodpi\banner.png", [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $b.Dispose(); $logo.Dispose()

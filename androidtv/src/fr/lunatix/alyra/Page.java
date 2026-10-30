@@ -38,7 +38,7 @@ final class Page {
     Page add(View v) { col.addView(v); return this; }
 
     Page title(String s) {
-        TextView t = UI.text(ctx, s, 34, UI.TEXT, UI.semibold);
+        TextView t = UI.heading(ctx, s, 40);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = UI.dp(18);
         col.addView(t, lp);
@@ -46,7 +46,7 @@ final class Page {
     }
 
     Page section(String s) {
-        TextView t = UI.text(ctx, s, 22, UI.TEXT, UI.semibold);
+        TextView t = UI.heading(ctx, s, 24);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(22);
         lp.bottomMargin = UI.dp(8);
@@ -55,7 +55,7 @@ final class Page {
     }
 
     Page note(String s) {
-        TextView t = UI.text(ctx, s, 16, UI.MUTED, UI.italic);
+        TextView t = UI.text(ctx, s, 16, UI.TEXT3, UI.regular);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(10);
         col.addView(t, lp);
@@ -100,7 +100,7 @@ final class Page {
     void loading() { note("Chargement…"); }
 
     void error(String msg) {
-        TextView t = UI.text(ctx, msg, 17, UI.MAGENTA, UI.regular);
+        TextView t = UI.text(ctx, msg, 17, UI.ERR, UI.regular);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = UI.dp(12);
         col.addView(t, lp);
