@@ -46,6 +46,15 @@ final class Player {
     private final List<Listener> listeners = new ArrayList<>();
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private File cacheDir;
+    String repeat = "off";          // off | all | one (piloté aussi par Connect)
+    boolean shuffle;
+    boolean claim;                  // lecture lancée à la main : Connect met les autres appareils en pause
+    private int pendingSeekMs;
+    volatile org.json.JSONObject connectState; // état à envoyer à Connect (null : rien ne joue)
+    volatile long connectAt;
+    volatile float connectPos;
+    volatile boolean connectPaused;
+    volatile int windowStart;
 
     private final Runnable ticker = this::tick;
 
@@ -111,7 +120,14 @@ final class Player {
     void play(List<Track> tracks, int start) { playQueue(tracks, start, null); }
 
     void playQueue(List<Track> tracks, int start, Callable<List<Track>> more) {
+        claim = true;
+        playQueueAt(tracks, start, more, 0);
+    }
+
+    /** Lance une file ; `seekMs` : reprise à cette position (Connect : « écoute ici »). */
+    void playQueueAt(List<Track> tracks, int start, Callable<List<Track>> more, int seekMs) {
         if (tracks.isEmpty()) return;
+        pendingSeekMs = seekMs;
         queue.clear();
         queue.addAll(tracks);
         index = Math.max(0, Math.min(start, queue.size() - 1));
@@ -145,6 +161,9 @@ final class Player {
     void next() {
         if (index + 1 < queue.size()) {
             index++;
+            startCurrent();
+        } else if (refill == null && "all".equals(repeat) && !queue.isEmpty()) {
+            index = 0;
             startCurrent();
         } else if (refill != null) {
             final int g = ++gen;
@@ -207,6 +226,7 @@ final class Player {
             mp.setDataSource(f.getPath());
             mp.setOnPreparedListener(p -> {
                 if (g != gen) return;
+                if (pendingSeekMs > 0) { p.seekTo(pendingSeekMs); pendingSeekMs = 0; }
                 p.start();
                 state = PLAYING;
                 Api.MAIN.postDelayed(ticker, 500);
@@ -232,11 +252,55 @@ final class Player {
     }
 
     private void onEnded() {
-        if (hasNext()) next();
+        if ("one".equals(repeat) && mp != null) {
+            mp.seekTo(0);
+            mp.start();
+            publish();
+        } else if (hasNext() || ("all".equals(repeat) && !queue.isEmpty())) next();
         else {
             state = PAUSED;
             publish();
         }
+    }
+
+    // ---- options pilotables a distance (Connect) -------------------------
+
+    /** Republie l'etat (ex. apres un « j'aime » venu d'un autre appareil). */
+    void touch() { publish(); }
+
+    void setRepeat(String mode) {
+        repeat = "all".equals(mode) || "one".equals(mode) ? mode : "off";
+        publish();
+    }
+
+    void setShuffle(boolean on) {
+        shuffle = on;
+        if (on && index + 2 < queue.size()) { // melange seulement ce qui reste a jouer
+            List<Track> rest = new ArrayList<>(queue.subList(index + 1, queue.size()));
+            java.util.Collections.shuffle(rest);
+            for (int i = 0; i < rest.size(); i++) queue.set(index + 1 + i, rest.get(i));
+        }
+        publish();
+    }
+
+    void playIndex(int i) {
+        if (i < 0 || i >= queue.size()) return;
+        index = i;
+        startCurrent();
+    }
+
+    /** Volume media de la TV, entre 0 et 1. */
+    float volume() {
+        android.media.AudioManager am = (android.media.AudioManager) app.getSystemService(Context.AUDIO_SERVICE);
+        int max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        return max <= 0 ? 0f : am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) / (float) max;
+    }
+
+    void setVolume(float v) {
+        android.media.AudioManager am = (android.media.AudioManager) app.getSystemService(Context.AUDIO_SERVICE);
+        int max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, Math.round(Math.max(0f, Math.min(1f, v)) * max), 0);
+        publish();
     }
 
     private void fail(String msg) {
@@ -356,6 +420,38 @@ final class Player {
             if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(i);
             else app.startService(i);
         }
+        updateConnect();
+    }
+
+    /** Prepare l'etat envoye a Sona Connect : une fenetre de la file autour du titre courant. */
+    private void updateConnect() {
+        Track cur = current();
+        if (cur == null || state == IDLE) {
+            connectState = null;
+            Connect.I.kick();
+            return;
+        }
+        try {
+            int start = Math.max(0, index - 3);
+            int end = Math.min(queue.size(), start + 60);
+            org.json.JSONArray q = new org.json.JSONArray();
+            for (int i = start; i < end; i++) q.put(queue.get(i).toJson());
+            org.json.JSONObject o = new org.json.JSONObject();
+            o.put("queue", q);
+            o.put("index", index - start);
+            o.put("volume", volume());
+            o.put("shuffle", shuffle);
+            o.put("repeat", repeat);
+            o.put("liked", Api.isLiked(cur.key()));
+            windowStart = start;
+            connectPaused = state == PAUSED || state == ERROR;
+            connectPos = position() / 1000f;
+            connectAt = System.currentTimeMillis();
+            connectState = o;
+        } catch (Exception ignored) {
+            connectState = null;
+        }
+        Connect.I.kick();
     }
 
     MediaSession.Token sessionToken() { return session.getSessionToken(); }

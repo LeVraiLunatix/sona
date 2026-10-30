@@ -78,7 +78,7 @@ abstract class Screen {
     }
 
     View artistCard(Artist ar) {
-        return UI.card(a, ar.name, null, ar.pictureUrl, true, 140,
+        return UI.card(a, ar.name, "Artiste", ar.pictureUrl, true, 140,
                 () -> a.push(new ArtistScreen(a, ar.source, ar.sourceId)));
     }
 }

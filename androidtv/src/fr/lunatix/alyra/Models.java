@@ -22,6 +22,22 @@ final class Models {
 
         String key() { return source + ":" + sourceId; }
 
+        /** Format de l'API (tous les champs, meme nuls : le serveur les exige). */
+        JSONObject toJson() throws org.json.JSONException {
+            JSONObject o = new JSONObject();
+            o.put("source", source);
+            o.put("source_id", sourceId);
+            o.put("title", title == null ? "" : title);
+            o.put("artist", artist == null ? "" : artist);
+            o.put("album", album == null ? JSONObject.NULL : album);
+            o.put("year", year == null ? JSONObject.NULL : year);
+            o.put("duration_seconds", duration > 0 ? (Object) duration : JSONObject.NULL);
+            o.put("cover_url", coverUrl == null ? JSONObject.NULL : coverUrl);
+            o.put("artist_source_id", artistId == null ? JSONObject.NULL : artistId);
+            o.put("album_source_id", albumId == null ? JSONObject.NULL : albumId);
+            return o;
+        }
+
         static Track from(JSONObject o) {
             Track t = new Track();
             t.source = str(o, "source");

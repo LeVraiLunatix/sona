@@ -65,6 +65,7 @@ public class MainActivity extends Activity implements Player.Listener {
         Api.init(this);
         UI.init(this);
         Player.I.init(this);
+        Connect.I.start(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         root = new FrameLayout(this);

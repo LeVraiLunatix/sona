@@ -207,7 +207,7 @@ final class UI {
     }
 
     /** Tuile d'acces rapide façon Spotify : petite pochette + titre dans une plaque de verre. */
-    static View tile(Context c, String title, String coverUrl, Runnable onClick) {
+    static View tile(Context c, String title, String subtitle, String coverUrl, Runnable onClick) {
         LinearLayout t = new LinearLayout(c);
         t.setGravity(Gravity.CENTER_VERTICAL);
         StateListDrawable sl = new StateListDrawable();
@@ -221,13 +221,15 @@ final class UI {
         ImageView iv = cover(c, 64, 14);
         Img.load(iv, coverUrl, dp(64));
         t.addView(iv);
-        TextView tx = text(c, title == null ? "" : title, 16, TEXT, semibold);
-        tx.setMaxLines(2);
-        tx.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout col = new LinearLayout(c);
+        col.setOrientation(LinearLayout.VERTICAL);
+        TextView tx = oneLine(text(c, title == null ? "" : title, 16, TEXT, semibold));
+        col.addView(tx);
+        if (subtitle != null && !subtitle.isEmpty()) col.addView(oneLine(text(c, subtitle, 14, TEXT3, regular)));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.leftMargin = dp(14);
         lp.rightMargin = dp(10);
-        t.addView(tx, lp);
+        t.addView(col, lp);
         t.setOnClickListener(v -> onClick.run());
         return t;
     }

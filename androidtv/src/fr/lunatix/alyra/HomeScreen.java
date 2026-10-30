@@ -33,6 +33,13 @@ final class HomeScreen extends Screen {
             return out;
         }, items -> fillGrid(grid, items), m -> {});
 
+        // Sona Connect : la lecture en cours sur un autre appareil du compte, a reprendre ici
+        asyncRow("Sur tes autres appareils", Connect.I::sessionElsewhere, s -> {
+            org.json.JSONObject tr = s.optJSONObject("track");
+            return UI.card(a, tr.optString("title"), "Sur " + s.optString("device_name"),
+                    tr.isNull("cover_url") ? null : tr.optString("cover_url"), false, 160,
+                    () -> { a.toast("Reprise ici…"); Connect.I.transferHere(); });
+        });
         asyncRow("Reprendre l'écoute", () -> Api.history(20), maker());
         asyncRow("Ta bibliothèque", () -> Api.library("track", 0, 20), maker());
         asyncRow("Tes albums", () -> Api.library("album", 0, 20), maker());
@@ -53,7 +60,7 @@ final class HomeScreen extends Screen {
             for (int j = i; j < Math.min(i + 2, items.size()); j++) {
                 final int idx = j;
                 Entry e = items.get(j);
-                View tile = UI.tile(a, e.title, e.coverUrl, () -> openEntry(items, idx));
+                View tile = UI.tile(a, e.title, "artist".equals(e.kind) ? "Artiste" : e.subtitle, e.coverUrl, () -> openEntry(items, idx));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
                 lp.rightMargin = UI.dp(12);
                 lp.bottomMargin = UI.dp(12);
@@ -72,7 +79,7 @@ final class HomeScreen extends Screen {
             seen.add(e);
             final int idx = seen.size() - 1;
             boolean artist = "artist".equals(e.kind);
-            return UI.card(a, e.title, artist ? null : e.subtitle, e.coverUrl, artist, artist ? 140 : 160,
+            return UI.card(a, e.title, artist ? "Artiste" : e.subtitle, e.coverUrl, artist, artist ? 140 : 160,
                     () -> openEntry(seen, idx));
         };
     }

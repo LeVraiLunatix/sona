@@ -51,3 +51,13 @@ l'app dans un PNG) : extras `screen` (search|library|radios|settings), `q`
 - Stockage interne quasi plein (~4 Go) : garder le cache audio petit.
 - La TV se met en veille vite : `input keyevent KEYCODE_WAKEUP` avant un test,
   sinon le système n'a plus de fenêtre focalisée (faux « ANR »).
+
+## Sona Connect (télécommande)
+
+La TV s'inscrit comme appareil Connect (« Appareils » du téléphone / du PC, nom = nom
+de la TV) et se laisse piloter : lecture/pause, suivant/précédent, position, volume,
+aléatoire, répéter, j'aime, file d'attente, « écoute ici » et lancement de titres
+(`play_tracks`). Elle envoie son état au serveur à chaque changement (`Connect.java`,
+`POST /connect/sync` en longue attente de 8 s). Sur l'accueil, la rangée « Sur tes
+autres appareils » reprend ici la lecture d'un autre appareil. Limite : le serveur
+n'accepte que les types `iphone|web|desktop`, la TV se déclare donc en `web`.
