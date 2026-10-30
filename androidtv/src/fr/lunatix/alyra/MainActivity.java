@@ -249,9 +249,9 @@ public class MainActivity extends Activity implements Player.Listener {
     private void buildBar() {
         LinearLayout b = new LinearLayout(this);
         b.setOrientation(LinearLayout.VERTICAL);
-        b.setBackground(UI.shape(UI.GLASS, UI.HAIR, UI.dp(1), 16));
+        b.setBackground(UI.shape(UI.GLASS, UI.HAIR, UI.dp(1), 22));
         b.setClipToOutline(true);
-        b.setOutlineProvider(new UI.RoundOutline(UI.dp(16)));
+        b.setOutlineProvider(new UI.RoundOutline(UI.dp(22)));
 
         barProgress = new BarProgress(this);
         b.addView(barProgress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UI.dp(3)));
@@ -265,8 +265,8 @@ public class MainActivity extends Activity implements Player.Listener {
         LinearLayout left = new LinearLayout(this);
         left.setGravity(Gravity.CENTER_VERTICAL);
         left.setPadding(UI.dp(4), UI.dp(4), UI.dp(8), UI.dp(4));
-        UI.focusable(left, 12, true, 1.0f);
-        barCover = UI.cover(this, 54, 8);
+        UI.focusable(left, 16, true, 1.0f);
+        barCover = UI.cover(this, 54, 12);
         left.addView(barCover);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);

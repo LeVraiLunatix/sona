@@ -32,7 +32,7 @@ final class AlbumScreen extends Screen {
 
     private void fill(Album al) {
         page.truncate(fixed);
-        ImageView iv = UI.cover(a, 230, 12);
+        ImageView iv = UI.cover(a, 230, 20);
         Img.load(iv, al.coverUrl, UI.dp(230));
         header.addView(iv);
 

@@ -121,13 +121,37 @@ final class UI {
         }
     }
 
+    /** Image aux coins arrondis dessinee a la main (le decoupage par outline ne passe pas sur cette TV). */
+    static final class RoundImage extends ImageView {
+        private final float radiusPx; // < 0 = cercle
+        private final android.graphics.Path clip = new android.graphics.Path();
+        private final android.graphics.Paint ph = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF rect = new android.graphics.RectF();
+
+        RoundImage(Context c, float radiusPx) {
+            super(c);
+            this.radiusPx = radiusPx;
+            ph.setColor(RAISED);
+        }
+
+        @Override protected void onDraw(android.graphics.Canvas cv) {
+            int w = getWidth(), h = getHeight();
+            rect.set(0, 0, w, h);
+            clip.reset();
+            if (radiusPx < 0) clip.addOval(rect, android.graphics.Path.Direction.CW);
+            else clip.addRoundRect(rect, radiusPx, radiusPx, android.graphics.Path.Direction.CW);
+            cv.save();
+            cv.clipPath(clip);
+            cv.drawRect(rect, ph); // fond en attente de la pochette
+            super.onDraw(cv);
+            cv.restore();
+        }
+    }
+
     /** Image carree arrondie (radiusDp < 0 = cercle). */
     static ImageView cover(Context c, int sizeDp, float radiusDp) {
-        ImageView iv = new ImageView(c);
+        ImageView iv = new RoundImage(c, radiusDp < 0 ? -1 : dp(radiusDp));
         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        iv.setBackgroundColor(RAISED);
-        iv.setOutlineProvider(new RoundOutline(radiusDp < 0 ? -1 : dp(radiusDp)));
-        iv.setClipToOutline(true);
         iv.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
         return iv;
     }
@@ -162,8 +186,8 @@ final class UI {
         LinearLayout box = new LinearLayout(c);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(6), dp(6), dp(6), dp(6));
-        focusable(box, round ? 0 : 12, false, 1.07f);
-        ImageView iv = cover(c, sizeDp, round ? -1 : 12);
+        focusable(box, round ? 0 : 18, false, 1.07f);
+        ImageView iv = cover(c, sizeDp, round ? -1 : 18);
         Img.load(iv, coverUrl, dp(sizeDp));
         box.addView(iv);
         TextView t = oneLine(text(c, title == null ? "" : title, 15, TEXT, semibold));
@@ -187,14 +211,14 @@ final class UI {
         LinearLayout t = new LinearLayout(c);
         t.setGravity(Gravity.CENTER_VERTICAL);
         StateListDrawable sl = new StateListDrawable();
-        sl.addState(new int[]{android.R.attr.state_focused}, shape(FILL_FOCUS, ACCENT, dp(2), 10));
-        sl.addState(new int[]{}, shape(FILL, HAIR, dp(1), 10));
+        sl.addState(new int[]{android.R.attr.state_focused}, shape(FILL_FOCUS, ACCENT, dp(2), 16));
+        sl.addState(new int[]{}, shape(FILL, HAIR, dp(1), 16));
         t.setBackground(sl);
         t.setFocusable(true);
         t.setClickable(true);
         t.setOnFocusChangeListener((x, has) ->
                 x.animate().scaleX(has ? 1.03f : 1f).scaleY(has ? 1.03f : 1f).setDuration(120).start());
-        ImageView iv = cover(c, 64, 10);
+        ImageView iv = cover(c, 64, 14);
         Img.load(iv, coverUrl, dp(64));
         t.addView(iv);
         TextView tx = text(c, title == null ? "" : title, 16, TEXT, semibold);
@@ -214,12 +238,12 @@ final class UI {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(12), dp(7), dp(16), dp(7));
-        focusable(row, 12, true, 1.0f);
+        focusable(row, 16, true, 1.0f);
         Track cur = Player.I.current();
         boolean now = cur != null && t.key().equals(cur.key());
 
         if (withCover) {
-            ImageView iv = cover(c, 48, 8);
+            ImageView iv = cover(c, 48, 12);
             Img.load(iv, t.coverUrl, dp(48));
             row.addView(iv);
         } else {

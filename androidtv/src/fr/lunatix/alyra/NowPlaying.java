@@ -77,7 +77,7 @@ final class NowPlaying implements Player.Listener {
         h.setPadding(UI.dp(70), UI.dp(30), UI.dp(70), UI.dp(30));
         root.addView(h, UI.fill());
 
-        cover = UI.cover(a, 300, 16);
+        cover = UI.cover(a, 300, 24);
         h.addView(cover);
 
         LinearLayout col = new LinearLayout(a);
