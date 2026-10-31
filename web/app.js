@@ -210,8 +210,10 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   const lastfmToken = params.get("token");
   const handoff = params.get("handoff");
-  if (lastfmToken || params.has("source") || params.has("party")) {
+  if (lastfmToken || params.has("source") || params.has("party") || params.has("link")) {
     if (params.get("party")) store.set("sona.joinParty", params.get("party").toUpperCase());
+    // QR code d'une TV : le code survit à la connexion (Last.fm nous ramène ici sans la requête).
+    if (params.get("link")) store.set("sona.linkCode", params.get("link").toUpperCase());
     history.replaceState(null, "", location.pathname + location.hash);
   }
   if (lastfmToken) {
@@ -277,6 +279,8 @@ async function startApp() {
   loadLiked();
   loadSettings();
   route();
+  const linkCode = store.get("sona.linkCode");
+  if (linkCode) { store.set("sona.linkCode", null); location.hash = `#/link/${encodeURIComponent(linkCode)}`; return; }
   const joinCode = store.get("sona.joinParty");
   if (joinCode) { store.set("sona.joinParty", null); location.hash = `#/party/${joinCode}`; }
   else partyRestore();
@@ -612,7 +616,7 @@ async function route() {
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
     stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
     blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
-    settings: viewSettings, admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
+    settings: viewSettings, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -7288,3 +7292,39 @@ iphoneInit();
 boot();
 
 window.resumeHere = resumeHere;
+
+// ── Connecter un appareil (QR code d'une TV) ───────────────────────────────
+
+/** Page ouverte par le QR code affiché sur la TV : on vérifie le code, puis on autorise (ou refuse). */
+async function viewLink(code) {
+  const wanted = (code || "").toUpperCase();
+  let info = null;
+  let error = "";
+  try { info = await api(`/auth/device/${encodeURIComponent(wanted)}`); }
+  catch (e) { error = e.message || "Code inconnu ou expiré."; }
+  if (!info) {
+    return page(`<h1 class="page-title">connecter un appareil.</h1>
+      <p class="page-sub">${esc(error)}</p><p class="muted">Relance la connexion sur l'appareil pour obtenir un nouveau QR code.</p>`);
+  }
+  setTimeout(() => {
+    const msg = $("#link-msg");
+    const answer = async (path, done) => {
+      $$("#link-ok, #link-no").forEach((b) => (b.disabled = true));
+      try {
+        await api(path, { method: "POST", body: JSON.stringify({ user_code: info.user_code }) });
+        $("#link-actions")?.remove();
+        if (msg) msg.textContent = done;
+      } catch (e) {
+        $$("#link-ok, #link-no").forEach((b) => (b.disabled = false));
+        if (msg) msg.textContent = e.message || "Impossible pour le moment.";
+      }
+    };
+    $("#link-ok")?.addEventListener("click", () => answer("/auth/device/approve", `${info.name} est connecté à ton compte. Tu peux fermer cette page.`));
+    $("#link-no")?.addEventListener("click", () => answer("/auth/device/deny", "Connexion refusée."));
+  });
+  return page(`<h1 class="page-title">connecter un appareil.</h1>
+    <p class="page-sub">« ${esc(info.name)} » demande l'accès à ton compte alyra.</p>
+    <p class="page-sub">Le code affiché sur l'écran doit être <b>${esc(info.user_code)}</b>. Si ce n'est pas le cas, refuse.</p>
+    <div class="actions" id="link-actions"><button class="btn" id="link-ok">Autoriser</button><button class="btn ghost" id="link-no">Refuser</button></div>
+    <p class="muted" id="link-msg"></p>`);
+}
