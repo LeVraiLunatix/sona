@@ -32,12 +32,14 @@ final class Api {
     static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ExecutorService POOL = Executors.newFixedThreadPool(4);
     private static SharedPreferences prefs;
+    /** Serveur alyra. par défaut (le même que l'app iPhone) : seul le QR code de connexion reste à faire. */
+    static final String DEFAULT_URL = "https://141-253-108-13.sslip.io";
     static String base = "";
     static String token = "";
 
     static void init(Context c) {
         prefs = c.getApplicationContext().getSharedPreferences("alyra", Context.MODE_PRIVATE);
-        base = prefs.getString("url", "");
+        base = prefs.getString("url", DEFAULT_URL);
         token = prefs.getString("token", "");
     }
 
@@ -79,6 +81,12 @@ final class Api {
         return c;
     }
 
+    /** Erreur HTTP du serveur (le code permet de distinguer 410 "expiré" d'une panne). */
+    static final class ApiException extends IOException {
+        final int code;
+        ApiException(int code, String message) { super(message); this.code = code; }
+    }
+
     private static String read(HttpURLConnection c) throws IOException {
         int code = c.getResponseCode();
         InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
@@ -93,8 +101,8 @@ final class Api {
         if (code >= 400) {
             String detail = body;
             try { detail = new JSONObject(body).optString("detail", body); } catch (Exception ignored) {}
-            if (code == 401) detail = "Jeton refuse par le serveur";
-            throw new IOException(detail.isEmpty() ? "HTTP " + code : detail);
+            if (code == 401) detail = "Session expirée ou jeton refusé : reconnecte-toi dans Réglages";
+            throw new ApiException(code, detail.isEmpty() ? "HTTP " + code : detail);
         }
         return body;
     }
@@ -223,16 +231,38 @@ final class Api {
 
     /** Resout un lien colle : renvoie l'objet JSON {kind, track|album|artist}. */
     static JSONObject resolve(String text) throws Exception {
-        HttpURLConnection c = open("POST", "/resolve", 30000);
+        return postJson("/resolve", new JSONObject().put("text", text));
+    }
+
+    static JSONObject postJson(String path, JSONObject body) throws Exception {
+        HttpURLConnection c = open("POST", path, 30000);
         try {
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json");
             OutputStream os = c.getOutputStream();
-            os.write(new JSONObject().put("text", text).toString().getBytes("UTF-8"));
+            os.write(body.toString().getBytes("UTF-8"));
             os.close();
             return new JSONObject(read(c));
         } finally { c.disconnect(); }
     }
+
+    // ---- connexion par QR code (voir app/api/routers/device_login.py) ----------
+
+    static JSONObject deviceStart(String name) throws Exception {
+        return postJson("/auth/device/start", new JSONObject().put("name", name));
+    }
+
+    /** `status` : pending | approved (avec session_token) | gone (code expiré ou refusé). */
+    static JSONObject devicePoll(String deviceCode) throws Exception {
+        try {
+            return postJson("/auth/device/poll", new JSONObject().put("device_code", deviceCode));
+        } catch (ApiException e) {
+            if (e.code == 410) return new JSONObject().put("status", "gone").put("detail", e.getMessage());
+            throw e;
+        }
+    }
+
+    static JSONObject me() throws Exception { return new JSONObject(get("/auth/me")); }
 
     // ---- bibliotheque : ensemble des morceaux aimes ----------------------
 

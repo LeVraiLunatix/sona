@@ -46,6 +46,7 @@ final class Player {
     private final List<Listener> listeners = new ArrayList<>();
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private File cacheDir;
+    private final java.util.Map<String, Object> locks = new java.util.HashMap<>();
     String repeat = "off";          // off | all | one (piloté aussi par Connect)
     boolean shuffle;
     boolean claim;                  // lecture lancée à la main : Connect met les autres appareils en pause
@@ -340,7 +341,11 @@ final class Player {
             dest.setLastModified(System.currentTimeMillis());
             return dest;
         }
-        synchronized (this) { // un seul telechargement a la fois pour le meme morceau
+        // un seul telechargement a la fois, mais PAR morceau : sauter a un titre ne doit pas attendre
+        // la prechauffe d'un autre (elle peut durer 40 s cote serveur)
+        Object lock;
+        synchronized (locks) { lock = locks.computeIfAbsent(dest.getName(), k -> new Object()); }
+        synchronized (lock) {
             if (dest.isFile() && dest.length() > 0) return dest;
             File tmp = new File(dest.getPath() + ".part");
             // MP3 impose : sur cette TV (MediaTek, decodeur "passthrough") le m4a/AAC est lu comme fini

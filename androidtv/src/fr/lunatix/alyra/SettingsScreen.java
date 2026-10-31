@@ -13,14 +13,25 @@ import org.json.JSONObject;
 final class SettingsScreen extends Screen {
     private final EditText url, token;
     private final TextView status;
+    private final TextView account;
 
     SettingsScreen(MainActivity a) {
         super(a);
         page = new Page(a);
         page.title("Réglages");
-        page.section("Serveur Sona");
-        page.note("Adresse de l'API (run_api.py) et jeton API_TOKEN du serveur.");
-        url = field("http://192.168.1.48:8000", Api.base, false);
+        page.section("Compte alyra.");
+        account = UI.text(a, Api.configured() ? "Vérification du compte…" : "Pas connecté.", 17, UI.TEXT2, UI.regular);
+        page.add(account);
+        LinearLayout acts = page.actions();
+        acts.addView(UI.button(a, "Se connecter avec un QR code", !Api.configured(), () -> a.push(new LoginScreen(a))));
+        acts.addView(UI.button(a, "Se déconnecter", false, this::signOut));
+        if (Api.configured()) {
+            Api.async(Api::me, me -> account.setText("Connecté : " + me.optString("display_name", me.optString("username"))
+                    + " (" + me.optString("username") + ")"), m -> account.setText(m));
+        }
+        page.section("Serveur (avancé)");
+        page.note("Adresse de l'API et jeton : seulement si tu n'utilises pas le QR code (jeton du serveur).");
+        url = field(Api.DEFAULT_URL, Api.base, false);
         token = field("Jeton API", Api.token, true);
         status = UI.text(a, "", 16, UI.TEXT3, UI.regular);
         LinearLayout actions = page.actions();
@@ -52,6 +63,18 @@ final class SettingsScreen extends Screen {
         lp.topMargin = UI.dp(10);
         page.col.addView(e, lp);
         return e;
+    }
+
+    private void done() {
+        Api.save(Api.base, "");
+        a.toast("Déconnecté");
+        a.onLoggedOut();
+    }
+
+    private void signOut() {
+        if (!Api.configured()) { a.toast("Déjà déconnecté"); return; }
+        // le serveur révoque d'abord la session de la TV (il lui faut encore le jeton), puis on l'oublie ici
+        Api.async(() -> { Api.send("POST", "/auth/logout", null); return true; }, ok -> done(), m -> done());
     }
 
     private void saveAndTest() {

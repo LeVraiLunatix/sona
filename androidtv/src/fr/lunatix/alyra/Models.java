@@ -132,7 +132,10 @@ final class Models {
             t.source = source;
             t.sourceId = sourceId;
             t.title = title;
-            t.artist = subtitle;
+            // historique/bibliotheque : "Artiste - Album" (separateur puce) : on garde l artiste seul
+            int cut = subtitle == null ? -1 : subtitle.indexOf(" • ");
+            t.artist = cut > 0 ? subtitle.substring(0, cut) : subtitle;
+            if (cut > 0) t.album = subtitle.substring(cut + 3);
             t.coverUrl = coverUrl;
             return t;
         }

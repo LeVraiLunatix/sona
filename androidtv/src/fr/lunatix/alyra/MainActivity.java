@@ -105,17 +105,20 @@ public class MainActivity extends Activity implements Player.Listener {
             if (Api.configured()) Api.async(() -> { Api.loadLiked(); return true; }, ok -> {}, m -> {});
         }
         String screen = i.getStringExtra("screen");
-        int target = !Api.configured() && first ? 4 : 0;
+        int target = 0;
         if (screen != null) {
             switch (screen) {
                 case "search": target = 1; break;
                 case "library": target = 2; break;
                 case "radios": target = 3; break;
                 case "settings": target = 4; break;
+                case "login": target = 0; break;
                 default: target = 0;
             }
         }
         if (first || screen != null || url != null) selectTab(target);
+        // pas encore connecté : on propose tout de suite le QR code (ou sur demande ADB : --es screen login)
+        if ((first && !Api.configured()) || "login".equals(screen)) push(new LoginScreen(this));
         String q = i.getStringExtra("q");
         if (q != null) {
             selectTab(1);
@@ -218,6 +221,20 @@ public class MainActivity extends Activity implements Player.Listener {
             ((LinearLayout) navItems[k]).setForeground(on ? UI.shape(UI.FILL_STRONG, 0, 0, 14) : null);
         }
         display();
+    }
+
+    /** Apres une connexion par QR code : on repart d'un accueil et d'une bibliotheque frais. */
+    void onLoggedIn() {
+        tabScreens[0] = null;
+        tabScreens[2] = null;
+        Api.async(() -> { Api.loadLiked(); return true; }, ok -> {}, m -> {});
+        selectTab(0);
+    }
+
+    void onLoggedOut() {
+        tabScreens[0] = null;
+        tabScreens[2] = null;
+        selectTab(0);
     }
 
     void push(Screen s) {

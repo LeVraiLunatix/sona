@@ -18,7 +18,8 @@ final class HomeScreen extends Screen {
         int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         page.title(hour < 5 || hour >= 18 ? "Bonsoir" : hour < 12 ? "Bonjour" : "Bon après-midi");
         if (!Api.configured()) {
-            page.note("Aucun serveur configuré — ouvre Réglages pour renseigner l'adresse et le jeton.");
+            page.note("Tu n'es pas connecté à ton compte alyra.");
+            page.actions().addView(UI.button(a, "Se connecter avec un QR code", true, () -> a.push(new LoginScreen(a))));
             return;
         }
 

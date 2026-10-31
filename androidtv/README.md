@@ -61,3 +61,15 @@ aléatoire, répéter, j'aime, file d'attente, « écoute ici » et lancement de
 `POST /connect/sync` en longue attente de 8 s). Sur l'accueil, la rangée « Sur tes
 autres appareils » reprend ici la lecture d'un autre appareil. Limite : le serveur
 n'accepte que les types `iphone|web|desktop`, la TV se déclare donc en `web`.
+
+## Connexion par QR code
+
+Au premier lancement (ou dans Réglages > Compte alyra.), la TV demande un code au serveur
+(`POST /auth/device/start`), l'affiche en QR code et attend (`/auth/device/poll`). Sur le téléphone,
+le QR ouvre la page « connecter un appareil » du site : après connexion, « Autoriser » donne à la
+TV sa propre session de compte (révocable : Réglages > Se déconnecter). Le serveur doit contenir
+`app/api/routers/device_login.py` (branche `feat/qr-login`) ; sans lui, le jeton du serveur saisi
+dans Réglages (avancé) reste possible.
+
+`QrCode.java` est un encodeur QR maison (octets, correction M, versions 1-10). Vérification : les
+QR générés se décodent avec `zxing-cpp` (y compris la capture de la TV).

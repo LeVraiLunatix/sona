@@ -36,8 +36,10 @@ final class Connect {
     private final ExecutorService kicker = Executors.newSingleThreadExecutor();
     private final AtomicBoolean kickPending = new AtomicBoolean(false);
     private boolean registered;
+    private int registerTries;
 
     String deviceId() { return deviceId; }
+    String name() { return deviceName == null ? "Android TV" : deviceName; }
 
     void start(Context c) {
         if (running) return;
@@ -139,8 +141,8 @@ final class Connect {
             Api.send("POST", "/connect/saved", new JSONObject().put("device_id", deviceId));
             prefs.edit().putBoolean("connect_registered", true).apply();
         } catch (Exception e) {
-            registered = false; // 409 (liste pleine) ou reseau : on retentera au prochain tour... plus tard
-            sleep(60000);
+            // 409 (liste pleine) ou reseau : on retente quelques fois, sans bloquer la boucle de synchro
+            if (++registerTries < 5) registered = false;
         }
     }
 
