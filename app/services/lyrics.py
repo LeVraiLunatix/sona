@@ -428,6 +428,12 @@ class LyricsService:
 
         result, errors = await self._search(title, artist, album, duration, on_late=late)
         if result is None:
+            if any(error.startswith("lrclib ") for error in errors):
+                # LRCLIB, la source principale, n'a pas répondu (saturée, ou
+                # encore en train de réessayer) : ce n'est pas « pas de
+                # paroles ». Rien en cache, et une erreur que l'app réessaie
+                # d'elle-même — la recherche de LRCLIB, elle, continue.
+                raise LyricsError(" ; ".join(errors))
             ttl = TTL_MISSING_AFTER_ERROR if errors else TTL_MISSING
             await self._repo.lyrics_cache_set(key, None, None, None, ttl)
             return None
@@ -451,7 +457,10 @@ class LyricsService:
         source n'a répondu."""
         result, errors = await self._search_once(title, artist, album, duration, on_late)
         relaxed = base_title(title)
-        if result is None and relaxed != clean_title(title):
+        # LRCLIB sans réponse : sa recherche continue, l'app redemandera ;
+        # inutile d'en lancer une seconde (et d'attendre encore) maintenant.
+        lrclib_down = any(error.startswith("lrclib ") for error in errors)
+        if result is None and relaxed != clean_title(title) and not lrclib_down:
             again, more = await self._search_once(relaxed, artist, album, duration)
             result, errors = again, errors + more
         return result, errors
@@ -552,7 +561,8 @@ class LyricsService:
 
     async def _from_lrclib(self, title, artist, album, duration) -> _Candidate | None:
         # LRCLIB fait déjà sa propre correspondance (titre nettoyé, artiste
-        # principal, durée à ±3 s) : on lui fait confiance.
+        # principal, durée à ±3 s) : on lui fait confiance. Passé
+        # SOURCE_TIMEOUT, sa recherche continue (réessais) sans nous.
         lyrics = await self._lrclib.get_lyrics(title, artist, album, duration)
         return _Candidate(lyrics, "lrclib", 0.9) if lyrics else None
 

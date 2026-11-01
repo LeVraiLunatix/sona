@@ -10,6 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+import app.providers.lrclib as lrclib_module
 from app.providers.lrclib import (
     LrclibClient, Lyrics, LyricsError, LyricsLine, clean_title, main_artist, parse_lrc,
 )
@@ -56,8 +57,10 @@ def test_clean_title_and_main_artist():
     assert main_artist("Malcolm X") == "Malcolm X"
 
 
-def test_exact_match_returns_synced_lyrics_and_is_cached():
+def test_exact_match_when_search_misses_and_is_cached():
     def handler(request):
+        if request.url.path == "/api/search":
+            return httpx.Response(200, json=[])
         assert request.url.path == "/api/get"
         assert request.url.params["duration"] == "200"
         return httpx.Response(200, json={"syncedLyrics": "[00:01.00]Salut", "plainLyrics": "Salut"})
@@ -67,6 +70,24 @@ def test_exact_match_returns_synced_lyrics_and_is_cached():
     second = asyncio.run(client.get_lyrics("Titre", "Artiste", "Album", 200))
     assert first == Lyrics(synced=True, lines=[LyricsLine(1.0, "Salut")])
     assert second == first
+    assert len(client.calls) == 2
+
+
+def test_one_search_is_enough_and_prefers_same_title_and_album():
+    def handler(request):
+        assert request.url.path == "/api/search"
+        assert request.url.params["track_name"] == "MAUVAIS 2X"
+        assert request.url.params["artist_name"] == "Gazo"
+        return httpx.Response(200, json=[
+            {"trackName": "MAUVAIS 2X (Clip)", "albumName": "Vidéos", "duration": 240, "syncedLyrics": "[00:01.00]Clip"},
+            {"trackName": "MAUVAIS 2X (feat. Ninho)", "albumName": "Single", "duration": 239, "syncedLyrics": "[00:01.00]Single"},
+            {"trackName": "MAUVAIS 2X (feat. Ninho)", "albumName": "MAUVAIS 2X (feat. Ninho)", "duration": 240,
+             "syncedLyrics": "[00:01.00]Album"},
+        ])
+
+    client = fake_lrclib(handler)
+    lyrics = asyncio.run(client.get_lyrics("MAUVAIS 2X (feat. Ninho)", "Gazo", "MAUVAIS 2X (feat. Ninho)", 240))
+    assert lyrics.lines[0].text == "Album"
     assert len(client.calls) == 1
 
 
@@ -132,10 +153,60 @@ def test_instrumental_and_not_found():
     assert asyncio.run(nothing.get_lyrics("T", "A", None, 100)) is None
 
 
-def test_server_error_raises():
+def test_server_error_raises_once_the_budget_is_spent(monkeypatch):
+    monkeypatch.setattr(lrclib_module, "LOOKUP_BUDGET", 0.0)
     broken = fake_lrclib(lambda r: httpx.Response(503))
     with pytest.raises(LyricsError):
         asyncio.run(broken.get_lyrics("T", "A", None, 100))
+    # L'erreur n'est pas gardée : la demande suivante interroge de nouveau.
+    with pytest.raises(LyricsError):
+        asyncio.run(broken.get_lyrics("T", "A", None, 100))
+    assert len(broken.calls) == 2
+
+
+def test_overloaded_lrclib_is_retried_after_its_delay():
+    # « 503 ServerOverloaded, retry-after: 1 » : deux refus, puis la réponse.
+    answers = iter([httpx.Response(503, headers={"retry-after": "0"})] * 2)
+
+    def handler(request):
+        refused = next(answers, None)
+        if refused is not None:
+            return refused
+        return httpx.Response(200, json=[{"duration": 100, "syncedLyrics": "[00:01.00]Enfin"}])
+
+    client = fake_lrclib(handler)
+    lyrics = asyncio.run(client.get_lyrics("T", "A", None, 100))
+    assert lyrics.lines[0].text == "Enfin" and len(client.calls) == 3
+
+
+def test_lookup_outlives_an_impatient_caller_and_is_shared():
+    # Le service n'attend que quelques secondes : la recherche continue, la
+    # demande suivante la retrouve en cours au lieu d'en lancer une autre.
+    release = asyncio.Event()
+
+    async def scenario():
+        async def slow(request):
+            await release.wait()
+            return httpx.Response(200, json=[{"duration": 100, "syncedLyrics": "[00:01.00]Tard"}])
+
+        calls = []
+
+        async def record(request):
+            calls.append(request)
+            return await slow(request)
+
+        client = LrclibClient(httpx.AsyncClient(base_url="https://lrclib.net/api", transport=httpx.MockTransport(record)))
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(client.get_lyrics("T", "A", None, 100), 0.05)
+        retry = asyncio.create_task(client.get_lyrics("T", "A", None, 100))
+        await asyncio.sleep(0.01)
+        release.set()
+        found = await retry
+        cached = await client.get_lyrics("T", "A", None, 100)
+        return found, cached, len(calls)
+
+    found, cached, calls = asyncio.run(scenario())
+    assert found.lines[0].text == "Tard" and cached == found and calls == 1
 
 
 @pytest.fixture

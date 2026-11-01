@@ -291,6 +291,18 @@ def test_errors_everywhere_raise_and_are_not_cached(repo):
     assert run(service.get("Titre", "Artiste", None, 200)).source == "lrclib"
 
 
+def test_lrclib_down_is_an_error_not_an_absence(repo):
+    # LRCLIB saturé, les autres sources n'ont rien : pas « pas de paroles »
+    # (que l'app ne réessaie pas), une erreur, et rien en cache.
+    lrclib = FakeLrclib(error=True)
+    service = LyricsService(repo, lrclib, FakeNetease([], {}))
+    with pytest.raises(LyricsError):
+        run(service.get("Titre (From \"Film\")", "Artiste", None, 200))
+    assert lrclib.calls == 1  # pas de seconde passe au titre nu
+    lrclib.error, lrclib.result = False, LINE
+    assert run(service.get("Titre (From \"Film\")", "Artiste", None, 200)).source == "lrclib"
+
+
 def test_header_line_is_removed(repo):
     headed = Lyrics(synced=True, lines=[LyricsLine(0.5, "Artiste - Titre"), *WORD.lines])
     netease = FakeNetease([NeteaseSong(1, "Titre", "Artiste", None, 200)], {1: headed})
