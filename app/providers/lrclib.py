@@ -5,6 +5,8 @@ paroles brutes pour beaucoup d'autres."""
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import logging
 import re
 import unicodedata
@@ -27,6 +29,17 @@ DURATION_TOLERANCE = 3
 # valent mieux que le texte brut (synchro approximative).
 APPROX_TOLERANCE = 12
 CACHE_SIZE = 256
+# LRCLIB saturé répond « 503 ServerOverloaded, réessayez dans 1 s » (en
+# rafale : jusqu'à 9 requêtes sur 10 certains jours) : on réessaie en
+# respectant son `Retry-After`, tant que la recherche a du temps devant elle.
+RETRY_STATUSES = frozenset({429, 502, 503, 504})
+MAX_RETRY_WAIT = 3.0
+# Temps total d'une recherche, réessais compris. Plus long que l'attente du
+# service (services/lyrics.py) : la recherche continue après sa réponse, et
+# les réessais de l'app la retrouvent en cours, puis en cache.
+LOOKUP_BUDGET = 45.0
+
+_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar("lrclib_deadline", default=None)
 
 _LRC_LINE_RE = re.compile(r"\[(\d+):(\d+(?:[.:]\d+)?)\]")
 # LRC « enrichi » : un horodatage par mot, `<00:12.34>mot`.
@@ -174,6 +187,14 @@ def _duration_ok(d: dict, duration: int | None) -> bool:
     return abs(float(d["duration"]) - duration) <= DURATION_TOLERANCE
 
 
+def _retry_after(response: httpx.Response) -> float:
+    try:
+        wait = float(response.headers.get("retry-after", 1))
+    except ValueError:
+        wait = 1.0
+    return min(max(wait, 0.5), MAX_RETRY_WAIT)
+
+
 class LrclibClient:
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         self._client = client or httpx.AsyncClient(
@@ -182,16 +203,28 @@ class LrclibClient:
         # Le lecteur redemande les paroles à chaque ouverture du panneau :
         # on garde les réponses (y compris « rien trouvé ») en mémoire.
         self._cache: OrderedDict[tuple, Lyrics | None] = OrderedDict()
+        # Recherches en cours : une seule par morceau, qui survit à l'appelant
+        # pressé (délai du service) et que ses réessais retrouvent.
+        self._inflight: dict[tuple, asyncio.Task] = {}
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def _request(self, path: str, params: dict) -> httpx.Response:
-        try:
-            response = await self._client.get(path, params=params)
-        except httpx.HTTPError as exc:
-            raise LyricsError(f"LRCLIB injoignable : {exc}") from exc
-        if response.status_code >= 500:
+        loop = asyncio.get_running_loop()
+        deadline = _deadline.get()
+        while True:
+            try:
+                response = await self._client.get(path, params=params)
+            except httpx.HTTPError as exc:
+                raise LyricsError(f"LRCLIB injoignable : {exc}") from exc
+            if response.status_code not in RETRY_STATUSES:
+                break
+            wait = _retry_after(response)
+            if deadline is None or loop.time() + wait >= deadline:
+                break
+            await asyncio.sleep(wait)
+        if response.status_code >= 500 or response.status_code == 429:
             raise LyricsError(f"LRCLIB a répondu {response.status_code}")
         return response
 
@@ -203,12 +236,28 @@ class LrclibClient:
             self._cache.move_to_end(key)
             return self._cache[key]
 
-        lyrics = await self._lookup(title, artist, album, duration)
+        task = self._inflight.get(key)
+        if task is None:
+            task = asyncio.create_task(self._lookup_within_budget(title, artist, album, duration))
+            self._inflight[key] = task
+            task.add_done_callback(lambda done: self._settle(key, done))
+        # L'appelant peut abandonner (délai) sans arrêter la recherche.
+        return await asyncio.shield(task)
 
-        self._cache[key] = lyrics
+    async def _lookup_within_budget(
+        self, title: str, artist: str, album: str | None, duration: int | None
+    ) -> Lyrics | None:
+        _deadline.set(asyncio.get_running_loop().time() + LOOKUP_BUDGET)
+        return await self._lookup(title, artist, album, duration)
+
+    def _settle(self, key: tuple, task: asyncio.Task) -> None:
+        self._inflight.pop(key, None)
+        # Une erreur n'est pas gardée : la demande suivante cherche de nouveau.
+        if task.cancelled() or task.exception() is not None:
+            return
+        self._cache[key] = task.result()
         if len(self._cache) > CACHE_SIZE:
             self._cache.popitem(last=False)
-        return lyrics
 
     async def _exact(self, title: str, artist: str, album: str | None, duration: int | None) -> Lyrics | None:
         params: dict = {"track_name": title, "artist_name": artist}
@@ -228,10 +277,22 @@ class LrclibClient:
         return [d for d in response.json() if isinstance(d, dict)]
 
     @staticmethod
-    def _best(results: list[dict], duration: int | None) -> Lyrics | None:
-        """Entrée de durée compatible, synchronisée de préférence."""
+    def _best(
+        results: list[dict], duration: int | None, title: str | None = None, album: str | None = None
+    ) -> Lyrics | None:
+        """Entrée de durée compatible, synchronisée de préférence ; à égalité,
+        même titre, puis même album, puis durée la plus proche."""
         candidates = [d for d in results if _duration_ok(d, duration)]
-        candidates.sort(key=lambda d: (not d.get("syncedLyrics"), not d.get("plainLyrics")))
+
+        def gap(d: dict) -> float:
+            return abs(float(d["duration"]) - duration) if duration and d.get("duration") else 0.0
+
+        candidates.sort(key=lambda d: (
+            not d.get("syncedLyrics"), not d.get("plainLyrics"),
+            bool(title) and _norm(clean_title(str(d.get("trackName") or ""))) != _norm(title),
+            bool(album) and _norm(str(d.get("albumName") or "")) != _norm(album or ""),
+            gap(d),
+        ))
         for d in candidates:
             found = _lyrics_from_json(d)
             if found:
@@ -274,35 +335,37 @@ class LrclibClient:
         cleaned: str, lead: str, pool: list[dict],
     ) -> Lyrics | None:
         """Étapes 1 à 5 de la recherche ; les entrées vues par les recherches
-        s'accumulent dans `pool`."""
+        s'accumulent dans `pool`. La recherche passe en premier : une seule
+        requête suffit d'habitude (chaque requête compte quand LRCLIB est
+        saturé), et `/get` interroge en plus des sources externes, lentement."""
 
-        # 1) Correspondance exacte (titre, artiste, album, durée à ±2 s côté
-        #    LRCLIB) : la plus fiable quand elle répond.
+        # 1) Recherche avec le titre nettoyé et l'artiste principal : LRCLIB
+        #    ne connaît le plus souvent ni le « (feat. X) » ni les artistes en
+        #    featuring. Entrée synchronisée de durée compatible de préférence.
+        results = await self._search({"track_name": cleaned, "artist_name": lead})
+        pool.extend(results)
+        plain = self._best(results, duration, cleaned, album)
+        if plain and (plain.synced or plain.instrumental):
+            return plain
+        # 2) Correspondance exacte (titre, artiste, album, durée à ±2 s côté
+        #    LRCLIB), qui va aussi chercher hors de la base de LRCLIB : peut-être
+        #    une synchro là où la recherche n'avait que du texte brut.
         if duration:
             found = await self._exact(title, artist, album, duration)
             if found:
                 return found
-        # 2) Même chose avec le titre nettoyé et l'artiste principal : le
-        #    plus souvent, LRCLIB ne connaît ni le « (feat. X) » ni les
-        #    artistes en featuring.
+        # 3) Même chose avec le titre nettoyé et l'artiste principal.
         if duration and (cleaned, lead) != (title, artist):
             found = await self._exact(cleaned, lead, album, duration)
             if found:
                 return found
-
-        # 3) Recherche avec le titre nettoyé et l'artiste principal : rattrape
-        #    les « - Remastered », artistes multiples... En préférant une
-        #    entrée synchronisée de durée compatible.
-        results = await self._search({"track_name": cleaned, "artist_name": lead})
-        pool.extend(results)
-        found = self._best(results, duration)
-        if found:
-            return found
+        if plain:
+            return plain
         # 4) Recherche libre « artiste titre » : rattrape les graphies
         #    différentes (accents, « & » / « et », ponctuation).
-        free = await self._search({"q": f"{lead} {cleaned}"})
-        pool.extend(d for d in free if _same_artist(d, lead))
-        found = self._best([d for d in free if _same_artist(d, lead)], duration)
+        free = [d for d in await self._search({"q": f"{lead} {cleaned}"}) if _same_artist(d, lead)]
+        pool.extend(free)
+        found = self._best(free, duration, cleaned, album)
         if found:
             return found
         # 5) Titre seul, artiste comparé plus largement (l'un contient
@@ -311,7 +374,7 @@ class LrclibClient:
             alone = [d for d in await self._search({"track_name": cleaned})
                      if d.get("duration") and _same_artist(d, lead)]
             pool.extend(alone)
-            found = self._best(alone, duration)
+            found = self._best(alone, duration, cleaned, album)
             if found:
                 return found
         return None
