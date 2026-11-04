@@ -1952,3 +1952,32 @@ html[data-tint="off"] .np-bg img, html[data-tint="off"] .np-gl { display: none; 
   .np.mobile .np-transport .tbtn.small { width: 40px; height: 40px; font-size: 20px; }
   .np.mobile .np-transport .tbtn.big { width: 74px; height: 74px; font-size: 40px; }
 }
+
+/* ═══ Paroles : transitions de ligne façon Apple Musique ═════════════════════
+   La ligne chantée est nette et pleine ; plus on s'en éloigne, plus les lignes
+   s'estompent et se floutent (data-d = distance). Le glissement d'une ligne à
+   l'autre est une vague (propriété `translate`, voir `lyricsWave`). */
+.lyrics p { will-change: auto; transition: color .6s var(--ease), filter .7s var(--ease), transform .8s cubic-bezier(.2, .8, .2, 1), opacity .6s var(--ease); color: rgba(255, 255, 255, 0.5); }
+.lyrics p[data-d="1"] { opacity: .82; filter: blur(.5px); }
+.lyrics p[data-d="2"] { opacity: .62; filter: blur(1.1px); }
+.lyrics p[data-d="3"] { opacity: .48; filter: blur(1.6px); }
+.lyrics p[data-d="4"] { opacity: .38; filter: blur(2px); }
+.lyrics p.on, .lyrics p.on[data-d] { opacity: 1; filter: none; color: #fff; }
+.lyrics p:hover { opacity: .9; filter: none; }
+.lyrics.free p, .lyrics.free p[data-d] { opacity: .72; filter: none; }
+.lyrics.free p.on { opacity: 1; }
+html[data-lyrblur="off"] .lyrics p[data-d] { filter: none; }
+@media (max-width: 760px) { .lyrics p[data-d="4"], .lyrics p[data-d="3"] { filter: none; } }
+
+/* ═══ Téléphone : corrections vues sur iPhone ═══════════════════════════════ */
+@media (max-width: 760px) {
+  /* La pochette se cale sur la place réellement disponible : elle ne peut plus recouvrir le titre. */
+  .np-m .np-stage { container-type: size; }
+  .np-m .np-stage .np-art { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); max-width: none; }
+  /* Réglage du décalage des paroles : une pastille en bas, qui ne passe plus sur le texte. */
+  .np-panel .lyr-tools {
+    top: auto; right: auto; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 3; opacity: .9;
+    padding: 4px 10px; border-radius: 999px; background: rgba(0, 0, 0, 0.42);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  }
+}
