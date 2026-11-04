@@ -1722,7 +1722,7 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
     padding: var(--s-6) 22px var(--s-4); border-radius: 0 var(--r-panel) var(--r-panel) 0;
     transition: width .28s cubic-bezier(.32, .72, 0, 1) .06s, background .2s ease, box-shadow .28s ease;
   }
-  .sidebar:hover, .sidebar:focus-within {
+  .sidebar:hover, .sidebar:has(:focus-visible) {
     width: var(--sidebar-open); background: rgba(20, 20, 22, 0.94);
     -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
     box-shadow: var(--shadow-pop), inset -1px 0 0 var(--hairline);
@@ -1732,30 +1732,37 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .content { grid-column: 2; }
 
   .sidebar .brand .wordmark { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: opacity .15s ease, max-width .28s ease; }
-  .sidebar:hover .brand .wordmark, .sidebar:focus-within .brand .wordmark, html[data-menu="ouvert"] .sidebar .brand .wordmark { max-width: 160px; opacity: 1; transition-delay: .1s; }
+  .sidebar:hover .brand .wordmark, .sidebar:has(:focus-visible) .brand .wordmark, html[data-menu="ouvert"] .sidebar .brand .wordmark { max-width: 160px; opacity: 1; transition-delay: .1s; }
 
   .side-search { width: 44px; overflow: hidden; border-radius: 14px; transition: width .28s cubic-bezier(.32, .72, 0, 1) .06s; }
   .side-search input { width: var(--sidebar-open); min-width: 0; color: transparent; }
   .side-search input::placeholder { color: transparent; }
-  .sidebar:hover .side-search, .sidebar:focus-within .side-search, html[data-menu="ouvert"] .sidebar .side-search { width: 100%; }
-  .sidebar:hover .side-search input, .sidebar:focus-within .side-search input, html[data-menu="ouvert"] .sidebar .side-search input { width: 100%; color: var(--text); }
-  .sidebar:hover .side-search input::placeholder, .sidebar:focus-within .side-search input::placeholder, html[data-menu="ouvert"] .sidebar .side-search input::placeholder { color: var(--text-3); }
+  .sidebar:hover .side-search, .sidebar:has(:focus-visible) .side-search, html[data-menu="ouvert"] .sidebar .side-search { width: 100%; }
+  .sidebar:hover .side-search input, .sidebar:has(:focus-visible) .side-search input, html[data-menu="ouvert"] .sidebar .side-search input { width: 100%; color: var(--text); }
+  .sidebar:hover .side-search input::placeholder, .sidebar:has(:focus-visible) .side-search input::placeholder, html[data-menu="ouvert"] .sidebar .side-search input::placeholder { color: var(--text-3); }
 
+  /* Rien ne bouge à l'ouverture : mêmes marges et mêmes hauteurs au repos et
+     ouvert, seuls les libellés apparaissent (sinon icônes et pastille glissent
+     de côté et tout le bas du menu saute). */
   .side-list { overflow-x: hidden; }
-  .side-link { font-size: 0; overflow: hidden; white-space: nowrap; padding: 10px 12px; }
+  .side-link { font-size: 0; overflow: hidden; white-space: nowrap; height: 40px; padding: 0 12px; flex-shrink: 0; }
   .side-link .icon { font-size: 19px; flex: none; }
   .side-link .side-badge { display: none; }
-  .sidebar:hover .side-link, .sidebar:focus-within .side-link, html[data-menu="ouvert"] .sidebar .side-link { font-size: 14.5px; padding: 10px var(--s-4); }
-  .sidebar:hover .side-link .side-badge, .sidebar:focus-within .side-link .side-badge, html[data-menu="ouvert"] .sidebar .side-link .side-badge { display: inline; }
+  .sidebar:hover .side-link, .sidebar:has(:focus-visible) .side-link, html[data-menu="ouvert"] .sidebar .side-link { font-size: 14.5px; }
+  .sidebar:hover .side-link .side-badge, .sidebar:has(:focus-visible) .side-link .side-badge, html[data-menu="ouvert"] .sidebar .side-link .side-badge { display: inline; }
 
-  .side-section { height: 1px; padding: 0; margin: var(--s-4) 12px; background: var(--hairline); font-size: 0; overflow: hidden; }
-  .sidebar:hover .side-section, .sidebar:focus-within .side-section, html[data-menu="ouvert"] .sidebar .side-section { height: auto; padding: var(--s-6) var(--s-4) var(--s-2); margin: 0; background: none; font-size: 11px; overflow: visible; }
+  /* Section : au repos un trait au milieu, ouvert son titre en bas, dans la même hauteur. */
+  .side-section {
+    display: flex; align-items: flex-end; height: 44px; margin: 0; padding: 0 var(--s-4) var(--s-2); flex-shrink: 0;
+    font-size: 0; white-space: nowrap; overflow: hidden;
+    background: linear-gradient(var(--hairline), var(--hairline)) 12px 50% / 20px 1px no-repeat;
+  }
+  .sidebar:hover .side-section, .sidebar:has(:focus-visible) .side-section, html[data-menu="ouvert"] .sidebar .side-section { font-size: 11px; background: none; }
 
   .side-user { padding-left: 7px; }
   .side-user .name, .side-user .gear { display: none; }
-  .sidebar:hover  .side-user, .sidebar:focus-within  .side-user, html[data-menu="ouvert"] .sidebar  .side-user { padding-left: var(--s-3); }
-  .sidebar:hover .side-user .name, .sidebar:focus-within .side-user .name, html[data-menu="ouvert"] .sidebar .side-user .name { display: block; }
-  .sidebar:hover .side-user .gear, .sidebar:focus-within .side-user .gear, html[data-menu="ouvert"] .sidebar .side-user .gear { display: grid; }
+  .sidebar:hover .side-user .name, .sidebar:has(:focus-visible) .side-user .name, html[data-menu="ouvert"] .sidebar .side-user .name { display: block; }
+  .sidebar:hover .side-user .gear, .sidebar:has(:focus-visible) .side-user .gear, html[data-menu="ouvert"] .sidebar .side-user .gear { display: grid; }
 }
 .side-section:has(+ div:empty) { display: none; }
 

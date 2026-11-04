@@ -495,8 +495,55 @@ function signOut() {
 }
 
 function registerServiceWorker() {
-  if (!("serviceWorker" in navigator) || location.protocol === "file:" || desktop) return;
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (location.protocol === "file:" || desktop) return;
+  watchForNewVersion();
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {});
+}
+
+// ── Nouvelle version du site ─────────────────────────────────────────────
+// Une page restée ouverte (onglet, appli sur l'écran d'accueil de l'iPhone,
+// reprise telle quelle au lieu d'être rechargée) garderait l'ancien code.
+// Toutes les 10 min et à chaque retour sur l'appli, on regarde si app.js ou
+// app.css a changé en ligne ; si oui, la page se recharge dès que rien ne
+// joue (la file et la position reviennent avec « Reprise »). Jamais pendant
+// la lecture, une écoute ensemble ou une saisie. Pas sur Sona pour Windows :
+// il a ses propres mises à jour.
+let siteVersion = null;
+let siteUpdateReady = false;
+async function siteFingerprint() {
+  try {
+    const marks = await Promise.all(["app.js", "app.css"].map(async (file) => {
+      const res = await fetch(file, { method: "HEAD", cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      return res.headers.get("etag") || res.headers.get("last-modified") || res.headers.get("content-length") || "";
+    }));
+    return marks.every(Boolean) ? marks.join("|") : null;
+  } catch { return null; }
+}
+async function checkSiteVersion() {
+  if (siteUpdateReady || !navigator.onLine) return applySiteUpdate();
+  const now = await siteFingerprint();
+  if (!now) return;
+  if (siteVersion == null) { siteVersion = now; return; }
+  if (now === siteVersion) return;
+  siteUpdateReady = true;
+  navigator.serviceWorker?.getRegistration().then((reg) => reg?.update()).catch(() => {});
+  applySiteUpdate();
+}
+function applySiteUpdate() {
+  if (!siteUpdateReady) return;
+  const typing = document.activeElement?.matches?.("input, textarea, [contenteditable]");
+  if (!audio.paused || party.state || typing) return;
+  saveResume(true);
+  location.reload();
+}
+function watchForNewVersion() {
+  checkSiteVersion();
+  setInterval(checkSiteVersion, 10 * 60e3);
+  document.addEventListener("visibilitychange", checkSiteVersion);
+  window.addEventListener("online", checkSiteVersion);
+  audio.addEventListener("ended", () => setTimeout(applySiteUpdate, 1500));
 }
 
 // Installation (Android, Chrome, Edge) : l'invite du navigateur, gardée pour

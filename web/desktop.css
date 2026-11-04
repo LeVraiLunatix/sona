@@ -564,7 +564,7 @@ html.desktop #root { z-index: 1; }
 html.desktop .app { gap: 0; padding: 0; grid-template-rows: 1fr; }
 html.desktop, html.desktop:root { --sidebar-w: 88px; }
 html.desktop .sidebar { position: fixed; border: 0; border-radius: 0 28px 28px 0; padding: 40px 22px 16px; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-html.desktop .sidebar:hover, html.desktop .sidebar:focus-within { background: rgba(20, 20, 22, .94); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%); box-shadow: var(--shadow-pop), inset -1px 0 0 var(--hairline); }
+html.desktop .sidebar:hover, html.desktop .sidebar:has(:focus-visible) { background: rgba(20, 20, 22, .94); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%); box-shadow: var(--shadow-pop), inset -1px 0 0 var(--hairline); }
 html.desktop .content {
   grid-row: 1; margin: 12px 12px 12px 0; border-radius: 28px; background: var(--bg); border: 1px solid var(--hairline);
   box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -597,16 +597,15 @@ html.desktop.drawer-open .app { grid-template-columns: var(--sidebar-w) minmax(0
 html.desktop .drag-top { height: 12px; }
 
 /* Menu : rail d'icônes (les libellés ne dépassent plus), ouvert au survol */
-html.desktop .side-link { font-size: 0; padding: 10px 12px; border-radius: 14px; overflow: hidden; white-space: nowrap; color: var(--text-2); }
+html.desktop .side-link { font-size: 0; height: 40px; padding: 0 12px; border-radius: 14px; overflow: hidden; white-space: nowrap; color: var(--text-2); }
 html.desktop .side-link .icon { font-size: 19px; flex: none; }
 html.desktop .side-link:hover { background: var(--fill); color: var(--text); }
 html.desktop .side-link.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-html.desktop .sidebar:hover .side-link, html.desktop .sidebar:focus-within .side-link, html.desktop[data-menu="ouvert"] .side-link { font-size: 14.5px; padding: 10px 16px; }
+html.desktop .sidebar:hover .side-link, html.desktop .sidebar:has(:focus-visible) .side-link, html.desktop[data-menu="ouvert"] .side-link { font-size: 14.5px; }
 html.desktop .brand { padding: 4px 0 24px; margin-left: -7px; font-size: 20px; }
 html.desktop .side-search input { height: 42px; border-radius: 14px; background: var(--fill); box-shadow: none; }
 html.desktop .side-search input:focus { background: var(--fill-strong); box-shadow: 0 0 0 1px var(--accent-soft); }
 html.desktop .side-user { background: transparent; box-shadow: none; border: 0; border-radius: 0; padding: 16px 7px 4px; margin-top: 12px; }
-html.desktop .sidebar:hover .side-user, html.desktop .sidebar:focus-within .side-user, html.desktop[data-menu="ouvert"] .side-user { padding-left: 12px; }
 /* Pas de barre de défilement (avec ses flèches Windows) dans le menu */
 html.desktop .side-list { scrollbar-width: none; }
 html.desktop .side-list::-webkit-scrollbar { width: 0; height: 0; display: none; }
