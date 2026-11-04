@@ -109,14 +109,13 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("Récaps de la semaine et du mois", isOn: $notifications.recaps)
-                    Toggle("Rappel du défi du jour", isOn: $notifications.dailyChallenge)
                     Toggle("Parties lancées par mes amis", isOn: $notifications.friends)
                     Toggle("Nouvelles sorties de mes artistes", isOn: $notifications.releases)
                     Toggle("Titre du jour", isOn: $notifications.dailyTrack)
                 } header: {
                     Text("Notifications")
                 } footer: {
-                    Text("Récaps le lundi et le 1er du mois à 10 h, défi du jour à 18 h 30, titre du jour le matin. Les parties des amis (blind test en direct, écoute ensemble) sont signalées quand l'app tourne, même en arrière-plan pendant la lecture.")
+                    Text("Récaps le lundi et le 1er du mois à 10 h, titre du jour le matin. Les écoutes ensemble des amis sont signalées quand l'app tourne, même en arrière-plan pendant la lecture.")
                 }
 
                 Section {

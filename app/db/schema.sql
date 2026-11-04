@@ -280,19 +280,6 @@ CREATE TABLE IF NOT EXISTS connect_saved (
     PRIMARY KEY (user_id, device_id)
 );
 
--- Blind test : un score par partie ; le défi du jour (mode 'daily') est le
--- même pour tout le monde, classement du jour.
-CREATE TABLE IF NOT EXISTS blindtest_scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    mode TEXT NOT NULL,
-    day TEXT NOT NULL,
-    score INTEGER NOT NULL,
-    correct INTEGER NOT NULL,
-    total INTEGER NOT NULL,
-    created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_blindtest_day ON blindtest_scores (mode, day, score DESC);
 
 -- Analyse audio d'un titre en cache (AutoMix) : sonie intégrée (LUFS),
 -- début réel, moment de l'outro, fin réelle — en secondes.
@@ -340,3 +327,30 @@ CREATE TABLE IF NOT EXISTS lyrics_cache (
     fetched_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
+
+-- Musique locale (services/local_library.py) : fichiers du dossier
+-- LOCAL_MUSIC_DIR lus par mutagen. `id` = empreinte du chemin relatif ;
+-- `norm` = « artiste titre » normalisé, pour retrouver la version lossless
+-- d'un titre demandé depuis une autre source.
+CREATE TABLE IF NOT EXISTS local_tracks (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    year TEXT,
+    duration_seconds INTEGER,
+    track_number INTEGER,
+    disc_number INTEGER,
+    codec TEXT NOT NULL,
+    lossless INTEGER NOT NULL DEFAULT 0,
+    bitrate INTEGER,
+    sample_rate INTEGER,
+    bit_depth INTEGER,
+    size INTEGER NOT NULL,
+    mtime REAL NOT NULL,
+    norm TEXT NOT NULL,
+    isrc TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_local_tracks_norm ON local_tracks (norm);
+CREATE INDEX IF NOT EXISTS idx_local_tracks_album ON local_tracks (artist, album);

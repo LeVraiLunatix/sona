@@ -1,5 +1,5 @@
-/* alyra web : même compte, mêmes playlists, mêmes stats que l'app.
-   Connexion Last.fm, puis tout passe par l'API du serveur alyra (jeton de
+/* Sona web : même compte, mêmes playlists, mêmes stats que l'app.
+   Connexion Last.fm, puis tout passe par l'API du serveur Sona (jeton de
    session gardé dans le navigateur). Servi par le serveur lui-même (/web/)
    ou par Vercel : dans ce cas l'API est appelée à l'adresse de la balise
    <meta name="sona-server">.
@@ -21,6 +21,120 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
+// ── Apparence : logo, couleur, formes, menu (gardés sur cet appareil) ──────────
+// Six logos en verre liquide, dessinés dans un carré de 64 ; le choix remplace le symbole #sona-mark.
+const { LOGOS, logoSvg } = (() => {
+// Logos de Sona : six propositions en verre liquide, dessinées dans un carré de 64.
+// Chaque logo renvoie { defs, body } ; `p` préfixe les identifiants (plusieurs logos sur une même page).
+const stop = (off, o) => `<stop offset="${off}" stop-color="#fff" stop-opacity="${o}"/>`;
+const rimGrad = (p, x1 = 12, y1 = 8, x2 = 52, y2 = 58) =>
+  `<linearGradient id="${p}-rim" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stop(0, 1)}${stop(.4, .42)}${stop(.68, .26)}${stop(1, .85)}</linearGradient>`;
+const bodyGrad = (p, x1 = 18, y1 = 8, x2 = 46, y2 = 58) =>
+  `<linearGradient id="${p}-body" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stop(0, .36)}${stop(.55, .1)}${stop(1, .2)}</linearGradient>`;
+const blur = (p, id, sd) => `<filter id="${p}-${id}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${sd}"/></filter>`;
+const orbGrad = (p) => `<radialGradient id="${p}-orb" cx=".34" cy=".28" r=".9">${stop(0, .62)}${stop(.5, .16)}${stop(1, .06)}</radialGradient>`;
+const SPATH = "M40.7 17A10 10 0 1 0 32 32A10 10 0 1 1 23.3 47";
+
+const LOGOS = {
+  orbe: { name: "Orbe", build: (p) => ({
+    defs: orbGrad(p) + rimGrad(p) + blur(p, "g", 3) + blur(p, "s", 1.1),
+    body: `<circle cx="32" cy="32" r="22" fill="#fff" fill-opacity=".14" filter="url(#${p}-g)"/>
+      <circle cx="32" cy="32" r="22" fill="url(#${p}-orb)"/>
+      <circle cx="32" cy="32" r="22" fill="none" stroke="url(#${p}-rim)" stroke-width="1.5"/>
+      <ellipse cx="24.5" cy="21.5" rx="8.5" ry="4.4" transform="rotate(-34 24.5 21.5)" fill="#fff" fill-opacity=".72" filter="url(#${p}-s)"/>
+      <path d="M44.5 44.5A17 17 0 0 1 31 50" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="2" stroke-linecap="round"/>` }) },
+
+  barres: { name: "Barres", build: (p) => {
+    const bars = [[14, 24], [27.5, 40], [41, 30]];
+    return { defs: bodyGrad(p, 0, 8, 0, 58) + rimGrad(p, 10, 8, 54, 58) + blur(p, "g", 3),
+      body: bars.map(([x, h]) => { const y = 32 - h / 2;
+        return `<rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="#fff" fill-opacity=".12" filter="url(#${p}-g)"/>
+        <rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="url(#${p}-body)"/>
+        <rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="none" stroke="url(#${p}-rim)" stroke-width="1.4"/>
+        <path d="M${x + 2.6} ${y + 6}V${y + h * .42}" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/>`; }).join("") }; } },
+
+  disque: { name: "Disque", build: (p) => ({
+    defs: orbGrad(p) + rimGrad(p) + blur(p, "g", 3),
+    body: `<circle cx="32" cy="32" r="24" fill="#fff" fill-opacity=".1" filter="url(#${p}-g)"/>
+      <circle cx="32" cy="32" r="24" fill="url(#${p}-orb)"/>
+      <circle cx="32" cy="32" r="24" fill="none" stroke="url(#${p}-rim)" stroke-width="1.5"/>
+      <circle cx="32" cy="32" r="18.4" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".8"/>
+      <circle cx="32" cy="32" r="14" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width=".8"/>
+      <circle cx="32" cy="32" r="7.4" fill="#fff" fill-opacity=".16"/>
+      <circle cx="32" cy="32" r="7.4" fill="none" stroke="url(#${p}-rim)" stroke-width="1"/>
+      <circle cx="32" cy="32" r="1.7" fill="#fff" fill-opacity=".95"/>
+      <path d="M15.2 22.5A19.5 19.5 0 0 1 23 14.6" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M48.8 41.5A19.5 19.5 0 0 1 41 49.4" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.7" stroke-linecap="round"/>` }) },
+
+  trait: { name: "Trait", build: (p) => ({
+    defs: `<linearGradient id="${p}-ln" gradientUnits="userSpaceOnUse" x1="22" y1="12" x2="44" y2="54">${stop(0, 1)}${stop(.6, .72)}${stop(1, .42)}</linearGradient>` + blur(p, "g", 2.2),
+    body: `<path d="${SPATH}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="3.4" stroke-linecap="round" filter="url(#${p}-g)"/>
+      <path d="${SPATH}" fill="none" stroke="url(#${p}-ln)" stroke-width="3.2" stroke-linecap="round"/>
+      <circle cx="46" cy="50.5" r="2.3" fill="#fff" fill-opacity=".95"/>` }) },
+
+  orbite: { name: "Orbite", build: (p) => {
+    // Anneau incliné autour d'une sphère de verre. L'arrière de l'anneau est découpé derrière la sphère (rien ne
+    // transparaît à travers) ; l'avant repasse par-dessus, avec la même épaisseur et le même dégradé : pas de couture.
+    const R = 12.5, BACK = "M4 32A28 10 0 0 1 60 32", FRONT = "M4 32A28 10 0 0 0 60 32", TILT = "rotate(-22 32 32)";
+    return {
+      defs: orbGrad(p) + rimGrad(p, 12, 8, 52, 58) + blur(p, "g", 2.8) + blur(p, "s", .9) + blur(p, "h", 1.5)
+        + `<linearGradient id="${p}-ring" gradientUnits="userSpaceOnUse" x1="4" y1="26" x2="60" y2="38">${stop(0, .95)}${stop(.3, .5)}${stop(.62, .34)}${stop(1, .9)}</linearGradient>`
+        + `<mask id="${p}-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="32" cy="32" r="${R + .6}" fill="#000"/></mask>`
+        + `<clipPath id="${p}-ball"><circle cx="32" cy="32" r="${R}"/></clipPath>`,
+      body: `<g transform="${TILT}" mask="url(#${p}-cut)"><path d="${BACK}" fill="none" stroke="url(#${p}-ring)" stroke-width="2.1" stroke-linecap="round"/></g>
+        <circle cx="32" cy="32" r="${R}" fill="#fff" fill-opacity=".08" filter="url(#${p}-g)"/>
+        <circle cx="32" cy="32" r="${R}" fill="url(#${p}-orb)"/>
+        <g clip-path="url(#${p}-ball)"><g transform="${TILT}"><path d="${FRONT}" fill="none" stroke="#000" stroke-opacity=".42" stroke-width="5" transform="translate(0 2.2)" filter="url(#${p}-h)"/></g></g>
+        <circle cx="32" cy="32" r="${R}" fill="none" stroke="url(#${p}-rim)" stroke-width="1.3"/>
+        <ellipse cx="27.6" cy="26.8" rx="4.8" ry="2.5" transform="rotate(-34 27.6 26.8)" fill="#fff" fill-opacity=".72" filter="url(#${p}-s)"/>
+        <g transform="${TILT}"><path d="${FRONT}" fill="none" stroke="url(#${p}-ring)" stroke-width="2.1" stroke-linecap="round"/>
+          <circle cx="9.2" cy="37.5" r="2.2" fill="url(#${p}-orb)"/><circle cx="9.2" cy="37.5" r="2.2" fill="#fff" fill-opacity=".35"/><circle cx="9.2" cy="37.5" r="2.2" fill="none" stroke="url(#${p}-rim)" stroke-width=".8"/></g>` };
+  } },
+
+  lecture: { name: "Lecture", build: (p) => {
+    const P = "M23.5 16.5L23.5 47.5L49 32Z";
+    return { defs: rimGrad(p, 14, 10, 52, 56) + blur(p, "g", 3)
+        + `<mask id="${p}-m" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><path d="${P}" fill="#fff" stroke="#fff" stroke-width="10.4" stroke-linejoin="round"/><path d="${P}" fill="#000" stroke="#000" stroke-width="8.8" stroke-linejoin="round"/></mask>`,
+      body: `<g fill="#fff" stroke="#fff" stroke-width="9" stroke-linejoin="round" opacity=".16" filter="url(#${p}-g)"><path d="${P}"/></g>
+        <g fill="#fff" stroke="#fff" stroke-width="8.8" stroke-linejoin="round" opacity=".2"><path d="${P}"/></g>
+        <path d="${P}" fill="none" stroke="url(#${p}-rim)" stroke-width="10.4" stroke-linejoin="round" mask="url(#${p}-m)"/>
+        <path d="M24.6 22.5V30" stroke="#fff" stroke-opacity=".75" stroke-width="1.6" stroke-linecap="round"/>` }; } },
+};
+const logoSvg = (id, p = "x") => { const { defs, body } = LOGOS[id].build(p); return `<defs>${defs}</defs>${body}`; };
+  return { LOGOS, logoSvg };
+})();
+const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
+const LOOK_DEFAULT = { logo: "orbite", accent: "neutre", tint: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
+let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
+function applyLook() {
+  const root = document.documentElement;
+  const sym = document.getElementById("sona-mark");
+  if (sym && LOGOS[look.logo]) sym.innerHTML = logoSvg(look.logo, "sm");
+  const fav = document.querySelector('link[rel="icon"]');
+  if (fav && LOGOS[look.logo]) {
+    fav.type = "image/svg+xml"; fav.removeAttribute("sizes");
+    fav.href = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0b0b0c"/>${logoSvg(look.logo, "fv")}</svg>`);
+  }
+  for (const k of ["--accent", "--accent-2", "--accent-soft", "--on-accent"]) root.style.removeProperty(k);
+  const c = ACCENTS[look.accent]?.[1];
+  if (c) {
+    const n = parseInt(c.slice(1), 16);
+    root.style.setProperty("--accent", c);
+    root.style.setProperty("--accent-2", c);
+    root.style.setProperty("--accent-soft", `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, 0.16)`);
+    root.style.setProperty("--on-accent", "#08090c");
+  }
+  root.dataset.tint = look.tint ? "on" : "off";
+  root.dataset.lyrblur = look.lyrBlur ? "on" : "off";
+  root.dataset.shape = look.shape;
+  root.dataset.menu = look.menu;
+}
+function setLook(patch) {
+  look = { ...look, ...patch };
+  store.set("sona.look", JSON.stringify(look));
+  applyLook();
+}
+applyLook();
 /** Pochette en grand (Deezer : taille dans l'adresse). */
 const big = (url, size = 1000) => (url || "").replace(/\/(\d+)x\1(-\d+-\d+-\d+-\d+)?\.jpg$/, `/${size}x${size}$2.jpg`);
 const sameTrack = (a, b) => a && b && a.source === b.source && a.source_id === b.source_id;
@@ -76,9 +190,9 @@ function since(iso) {
   return new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-// alyra pour Windows (dossier desktop/ du dépôt) : la même page, dans l'app
+// Sona pour Windows (dossier desktop/ du dépôt) : la même page, dans l'app
 // d'ordinateur, qui expose `window.sonaDesktop` (télécommande du téléphone,
-// mini-lecteur, zone de notification…). Voir « alyra pour Windows » plus bas.
+// mini-lecteur, zone de notification…). Voir « Sona pour Windows » plus bas.
 const desktop = window.sonaDesktop || null;
 if (desktop) {
   document.documentElement.classList.add("desktop", `desktop-${desktop.platform}`);
@@ -273,7 +387,6 @@ async function startApp() {
   renderShell();
   bindDrawer();
   restoreResume();
-  if (focus.phase) focusLoop();
   startConnect();
   loadSidebar();
   loadLiked();
@@ -286,7 +399,7 @@ async function startApp() {
   else partyRestore();
 }
 
-/** Échange un jeton Last.fm autorisé contre une session alyra. `quiet` :
+/** Échange un jeton Last.fm autorisé contre une session Sona. `quiet` :
     jeton pas encore autorisé (on revient dans l'appli trop tôt) — pas d'erreur. */
 async function exchangeLastfm(lastfmToken, quiet = false) {
   try {
@@ -303,7 +416,7 @@ async function exchangeLastfm(lastfmToken, quiet = false) {
     store.set("sona.token", token);
     return true;
   } catch {
-    if (!quiet) renderLogin("Serveur alyra injoignable.");
+    if (!quiet) renderLogin("Serveur Sona injoignable.");
     return false;
   }
 }
@@ -311,19 +424,19 @@ async function exchangeLastfm(lastfmToken, quiet = false) {
 async function renderLogin(error, waiting = false) {
   document.body.style.overflow = "hidden";
   const config = await fetch(BASE + "/auth/config").then((r) => r.json()).catch(() => ({}));
-  // App d'ordinateur : la page n'a pas d'adresse web, Last.fm revient sur alyra web du serveur.
+  // App d'ordinateur : la page n'a pas d'adresse web, Last.fm revient sur Sona web du serveur.
   const cb = desktop ? `${SERVER}/web/` : location.origin + location.pathname;
   const url = config.api_key ? `https://www.last.fm/api/auth/?api_key=${encodeURIComponent(config.api_key)}&cb=${encodeURIComponent(cb)}` : null;
   $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
-    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#ay-mark"/></svg>
-    <h1>alyra<span class="lit">.</span></h1>
+    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>
+    <h1>Sona</h1>
     <p>ta musique, en clair.</p>
     ${url ? `<a class="btn" id="login-btn" href="${esc(url)}">se connecter avec last.fm.</a>` : '<p class="error">Serveur injoignable ou connexion Last.fm non configurée.</p>'}
-    ${waiting ? `<p class="fine wait">Autorise alyra sur la page Last.fm, puis reviens ici.<br><button class="link-btn" id="login-check">J'ai autorisé, continuer</button></p>` : ""}
+    ${waiting ? `<p class="fine wait">Autorise Sona sur la page Last.fm, puis reviens ici.<br><button class="link-btn" id="login-check">J'ai autorisé, continuer</button></p>` : ""}
     ${error ? `<p class="error">${esc(error)}</p>` : ""}
-    <p class="fine">Le même compte que dans l'app alyra.</p>
-    ${desktop ? `<p class="fine">Une fenêtre Last.fm s'ouvre : autorise alyra, elle se ferme toute seule.</p>` : ""}
-    ${!standalone && !desktop && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer alyra comme une app." : "Astuce : installe alyra depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
+    <p class="fine">Le même compte que dans l'app Sona.</p>
+    ${desktop ? `<p class="fine">Une fenêtre Last.fm s'ouvre : autorise Sona, elle se ferme toute seule.</p>` : ""}
+    ${!standalone && !desktop && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer Sona comme une app." : "Astuce : installe Sona depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
   </div></div>`;
   const btn = $("#login-btn");
   // Appli installée : la page Last.fm s'ouvre dans un navigateur à part, d'où
@@ -340,7 +453,7 @@ async function renderLogin(error, waiting = false) {
         if (desktop) desktop.openAuth(authUrl);
         else if (!window.open(authUrl, "_blank")) location.href = authUrl;
         renderLogin(null, true);
-      } catch { if (!desktop) location.href = btn.href; else renderLogin("Serveur alyra injoignable."); }
+      } catch { if (!desktop) location.href = btn.href; else renderLogin("Serveur Sona injoignable."); }
     };
   }
   const check = $("#login-check");
@@ -368,7 +481,7 @@ function renderLoginDone() {
   $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
     <img class="login-icon" src="icons/icon-192.png" alt="">
     <h1>C'est autorisé ✓</h1>
-    <p>Tu peux fermer cette page et revenir dans l'appli alyra : la connexion se termine toute seule.</p>
+    <p>Tu peux fermer cette page et revenir dans l'appli Sona : la connexion se termine toute seule.</p>
   </div></div>`;
 }
 
@@ -395,12 +508,12 @@ window.addEventListener("beforeinstallprompt", (e) => {
   const banner = $("#install");
   if (banner) banner.innerHTML = installBanner();
 });
-window.addEventListener("appinstalled", () => { installPrompt = null; $("#install")?.replaceChildren(); toast("alyra est installé ✓"); });
+window.addEventListener("appinstalled", () => { installPrompt = null; $("#install")?.replaceChildren(); toast("Sona est installé ✓"); });
 
 function installBanner() {
   if (standalone || store.get("sona.installDismissed") || !isMobile() || (!installPrompt && !isIOS)) return "";
   return `<div class="install-card"><img src="icons/icon-192.png" alt="">
-    <div><div class="t">Installe alyra</div><div class="s">Sur ton écran d'accueil, comme une vraie app.</div></div>
+    <div><div class="t">Installe Sona</div><div class="s">Sur ton écran d'accueil, comme une vraie app.</div></div>
     <button class="btn small" data-install>Installer</button><button class="x" data-install-close aria-label="Plus tard">${icons.close}</button></div>`;
 }
 
@@ -411,11 +524,11 @@ async function installApp() {
     if (choice?.outcome === "accepted") installPrompt = null;
     return;
   }
-  openSheet(`<h2 class="sheet-title">Installer alyra</h2>
+  openSheet(`<h2 class="sheet-title">Installer Sona</h2>
     <ol class="steps">${isIOS
       ? `<li>Ouvre cette page dans <b>Safari</b>.</li><li>Touche ${icons.share} <b>Partager</b>, en bas de l'écran.</li><li>Choisis <b>Sur l'écran d'accueil</b>, puis <b>Ajouter</b>.</li>`
       : `<li>Ouvre le menu du navigateur (⋮).</li><li>Choisis <b>Installer l'appli</b> (ou « Ajouter à l'écran d'accueil »).</li>`}</ol>
-    <p class="muted">alyra s'ouvre alors en plein écran, sans la barre du navigateur, avec son icône.</p>`);
+    <p class="muted">Sona s'ouvre alors en plein écran, sans la barre du navigateur, avec son icône.</p>`);
 }
 
 // ── Coquille ───────────────────────────────────────────────────────────────
@@ -438,24 +551,21 @@ const SIDE_NAV = [
 ];
 const SIDE_MORE = [
   ["radios", "Radios", icons.radio],
-  ["blindtest", "Blind test", icons.wave],
   ["party", "Écoute ensemble", icons.headphones],
-  ["concerts", "Concerts", icons.calendar],
-  ["sport", "Mode sport", icons.bolt],
 ];
 
 function renderShell() {
   const name = account.display_name || account.username;
   $("#root").innerHTML = `<div class="app">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#ay-mark"/></svg></span><span class="wordmark">alyra<span class="lit">.</span></span></div>
+      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="wordmark">Sona</span></div>
       <label class="side-search">${icons.search}<input id="side-q" type="search" placeholder="Rechercher" autocomplete="off"></label>
       <div class="side-list scroll">
         ${SIDE_NAV.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
         <div class="side-section">Découvrir et jouer</div>
         ${SIDE_MORE.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
         ${desktop ? `<div class="side-section">Sur ce PC</div>
-        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}alyra sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>` : ""}
+        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}Sona sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>` : ""}
         <div class="side-section">Faites pour toi</div>
         <div id="side-smart"></div>
         <div class="side-section">Playlists</div>
@@ -614,9 +724,8 @@ async function route() {
     playlist: () => viewUserPlaylist(parts[1]), dplaylist: () => viewAlbum(parts[1], parts[2], true),
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
-    stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
-    blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
-    settings: viewSettings, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
+    stats: viewStats, recent: viewRecent, radios: viewRadios, party: () => viewParty(parts[1]),
+    settings: viewSettings, appearance: viewAppearance, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -873,12 +982,11 @@ async function viewHome() {
     $("[data-install-close]")?.addEventListener("click", () => { store.set("sona.installDismissed", "1"); $("#install").replaceChildren(); });
     $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
     $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
-    $("[data-focus]")?.addEventListener("click", (e) => { e.preventDefault(); focusSheet(); });
     $("[data-recognize]")?.addEventListener("click", (e) => { e.preventDefault(); recognizeSheet(); });
     $("[data-mood-play]")?.addEventListener("click", () => playStation(`${mood.emoji} ${mood.title}`, async () => (await loadMood()).tracks));
     $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
   });
-  return page(`<h1 class="page-title">écouter.</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
+  return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
     <div id="install">${installBanner()}</div>
     <div id="resume">${resumeCard()}</div>
     ${daily?.track ? dailyCard(daily) : ""}
@@ -890,7 +998,7 @@ async function viewHome() {
       <span class="label"><span class="eyebrow">Reprendre</span><span class="t">${esc(heroTrack.title)}</span><span class="s">${esc(heroTrack.artist)}</span></span>
       <span class="fab">${icons.play}</span></button>` : ""}
     ${shelf("Faits pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
-      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix alyra", title: m.title, subtitle: m.subtitle,
+      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
       play: register(m.tracks, m.title),
     })), { kind: "large" })}
     ${shelf("Nouvelles sorties", releases.map((r) => card({
@@ -902,11 +1010,8 @@ async function viewHome() {
       <span class="s">${plural(memory.plays, "écoute")} · touche pour réécouter</span></span></button>` : ""}
     <section class="section"><div class="section-head"><h2>Jouer</h2></div>
       <div class="tiles">
-        ${tile({ href: "#/blindtest", icon: icons.wave, title: "Blind test", subtitle: "Défi du jour, solo ou en direct", tone: "violet" })}
         ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
-        ${tile({ href: "#/sport", icon: icons.bolt, title: "Mode sport", subtitle: "La musique au tempo de ta course", tone: "green" })}
-        ${tile({ icon: icons.clock, title: "Mode focus", subtitle: "Travailler en musique, avec des pauses", tone: "orange", data: "data-focus" })}
-        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "alyra écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
+        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "Sona écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
       </div></section>
     ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
       href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
@@ -915,7 +1020,6 @@ async function viewHome() {
       <div class="shelf-nav"><a class="more" href="#/recent">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
       ${trackGrid(recentTracks, "Écoutés récemment")}</section>` : ""}
     ${shelf("Radios", radios.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` })}
-    <a class="concert-teaser" href="#/concerts"><span class="tile-icon">${icons.calendar}</span><span><span class="t">Concerts près de chez toi</span><span class="s">Les dates à venir de tes artistes préférés</span></span>${icons.right}</a>
     ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${t.source}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
     ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
     ${!mixes.length && !recentTracks.length ? empty("♫", "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
@@ -975,13 +1079,13 @@ async function viewRadios() {
   $("#content").innerHTML = skeleton("Radios");
   const groups = await radioGroups();
   setTimeout(() => $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); })));
-  return page(`<h1 class="page-title">radios.</h1><p class="page-sub">Une station par univers : elle ne s'arrête jamais.</p>
+  return page(`<h1 class="page-title">Radios</h1><p class="page-sub">Une station par univers : elle ne s'arrête jamais.</p>
     ${groups.map((g) => shelf(g.title, g.radios.map(radioCard))).join("")}`);
 }
 
 async function viewSearch(q) {
   const recents = JSON.parse(store.get("sona.searches") || "[]");
-  const html = page(`<h1 class="page-title">chercher.</h1>
+  const html = page(`<h1 class="page-title">Chercher</h1>
     <label class="search-hero">${icons.search}<input id="q" type="search" placeholder="Artistes, titres, albums, liens…" value="${esc(q)}" autocomplete="off" enterkeyhint="search"></label>
     ${recents.length ? `<div class="chips" id="recents">${recents.map((r) => `<button class="chip">${esc(r)}</button>`).join("")}</div>` : ""}
     <div id="results"></div>`);
@@ -1147,7 +1251,7 @@ async function viewArtist(source, id) {
       bindPage($("#artist-disco"));
     };
     bindDisco();
-    // Biographie (Wikipédia) et concerts : arrivent après la page, sans la retarder.
+    // Biographie (Wikipédia) : arrivent après la page, sans la retarder.
     api(`${base}/bio`).then((bio) => {
       const box = $("#artist-bio");
       if (!box || !bio?.text) return;
@@ -1156,24 +1260,13 @@ async function viewArtist(source, id) {
         <div class="bio-foot"><button class="link-btn" data-bio-more>Lire la suite</button>${bio.url ? `<a class="bio-src" href="${esc(bio.url)}" target="_blank" rel="noopener">${esc(bio.source || "Source")}</a>` : ""}</div></div></section>`;
       $("[data-bio-more]", box).onclick = (e) => { const p = $(".bio-text", box); p.classList.toggle("clamp"); e.target.textContent = p.classList.contains("clamp") ? "Lire la suite" : "Réduire"; };
     }).catch(() => {});
-    api(`${base}/concerts`).then((events) => {
-      const box = $("#artist-concerts");
-      if (!box || !events?.length) return;
-      box.innerHTML = `<section class="section"><div class="section-head"><h2>Concerts à venir</h2></div><div class="concerts">${events.slice(0, 6).map((e) => {
-        const d = new Date(e.datetime);
-        return `<a class="concert" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : ""}>
-          <span class="date"><b>${d.getDate()}</b><small>${d.toLocaleDateString("fr-FR", { month: "short" })}</small></span>
-          <span class="ct"><span class="t">${esc(e.venue || e.city || "Concert")}</span><span class="s">${esc([e.city, e.country].filter(Boolean).join(" · "))}</span></span>
-          ${e.url ? `<span class="go">Billets</span>` : ""}</a>`;
-      }).join("")}</div></section>`;
-    }).catch(() => {});
   });
   return page(hero({
     cover: artist.picture_url, kind: "Artiste", title: artist.name, round: true,
     info: artist.fans ? `${artist.fans.toLocaleString("fr-FR")} fans` : "", list: top.length ? list : "",
     extra: `<button class="btn ghost" data-artist-radio>${icons.radio} Radio</button>` + likeButton("artist", artist.source, artist.source_id, state.likedArtists),
   }) + (top.length ? `<section class="section"><div class="section-head"><h2>Titres populaires</h2></div>${trackTable(top.slice(0, 10), artist.name)}</section>` : "")
-    + `<div id="artist-concerts"></div><div id="artist-disco">${discoHtml()}</div><div id="artist-bio"></div>`
+    + `<div id="artist-disco">${discoHtml()}</div><div id="artist-bio"></div>`
     + shelf("Artistes similaires", related.map((a) => card({ href: `#/artist/${a.source}/${a.source_id}`, cover: a.picture_url, title: a.name, round: true })), { kind: "round" }));
 }
 
@@ -1236,7 +1329,6 @@ function playlistMenu(p) {
     if (p.origin && p.import_status === "done") items.push({ icon: icons.check, label: "Rapport d'import", sub: "Trouvés, à vérifier, introuvables", run: () => importReport(p) });
   }
   if (p.track_count) items.push({ icon: icons.share, label: "Partager un lien…", sub: "Page publique : titres et extraits de 30 s", run: () => sonaShareSheet({ kind: "playlist", source: "sona", id: p.id, title: p.name, subtitle: plural(p.track_count, "titre"), cover_url: p.cover_url || (p.covers || [])[0] }) });
-  items.push({ icon: icons.wave, label: "Blind test sur cette playlist", run: () => { bt.pending = { mode: "playlist", ref: String(p.id), label: p.name }; go("#/blindtest"); } });
   if (p.is_owner) {
     items.push({ icon: icons.trash, label: "Supprimer la playlist", danger: true, run: async () => {
       if (!(await confirmSheet(`Supprimer « ${p.name} » ?`, "Supprimer"))) return;
@@ -1262,7 +1354,7 @@ async function viewMix(id) {
   $("#content").innerHTML = skeleton("");
   const mix = (await api("/home/mixes")).find((m) => m.id === id);
   if (!mix) return page(empty("♫", "Mix introuvable", "Il a peut-être été renouvelé."));
-  return page(hero({ cover: mix.covers[0], kind: "Mix alyra", title: mix.title, info: mix.subtitle, list: register(mix.tracks, mix.title) })
+  return page(hero({ cover: mix.covers[0], kind: "Mix Sona", title: mix.title, info: mix.subtitle, list: register(mix.tracks, mix.title) })
     + trackTable(mix.tracks, mix.title));
 }
 
@@ -1271,7 +1363,7 @@ const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", 
 async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
   const seg = `<div class="segmented">${LIB_KINDS.map(([k, label]) => `<a href="#/library/${k}" class="${k === kind ? "on" : ""}">${label}</a>`).join("")}</div>`;
-  $("#content").innerHTML = page(`<h1 class="page-title">bibliothèque.</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
+  $("#content").innerHTML = page(`<h1 class="page-title">Bibliothèque</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   let body = "";
   if (kind === "playlists") {
     const [playlists, smart] = await Promise.all([api("/me/playlists").catch(() => []), api(`/smart?tz=${encodeURIComponent(tz())}`).catch(() => [])]);
@@ -1320,7 +1412,7 @@ async function viewLibrary(kind) {
       href: `#/${k}/${i.source}/${i.source_id}`, cover: i.cover_url, title: i.title, subtitle: i.subtitle || "", round: k === "artist",
     })).join("")}</div>` : empty(k === "album" ? "💿" : "🎤", "Rien ici pour l'instant", `Ajoute ${k === "album" ? "un album" : "un artiste"} avec le cœur de sa fiche.`);
   }
-  return page(`<h1 class="page-title">bibliothèque.</h1>${seg}${body}`);
+  return page(`<h1 class="page-title">Bibliothèque</h1>${seg}${body}`);
 }
 
 async function newPlaylist(tracks = []) {
@@ -1338,7 +1430,7 @@ async function newPlaylist(tracks = []) {
 async function importPlaylist() {
   const url = await askText({
     title: "Importer une playlist", placeholder: "Lien Spotify, Apple Music, Deezer, YouTube ou SoundCloud", confirm: "Importer",
-    hint: "Colle le lien de partage d'une playlist publique (ou des likes d'un profil SoundCloud) : alyra retrouve chaque titre, te dit ce qui est à vérifier, et la resynchronise chaque jour.",
+    hint: "Colle le lien de partage d'une playlist publique (ou des likes d'un profil SoundCloud) : Sona retrouve chaque titre, te dit ce qui est à vérifier, et la resynchronise chaque jour.",
   });
   if (!url) return;
   try {
@@ -1476,8 +1568,8 @@ async function viewHealth() {
   const cookieState = !cookies.present ? ["Aucun fichier", "bad"] : cookies.logged_in === false ? ["Déconnectés (expirés)", "bad"]
     : cookies.logged_in ? ["Connectés", "ok"] : ["Pas encore vérifiés", "warn"];
   setTimeout(bindHealth);
-  return page(`<h1 class="page-title">état de la lecture.</h1>
-    <p class="page-sub">alyra surveille la lecture et se répare tout seul quand il peut. Ici, de quoi réparer le reste sans toucher au serveur.</p>
+  return page(`<h1 class="page-title">État de la lecture</h1>
+    <p class="page-sub">Sona surveille la lecture et se répare tout seul quand il peut. Ici, de quoi réparer le reste sans toucher au serveur.</p>
     <div class="health-hero ${tone}"><span class="dot"></span><div><div class="t">${title}</div>
       <div class="s">${esc(h.advice || sub)}</div>
       <div class="meta">${h.recent_ok} titre(s) lancé(s) · ${h.recent_failures} échec(s) sur la dernière demi-heure · dernier titre lancé ${ago(h.last_success_seconds)}</div></div></div>
@@ -1841,7 +1933,8 @@ function renderTopbar() {
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
         <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${albumHtml(t)}` : ""}`}</div></div>
-      <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
+      <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div>
+      <span class="tm cur" id="lcd-cur">0:00</span><span class="tm rem" id="lcd-rem">-0:00</span></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
     <div class="right-tools">
@@ -1855,6 +1948,8 @@ function renderTopbar() {
       <button class="tbtn small more-tools" data-act="tools" title="Plus">${icons.more}</button>
       <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : `Volume : ${volLabel(volumeShown)} — molette pour régler finement`}"><button class="vol-icon" data-act="volume" title="Volume et préréglages">${volIcon(volumeShown)}</button><input type="range" class="slider" id="vol" min="0" max="1" step="0.005" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume">${remote ? "" : `<span class="vol-pct" id="vol-pct">${volLabel(volumeShown)}</span>`}</div>
     </div>`;
+  // La pochette en cours, très floue, teinte la barre (voir `.topbar::before`).
+  bar.style.setProperty("--bar-cover", t?.cover_url ? `url("${big(t.cover_url, 120)}")` : "none");
   bar.onclick = (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
@@ -1903,6 +1998,44 @@ function renderTopbar() {
 }
 
 /** Mini-lecteur du téléphone, posé au-dessus des onglets (comme dans l'app). */
+/** Mini-lecteur du téléphone : glisser vers la gauche / la droite change de titre,
+ * vers le haut ouvre le lecteur (comme un tiroir). Rien pour un appareil distant. */
+function bindMiniGestures(mp) {
+  if (mp._gestures) return;
+  mp._gestures = true;
+  let g = null;
+  const inner = () => mp.firstElementChild;
+  mp.addEventListener("touchstart", (e) => {
+    if (remoteDevice() || e.target.closest("[data-mp=toggle], [data-mp=next]")) { g = null; return; }
+    const t = e.touches[0];
+    g = { x: t.clientX, y: t.clientY, axis: null, dx: 0 };
+  }, { passive: true });
+  mp.addEventListener("touchmove", (e) => {
+    if (!g) return;
+    const t = e.touches[0];
+    const dx = t.clientX - g.x, dy = t.clientY - g.y;
+    if (!g.axis && Math.hypot(dx, dy) > 8) g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (g.axis === "x" && inner()) {
+      g.dx = dx;
+      inner().style.transition = "none";
+      inner().style.transform = `translateX(${dx * 0.55}px)`;
+      inner().style.opacity = String(1 - Math.min(0.5, Math.abs(dx) / 320));
+    }
+  }, { passive: true });
+  const finish = (e) => {
+    if (!g) return;
+    const t = e.changedTouches?.[0];
+    const dy = t ? t.clientY - g.y : 0;
+    const { axis, dx } = g;
+    g = null;
+    if (inner()) { inner().style.transition = ""; inner().style.transform = ""; inner().style.opacity = ""; }
+    if (axis === "x" && Math.abs(dx) > 70) { mp._swiped = Date.now(); haptic(); dx < 0 ? next() : prev(); }
+    else if (axis === "y" && dy < -36) { mp._swiped = Date.now(); haptic(); openNowPlaying("art"); }
+  };
+  mp.addEventListener("touchend", finish, { passive: true });
+  mp.addEventListener("touchcancel", () => { g = null; if (inner()) { inner().style.transition = ""; inner().style.transform = ""; inner().style.opacity = ""; } }, { passive: true });
+}
+
 function renderMini() {
   const mp = $("#mp");
   if (!mp) return;
@@ -1912,14 +2045,16 @@ function renderMini() {
   document.body.classList.toggle("has-mini", !!t);
   if (!t) { mp.innerHTML = ""; return; }
   const paused = remote ? rnow.paused : audio.paused;
-  mp.innerHTML = `<div class="mp-inner" data-mp="open">
+  mp.innerHTML = `<div class="mp-inner" data-mp="open" style="--mp-cover:url('${esc(big(t.cover_url, 120))}')">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
       <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${artistHtml(t)}` : artistHtml(t)}</div></div>
     <button class="mp-btn" data-mp="toggle" aria-label="Lecture/Pause">${paused ? icons.play : icons.pause}</button>
     <button class="mp-btn" data-mp="next" aria-label="Suivant">${icons.next}</button>
     <div class="mp-progress"><div class="fill" id="mp-fill"></div></div></div>`;
+  bindMiniGestures(mp);
   mp.onclick = (e) => {
+    if (Date.now() - (mp._swiped || 0) < 450) return; // un glissé n'est pas un appui
     const act = e.target.closest("[data-mp]")?.dataset.mp;
     if (act === "toggle") { e.stopPropagation(); haptic(); toggle(); }
     else if (act === "next") { e.stopPropagation(); haptic(); next(); }
@@ -1938,6 +2073,9 @@ function updateProgress() {
     if (fill) fill.style.width = pctRemote;
     const mini = $("#mp-fill");
     if (mini) mini.style.width = pctRemote;
+    const rc = $("#lcd-cur"), rr = $("#lcd-rem");
+    if (rc) rc.textContent = fmt(rnow.position || 0);
+    if (rr) rr.textContent = `-${fmt(Math.max(0, dur - (rnow.position || 0)))}`;
     return;
   }
   const t = state.queue[state.index];
@@ -1952,6 +2090,9 @@ function updateProgress() {
   const cur = $("#np-cur"), rem = $("#np-rem");
   if (cur) cur.textContent = fmt(audio.currentTime);
   if (rem) rem.textContent = `-${fmt(Math.max(0, dur - audio.currentTime))}`;
+  const lc = $("#lcd-cur"), lr = $("#lcd-rem");
+  if (lc) lc.textContent = fmt(audio.currentTime);
+  if (lr) lr.textContent = `-${fmt(Math.max(0, dur - audio.currentTime))}`;
 }
 
 // ── Lecteur plein écran ───────────────────────────────────────────────────
@@ -2264,8 +2405,7 @@ function renderNowPlayingView() {
           <button class="tbtn" data-np="next">${icons.next}</button>
           <button class="tbtn small ${state.repeat ? "on" : ""}" data-np="repeat">${icons.repeat}</button>
         </div>
-        ${npVolumeRow()}
-        <div class="np-sing" id="np-sing"></div>
+        <div class="np-dock">${npVolumeRow()}<div class="np-sing" id="np-sing"></div></div>
       </div>
       <div class="np-right" id="np-right"></div>
     </div>`;
@@ -2287,6 +2427,7 @@ function renderNowPlayingMobile(np, t) {
     <div class="np-bg"><img src="${esc(big(t.cover_url, 300))}" alt=""></div>
     <div class="np-m view-${view}">
       <div class="np-grab" data-np="close" aria-label="Fermer"><span></span></div>
+      ${view === "art" ? `<div class="np-from"><span>Lecture depuis</span><b>${esc(state.station ? `${state.station.name} · radio` : state.name || "ta file d'attente")}</b></div>` : ""}
       ${view === "art"
         ? `<div class="np-stage" data-np-swipe><img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt=""></div>`
         : `<div class="np-mini-head"><img src="${esc(big(t.cover_url, 200))}" alt="" data-np="art">
@@ -2403,22 +2544,90 @@ function bindNowPlayingGestures() {
 function renderQueue() {
   const box = panelBox();
   if (!box) return;
-  const rows = state.queue.map((t, i) => ({ t, i })).slice(Math.max(0, state.index - 3), state.index + 80);
+  const all = state.queue.map((t, i) => ({ t, i }));
+  const cur = state.queue[state.index];
+  const past = all.slice(Math.max(0, state.index - 3), state.index);
+  const upcoming = all.slice(state.index + 1, state.index + 81);
   const label = state.station ? `${state.station.name} · radio` : state.name;
-  box.innerHTML = `<div class="queue scroll"><h3>${label ? `À suivre · ${esc(label)}` : "À suivre"}</h3>
-    ${rows.map(({ t, i }) => `<div class="qrow ${i === state.index ? "current" : ""} ${i < state.index ? "past" : ""}" data-q="${i}" role="button">
-      <img src="${esc(big(t.cover_url, 120))}" alt=""><span style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}</div></span>
-      <span class="d">${i === state.index ? bars() : i > state.index ? `<button class="q-x" data-qx="${i}" aria-label="Retirer">${icons.close}</button>` : ""}</span></div>`).join("")}
-    ${state.index >= state.queue.length - 1 ? `<p class="q-end">${state.station || state.settings?.autoplay !== false ? "La suite arrive toute seule (lecture automatique)." : "Rien après ce morceau."}</p>` : ""}
-    ${state.queue.length > state.index + 1 ? `<button class="q-clear" data-qclear>Vider la file</button>` : ""}</div>`;
+  const dots = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="4" r="1.3"/><circle cx="10.5" cy="4" r="1.3"/><circle cx="5.5" cy="8" r="1.3"/><circle cx="10.5" cy="8" r="1.3"/><circle cx="5.5" cy="12" r="1.3"/><circle cx="10.5" cy="12" r="1.3"/></svg>`;
+  const row = ({ t, i }, kind) => `<div class="qrow ${kind}" data-q="${i}" role="button">
+      <img src="${esc(big(t.cover_url, 120))}" alt="" draggable="false"><span class="qmeta"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}</div></span>
+      <span class="qd">${kind === "now" ? bars()
+        : kind === "next" ? `<button class="q-up" data-qup="${i}" title="Lire ensuite" aria-label="Lire ensuite">${icons.nextUp}</button><button class="q-x" data-qx="${i}" title="Retirer" aria-label="Retirer">${icons.close}</button><span class="q-grip" data-qgrip title="Glisser pour déplacer" aria-label="Déplacer">${dots}</span>` : ""}</span></div>`;
+  const ending = state.index >= state.queue.length - 1
+    ? `<p class="q-end">${icons.sparkles}<span>${state.station || state.settings?.autoplay !== false ? "La suite arrive toute seule (lecture automatique)." : "Rien après ce morceau."}</span></p>` : "";
+  box.innerHTML = `<div class="queue scroll">
+    <div class="q-head"><div><h3>À suivre</h3>${label ? `<p>${esc(label)}</p>` : ""}</div>${upcoming.length ? `<button class="q-clear" data-qclear>Vider</button>` : ""}</div>
+    ${past.length ? `<div class="q-sec">Déjà écoutés</div>${past.map((r) => row(r, "past")).join("")}` : ""}
+    ${cur ? `<div class="q-sec">En lecture</div>${row({ t: cur, i: state.index }, "now")}` : ""}
+    <div class="q-sec">À suivre${upcoming.length ? ` · ${upcoming.length}` : ""}</div>
+    ${upcoming.length ? upcoming.map((r) => row(r, "next")).join("") : `<p class="q-empty">Rien en attente.</p>`}
+    ${ending}</div>`;
   box.onclick = (e) => {
+    if (box._dragged && Date.now() - box._dragged < 300) return;
     const x = e.target.closest("[data-qx]");
-    if (x) { e.stopPropagation(); state.queue.splice(+x.dataset.qx, 1); renderQueue(); return; }
-    if (e.target.closest("[data-qclear]")) { state.queue.length = state.index + 1; state.station = null; renderQueue(); return; }
-    const row = e.target.closest("[data-q]");
-    if (row) playAt(+row.dataset.q);
+    if (x) { e.stopPropagation(); state.queue.splice(+x.dataset.qx, 1); renderQueue(); startConnect.now?.(); return; }
+    const up = e.target.closest("[data-qup]");
+    if (up) {
+      e.stopPropagation();
+      const [item] = state.queue.splice(+up.dataset.qup, 1);
+      state.queue.splice(state.index + 1, 0, item);
+      toast("Lu ensuite");
+      renderQueue(); startConnect.now?.(); return;
+    }
+    if (e.target.closest("[data-qgrip]")) return;
+    if (e.target.closest("[data-qclear]")) { state.queue.length = state.index + 1; state.station = null; renderQueue(); startConnect.now?.(); return; }
+    const rowEl = e.target.closest("[data-q]");
+    if (rowEl) playAt(+rowEl.dataset.q);
   };
-  $(".qrow.current", box)?.scrollIntoView({ block: "center" });
+  box.onpointerdown = (e) => {
+    const grip = e.target.closest("[data-qgrip]");
+    if (grip) { e.preventDefault(); queueDrag(e, grip.closest(".qrow"), box); }
+  };
+  $(".qrow.now", box)?.scrollIntoView({ block: "center" });
+}
+
+/** Réordonner la file en glissant la poignée : seules les lignes « à suivre »
+ * bougent ; les autres s'écartent au passage, et la file n'est modifiée qu'au
+ * relâchement. */
+function queueDrag(e, rowEl, box) {
+  const rows = [...box.querySelectorAll(".qrow.next")];
+  const fromPos = rows.indexOf(rowEl);
+  if (fromPos < 0) return;
+  const order = rows.map((r) => +r.dataset.q);
+  const rects = rows.map((r) => r.getBoundingClientRect());
+  const step = rects.length > 1 ? rects[1].top - rects[0].top : rects[0].height;
+  const startY = e.clientY;
+  let toPos = fromPos;
+  rowEl.classList.add("drag");
+  rows.forEach((r) => { if (r !== rowEl) r.style.transition = "transform .2s cubic-bezier(.2,.8,.2,1)"; });
+  const move = (ev) => {
+    const dy = ev.clientY - startY;
+    rowEl.style.transform = `translateY(${dy}px)`;
+    const centre = rects[fromPos].top + rects[fromPos].height / 2 + dy;
+    toPos = 0;
+    rects.forEach((r, k) => { if (centre > r.top + r.height / 2) toPos = k; });
+    rows.forEach((r, k) => {
+      if (k === fromPos) return;
+      const shift = fromPos < toPos && k > fromPos && k <= toPos ? -step : fromPos > toPos && k < fromPos && k >= toPos ? step : 0;
+      r.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    box._dragged = Date.now();
+    if (toPos !== fromPos) {
+      const [item] = state.queue.splice(order[fromPos], 1);
+      state.queue.splice(order[toPos], 0, item);
+      startConnect.now?.();
+    }
+    renderQueue();
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
 }
 
 /** Mots horodatés d'une ligne : ceux de la source quand elle les donne
@@ -2559,8 +2768,22 @@ function lyricsRequest(t) {
   }
   return lyricsInflight.get(k);
 }
+// Préchauffage : le serveur cherche tout de suite les paroles des prochains
+// titres de la file (une seule requête, en arrière-plan) ; les deux suivants
+// sont en plus rapatriés ici, pour qu'ils s'affichent sans aucune attente.
+const lyricsWarmed = new Set();
+function warmLyrics(tracks) {
+  const fresh = tracks.filter((t) => t && t.title && t.artist && !lyricsWarmed.has(trackKey(t)) && !lyricsCacheGet(t));
+  if (!fresh.length) return;
+  fresh.forEach((t) => lyricsWarmed.add(trackKey(t)));
+  if (lyricsWarmed.size > 400) lyricsWarmed.clear();
+  const tracks8 = fresh.slice(0, 8).map((t) => ({ title: t.title, artist: t.artist, album: t.album || null, duration: t.duration_seconds || null }));
+  api("/lyrics/prefetch", { method: "POST", body: JSON.stringify({ tracks: tracks8 }) }).catch(() => {});
+}
 function prefetchLyrics() {
-  for (const t of state.queue.slice(state.index + 1, state.index + 3)) {
+  const next = state.queue.slice(state.index + 1, state.index + 6);
+  warmLyrics(next);
+  for (const t of next.slice(0, 2)) {
     if (t && !lyricsCacheGet(t) && !lyricsInflight.has(trackKey(t))) lyricsRequest(t).catch(() => {});
   }
 }
@@ -2571,6 +2794,8 @@ function prefetchLyrics() {
  * réessayée sans rien demander. Un titre déjà vu s'affiche aussitôt. */
 async function loadLyrics(t) {
   let lyrics = lyricsCacheGet(t);
+  // La suite de la file se prépare tout de suite, pendant que celui-ci se charge.
+  warmLyrics(state.queue.slice(state.index + 1, state.index + 6));
   if (lyrics) {
     applyLyrics(lyrics);
   } else {
@@ -2722,7 +2947,7 @@ function renderLyrics() {
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
   const cur = state.queue[state.index];
   if (!ly.lines.length) {
-    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">alyra les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
+    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">Sona les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
     return;
   }
   const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
@@ -2743,6 +2968,10 @@ function renderLyrics() {
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
   box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map(line).join("")}${foot}</div>`;
   state.lyrFree = false;
+  state.scrollLine = -1;
+  cancelAnimationFrame(lyrScroll.raf);
+  // Apparition en cascade des premières lignes (Apple Musique) : --i règle le délai.
+  $$("#lyr p", box).forEach((p, i) => p.style.setProperty("--i", Math.min(i, 14)));
   if (ly.synced) {
     // Défilement libre : dès que le doigt (ou la molette) touche les paroles,
     // le flou part et la vue ne bouge plus toute seule, même quand la ligne
@@ -2750,7 +2979,7 @@ function renderLyrics() {
     // et la vue se recentre en douceur.
     const lyr = $("#lyr", box);
     let touching = false, timer = 0;
-    const hold = () => { state.lyrFree = true; lyr.classList.add("free"); clearTimeout(timer); };
+    const hold = () => { state.lyrFree = true; cancelAnimationFrame(lyrScroll.raf); lyr.classList.add("free"); clearTimeout(timer); };
     const release = () => {
       clearTimeout(timer);
       timer = setTimeout(() => { state.lyrFree = false; lyr.classList.remove("free"); syncLyrics(true, true); }, 1600);
@@ -2822,8 +3051,44 @@ function lyricsClock() {
   if (frozen || Math.abs(raw - s.est - dt * rate) > 0.4) s.est = raw;
   else s.est += dt * rate + (raw - s.est - dt * rate) * 0.25;
   const cur = state.queue[state.index];
-  s.val = s.est + LYRICS_LEAD + (cur ? lyricsOffset(cur) : 0);
+  s.val = s.est + LYRICS_LEAD + lyricsLatency() + (cur ? lyricsOffset(cur) : 0);
   return s.val;
+}
+
+/** Retard propre à l'appareil : le décalage global réglé dans Apparence (casque
+ * Bluetooth, enceinte…) et, quand le navigateur le connaît, la latence de sortie audio. */
+const lyricsLatency = () => (Number(look.lyrOffset) || 0) + Math.min(0.4, Number(sing.ctx?.outputLatency) || 0);
+
+// Défilement automatique : un mouvement amorti de ~0,6 s, qui repart de là où il
+// est (le `smooth` natif, lui, saccade et redémarre à chaque ligne). Il part un
+// peu AVANT la ligne chantée (LYRICS_SCROLL_LEAD) pour arriver pile quand elle
+// commence, comme dans Apple Musique. Il s'arrête dès que l'utilisateur touche.
+const LYRICS_SCROLL_LEAD = 0.28;
+const lyrScroll = { raf: 0 };
+function lyricsScrollTo(box, top, instant) {
+  cancelAnimationFrame(lyrScroll.raf);
+  lyrScroll.raf = 0;
+  top = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, top));
+  if (instant || reduceLyricsMotion.matches) { box.scrollTop = top; return; }
+  const from = box.scrollTop, delta = top - from;
+  if (Math.abs(delta) < 1) return;
+  const dur = Math.max(520, Math.min(980, 420 + Math.abs(delta) * 0.5));
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = clamp01((now - t0) / dur);
+    box.scrollTop = from + delta * (1 - Math.pow(1 - p, 4)); // départ vif, arrivée douce
+    lyrScroll.raf = p < 1 ? requestAnimationFrame(step) : 0;
+  };
+  lyrScroll.raf = requestAnimationFrame(step);
+}
+/** Position de défilement qui place la ligne `el` à ~36 % de la hauteur (une
+ * ligne très longue est alignée plus haut pour qu'elle tienne). */
+const lyricsScrollTarget = (box, el) => el.offsetTop - box.clientHeight * (el.offsetHeight > box.clientHeight * 0.4 ? 0.16 : 0.36);
+function lyricsFollow(box, index, instant) {
+  if (state.lyrFree || !look.lyrAuto) return;
+  state.scrollLine = index;
+  const el = box.querySelector(`[data-l="${index}"]`) || box.querySelector("p");
+  if (el) lyricsScrollTo(box, lyricsScrollTarget(box, el), instant);
 }
 
 function lyricsActiveIndex(lines, now) {
@@ -2843,6 +3108,11 @@ function lyricsFrame() {
   // Le changement de ligne suit la même horloge que les mots (60 i/s, pas
   // seulement aux ~4 `timeupdate` par seconde).
   if (lyricsActiveIndex(ly.lines, now) !== state.lastLyric) syncLyrics();
+  // Le défilement, lui, part un peu avant : il arrive quand la ligne commence.
+  if (!state.lyrFree && look.lyrAuto) {
+    const ahead = lyricsActiveIndex(ly.lines, now + LYRICS_SCROLL_LEAD);
+    if (ahead >= 0 && ahead !== state.scrollLine) lyricsFollow(box, ahead, false);
+  }
   const i = state.lastLyric;
   const line = ly.lines[i];
   const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
@@ -2892,9 +3162,9 @@ function syncLyrics(force, smooth) {
     p.classList.toggle("on", i === active);
     p.classList.toggle("near", Math.abs(i - active) === 1);
   });
-  const el = box.querySelector("p.on") || box.querySelector("p");
-  // Pas de recentrage tant que l'utilisateur fait défiler les paroles.
-  if (el && !state.lyrFree) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.36, behavior: force && !smooth ? "auto" : "smooth" });
+  // Pas de recentrage tant que l'utilisateur fait défiler les paroles ; et si le
+  // défilement est déjà parti vers cette ligne (anticipation), on ne le relance pas.
+  if (force || state.scrollLine !== active) lyricsFollow(box, Math.max(0, active), !!force && !smooth);
 }
 
 // ── Karaoké (voix / instru séparées par IA sur le serveur) ───────────────
@@ -3101,6 +3371,14 @@ function renderSing() {
     if (status) status.textContent = sing.status;
     return;
   }
+  // Ordinateur : tant que le karaoké est coupé, une simple pastille ; le panneau (curseur, préréglages) apparaît à l'activation.
+  const compact = !isMobile() && !sing.on;
+  box.classList.toggle("compact", compact);
+  if (compact) {
+    box.innerHTML = `<button class="np-chip" data-sing="toggle" title="Chante : voix séparée par IA">${icons.mic}<span>Karaoké</span></button>`;
+    $("[data-sing=toggle]", box).onclick = () => setSing(true);
+    return;
+  }
   const level = singShownLevel();
   const pct = Math.round(level * 100);
   const hint = sing.on && !sing.quality && !sing.status ? "Voix normale en attendant la séparation" : "";
@@ -3150,7 +3428,7 @@ audio.addEventListener("volumechange", () => {
 // Le curseur suit l'oreille : volume réel = position², d'où beaucoup de
 // finesse dans les volumes bas (en vocal, la nuit). Préréglages modifiables,
 // et sur PC le « mode vocal » : quand une app (Discord…) prend le micro,
-// alyra passe sur « En vocal », puis revient au volume d'avant.
+// Sona passe sur « En vocal », puis revient au volume d'avant.
 
 const VOL_PRESETS = [
   { id: "voc", label: "En vocal", level: 0.3 },
@@ -3274,7 +3552,7 @@ async function volumeSheet() {
       <button class="vs-save" data-vsave="${p.id}" title="Enregistrer le volume actuel pour « ${esc(p.label)} »">${icons.pencil}</button></div>`).join("")}</div>
     <p class="muted vs-hint">${icons.pencil} enregistre le volume actuel dans le préréglage.</p>
     ${deskSettings ? `<div class="set-group">${toggleRow("vs-voice", "Mode vocal automatique",
-      "Quand Discord (ou une autre app) utilise ton micro, alyra passe sur « En vocal », puis revient au volume d'avant à la fin de l'appel.", deskSettings.micWatch !== false)}</div>
+      "Quand Discord (ou une autre app) utilise ton micro, Sona passe sur « En vocal », puis revient au volume d'avant à la fin de l'appel.", deskSettings.micWatch !== false)}</div>
       ${vol.voice.active ? `<p class="muted vs-hint">🎧 En vocal en ce moment${vol.voice.apps.length ? ` (${esc(vol.voice.apps.join(", "))})` : ""}.</p>` : ""}` : ""}`);
   const range = $("#vs-range", wrap);
   range.oninput = () => setVolume(+range.value / 100);
@@ -3315,14 +3593,14 @@ function micChanged({ inUse, apps }) {
 
 // ── Reconnaître un titre ─────────────────────────────────────────────────
 // Le micro écoute 8 s, le serveur identifie l'extrait (service de Shazam)
-// et le retrouve dans alyra ; il est rangé dans la playlist « Entendu dehors ».
+// et le retrouve dans Sona ; il est rangé dans la playlist « Entendu dehors ».
 
 async function recognizeSheet() {
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
   catch { return toast("Autorise le micro pour reconnaître un titre"); }
   const wasPlaying = !audio.paused;
-  if (wasPlaying) audio.pause();  // sinon alyra se reconnaît elle-même
+  if (wasPlaying) audio.pause();  // sinon Sona se reconnaît elle-même
   let cancelled = false;
   const wrap = openSheet(`<h2 class="sheet-title">Reconnaître un titre</h2><div class="rec" id="rec">
       <div class="rec-pulse"><span>${icons.wave}</span></div><b id="rec-msg">J'écoute… 8 s</b><small class="muted">Approche-toi de la musique.</small></div>`,
@@ -3353,7 +3631,7 @@ async function recognizeSheet() {
     } else {
       const f = data.found, t = data.track;
       box.innerHTML = `<img class="rec-art" src="${esc(f.cover_url || t?.cover_url || "")}" alt=""><b class="rec-title">${esc(f.title)}</b><span class="muted">${esc(f.artist)}</span>
-        ${t ? `<button class="btn" data-rec-play>${icons.play} Écouter dans alyra</button><small class="muted" id="rec-saved"></small>` : `<small class="muted">Introuvable dans le catalogue d'alyra.</small>`}`;
+        ${t ? `<button class="btn" data-rec-play>${icons.play} Écouter dans Sona</button><small class="muted" id="rec-saved"></small>` : `<small class="muted">Introuvable dans le catalogue de Sona.</small>`}`;
       if (t) {
         $("[data-rec-play]", box).onclick = () => { wrap.close(); playList([t], 0, "Entendu dehors"); };
         saveHeard(t).then((ok) => { const el = $("#rec-saved", box); if (el && ok) el.textContent = "✓ Ajouté à « Entendu dehors »"; });
@@ -3376,132 +3654,8 @@ async function saveHeard(t) {
   } catch { return false; }
 }
 
-// ── Mode focus (Pomodoro) ────────────────────────────────────────────────
-// Des séances de travail en musique (25 min par défaut), puis une pause
-// (5 min) où la musique s'arrête ; un petit chrono flotte en bas à droite.
-
-const FOCUS_PLANS = [[25, 5], [50, 10], [90, 15]];
-const focus = (() => {
-  try {
-    const saved = JSON.parse(store.get("sona.focus") || "null");
-    if (saved && saved.endsAt > Date.now() - 60000) return saved;
-  } catch {}
-  return { phase: null, endsAt: 0, work: 25, rest: 5, rounds: 0, music: "current" };
-})();
-let focusTimer = null;
-
-const focusSave = () => store.set("sona.focus", focus.phase ? JSON.stringify(focus) : null);
-const clock = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
-
-/** Petit « ding » (Web Audio), sans fichier son. */
-function chime() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [880, 1320].forEach((freq, i) => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.9);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.18);
-      osc.stop(ctx.currentTime + i * 0.18 + 1);
-    });
-    setTimeout(() => ctx.close(), 1600);
-  } catch {}
-}
-
-function focusNotify(title, body) {
-  toast(`${title} · ${body}`);
-  if (desktop && "Notification" in window) try { new Notification(title, { body, silent: true }); } catch {}
-}
-
-/** Une radio calme pour travailler (lo-fi, piano, chill…), sinon la première. */
-async function calmRadio() {
-  const radios = (await radioGroups().catch(() => [])).flatMap((g) => g.radios);
-  return radios.find((r) => /lo-?fi|focus|piano|chill|calme|relax|ambient|jazz|study|étud/i.test(r.title)) || radios[0];
-}
-
-async function startFocus(work, rest, music) {
-  Object.assign(focus, { phase: "work", work, rest, music, rounds: 0, endsAt: Date.now() + work * 60000 });
-  focusSave();
-  if (music === "calm") {
-    const radio = await calmRadio();
-    if (radio) await startRadio(radio.id, radio.title);
-  } else if (audio.paused && audio.src) toggle();
-  focusNotify("Mode focus 🎯", `${work} min de concentration, puis ${rest} min de pause.`);
-  focusLoop();
-}
-
-function stopFocus() {
-  focus.phase = null;
-  focusSave();
-  focusLoop();
-}
-
-function focusLoop() {
-  clearInterval(focusTimer);
-  renderFocusPill();
-  if (!focus.phase) return;
-  focusTimer = setInterval(() => {
-    if (Date.now() >= focus.endsAt) {
-      chime();
-      if (focus.phase === "work") {
-        focus.phase = "rest";
-        focus.rounds += 1;
-        focus.endsAt = Date.now() + focus.rest * 60000;
-        if (!audio.paused) audio.pause();
-        focusNotify("Pause ☕", `${focus.rest} min : lève-toi, bois un verre d'eau. La musique reprend après.`);
-      } else {
-        focus.phase = "work";
-        focus.endsAt = Date.now() + focus.work * 60000;
-        if (audio.paused && audio.src) toggle();
-        focusNotify("C'est reparti 🎯", `Séance ${focus.rounds + 1} : ${focus.work} min.`);
-      }
-      focusSave();
-    }
-    renderFocusPill();
-  }, 1000);
-}
-
-function renderFocusPill() {
-  let pill = $(".focus-pill");
-  if (!focus.phase) { pill?.remove(); return; }
-  if (!pill) {
-    pill = document.createElement("button");
-    pill.className = "focus-pill";
-    pill.onclick = focusSheet;
-    document.body.append(pill);
-  }
-  pill.classList.toggle("rest", focus.phase === "rest");
-  pill.innerHTML = `<span>${focus.phase === "work" ? "🎯 Focus" : "☕ Pause"}</span><b>${clock(focus.endsAt - Date.now())}</b>`;
-}
-
-function focusSheet() {
-  if (focus.phase) {
-    return actionSheet("", [
-      { icon: icons.next, label: focus.phase === "work" ? "Passer à la pause" : "Reprendre maintenant", run: () => { focus.endsAt = Date.now(); } },
-      { icon: icons.close, label: "Arrêter le mode focus", danger: true, run: () => { stopFocus(); toast("Mode focus arrêté"); } },
-    ], { header: `<h2 class="sheet-title">${focus.phase === "work" ? "🎯 Concentration" : "☕ Pause"} · ${clock(focus.endsAt - Date.now())}</h2>
-      <p class="muted">${plural(focus.rounds, "séance terminée", "séances terminées")} · ${focus.work} min de travail, ${focus.rest} min de pause.</p>` });
-  }
-  let plan = FOCUS_PLANS.findIndex(([w]) => w === focus.work);
-  if (plan < 0) plan = 0;
-  let music = focus.music || "current";
-  const wrap = openSheet(`<h2 class="sheet-title">Mode focus</h2>
-    <p class="muted">Des séances de concentration en musique, puis une courte pause où la musique s'arrête — la méthode Pomodoro.</p>
-    <h3 class="set-head">Durée</h3>
-    <div class="chips focus-chips">${FOCUS_PLANS.map(([w, r], i) => `<button class="chip ${i === plan ? "on" : ""}" data-plan="${i}">${w} min · pause ${r}</button>`).join("")}</div>
-    <h3 class="set-head">Musique</h3>
-    <div class="chips focus-chips"><button class="chip ${music === "current" ? "on" : ""}" data-music="current">Ma musique en cours</button><button class="chip ${music === "calm" ? "on" : ""}" data-music="calm">Une radio calme</button></div>
-    <button class="btn wide" data-focus-start style="margin-top:18px">${icons.play} Démarrer</button>`);
-  $$("[data-plan]", wrap).forEach((b) => (b.onclick = () => { plan = +b.dataset.plan; $$("[data-plan]", wrap).forEach((x) => x.classList.toggle("on", x === b)); }));
-  $$("[data-music]", wrap).forEach((b) => (b.onclick = () => { music = b.dataset.music; $$("[data-music]", wrap).forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("[data-focus-start]", wrap).onclick = () => { wrap.close(); const [w, r] = FOCUS_PLANS[plan]; startFocus(w, r, music); };
-}
-
 // ── Son : égaliseur, volume égalisé, fondu, reprise ─────────────────────
-// Sur ordinateur (site, alyra pour Windows). Pas sur iPhone : le traitement
+// Sur ordinateur (site, Sona pour Windows). Pas sur iPhone : le traitement
 // audio du navigateur y coupe le son écran verrouillé — l'app iPhone a
 // tout cela, en natif.
 
@@ -3651,7 +3805,7 @@ document.addEventListener("pointerdown", () => ensureSound(), { once: true });
 
 /** Feuille « Son » : égaliseur, volume égalisé, fondu. */
 function soundSheet() {
-  if (!soundAvailable) return toast("Sur iPhone, ces réglages sont dans l'app alyra");
+  if (!soundAvailable) return toast("Sur iPhone, ces réglages sont dans l'app Sona");
   const wrap = openSheet(`<h2 class="sheet-title">Son</h2>
     <div class="eq-presets">${EQ_PRESETS.map(([name, gains]) => `<button class="chip" data-eq-preset="${esc(name)}">${esc(name)}</button>`).join("")}</div>
     <div class="eq-bands">${EQ_BANDS.map((_, i) => `<label class="eq-band"><span class="eq-val" id="eq-val-${i}"></span>
@@ -3722,7 +3876,7 @@ function restoreResume() {
   loadLyrics(t);
 }
 
-// ── Casque débranché : pause (alyra pour Windows) ─────────────────────────
+// ── Casque débranché : pause (Sona pour Windows) ─────────────────────────
 
 /** Une sortie audio disparaît pendant la lecture (casque, enceinte) : pause. */
 function watchHeadphones() {
@@ -3981,7 +4135,7 @@ function startConnect() {
     page n'a pas été touchée — un clic n'importe où la lance alors. */
 function remotePlay() {
   audio.play().catch(() => {
-    toast(isMobile() ? "Touche l'écran pour lancer la lecture" : "Clique sur la page alyra pour autoriser la lecture à distance");
+    toast(isMobile() ? "Touche l'écran pour lancer la lecture" : "Clique sur la page Sona pour autoriser la lecture à distance");
     document.addEventListener("click", () => audio.play().catch(() => {}), { once: true });
   });
 }
@@ -4117,7 +4271,7 @@ function renderDevices() {
       <span style="min-width:0"><span class="n">${d.is_me ? (isMobile() ? "Ce téléphone" : "Cet ordinateur") : esc(d.name)}</span>
         <span class="st">${d.playing ? `${bars()} ${esc(d.track?.title || "En lecture")}` : d.is_me ? esc(d.name) : "Connecté"}</span></span>
       <span class="go">${d.is_me ? (remote || (session && !audio.src) ? "Écouter ici" : "") : "Écouter dessus"}</span></button>`).join("")}
-    ${devices.length < 2 ? `<p class="dp-hint">Ouvre alyra sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}
+    ${devices.length < 2 ? `<p class="dp-hint">Ouvre Sona sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}
     <a class="dp-device" href="#/devices" data-dp-all><span class="dp-icon">${icons.devices}</span><span style="min-width:0"><span class="n">Mes appareils</span>
       <span class="st">Tes PC enregistrés, à piloter d'un appui</span></span><span class="go">${icons.right}</span></a>
     <button class="dp-device" data-cast><span class="dp-icon">${icons.tv}</span><span style="min-width:0"><span class="n">TV ou PS5</span>
@@ -4149,7 +4303,7 @@ async function viewDevices() {
   devs.loaded = true;
   startConnect.now?.();
   setTimeout(() => bindDevicesPage());
-  return page(`<h1 class="page-title">appareils.</h1>
+  return page(`<h1 class="page-title">Appareils</h1>
     <p class="page-sub">Tes PC restent ici, même éteints. Touche-en un pour le piloter, d'où que tu sois.</p>
     <div id="devices-root">${devicesBody()}</div>`);
 }
@@ -4293,7 +4447,7 @@ function deviceMenu(id) {
 function devicesBody() {
   const { saved, others } = devicesList();
   const chosen = chosenDevice();
-  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>alyra pour Windows</b> sur ton PC, connecté avec ce compte : il s'ajoute ici tout seul et y reste, même éteint. Les autres appareils (navigateur, iPhone) s'ajoutent avec <b>Ajouter</b>.</span></p>`;
+  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>Sona pour Windows</b> sur ton PC, connecté avec ce compte : il s'ajoute ici tout seul et y reste, même éteint. Les autres appareils (navigateur, iPhone) s'ajoutent avec <b>Ajouter</b>.</span></p>`;
   return `${chosen ? deviceRemote(chosen) : ""}
     <h3 class="set-head">Mes appareils</h3>
     ${saved.length ? `<div class="dev-list">${saved.map(deviceRow).join("")}</div>` : `<div class="dev-empty">Aucun appareil enregistré pour l'instant.</div>`}
@@ -4328,7 +4482,7 @@ function pickDevice(id) {
   const { saved, others } = devicesList();
   const d = [...saved, ...others].find((x) => x.id === id);
   if (!d) return;
-  if (!d.online) return toast(`${d.name} est éteint : ouvre alyra dessus pour le piloter.`);
+  if (!d.online) return toast(`${d.name} est éteint : ouvre Sona dessus pour le piloter.`);
   haptic();
   // Il joue déjà : un seul lecteur à la fois, la musique d'ici s'arrête.
   if (d.playing && audio.src && !audio.paused) audio.pause();
@@ -4422,7 +4576,7 @@ function bindDevicesPage() {
   };
 }
 
-// ── État d'alyra : ce qui marche, et sinon pourquoi ───────────────────────
+// ── État de Sona : ce qui marche, et sinon pourquoi ───────────────────────
 
 async function viewStatus() {
   setTimeout(() => {
@@ -4433,7 +4587,7 @@ async function viewStatus() {
     const timer = setInterval(refreshStatus, 5000);
     onLeave(() => clearInterval(timer));
   });
-  return page(`<h1 class="page-title">état d'alyra.</h1>
+  return page(`<h1 class="page-title">État de Sona</h1>
     <p class="page-sub">Chaque élément en vert marche ; sinon, la raison est juste en dessous.</p>
     <div id="status-root"><p class="muted">Vérification…</p></div>`);
 }
@@ -4455,8 +4609,8 @@ async function refreshStatus() {
   const c = state.connect;
   const groups = [];
 
-  groups.push(["alyra", [
-    health.error ? statusRow("bad", "Serveur alyra", `Injoignable : ${health.error}`) : statusRow("ok", "Serveur alyra", `En ligne · version ${health.version || "?"}`),
+  groups.push(["Sona", [
+    health.error ? statusRow("bad", "Serveur Sona", `Injoignable : ${health.error}`) : statusRow("ok", "Serveur Sona", `En ligne · version ${health.version || "?"}`),
     !health.error && ({
       ok: statusRow("ok", "Lecture", "Tout fonctionne"),
       degraded: statusRow("warn", "Lecture", "Perturbée : certains titres peuvent mettre du temps à se lancer"),
@@ -4472,11 +4626,11 @@ async function refreshStatus() {
     fresh ? statusRow("ok", "Synchronisation", `À jour (${agoText(Date.now() - c.lastOk)})`)
       : c.lastError ? statusRow("bad", "Synchronisation", `${c.lastError} (${agoText(Date.now() - c.lastErrorAt)})`)
       : statusRow("warn", "Synchronisation", "En attente du serveur…"),
-    others.length ? statusRow("ok", "Appareils allumés", others.map((d) => d.name).join(", ")) : statusRow("off", "Appareils allumés", "Aucun autre appareil alyra ouvert en ce moment"),
+    others.length ? statusRow("ok", "Appareils allumés", others.map((d) => d.name).join(", ")) : statusRow("off", "Appareils allumés", "Aucun autre appareil Sona ouvert en ce moment"),
     saved ? statusRow(saved.length ? "ok" : "off", "Appareils enregistrés", saved.length
       ? `${plural(saved.length, "appareil")} · ${saved.filter((d) => others.some((o) => o.id === d.id)).length} allumé(s)` : "Aucun pour l'instant") : "",
     c.control ? (chosen ? statusRow("ok", "Appareil piloté", `Tu pilotes ${chosen.name}`)
-      : statusRow("warn", "Appareil piloté", `${(saved || []).find((d) => d.id === c.control)?.name || "L'appareil choisi"} est éteint : ouvre alyra dessus`)) : "",
+      : statusRow("warn", "Appareil piloté", `${(saved || []).find((d) => d.id === c.control)?.name || "L'appareil choisi"} est éteint : ouvre Sona dessus`)) : "",
   ]]);
 
   if (ds) {
@@ -4484,7 +4638,7 @@ async function refreshStatus() {
     const r = ds.remote || {};
     const phones = (r.clients || []).filter((x) => x.name !== "Stream Deck");
     const d = ds.discord || {};
-    groups.push([`alyra pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}`, [
+    groups.push([`Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}`, [
       u.available && u.latest ? statusRow("warn", "Version", `${ds.version} · la ${u.latest.version} est disponible (Réglages → Mises à jour)`)
         : u.error ? statusRow("warn", "Version", `${ds.version} · vérification impossible : ${u.error}`)
         : statusRow("ok", "Version", `${ds.version} · à jour`),
@@ -4492,16 +4646,16 @@ async function refreshStatus() {
         : r.running ? statusRow("ok", "Télécommande du téléphone", `Port ${r.port}${phones.length ? ` · ${phones.map((x) => x.name).join(", ")}` : " · aucun téléphone connecté"}`)
         : statusRow("bad", "Télécommande du téléphone", r.error || "Arrêtée"),
       ds.streamDeck ? statusRow("ok", "Stream Deck", `Plugin connecté ${agoText(Date.now() - ds.streamDeck.since)}`)
-        : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre alyra")
+        : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre Sona")
         : statusRow("off", "Stream Deck", "Plugin non connecté : installe-le (version Windows, fichier .streamDeckPlugin) et ouvre le logiciel Stream Deck"),
       !d.wanted ? statusRow("off", "Statut Discord", "Désactivé")
-        : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute alyra » sur ton profil")
+        : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute Sona » sur ton profil")
         : statusRow("warn", "Statut Discord", d.error || "Connexion à Discord…"),
       ds.shortcuts?.refused?.length ? statusRow("warn", "Raccourcis clavier", `${plural(ds.shortcuts.refused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`)
         : statusRow(ds.shortcuts?.count ? "ok" : "off", "Raccourcis clavier", ds.shortcuts?.count ? plural(ds.shortcuts.count, "raccourci actif", "raccourcis actifs") : "Aucun"),
       statusRow(ds.overlay ? "ok" : "off", "Paroles en surimpression", ds.overlay ? "Affichées" : "Masquées"),
-      ds.iphone?.available ? statusRow("ok", "alyra sur l'iPhone", ds.iphone.devices ? plural(ds.iphone.devices, "iPhone vu", "iPhone vus") : "Aucun iPhone branché ou sur le Wi-Fi")
-        : statusRow("warn", "alyra sur l'iPhone", "Module iPhone absent de cette version"),
+      ds.iphone?.available ? statusRow("ok", "Sona sur l'iPhone", ds.iphone.devices ? plural(ds.iphone.devices, "iPhone vu", "iPhone vus") : "Aucun iPhone branché ou sur le Wi-Fi")
+        : statusRow("warn", "Sona sur l'iPhone", "Module iPhone absent de cette version"),
     ]]);
   }
   root.innerHTML = groups.map(([title, rows]) => `<h3 class="set-head">${esc(title)}</h3><div class="set-group">${rows.filter(Boolean).join("")}</div>`).join("");
@@ -4628,7 +4782,7 @@ function trackMenu(t, ctx = null, index = -1) {
     offline.supported && { icon: icons.download, label: offlineHas(t) ? "Supprimer le téléchargement" : "Télécharger pour l'écoute hors ligne",
       run: () => (offlineHas(t) ? offlineRemove(t).then(() => toast("Téléchargement supprimé")) : offlineDownload(t)) },
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
-    { icon: icons.share, label: "Partager un lien alyra…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
+    { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
     { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
   ], { header });
 }
@@ -4659,7 +4813,7 @@ const shareText = (t) => `🎧 ${t.title} — ${t.artist}\n${trackLink(t)}`;
 async function shareTrack(t) {
   const text = shareText(t);
   try {
-    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via alyra)`, url: trackLink(t) });
+    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via Sona)`, url: trackLink(t) });
     else { await navigator.clipboard.writeText(text); toast("Lien copié"); }
   } catch {}
 }
@@ -4669,7 +4823,7 @@ const SHARE_VALIDITY = [[null, "Sans limite"], [24, "24 h"], [168, "7 jours"], [
 const SHARE_KINDS = { track: "Titre", album: "Album", playlist: "Playlist" };
 
 /** « Partager » : un lien vers une page publique en lecture seule — jamais
- * le titre complet (alyra est privé) ; les membres l'ouvrent dans alyra. */
+ * le titre complet (Sona est privé) ; les membres l'ouvrent dans Sona. */
 function sonaShareSheet(target) {
   let validity = null;
   const wrap = openSheet(`<h2 class="sheet-title">Partager</h2>
@@ -4678,7 +4832,7 @@ function sonaShareSheet(target) {
     <h3 class="set-head">Validité du lien</h3>
     <div class="chips share-validity">${SHARE_VALIDITY.map(([h, label]) => `<button class="chip ${h === null ? "on" : ""}" data-validity="${h ?? ""}">${label}</button>`).join("")}</div>
     <div class="share-result"><button class="btn wide" data-share-create>${icons.share} Créer le lien</button></div>
-    <p class="muted small-note">Sans compte alyra, on voit la pochette et des extraits officiels de 30 s, jamais le titre complet. Les membres l'ouvrent dans l'app, sur le site ou dans Telegram. Révocable à tout moment dans Réglages › Liens de partage.</p>`, { cls: "share-sheet" });
+    <p class="muted small-note">Sans compte Sona, on voit la pochette et des extraits officiels de 30 s, jamais le titre complet. Les membres l'ouvrent dans l'app, sur le site ou dans Telegram. Révocable à tout moment dans Réglages › Liens de partage.</p>`, { cls: "share-sheet" });
   const result = $(".share-result", wrap);
   const reset = () => { result.innerHTML = `<button class="btn wide" data-share-create>${icons.share} Créer le lien</button>`; };
   $(".share-validity", wrap).onclick = (e) => {
@@ -4726,7 +4880,7 @@ async function shareLinksSheet() {
   };
 }
 
-/** Lien de partage reçu (« Ouvrir dans alyra ») : l'album s'ouvre, un titre
+/** Lien de partage reçu (« Ouvrir dans Sona ») : l'album s'ouvre, un titre
  * ou une playlist s'affiche avec ses titres. */
 async function viewShared(token) {
   $("#content").innerHTML = skeleton("");
@@ -4955,8 +5109,8 @@ const playTrackFrom = (t) => t && t.source && t.source_id ? playList([t], 0, "")
 
 async function viewFriends() {
   $("#content").innerHTML = skeleton("Amis");
-  const [friends, parties, rooms] = await Promise.all([
-    api("/friends"), api("/party/active").catch(() => []), api("/blindlive/active").catch(() => []),
+  const [friends, parties] = await Promise.all([
+    api("/friends"), api("/party/active").catch(() => []),
   ]);
   // Rafraîchi toutes les 15 s, comme l'onglet de l'app.
   const timer = setInterval(async () => {
@@ -4973,12 +5127,11 @@ async function viewFriends() {
   });
   const live = [
     ...parties.filter((p) => !p.joined).map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} <b>${esc(p.host_name || "Un ami")}</b> écoute en groupe (${p.members}) — rejoindre</a>`),
-    ...rooms.filter((r) => !r.joined && r.phase !== "finished").map((r) => `<a class="live-pill violet" href="#/live/${esc(r.code)}">${icons.wave} Blind test de <b>${esc(r.host_name || "un ami")}</b> (${r.players}) — rejoindre</a>`),
   ].join("");
-  return page(`<h1 class="page-title">amis.</h1><p class="page-sub">Ce qu'écoutent tes amis en ce moment.</p>
+  return page(`<h1 class="page-title">Amis</h1><p class="page-sub">Ce qu'écoutent tes amis en ce moment.</p>
     ${live}
     ${friends.length ? `<div class="friend-list" id="friends-list">${friendRows(friends)}</div>`
-      : empty("👋", "Personne pour l'instant", "Les autres comptes alyra qui partagent leur écoute apparaîtront ici.")}`);
+      : empty("👋", "Personne pour l'instant", "Les autres comptes Sona qui partagent leur écoute apparaîtront ici.")}`);
 }
 
 function friendRows(friends) {
@@ -5067,7 +5220,7 @@ function friendsBoards({ boards, champion }) {
 async function viewStats() {
   const { period, offset } = statsView;
   const seg = `<div class="segmented">${PERIODS.map(([k, label]) => `<button data-period="${k}" class="${k === period ? "on" : ""}">${label}</button>`).join("")}</div>`;
-  $("#content").innerHTML = page(`<h1 class="page-title">stats.</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
+  $("#content").innerHTML = page(`<h1 class="page-title">Stats</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   bindStatsControls();
   const [r, challenges, live] = await Promise.all([
     api(`/stats?period=${period}&offset=${offset}&tz=${encodeURIComponent(tz())}`),
@@ -5088,7 +5241,7 @@ async function viewStats() {
     $("[data-import-history]")?.addEventListener("click", importLastfmHistory);
   });
   const nowPlaying = live?.now_playing;
-  return page(`<h1 class="page-title">stats.</h1>${seg}
+  return page(`<h1 class="page-title">Stats</h1>${seg}
     <div class="period-nav">${period === "all" ? "" : `<button data-offset="-1" aria-label="Période précédente">${icons.left}</button>`}
       <span>${esc(r.label)}</span>${period !== "all" && offset < 0 ? `<button data-offset="1" aria-label="Période suivante">${icons.right}</button>` : "<i></i>"}</div>
     ${r.plays ? `
@@ -5161,7 +5314,7 @@ async function viewRecent() {
     if (groups.at(-1)?.day !== day) groups.push({ day, plays: [] });
     groups.at(-1).plays.push(p);
   }
-  return page(`<h1 class="page-title">écoutes récentes.</h1><p class="page-sub">Tout ce que tu as écouté, ici et dans l'app.</p>
+  return page(`<h1 class="page-title">Écoutes récentes</h1><p class="page-sub">Tout ce que tu as écouté, ici et dans l'app.</p>
     ${groups.map((g) => `<section class="section"><div class="section-head"><h2>${esc(g.day[0].toUpperCase() + g.day.slice(1))}</h2></div>
       ${trackTable(g.plays.filter((p) => p.source && p.source_id), "Écoutes récentes", { numbers: false })}</section>`).join("") || empty("🎧", "Pas encore d'écoute", "Lance un titre : il apparaîtra ici.")}`);
 }
@@ -5256,418 +5409,18 @@ async function shareRecapImage(r) {
     r.top_tracks.slice(0, 5).forEach((t, i) => { text(`${i + 1}  ${t.name}`, 80, y, 50, 600); text(t.subtitle || "", 150, y + 46, 32, 400, "#ffffff99"); y += 112; });
   }
   if (r.personality) text(`${r.personality.emoji}  ${r.personality.title}`, 80, H - 150, 54, 700);
-  text("Fait avec alyra", 80, H - 80, 32, 500, "#ffffff77");
+  text("Fait avec Sona", 80, H - 80, 32, 500, "#ffffff77");
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) return toast("Impossible de créer l'image");
   const file = new File([blob], "sona-recap.png", { type: "image/png" });
   try {
-    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `Mon récap alyra : ${r.label}` }); return; }
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `Mon récap Sona : ${r.label}` }); return; }
   } catch (e) { if (e?.name === "AbortError") return; }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = "sona-recap.png";
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast("Image enregistrée dans tes téléchargements");
-}
-
-// ── Concerts ─────────────────────────────────────────────────────────────
-
-async function viewConcerts() {
-  $("#content").innerHTML = skeleton("Concerts");
-  const events = await api("/concerts");
-  const months = [];
-  for (const e of events) {
-    const d = new Date(e.datetime);
-    const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-    if (months.at(-1)?.label !== label) months.push({ label, events: [] });
-    months.at(-1).events.push(e);
-  }
-  return page(`<h1 class="page-title">concerts.</h1><p class="page-sub">Les dates à venir des artistes que tu écoutes le plus.</p>
-    ${months.map((m) => `<section class="section"><div class="section-head"><h2>${esc(m.label[0].toUpperCase() + m.label.slice(1))}</h2></div>
-      <div class="concerts">${m.events.map((e) => {
-        const d = new Date(e.datetime);
-        return `<a class="concert" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : ""}>
-          <span class="date"><b>${d.getDate()}</b><small>${d.toLocaleDateString("fr-FR", { month: "short" })}</small></span>
-          ${e.artist_picture_url ? `<img class="round" src="${esc(e.artist_picture_url)}" alt="">` : ""}
-          <span class="ct"><span class="t">${esc(e.artist)}</span><span class="s">${esc([e.venue, e.city, e.country].filter(Boolean).join(" · "))}</span></span>
-          ${e.url ? `<span class="go">Billets</span>` : ""}</a>`;
-      }).join("")}</div></section>`).join("") || empty("🎟️", "Aucun concert annoncé", "Rien de prévu pour tes artistes préférés pour l'instant.")}`);
-}
-
-// ── Blind test ───────────────────────────────────────────────────────────
-// Mêmes règles que l'app : 15 s par question, 100 points + 10 par seconde
-// restante, +50 à partir de 3 bonnes réponses d'affilée ; mode expert : 5 s
-// d'écoute seulement, points ×1,5. « Paroles » : le titre complet joue
-// jusqu'à la ligne à compléter.
-
-const BT_SECONDS = 15;
-const bt = {
-  mode: "solo", ref: null, label: "", guess: store.get("sona.btGuess") || "title", count: 10, expert: false,
-  round: null, index: 0, score: 0, correct: 0, streak: 0, picked: null, gain: 0, phase: "menu",
-  audio: null, timer: null, cut: null, remaining: BT_SECONDS, resume: false, pending: null, listening: false,
-};
-
-const BT_MODES = {
-  daily: "Défi du jour", solo: "Tes titres", chart: "Top du moment", radio: "Radio", artist: "Artiste", playlist: "Playlist",
-};
-
-async function viewBlindTest() {
-  onLeave(btStop);
-  if (bt.pending) { const p = bt.pending; bt.pending = null; Object.assign(bt, p); setTimeout(() => btStart(p.mode, p.ref, p.label)); }
-  bt.phase = "menu";
-  const [board, rooms] = await Promise.all([api("/blindtest/leaderboard?mode=daily").catch(() => []), api("/blindlive/active").catch(() => [])]);
-  setTimeout(bindBlindMenu);
-  return page(`<h1 class="page-title">blind test.</h1><p class="page-sub">Reconnais les titres le plus vite possible.</p>
-    <div id="bt-root">
-      <button class="bt-daily" data-bt="daily"><span class="eyebrow">${icons.trophy} Défi du jour</span><span class="t">10 titres, les mêmes pour tout le monde</span><span class="s">Seule ta première partie compte pour le classement.</span></button>
-      <section class="section"><div class="section-head"><h2>En direct entre amis</h2></div>
-        <div class="pill-row"><button class="btn" data-live-create>${icons.plus} Créer</button><button class="btn ghost" data-live-join>Rejoindre</button></div>
-        ${rooms.filter((r) => r.phase !== "finished").map((r) => `<a class="live-pill violet" href="#/live/${esc(r.code)}">${icons.wave} ${r.joined ? "Ta partie" : `Partie de <b>${esc(r.host_name || "un ami")}</b>`} · ${plural(r.players, "joueur")} — ${r.joined ? "reprendre" : "rejoindre"}</a>`).join("")}
-      </section>
-      <section class="section"><div class="section-head"><h2>Partie solo</h2></div>
-        <div class="bt-options">
-          <div class="opt-label">Il faut deviner</div>
-          <div class="segmented small">${[["title", "Le titre"], ["artist", "L'artiste"], ["lyrics", "Les paroles"]].map(([k, l]) => `<button data-guess="${k}" class="${bt.guess === k ? "on" : ""}">${l}</button>`).join("")}</div>
-          <div class="opt-label">Questions</div>
-          <div class="segmented small">${[5, 10, 15, 20].map((n) => `<button data-count="${n}" class="${bt.count === n ? "on" : ""}">${n}</button>`).join("")}</div>
-          <label class="switch-row"><span><b>Mode expert</b><small>5 s d'écoute seulement · points ×1,5</small></span><input type="checkbox" data-expert ${bt.expert ? "checked" : ""}><i></i></label>
-        </div>
-        <div class="tiles">
-          ${tile({ icon: icons.note, title: "Tes titres", subtitle: "Ce que toi et tes amis écoutez", tone: "violet", data: 'data-bt="solo"' })}
-          ${tile({ icon: icons.stats, title: "Top du moment", subtitle: "Les hits Deezer", tone: "orange", data: 'data-bt="chart"' })}
-          ${tile({ icon: icons.radio, title: "Une radio", subtitle: "Rap, années 80, électro…", tone: "blue", data: 'data-bt="radio"' })}
-          ${tile({ icon: icons.user, title: "Un artiste", subtitle: "Ses titres et ceux d'artistes proches", tone: "green", data: 'data-bt="artist"' })}
-          ${tile({ icon: icons.list, title: "Une playlist", subtitle: "Une de tes playlists", tone: "pink", data: 'data-bt="playlist"' })}
-        </div>
-      </section>
-      ${board.length ? `<section class="section"><div class="section-head"><h2>Classement du jour</h2></div>${leaderboard(board)}</section>` : ""}
-    </div>`);
-}
-
-const leaderboard = (rows) => `<div class="board">${rows.map((r, i) => `<div class="board-row ${r.is_me ? "me" : ""}">
-  <span class="rk">${i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>${avatar(r.avatar_url, r.name)}<span class="n">${esc(r.name)}</span>
-  <span class="sc">${r.score}<small>${r.correct}/${r.total}</small></span></div>`).join("")}</div>`;
-
-function bindBlindMenu() {
-  $$("[data-guess]").forEach((b) => (b.onclick = () => { bt.guess = b.dataset.guess; store.set("sona.btGuess", bt.guess); $$("[data-guess]").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $$("[data-count]").forEach((b) => (b.onclick = () => { bt.count = +b.dataset.count; $$("[data-count]").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("[data-expert]")?.addEventListener("change", (e) => { bt.expert = e.target.checked; });
-  $("[data-live-create]")?.addEventListener("click", async () => {
-    try { const room = await api("/blindlive", { method: "POST" }); go(`#/live/${room.code}`); } catch (e) { toast(e.message); }
-  });
-  $("[data-live-join]")?.addEventListener("click", async () => {
-    const code = await askText({ title: "Rejoindre une partie", placeholder: "Code de la partie", confirm: "Rejoindre" });
-    if (code) go(`#/live/${code.toUpperCase().replace(/\s/g, "")}`);
-  });
-  $$("[data-bt]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); pickBlindSource(b.dataset.bt); }));
-}
-
-/** Thème d'une partie (radio, artiste, playlist) : `then(ref, label)`. */
-async function pickSource(mode, then) {
-  if (mode === "radio") {
-    const groups = await radioGroups();
-    actionSheet("Quelle radio ?", groups.flatMap((g) => g.radios).map((r) => ({ icon: icons.radio, label: r.title, run: () => then(r.id, r.title) })));
-  } else if (mode === "artist") {
-    const q = await askText({ title: "Quel artiste ?", placeholder: "Nom de l'artiste", confirm: "Chercher" });
-    if (!q) return;
-    const found = await api(`/search/artists?q=${encodeURIComponent(q)}&limit=8`).catch(() => []);
-    if (!found.length) return toast("Aucun artiste trouvé");
-    actionSheet("Lequel ?", found.map((a) => ({ icon: `<img class="mi-thumb round" src="${esc(a.picture_url || "")}" alt="">`, label: a.name, run: () => then(a.source_id, a.name) })));
-  } else if (mode === "playlist") {
-    const lists = await api("/me/playlists").catch(() => []);
-    if (!lists.length) return toast("Aucune playlist");
-    actionSheet("Quelle playlist ?", lists.map((p) => ({ icon: icons.list, label: p.name, sub: plural(p.track_count, "titre"), run: () => then(String(p.id), p.name) })));
-  } else then(null, BT_MODES[mode]);
-}
-
-function pickBlindSource(mode) {
-  pickSource(mode, (ref, label) => btStart(mode, ref, label));
-}
-
-async function btStart(mode, ref, label) {
-  const root = $("#bt-root");
-  if (!root) return;
-  const daily = mode === "daily";
-  Object.assign(bt, { mode, ref, label });
-  const guess = daily ? "title" : bt.guess;
-  root.innerHTML = `<div class="loading-row"><span class="spinner"></span><span class="muted">Préparation de la partie…</span></div>`;
-  let round;
-  try {
-    const q = new URLSearchParams({ mode, count: daily ? 10 : bt.count, guess });
-    if (ref) q.set("ref", ref);
-    round = await api(`/blindtest/round?${q}`);
-  } catch (e) { toast(e.message); return route(); }
-  if (!$("#bt-root")) return;
-  if ((round.questions || []).length < 3) {
-    toast(guess === "lyrics" ? "Pas assez de titres avec paroles synchronisées pour ce thème." : "Pas assez de titres avec extrait pour ce thème.");
-    return route();
-  }
-  if (round.questions[0].kind === "lyrics") {
-    for (const q of round.questions) api(`/stream/${encodeURIComponent(q.track.source)}/${encodeURIComponent(q.track.source_id)}/prepare`, { method: "POST" }).catch(() => {});
-  }
-  Object.assign(bt, { round, index: 0, score: 0, correct: 0, streak: 0, phase: "playing", guessNow: round.guess || guess, expertNow: !daily && bt.expert });
-  bt.resume = !audio.paused;
-  audio.pause();
-  btAsk();
-}
-
-function btAsk() {
-  const q = bt.round.questions[bt.index];
-  if (!q) return btFinish();
-  bt.picked = null;
-  bt.gain = 0;
-  bt.remaining = BT_SECONDS;
-  clearInterval(bt.timer); clearTimeout(bt.cut);
-  bt.audio?.pause();
-  bt.audio = new Audio();
-  if (q.kind === "lyrics") {
-    bt.listening = true;
-    bt.audio.src = `${BASE}/stream/${encodeURIComponent(q.track.source)}/${encodeURIComponent(q.track.source_id)}?token=${encodeURIComponent(token)}`;
-    bt.audio.addEventListener("loadedmetadata", () => { bt.audio.currentTime = Math.max(0, q.clip_start || 0); bt.audio.play().catch(() => {}); }, { once: true });
-    const started = Date.now();
-    const watch = setInterval(() => {
-      if (!bt.audio || bt.picked !== null) return clearInterval(watch);
-      if (bt.audio.currentTime >= (q.line_time || 0) - 0.05 || Date.now() - started > 25000) {
-        clearInterval(watch);
-        bt.audio.pause();
-        bt.listening = false;
-        btStartTimer();
-        btRender();
-      }
-    }, 80);
-    bt.cut = watch;
-  } else {
-    bt.listening = false;
-    bt.audio.src = q.preview_url;
-    bt.audio.addEventListener("loadedmetadata", () => { try { bt.audio.currentTime = Math.random() * 8; } catch {} }, { once: true });
-    bt.audio.play().catch(() => toast("Touche l'écran pour lancer l'extrait"));
-    if (bt.expertNow) bt.cut = setTimeout(() => bt.audio?.pause(), 5000);
-    btStartTimer();
-  }
-  btRender();
-}
-
-function btStartTimer() {
-  clearInterval(bt.timer);
-  const start = Date.now();
-  bt.timer = setInterval(() => {
-    bt.remaining = Math.max(0, BT_SECONDS - (Date.now() - start) / 1000);
-    const meter = $("#bt-time");
-    if (meter) meter.style.width = `${(bt.remaining / BT_SECONDS) * 100}%`;
-    if (bt.remaining <= 0) btAnswer(-1);
-  }, 100);
-}
-
-function btAnswer(choice) {
-  const q = bt.round?.questions[bt.index];
-  if (!q || bt.picked !== null || bt.listening) return;
-  clearInterval(bt.timer);
-  bt.picked = choice;
-  if (choice === q.answer) {
-    bt.correct++; bt.streak++;
-    const base = 100 + Math.floor(bt.remaining * 10) + (bt.streak >= 3 ? 50 : 0);
-    bt.gain = bt.expertNow ? Math.floor((base * 3) / 2) : base;
-    bt.score += bt.gain;
-    haptic();
-  } else bt.streak = 0;
-  let pause = 1600;
-  if (q.kind === "lyrics" && q.line_time != null && bt.audio) {
-    clearInterval(bt.cut);
-    bt.audio.currentTime = Math.max(0, q.line_time - 0.3);
-    bt.audio.play().catch(() => {});
-    pause = Math.min(6, Math.max(2.5, (q.reveal_end ?? q.line_time + 3) - q.line_time + 0.6)) * 1000;
-  }
-  btRender();
-  setTimeout(() => { if (bt.phase !== "playing" || !$("#bt-root")) return; bt.index++; bt.index < bt.round.questions.length ? btAsk() : btFinish(); }, pause);
-}
-
-function btRender() {
-  const root = $("#bt-root");
-  if (!root || !bt.round) return;
-  const q = bt.round.questions[bt.index];
-  const reveal = bt.picked !== null;
-  const prompt = q.kind === "lyrics" ? "Complète les paroles" : bt.guessNow === "artist" ? "Quel artiste ?" : "Quel titre ?";
-  root.innerHTML = `<div class="bt-game">
-    <div class="bt-top"><span>${bt.index + 1} / ${bt.round.questions.length}</span><b>${bt.score} pts</b>${bt.streak >= 3 ? `<span class="streak">🔥 ${bt.streak}</span>` : ""}<button class="tbtn small" data-bt-quit aria-label="Quitter">${icons.close}</button></div>
-    <div class="meter big"><i id="bt-time" style="width:${(bt.remaining / BT_SECONDS) * 100}%"></i></div>
-    <div class="bt-cover ${reveal ? "reveal" : ""}">${reveal ? `<img src="${esc(big(q.track.cover_url || q.cover_url, 500))}" alt="">` : `<span class="bt-wave ${bt.listening ? "listen" : ""}">${icons.wave}</span>`}</div>
-    <h2 class="bt-q">${esc(prompt)}</h2>
-    ${q.kind === "lyrics" ? `<div class="bt-lyrics">${(q.before || []).map((l) => `<p class="before">${esc(l)}</p>`).join("")}<p>${esc(q.prompt || "")}</p></div>` : ""}
-    ${bt.listening ? `<p class="muted center">Écoute bien…</p>` : ""}
-    <div class="bt-choices">${q.choices.map((c, i) => {
-      const cls = reveal ? (i === q.answer ? "right" : i === bt.picked ? "wrong" : "dim") : "";
-      return `<button class="bt-choice ${cls}" data-choice="${i}" ${reveal || bt.listening ? "disabled" : ""}><b>${esc(c.title || c.artist)}</b>${c.title && c.artist && bt.guessNow !== "artist" && q.kind !== "lyrics" ? `<small>${esc(c.artist)}</small>` : ""}</button>`;
-    }).join("")}</div>
-    ${reveal ? `<p class="bt-feedback ${bt.picked === q.answer ? "ok" : "ko"}">${bt.picked === q.answer ? `+${bt.gain} points` : bt.picked === -1 ? "Temps écoulé" : "Raté"} · ${esc(q.track.title)} — ${esc(q.track.artist)}</p>` : ""}
-  </div>`;
-  $$("[data-choice]", root).forEach((b) => (b.onclick = () => btAnswer(+b.dataset.choice)));
-  $("[data-bt-quit]", root).onclick = () => { btStop(); route(); };
-}
-
-async function btFinish() {
-  bt.phase = "finished";
-  const total = bt.round.questions.length;
-  const tracks = bt.round.questions.map((q) => q.track);
-  btStop();
-  api("/blindtest/score", { method: "POST", body: JSON.stringify({ mode: bt.mode, score: bt.score, correct: bt.correct, total }) }).catch(() => {});
-  const board = await api(`/blindtest/leaderboard?mode=${bt.mode === "daily" ? "daily" : "daily"}`).catch(() => []);
-  const root = $("#bt-root");
-  if (!root) return;
-  root.innerHTML = `<div class="bt-end">
-    <div class="eyebrow">${esc(BT_MODES[bt.mode] || "")}${bt.label && bt.label !== BT_MODES[bt.mode] ? ` · ${esc(bt.label)}` : ""}</div>
-    <div class="huge">${bt.score} points</div><p>${bt.correct} bonne${bt.correct > 1 ? "s" : ""} réponse${bt.correct > 1 ? "s" : ""} sur ${total}</p>
-    <div class="pill-row center"><button class="btn" data-again>Rejouer</button><button class="btn ghost" data-menu>Autre thème</button></div>
-    ${board.length ? `<section class="section"><div class="section-head"><h2>Classement du jour</h2></div>${leaderboard(board)}</section>` : ""}
-    <section class="section"><div class="section-head"><h2>Les titres de la partie</h2></div>${trackTable(tracks, "Blind test", { numbers: false })}</section></div>`;
-  bindPage(root);
-  $("[data-again]", root).onclick = () => btStart(bt.mode === "daily" ? "solo" : bt.mode, bt.ref, bt.label);
-  $("[data-menu]", root).onclick = () => route();
-}
-
-function btStop() {
-  clearInterval(bt.timer); clearTimeout(bt.cut); clearInterval(bt.cut);
-  bt.audio?.pause();
-  bt.audio = null;
-  if (bt.phase === "playing") bt.phase = "menu";
-  if (bt.resume) { bt.resume = false; audio.play().catch(() => {}); }
-}
-
-// ── Blind test en direct ─────────────────────────────────────────────────
-
-const live = { code: null, state: null, offset: 0, timer: null, audio: null, playedIndex: -1 };
-
-async function viewLive(code) {
-  code = (code || "").toUpperCase();
-  try {
-    live.state = await api(`/blindlive/${encodeURIComponent(code)}/join`, { method: "POST" });
-  } catch (e) { return page(empty("🎲", "Partie introuvable", e.message)); }
-  live.code = code;
-  live.playedIndex = -1;
-  live.resume = !audio.paused;
-  audio.pause();
-  live.timer = setInterval(liveTick, 1000);
-  onLeave(() => {
-    clearInterval(live.timer);
-    live.audio?.pause(); live.audio = null;
-    if (live.resume) { live.resume = false; audio.play().catch(() => {}); }
-    const leaving = live.code;
-    live.code = null;
-    api(`/blindlive/${encodeURIComponent(leaving)}/leave`, { method: "POST" }).catch(() => {});
-  });
-  setTimeout(liveRender);
-  return page(`<h1 class="page-title">blind test en direct.</h1><div id="live-root"></div>`);
-}
-
-async function liveTick() {
-  if (!live.code) return;
-  try {
-    const fresh = await api(`/blindlive/${encodeURIComponent(live.code)}`);
-    live.offset = fresh.server_time - Date.now() / 1000;
-    const changed = fresh.version !== live.state?.version || fresh.phase !== live.state?.phase;
-    live.state = fresh;
-    if (changed) liveRender(); else liveClock();
-  } catch (e) {
-    clearInterval(live.timer);
-    const root = $("#live-root");
-    if (root) root.innerHTML = empty("👋", "La partie est terminée", e.message);
-  }
-}
-
-const liveNow = () => Date.now() / 1000 + live.offset;
-
-function liveClock() {
-  const s = live.state;
-  const el = $("#live-clock");
-  if (!el || !s) return;
-  if (s.phase === "question") {
-    const now = liveNow();
-    if (now < s.starts_at) el.textContent = `Ça commence dans ${Math.ceil(s.starts_at - now)} s…`;
-    else el.textContent = `${Math.max(0, Math.ceil(s.deadline - now))} s`;
-    const meter = $("#live-time");
-    if (meter) meter.style.width = `${Math.max(0, Math.min(100, ((s.deadline - now) / (s.deadline - s.starts_at)) * 100))}%`;
-  } else if (s.phase === "reveal" && s.next_at) {
-    el.textContent = `Question suivante dans ${Math.max(0, Math.ceil(s.next_at - liveNow()))} s`;
-  }
-}
-
-function livePlay(q) {
-  if (live.playedIndex === q.index) return;
-  live.playedIndex = q.index;
-  live.audio?.pause();
-  const a = new Audio();
-  live.audio = a;
-  const startIn = Math.max(0, (live.state.starts_at - liveNow()) * 1000);
-  if (q.kind === "lyrics" && q.stream) {
-    a.src = `${BASE}/stream/${encodeURIComponent(q.stream.source)}/${encodeURIComponent(q.stream.source_id)}?token=${encodeURIComponent(token)}`;
-    a.addEventListener("loadedmetadata", () => { a.currentTime = q.clip_start || 0; }, { once: true });
-    const stopAt = setInterval(() => { if (a !== live.audio) return clearInterval(stopAt); if (a.currentTime >= (q.line_time || 0) - 0.05 && !a.paused && live.state.phase === "question") { a.pause(); clearInterval(stopAt); } }, 80);
-  } else {
-    a.src = q.preview_url;
-  }
-  setTimeout(() => { if (a === live.audio) a.play().catch(() => toast("Touche l'écran pour entendre l'extrait")); }, startIn);
-}
-
-function liveRender() {
-  const root = $("#live-root");
-  const s = live.state;
-  if (!root || !s) return;
-  const players = `<div class="board">${s.players.map((p, i) => `<div class="board-row ${p.is_me ? "me" : ""}">
-    <span class="rk">${s.phase === "lobby" ? "" : i + 1}</span>${avatar(p.avatar_url, p.name)}<span class="n">${esc(p.name)}${p.is_host ? " 👑" : ""}</span>
-    <span class="sc">${s.phase === "lobby" ? "" : p.score}${p.gained != null ? `<small class="${p.was_right ? "ok" : "ko"}">${p.was_right ? `+${p.gained}` : "✗"}</small>` : p.answered && s.phase === "question" ? "<small>✓</small>" : ""}</span></div>`).join("")}</div>`;
-  if (s.phase === "lobby") {
-    root.innerHTML = `<div class="live-code"><span class="muted">Code de la partie</span><b>${esc(s.code)}</b>
-        <button class="btn ghost small" data-live-share>${icons.share} Inviter</button></div>
-      <div class="lobby-config"><div class="muted">Thème</div><b>${esc(s.label || BT_MODES[s.mode] || s.mode)}</b> · ${esc({ title: "le titre", artist: "l'artiste", lyrics: "les paroles" }[s.guess] || "")} · ${s.count} questions</div>
-      ${s.is_host ? `<div class="pill-row"><button class="btn ghost" data-live-config>Changer le thème</button><button class="btn" data-live-start ${s.players.length < 1 ? "disabled" : ""}>${icons.play} Lancer la partie</button></div>`
-        : `<p class="muted">En attente de ${esc(s.host_name || "l'hôte")}…</p>`}
-      <section class="section"><div class="section-head"><h2>Joueurs</h2></div>${players}</section>`;
-  } else if (s.phase === "question" || s.phase === "reveal") {
-    const q = s.question;
-    if (s.phase === "question") livePlay(q);
-    const reveal = s.phase === "reveal";
-    root.innerHTML = `<div class="bt-game">
-      <div class="bt-top"><span>${q.index + 1} / ${s.total}</span><b id="live-clock"></b></div>
-      <div class="meter big"><i id="live-time"></i></div>
-      <div class="bt-cover ${reveal ? "reveal" : ""}">${reveal && q.cover_url ? `<img src="${esc(big(q.cover_url, 500))}" alt="">` : `<span class="bt-wave listen">${icons.wave}</span>`}</div>
-      ${q.kind === "lyrics" ? `<div class="bt-lyrics">${(q.before || []).map((l) => `<p class="before">${esc(l)}</p>`).join("")}<p>${esc(q.prompt || "")}</p></div>` : ""}
-      <div class="bt-choices">${q.choices.map((c, i) => {
-        const cls = reveal ? (i === q.answer ? "right" : i === q.my_choice ? "wrong" : "dim") : i === q.my_choice ? "picked" : "";
-        return `<button class="bt-choice ${cls}" data-live-choice="${i}" ${reveal || q.my_choice != null ? "disabled" : ""}><b>${esc(c.title || c.artist)}</b>${c.title && c.artist && s.guess !== "artist" && q.kind !== "lyrics" ? `<small>${esc(c.artist)}</small>` : ""}</button>`;
-      }).join("")}</div>
-      ${reveal && q.track ? `<p class="bt-feedback ${q.my_choice === q.answer ? "ok" : "ko"}">${esc(q.track.title)} — ${esc(q.track.artist)}</p>` : ""}
-      <section class="section">${players}</section></div>`;
-    $$("[data-live-choice]", root).forEach((b) => (b.onclick = async () => {
-      haptic();
-      try { live.state = await api(`/blindlive/${encodeURIComponent(s.code)}/answer`, { method: "POST", body: JSON.stringify({ index: q.index, choice: +b.dataset.liveChoice }) }); liveRender(); }
-      catch (e) { toast(e.message); }
-    }));
-    liveClock();
-  } else {
-    live.audio?.pause();
-    const winner = s.players[0];
-    root.innerHTML = `<div class="bt-end"><div class="huge">🏆</div><h2>${esc(winner?.name || "")} gagne !</h2>
-      ${s.is_host ? `<div class="pill-row center"><button class="btn" data-live-start>Revanche</button><button class="btn ghost" data-live-config>Autre thème</button></div>` : `<p class="muted">L'hôte peut lancer une revanche.</p>`}
-      <section class="section">${players}</section>
-      ${s.tracks.length ? `<section class="section"><div class="section-head"><h2>Les titres de la partie</h2></div>${trackTable(s.tracks, "Blind test en direct", { numbers: false })}</section>` : ""}</div>`;
-    bindPage(root);
-  }
-  $("[data-live-share]", root)?.addEventListener("click", () => {
-    const text = `Rejoins mon blind test alyra ! Code : ${s.code}`;
-    navigator.share ? navigator.share({ text }).catch(() => {}) : navigator.clipboard?.writeText(s.code).then(() => toast("Code copié"));
-  });
-  $("[data-live-start]", root)?.addEventListener("click", async (e) => {
-    e.target.disabled = true;
-    try { live.playedIndex = -1; live.state = await api(`/blindlive/${encodeURIComponent(s.code)}/start`, { method: "POST" }); liveRender(); }
-    catch (err) { toast(err.message); e.target.disabled = false; }
-  });
-  $("[data-live-config]", root)?.addEventListener("click", () => actionSheet("Thème de la partie", Object.entries(BT_MODES).filter(([k]) => k !== "daily").map(([mode, label]) => ({
-    icon: icons.wave, label, run: () => pickSource(mode, (ref, refLabel) => actionSheet("Il faut deviner…", [["title", "Le titre"], ["artist", "L'artiste"], ["lyrics", "Les paroles"]].map(([guess, gl]) => ({
-      label: gl, run: async () => {
-        live.state = await api(`/blindlive/${encodeURIComponent(s.code)}/config`, { method: "POST", body: JSON.stringify({ mode, ref, label: refLabel, count: s.count || 10, guess }) });
-        liveRender();
-      },
-    })))),
-  }))));
 }
 
 // ── Écoute ensemble ──────────────────────────────────────────────────────
@@ -5944,7 +5697,7 @@ async function viewParty(code) {
   party.renderedVersion = null;
   onLeave(() => { party.renderedVersion = null; });
   setTimeout(renderParty);
-  return page(`<h1 class="page-title">écoute ensemble.</h1><p class="page-sub">Le même son, au même moment, chacun sur son téléphone.</p>
+  return page(`<h1 class="page-title">Écoute ensemble</h1><p class="page-sub">Le même son, au même moment, chacun sur son téléphone.</p>
     <div id="party-root" data-active='${esc(JSON.stringify(active))}'></div>`);
 }
 
@@ -6086,7 +5839,7 @@ function bindParty(root, s) {
   };
   const url = `${location.origin}${location.pathname}?party=${s.code}`;
   $("[data-party-share]", root).onclick = () => {
-    const text = `Écoute avec moi sur alyra ! Code : ${s.code}`;
+    const text = `Écoute avec moi sur Sona ! Code : ${s.code}`;
     navigator.share ? navigator.share({ text, url }).catch(() => {}) : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
   };
   $("[data-party-copy]", root).onclick = () => navigator.clipboard?.writeText(s.code).then(() => toast("Code copié")).catch(() => toast(s.code));
@@ -6132,44 +5885,6 @@ function quickSearch(title, pick) {
       $$("[data-qs]", wrap).forEach((b) => (b.onclick = () => { wrap.close(); pick(results[+b.dataset.qs]); }));
     }, 300);
   };
-}
-
-// ── Mode sport ───────────────────────────────────────────────────────────
-
-async function viewSport() {
-  const bpm = +(store.get("sona.sportBpm") || 160);
-  setTimeout(() => {
-    const slider = $("#sport-bpm");
-    const label = $("#sport-val");
-    const set = (v) => { slider.value = v; label.textContent = Math.round(v); slider.style.setProperty("--p", `${((v - 100) / 100) * 100}%`); store.set("sona.sportBpm", String(Math.round(v))); };
-    slider.oninput = () => set(+slider.value);
-    set(bpm);
-    let taps = [];
-    $("#sport-tap").onclick = () => {
-      haptic();
-      const now = Date.now();
-      taps = [...taps.filter((t) => now - t < 4000), now];
-      if (taps.length >= 3) {
-        const gaps = taps.slice(1).map((t, i) => t - taps[i]);
-        set(Math.max(100, Math.min(200, 60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length))));
-      }
-    };
-    $("#sport-go").onclick = async () => {
-      const tempo = Math.round(+slider.value);
-      try {
-        await playStation(`Mode sport · ${tempo} BPM`, () => api(`/sport?bpm=${tempo}&exclude=${encodeURIComponent(state.queue.slice(-100).map((t) => t.source_id).join(","))}`));
-        openNowPlaying("art");
-      } catch (e) { toast(e.message); }
-    };
-  });
-  return page(`<h1 class="page-title">mode sport.</h1><p class="page-sub">La musique au tempo de ta foulée : choisis ta cadence (pas par minute), ou tape-la en rythme.</p>
-    <div class="sport">
-      <div class="sport-val"><b id="sport-val">${bpm}</b><span>pas / min</span></div>
-      <input type="range" class="slider" id="sport-bpm" min="100" max="200" step="1" value="${bpm}" aria-label="Cadence">
-      <div class="chips center">${[["Marche", 115], ["Footing", 155], ["Course", 170], ["Sprint", 185]].map(([l, v]) => `<button class="chip" onclick="document.getElementById('sport-bpm').value=${v};document.getElementById('sport-bpm').dispatchEvent(new Event('input'))">${l}</button>`).join("")}</div>
-      <button class="tap-btn" id="sport-tap">Tape en rythme</button>
-      <button class="btn big" id="sport-go">${icons.play} C'est parti</button>
-    </div>`);
 }
 
 // ── TV et PS5 (appli YouTube de l'écran) ──────────────────────────────────
@@ -6261,6 +5976,67 @@ const toggleRow = (key, title, sub, on) => `<label class="switch-row"><span><b>$
   <input type="checkbox" data-setting="${key}" ${on ? "checked" : ""}><i></i></label>`;
 const linkRow = (attrs, icon, title, sub = "") => `<a class="set-row" ${attrs}><span class="mi-icon">${icon}</span><span class="set-text"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${icons.right}</a>`;
 
+function viewAppearance() {
+  const chip = (attr, val, label, on) => `<button class="chip${on ? " on" : ""}" data-${attr}="${val}">${label}</button>`;
+  const logos = Object.entries(LOGOS).map(([id, l]) => `<button class="look-logo${look.logo === id ? " on" : ""}" data-logo="${id}" aria-label="${esc(l.name)}">
+    <svg viewBox="0 0 64 64" aria-hidden="true">${logoSvg(id, "lk" + id)}</svg><span>${esc(l.name)}</span></button>`).join("");
+  const accents = Object.entries(ACCENTS).map(([id, [name, c]]) => `<button class="look-sw${look.accent === id ? " on" : ""}" data-accent="${id}" style="--c:${c || "#f2f5fb"}" aria-label="${esc(name)}"><span>${esc(name)}</span></button>`).join("");
+  setTimeout(bindAppearance);
+  return page(`<h1 class="page-title">Apparence</h1>
+    <p class="page-sub">Choisis le logo, la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
+    <h3 class="set-head">Logo</h3><div class="look-logos">${logos}</div>
+    <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
+    <h3 class="set-head">Interface</h3><div class="set-group">
+      <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
+      <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
+      <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Un rail d'icônes qui s'ouvre au survol, ou toujours ouvert.</small></span><span class="chips">${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
+    </div>
+    <h3 class="set-head">Paroles</h3><div class="set-group">
+      <label class="switch-row"><span><b>Défilement automatique</b><small>Les paroles suivent le titre et se recentrent toutes seules.</small></span><input type="checkbox" data-look-lyrauto ${look.lyrAuto ? "checked" : ""}><i></i></label>
+      <label class="switch-row"><span><b>Flou des lignes voisines</b><small>Estompe les lignes qui ne sont pas chantées.</small></span><input type="checkbox" data-look-lyrblur ${look.lyrBlur ? "checked" : ""}><i></i></label>
+      <div class="set-row look-seg"><span class="set-text"><b>Décalage global</b><small>Casque Bluetooth ou enceinte en retard ? Avance ou retarde les paroles sur cet appareil.</small></span>
+        <span class="lyr-step"><button data-lyr-global="-0.05" aria-label="Retarder les paroles">−</button><output id="lyr-global">${offsetLabel(Number(look.lyrOffset) || 0)}</output><button data-lyr-global="0.05" aria-label="Avancer les paroles">+</button></span></div>
+    </div>
+    <button class="btn ghost" data-look-reset style="margin-top:32px">Réinitialiser l'apparence</button>`);
+}
+
+function bindAppearance() {
+  const root = $(".page");
+  if (!root) return;
+  const mark = () => {
+    $$("[data-logo]", root).forEach((b) => b.classList.toggle("on", b.dataset.logo === look.logo));
+    $$("[data-accent]", root).forEach((b) => b.classList.toggle("on", b.dataset.accent === look.accent));
+    $$("[data-shape]", root).forEach((b) => b.classList.toggle("on", b.dataset.shape === look.shape));
+    $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === look.menu));
+    const tint = $("[data-look-tint]", root);
+    if (tint) tint.checked = look.tint;
+    const auto = $("[data-look-lyrauto]", root), blur = $("[data-look-lyrblur]", root), glob = $("#lyr-global", root);
+    if (auto) auto.checked = look.lyrAuto;
+    if (blur) blur.checked = look.lyrBlur;
+    if (glob) glob.textContent = offsetLabel(Number(look.lyrOffset) || 0);
+  };
+  root.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-logo], [data-accent], [data-shape], [data-menu], [data-look-reset]");
+    if (!b) return;
+    haptic();
+    if (b.dataset.lookReset !== undefined) setLook({ ...LOOK_DEFAULT });
+    else if (b.dataset.logo) setLook({ logo: b.dataset.logo });
+    else if (b.dataset.accent) setLook({ accent: b.dataset.accent });
+    else if (b.dataset.shape) setLook({ shape: b.dataset.shape });
+    else if (b.dataset.menu) setLook({ menu: b.dataset.menu });
+    mark();
+  });
+  $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
+  $("[data-look-lyrauto]", root)?.addEventListener("change", (e) => setLook({ lyrAuto: e.target.checked }));
+  $("[data-look-lyrblur]", root)?.addEventListener("change", (e) => setLook({ lyrBlur: e.target.checked }));
+  // Décalage global des paroles : 0,05 s par appui, borné à ±1,5 s.
+  $$("[data-lyr-global]", root).forEach((b) => (b.onclick = () => {
+    const v = Math.round(Math.max(-1.5, Math.min(1.5, (Number(look.lyrOffset) || 0) + Number(b.dataset.lyrGlobal))) * 100) / 100;
+    setLook({ lyrOffset: v });
+    mark();
+  }));
+}
+
 async function viewSettings() {
   $("#content").innerHTML = skeleton("Réglages");
   const [me, settings, health, loved] = await Promise.all([
@@ -6271,14 +6047,18 @@ async function viewSettings() {
   state.settings = settings;
   const name = me.display_name || me.username;
   setTimeout(bindSettings);
-  return page(`<h1 class="page-title">réglages.</h1>
+  return page(`<h1 class="page-title">Réglages</h1>
     <div class="set-account">${avatar(me.avatar_url, name, "profile-avatar small")}<div><b>${esc(name)}</b><small>Last.fm · ${esc(me.username)}</small></div></div>
 
     <h3 class="set-head">Lecture</h3><div class="set-group">
       ${settings ? toggleRow("autoplay", "Lecture automatique", "Des morceaux similaires seront lus quand la file se termine.", settings.autoplay) : ""}
       ${toggleRow("dj", "DJ vocal", "Une voix annonce chaque titre, comme à la radio.", store.get("sona.dj") === "1")}
       <a class="set-row" data-dj-voice><span class="set-text"><b>Voix du DJ</b><small>${esc({ remy: "Rémy", vivienne: "Vivienne", henri: "Henri", denise: "Denise" }[store.get("sona.djVoice") || "remy"])}</small></span>${icons.right}</a>
-      ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${settings.quality === "standard" ? "Standard (débit réduit)" : "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
+      ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${{ lossless: "Lossless (tes fichiers)", standard: "Standard (débit réduit)" }[settings.quality] || "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
+    </div>
+
+    <h3 class="set-head">Apparence</h3><div class="set-group">
+      ${linkRow('href="#/appearance"', icons.sparkles, "Apparence", "Logo, couleur, formes et menu")}
     </div>
 
     <h3 class="set-head">Compte</h3><div class="set-group">
@@ -6286,22 +6066,21 @@ async function viewSettings() {
       ${linkRow("data-public-link", icons.globe, "Page « J'écoute » publique", "Un lien qui montre en direct ce que tu écoutes")}
       ${linkRow("data-share-links", icons.share, "Liens de partage", "Tes liens publics, leurs vues ; les révoquer")}
       ${toggleRow("scrobble_to_lastfm", "Scrobbler sur Last.fm", "Chaque morceau écouté au moins à moitié est ajouté à ton profil Last.fm ; un titre aimé devient ♥ sur Last.fm.", me.scrobble_to_lastfm)}
-      <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque alyra"}</small></span>${icons.right}</a>
+      <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque Sona"}</small></span>${icons.right}</a>
       <a class="set-row" data-history><span class="mi-icon">${icons.download}</span><span class="set-text"><b>Importer mon historique Last.fm</b><small id="history-status">Pour des stats complètes</small></span>${icons.right}</a>
       <a class="set-row" data-clear-history><span class="mi-icon">${icons.clock}</span><span class="set-text"><b>Effacer l'historique de navigation</b><small>Les fiches consultées récemment</small></span>${icons.right}</a>
     </div>
 
-    ${desktop ? `<h3 class="set-head">alyra pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>
+    ${desktop ? `<h3 class="set-head">Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>
     <h3 class="set-head">Mises à jour</h3><div class="set-group" id="desk-updates"><p class="set-row muted">Chargement…</p></div>` : ""}
 
     <h3 class="set-head">Appli</h3><div class="set-group">
-      ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>alyra est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
-        : linkRow("data-install-app", icons.install, "Installer alyra sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
+      ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
+        : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
       ${soundAvailable ? linkRow("data-sound", icons.wave, "Son", "Égaliseur, volume égalisé, fondu entre les titres") : ""}
       ${linkRow('href="#/devices"', icons.devices, "Appareils", "Tes PC enregistrés, à piloter d'un appui")}
-      ${linkRow('href="#/status"', icons.pulse, "État d'alyra", "Serveur, Relais, télécommande, Stream Deck…")}
+      ${linkRow('href="#/status"', icons.pulse, "État de Sona", "Serveur, Relais, télécommande, Stream Deck…")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
-      ${linkRow('href="#/concerts"', icons.calendar, "Concerts")}
     </div>
 
     ${me.is_admin ? `<h3 class="set-head">Administration</h3><div class="set-group">
@@ -6331,7 +6110,7 @@ function bindSettings() {
   $("[data-dj-voice]")?.addEventListener("click", () => actionSheet("Voix du DJ", [["remy", "Rémy"], ["vivienne", "Vivienne"], ["henri", "Henri"], ["denise", "Denise"]].map(([id, label]) => ({
     icon: icons.mic, label, checked: (store.get("sona.djVoice") || "remy") === id, run: () => { store.set("sona.djVoice", id); route(); },
   }))));
-  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
+  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
     label, checked: state.settings?.quality === q, run: async () => { state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ quality: q }) }); route(); },
   }))));
   $("[data-loved]")?.addEventListener("click", async () => {
@@ -6369,7 +6148,7 @@ function bindSettings() {
   $("[data-share-links]")?.addEventListener("click", shareLinksSheet);
   if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
-    if (!(await confirmSheet("Se déconnecter d'alyra ?", "Se déconnecter"))) return;
+    if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
     try { await api("/auth/logout", { method: "POST" }); } catch {}
     signOut();
   });
@@ -6382,7 +6161,7 @@ const publicUrl = (token) => `${SERVER || location.origin}/p/${token}`;
 async function publicLinkSheet() {
   const { token } = await api("/me/public-link");
   const share = (url) => navigator.share
-    ? navigator.share({ title: "J'écoute sur alyra", url }).catch(() => {})
+    ? navigator.share({ title: "J'écoute sur Sona", url }).catch(() => {})
     : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
   if (!token) {
     if (!(await confirmSheet("Créer ta page « J'écoute » ? Toute personne qui a le lien verra ce que tu écoutes, en direct (à mettre sur ton profil Discord, Instagram…).", "Créer le lien"))) return;
@@ -6416,7 +6195,7 @@ async function viewAdmin() {
   setTimeout(() => $$("[data-decide]").forEach((b) => (b.onclick = async () => {
     try { await api(`/admin/accounts/${b.dataset.id}/${b.dataset.decide}`, { method: "POST" }); toast("C'est fait"); route(); } catch (e) { toast(e.message); }
   })));
-  return page(`<h1 class="page-title">accès à l'app.</h1><p class="page-sub">Chaque nouveau compte attend ta validation.</p>
+  return page(`<h1 class="page-title">Accès à l'app</h1><p class="page-sub">Chaque nouveau compte attend ta validation.</p>
     ${groups.map(([status, label]) => {
       const list = accounts.filter((a) => a.status === status);
       if (!list.length) return "";
@@ -6470,7 +6249,7 @@ async function explainPlaybackError(src) {
     if (res.status === 429) return "Trop de demandes : réessaie dans un instant";
     if (res.status >= 500) return detail && typeof detail === "string" ? detail : "YouTube ne répond pas pour ce titre pour le moment";
     return detail && typeof detail === "string" ? detail : "Ce titre ne se lance pas";
-  } catch { return "Le serveur alyra est injoignable"; }
+  } catch { return "Le serveur Sona est injoignable"; }
 }
 
 audio.addEventListener("error", async () => {
@@ -6547,7 +6326,7 @@ function keyboardHelpSheet() {
   openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2><div class="shortcuts">${rows.map(([k, d]) => `<div class="sc"><kbd>${esc(k)}</kbd><span>${esc(d)}</span></div>`).join("")}</div>`);
 }
 
-// ── alyra pour Windows ─────────────────────────────────────────────────────
+// ── Sona pour Windows ─────────────────────────────────────────────────────
 // La même page dans l'app d'ordinateur (dossier desktop/) : barre de titre
 // et fond en verre (desktop.css), état de lecture envoyé à l'app (zone de
 // notification, aperçu de la barre des tâches, mini-lecteur, télécommande
@@ -6622,7 +6401,7 @@ function desktopInit() {
   setInterval(() => desktopReport(), 1000);
 }
 
-/** Ce que joue alyra (ici, ou l'appareil Relais piloté depuis le PC). */
+/** Ce que joue Sona (ici, ou l'appareil Relais piloté depuis le PC). */
 function desktopSnapshot() {
   const remote = remoteDevice();
   const rnow = deviceNow(remote);
@@ -6735,7 +6514,6 @@ async function desktopCommand(c) {
       break;
     }
     case "like": if (t) await toggleLike(t); break;
-    case "focus": focusSheet(); break;
     case "volumePreset": {
       const preset = c.preset && c.preset !== "next" ? vol.presets.find((p) => p.id === c.preset) : nextPreset();
       if (!preset) throw new Error("Préréglage inconnu");
@@ -6813,7 +6591,7 @@ async function openRemotePairing() {
     if (!box) return;
     const others = info.urls.slice(1).filter((u) => u.rank < 9);
     box.innerHTML = `<h2 class="sheet-title">Télécommande</h2>
-      <p class="muted">Pilote alyra sur ce PC depuis ton téléphone : pochette, paroles, file d'attente et recherche. Le téléphone doit être sur le même Wi-Fi.</p>
+      <p class="muted">Pilote Sona sur ce PC depuis ton téléphone : pochette, paroles, file d'attente et recherche. Le téléphone doit être sur le même Wi-Fi.</p>
       ${!s.remoteEnabled ? `<div class="pair-off">${icons.phone}<b>Télécommande désactivée</b><small>Active-la pour afficher le QR code.</small></div>`
         : info.qr ? `<div class="pair-qr"><div class="qr-frame"><img src="${info.qr}" alt="QR code d'association"></div>
             <div class="pair-steps"><b>Scanne avec l'appareil photo</b><span>Ouvre le lien : la télécommande s'affiche. Ajoute-la à l'écran d'accueil pour la retrouver.</span>
@@ -6824,7 +6602,7 @@ async function openRemotePairing() {
         ${toggleRow("remote-on", "Télécommande sur le réseau local", "Le PC accepte les téléphones associés (réseau local uniquement).", s.remoteEnabled)}
         ${s.remoteEnabled ? linkRow("data-remote-reset", icons.lock, "Nouveau code d'association", "Les téléphones déjà associés devront rescanner") : ""}
       </div>
-      <p class="fine-print">Rien ne passe ? Windows a peut-être demandé d'autoriser alyra dans son pare-feu : accepte pour les <b>réseaux privés</b>.</p>`;
+      <p class="fine-print">Rien ne passe ? Windows a peut-être demandé d'autoriser Sona dans son pare-feu : accepte pour les <b>réseaux privés</b>.</p>`;
     const toggleInput = $('[data-setting="remote-on"]', box);
     toggleInput.onchange = async () => { await desktop.set("remoteEnabled", toggleInput.checked); paint(); };
     $("[data-remote-reset]", box)?.addEventListener("click", async () => {
@@ -6848,25 +6626,24 @@ async function renderDesktopSettings() {
   box.innerHTML = `${linkRow("data-desk-remote", icons.phone, "Télécommande du téléphone",
       !s.remoteEnabled ? "Désactivée" : desk.clients.length ? `${plural(desk.clients.length, "téléphone connecté", "téléphones connectés")}` : "Scanne un QR code avec ton téléphone")}
     ${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
-    ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : alyra reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
-    ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "alyra démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
+    ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : Sona reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
+    ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
     ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
     ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
-    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute alyra » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant qu'alyra tourne sur ce PC.", s.discordEnabled)}
+    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant qu'Sona tourne sur ce PC.", s.discordEnabled)}
     ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Discord", discordStatusText(s)) : ""}
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
     ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
     ${desktop.platform === "win32" ? toggleRow("desk-micWatch", "Mode vocal automatique", "Quand Discord (ou une autre app) utilise ton micro, la musique passe sur ton préréglage « En vocal », puis revient après l'appel.", s.micWatch !== false) : ""}
-    ${desktop.platform === "win32" ? toggleRow("desk-voiceControl", "Commandes vocales « alyra… »", "Dis « alyra, suivant », « alyra, pause », « alyra, plus fort » ou « alyra, mets du PNL ». Reconnaissance vocale de Windows, hors ligne (voix française de Windows nécessaire).", s.voiceControl) : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-voiceControl", "Commandes vocales « Sona… »", "Dis « Sona, suivant », « Sona, pause », « Sona, plus fort » ou « Sona, mets du PNL ». Reconnaissance vocale de Windows, hors ligne (voix française de Windows nécessaire).", s.voiceControl) : ""}
     ${desktop.platform === "win32" && s.voiceControl ? `<div class="set-row"><span class="set-text"><b>Écoute</b><small>${esc(s.voice?.error || (s.voice?.ready ? `Prêt (${s.voice.culture || "fr"})${s.voice.last ? ` · dernier : « ${s.voice.last} »` : ""}` : "Démarrage…"))}</small></span></div>` : ""}
     ${desktop.platform === "win32" ? toggleRow("desk-coverWallpaper", "Fond d'écran pochette", "Pendant la lecture, le fond d'écran de Windows devient la pochette en cours, floue. Ton fond d'écran revient quand tu coupes l'option.", s.coverWallpaper) : ""}
-    ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône d'alyra se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
-    ${linkRow("data-desk-focus", icons.clock, "Mode focus", focus.phase ? `En cours · ${clock(focus.endsAt - Date.now())}` : "Pomodoro : travail en musique, pauses")}
+    ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône de Sona se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
     ${linkRow("data-desk-volume", icons.speaker, "Volume et préréglages", `${volLabel(vol.level)} · ${vol.presets.map((p) => p.label).join(", ")}`)}
     ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Relais", s.deviceNameShown)}
-    ${linkRow("data-desk-server", icons.globe, "Serveur alyra", s.serverUrl || SERVER || "Par défaut")}`;
+    ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
   for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch", "voiceControl", "coverWallpaper", "taskbarProgress"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
@@ -6879,14 +6656,13 @@ async function renderDesktopSettings() {
     };
   }
   $("[data-desk-volume]", box)?.addEventListener("click", volumeSheet);
-  $("[data-desk-focus]", box)?.addEventListener("click", focusSheet);
   $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
     await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
     renderDesktopSettings();
   });
   $("[data-desk-discord]", box)?.addEventListener("click", async () => {
-    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "Application d'alyra", confirm: "Enregistrer",
-      hint: "Rien à faire : alyra utilise sa propre application Discord. Laisse vide, sauf pour afficher le statut avec ta propre application (son Application ID, sur discord.com/developers). Discord doit être ouvert sur ce PC, avec « Partager mon activité » activé." });
+    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "Application de Sona", confirm: "Enregistrer",
+      hint: "Rien à faire : Sona utilise sa propre application Discord. Laisse vide, sauf pour afficher le statut avec ta propre application (son Application ID, sur discord.com/developers). Discord doit être ouvert sur ce PC, avec « Partager mon activité » activé." });
     if (id == null) return;
     await desktop.set("discordClientId", id).catch((e) => toast(deskErr(e)));
     setTimeout(renderDesktopSettings, 900);
@@ -6901,7 +6677,7 @@ async function renderDesktopSettings() {
     renderDesktopSettings();
   };
   $("[data-desk-server]", box).onclick = async () => {
-    const url = await askText({ title: "Serveur alyra", value: s.serverUrl || SERVER, placeholder: "https://…", confirm: "Enregistrer", hint: "Laisse l'adresse par défaut sauf si ton serveur alyra a changé d'adresse. alyra redémarre." });
+    const url = await askText({ title: "Serveur Sona", value: s.serverUrl || SERVER, placeholder: "https://…", confirm: "Enregistrer", hint: "Laisse l'adresse par défaut sauf si ton serveur Sona a changé d'adresse. Sona redémarre." });
     if (url == null) return;
     try { await desktop.set("serverUrl", url === SERVER ? "" : url); } catch (e) { toast(e.message); }
   };
@@ -6932,7 +6708,7 @@ const prettyAccel = (a) => a.replace("CommandOrControl", "Ctrl").replace("Super"
 function shortcutsSummary(s) {
   const n = Object.keys(s.shortcuts || {}).length;
   if (s.shortcutsRefused?.length) return `${plural(s.shortcutsRefused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`;
-  return n ? plural(n, "raccourci actif", "raccourcis actifs") : "Contrôler alyra depuis n'importe quelle app";
+  return n ? plural(n, "raccourci actif", "raccourcis actifs") : "Contrôler Sona depuis n'importe quelle app";
 }
 
 async function shortcutsSheet() {
@@ -6954,7 +6730,7 @@ async function shortcutsSheet() {
   };
   document.addEventListener("keydown", onKey, true);
   const wrap = openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2>
-    <p class="muted">Ils marchent même quand alyra est en arrière-plan. Touche un bouton, puis appuie sur la combinaison (avec Ctrl, Alt ou Maj). Les touches multimédia du clavier marchent déjà sans rien régler.</p>
+    <p class="muted">Ils marchent même quand Sona est en arrière-plan. Touche un bouton, puis appuie sur la combinaison (avec Ctrl, Alt ou Maj). Les touches multimédia du clavier marchent déjà sans rien régler.</p>
     <div class="set-group" id="sc-list"></div>`, { onClose: () => { document.removeEventListener("keydown", onKey, true); renderDesktopSettings(); } });
   const list = $("#sc-list", wrap);
   function paint() {
@@ -6976,8 +6752,8 @@ async function shortcutsSheet() {
   paint();
 }
 
-// ── alyra sur l'iPhone (app Windows) ──────────────────────────────────────
-// Comme CordLauncher : alyra s'installe sur l'iPhone depuis le PC, signée
+// ── Sona sur l'iPhone (app Windows) ──────────────────────────────────────
+// Comme CordLauncher : Sona s'installe sur l'iPhone depuis le PC, signée
 // avec le compte Apple de l'utilisateur, par câble ou en Wi-Fi, puis elle est
 // renouvelée avant d'expirer et mise à jour toute seule (mode automatique).
 // Le travail est fait par l'app (desktop/src/iphone.js + sona-iphone).
@@ -6985,7 +6761,7 @@ async function shortcutsSheet() {
 const iph = { state: null, target: null, twoFactorSheet: null, cleanup: null };
 const deskErr = (e) => String(e?.message || e || "Erreur").replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 const PHASES = {
-  account: "Connexion au compte Apple", downloading: "Téléchargement d'alyra", preparing: "Préparation (compte, appareil)",
+  account: "Connexion au compte Apple", downloading: "Téléchargement de Sona", preparing: "Préparation (compte, appareil)",
   signing: "Signature avec ton compte Apple", installing: "Envoi sur l'iPhone", done: "Terminé",
 };
 
@@ -7039,8 +6815,8 @@ async function viewIphone() {
     if (!iph.state?.latest) desktop.iphone("check").catch(() => {});
     bindIphone();
   });
-  return page(`<h1 class="page-title">alyra sur l'iPhone.</h1>
-    <p class="page-sub">Installe alyra sur ton iPhone depuis ce PC, avec ton compte Apple. Elle reste ensuite à jour et se renouvelle toute seule, par câble ou en Wi-Fi.</p>
+  return page(`<h1 class="page-title">Sona sur l'iPhone</h1>
+    <p class="page-sub">Installe Sona sur ton iPhone depuis ce PC, avec ton compte Apple. Elle reste ensuite à jour et se renouvelle toute seule, par câble ou en Wi-Fi.</p>
     <div id="iphone-root">${iphoneBody()}</div>`);
 }
 
@@ -7055,7 +6831,7 @@ function iphoneBody() {
   const m = iph.state;
   if (!m) return `<p class="muted">Chargement…</p>`;
   if (!m.available) {
-    return `<div class="iph-card"><div class="pair-off">${icons.phone}<b>Module iPhone absent</b><small>Cette version d'alyra a été fabriquée sans lui. Installe la dernière version d'alyra pour Windows.</small></div></div>`;
+    return `<div class="iph-card"><div class="pair-off">${icons.phone}<b>Module iPhone absent</b><small>Cette version de Sona a été fabriquée sans lui. Installe la dernière version de Sona pour Windows.</small></div></div>`;
   }
   const device = iphoneTargetDevice(m);
   const installed = device ? (m.apps || []).find((a) => a.udid === device.udid) : (m.apps || [])[0];
@@ -7073,7 +6849,7 @@ function iphoneBody() {
 
   let action = "";
   const disabled = busy || !reachable || !ready ? "disabled" : "";
-  if (!installed) action = `<button class="btn" data-iph="install" ${disabled}>${icons.download} Installer alyra${m.latest ? ` ${esc(m.latest.version)}` : ""}</button>`;
+  if (!installed) action = `<button class="btn" data-iph="install" ${disabled}>${icons.download} Installer Sona${m.latest ? ` ${esc(m.latest.version)}` : ""}</button>`;
   else if (upd) action = `<button class="btn" data-iph="update" ${disabled}>${icons.download} Mettre à jour vers ${esc(upd.version)}</button>`;
   else action = `<button class="btn ${health === "ok" ? "ghost" : ""}" data-iph="renew" ${disabled || (!installed.ipa ? "disabled" : "")}>${icons.repeat} Renouveler</button>`;
   const why = busy ? "" : !ready ? "Connecte d'abord ton compte Apple, juste en dessous."
@@ -7085,9 +6861,9 @@ function iphoneBody() {
     <div class="iph-ring ${health}" style="--r:${ring}"><img src="icons/icon-192.png" alt=""><span class="iph-left">${installed ? esc(leftLabel(installed)) : ""}</span></div>
     <div class="iph-hero-text">
       <span class="eyebrow">${installed ? (health === "expired" ? "Expirée" : health === "ok" ? "Installée" : "À renouveler bientôt") : "Pas encore installée"}${device?.name ? ` · ${esc(device.name)}` : ""}</span>
-      <h2>alyra ${installed?.version ? esc(installed.version) : m.latest ? esc(m.latest.version) : ""}</h2>
+      <h2>Sona ${installed?.version ? esc(installed.version) : m.latest ? esc(m.latest.version) : ""}</h2>
       <p>${installed
-        ? `${installed.expiresAt ? `Valable jusqu'au ${new Date(installed.expiresAt).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${health === "ok" ? "" : " — renouvelle-la pour la garder"}.` : "Suivie par alyra."}${upd ? ` La version ${esc(upd.version)} est sortie.` : ""}`
+        ? `${installed.expiresAt ? `Valable jusqu'au ${new Date(installed.expiresAt).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${health === "ok" ? "" : " — renouvelle-la pour la garder"}.` : "Suivie par Sona."}${upd ? ` La version ${esc(upd.version)} est sortie.` : ""}`
         : "Ta musique, tes playlists et Relais sur l'iPhone. Signée avec ton compte Apple, gratuitement."}</p>
       ${busy ? `<div class="iph-progress"><div class="iph-progress-head"><b>${esc(PHASES[progress?.phase] || busy)}</b><span>${pct != null ? `${pct} %` : ""}</span></div>
         <div class="iph-bar ${pct == null ? "indeterminate" : ""}"><i style="width:${pct ?? 30}%"></i></div></div>`
@@ -7102,14 +6878,14 @@ function iphoneBody() {
     return `<div class="iph-device ${device && d.udid === device.udid ? "on" : ""}" data-iph-device="${esc(d.udid)}" role="button">
       <span class="dp-icon">${icons.phone}</span>
       <span class="iph-device-text"><b>${esc(d.name || "iPhone")}</b>
-        <small>${d.iosVersion ? `iOS ${esc(d.iosVersion)} · ` : ""}<span class="pill-mini ${d.connection}">${conn}</span>${!d.trusted && d.connection === "usb" ? " · touche « Se fier » sur l'iPhone" : ""}${app?.version ? ` · alyra ${esc(app.version)}` : ""}</small></span>
+        <small>${d.iosVersion ? `iOS ${esc(d.iosVersion)} · ` : ""}<span class="pill-mini ${d.connection}">${conn}</span>${!d.trusted && d.connection === "usb" ? " · touche « Se fier » sur l'iPhone" : ""}${app?.version ? ` · Sona ${esc(app.version)}` : ""}</small></span>
       ${d.connection === "usb" && d.trusted ? `<label class="iph-wifi" title="Renouveler et mettre à jour sans câble, sur le même Wi-Fi"><span>Wi-Fi</span><input type="checkbox" data-iph-wifi="${esc(d.udid)}" ${d.wifi ? "checked" : ""}><i></i></label>` : ""}
     </div>`;
   }).join("");
 
   const profiles = (m.status?.profiles || []).map((p) => `<div class="iph-profile ${p.active ? "on" : ""}">
       ${avatar(null, p.email, "avatar")}
-      <span class="iph-device-text"><b>${esc(p.email)}</b><small>${p.active ? "Signe alyra · " : ""}${p.pausedFor ? `En pause ${Math.ceil(p.pausedFor / 60)} min (Apple) · ` : ""}${p.connected ? "Connecté" : p.remembered ? "Mot de passe mémorisé" : "À reconnecter"}</small></span>
+      <span class="iph-device-text"><b>${esc(p.email)}</b><small>${p.active ? "Signe Sona · " : ""}${p.pausedFor ? `En pause ${Math.ceil(p.pausedFor / 60)} min (Apple) · ` : ""}${p.connected ? "Connecté" : p.remembered ? "Mot de passe mémorisé" : "À reconnecter"}</small></span>
       <span class="iph-profile-acts">${p.active ? "" : `<button class="btn ghost small" data-iph-switch="${esc(p.email)}">Utiliser</button>`}
         ${!p.connected && !p.remembered ? `<button class="btn ghost small" data-iph-login="${esc(p.email)}">Se connecter</button>` : ""}
         <button class="tbtn small" data-iph-forget="${esc(p.email)}" title="Oublier ce compte">${icons.close}</button></span>
@@ -7122,22 +6898,22 @@ function iphoneBody() {
           <small>${m.devicesError ? "Puis branche l'iPhone avec un câble." : "Branche-le avec un câble, déverrouille-le et touche « Se fier ». Ensuite, active le Wi-Fi ici pour te passer du câble."}</small></div>`}
       </section>
       <section class="iph-card"><div class="iph-card-head"><h3>Compte Apple</h3></div>
-        ${profiles || `<p class="muted iph-note">alyra signe l'app avec ton compte Apple (gratuit). Le mot de passe reste sur ce PC, dans le coffre de Windows.</p>`}
+        ${profiles || `<p class="muted iph-note">Sona signe l'app avec ton compte Apple (gratuit). Le mot de passe reste sur ce PC, dans le coffre de Windows.</p>`}
         <div class="iph-card-foot"><button class="btn ${profiles ? "ghost" : ""}" data-iph="add-account">${icons.plus} ${profiles ? "Ajouter un compte" : "Connecter mon compte Apple"}</button></div>
       </section>
       <section class="iph-card"><div class="iph-card-head"><h3>Automatique</h3></div>
-        <div class="set-group flat">${toggleRow("iph-auto", "Mises à jour et renouvellement automatiques", "alyra installe chaque nouvelle version et renouvelle l'app deux jours avant qu'elle expire, dès que l'iPhone est branché ou sur le même Wi-Fi. Sinon, un rappel la veille.", m.auto)}</div>
-        <p class="iph-note muted">${m.latest ? `Dernière version : alyra ${esc(m.latest.version)}` : "Dernière version inconnue"}${m.lastCheck ? ` · vérifié ${esc(since(new Date(m.lastCheck).toISOString()))}` : ""}</p>
+        <div class="set-group flat">${toggleRow("iph-auto", "Mises à jour et renouvellement automatiques", "Sona installe chaque nouvelle version et renouvelle l'app deux jours avant qu'elle expire, dès que l'iPhone est branché ou sur le même Wi-Fi. Sinon, un rappel la veille.", m.auto)}</div>
+        <p class="iph-note muted">${m.latest ? `Dernière version : Sona ${esc(m.latest.version)}` : "Dernière version inconnue"}${m.lastCheck ? ` · vérifié ${esc(since(new Date(m.lastCheck).toISOString()))}` : ""}</p>
         <div class="iph-card-foot"><button class="btn ghost" data-iph="check" ${m.checking ? "disabled" : ""}>${m.checking ? "Recherche…" : "Rechercher une mise à jour"}</button></div>
       </section>
       <section class="iph-card iph-help"><div class="iph-card-head"><h3>Première installation</h3></div>
         <ol class="steps">
           <li>Installe <b>Appareils Apple</b> (Microsoft Store) ou <b>iTunes</b> : Windows en a besoin pour parler à l'iPhone.</li>
           <li>Branche l'iPhone, déverrouille-le et touche <b>Se fier</b>.</li>
-          <li>Connecte ton compte Apple ici, puis <b>Installer alyra</b>.</li>
+          <li>Connecte ton compte Apple ici, puis <b>Installer Sona</b>.</li>
           <li>Sur l'iPhone : <b>Réglages › Général › VPN et gestion de l'appareil</b> › fais confiance à ton compte, puis active le <b>mode développeur</b> si iOS le demande.</li>
         </ol>
-        <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (alyra la renouvelle) et 3 apps au plus par iPhone.</p>
+        <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (Sona la renouvelle) et 3 apps au plus par iPhone.</p>
       </section>
     </div>`;
 }
@@ -7163,12 +6939,12 @@ function bindIphone() {
     if (act === "add-account") return appleLoginSheet();
     if (act === "menu") {
       const installed = device && (iph.state?.apps || []).some((a) => a.udid === device.udid);
-      return actionSheet("alyra sur l'iPhone", [
+      return actionSheet("Sona sur l'iPhone", [
         ...(installed ? [{ icon: icons.download, label: "Réinstaller la dernière version", run: () => run("install", { udid }) }] : []),
-        { icon: icons.install, label: "Installer un fichier .ipa…", sub: "Une version précise d'alyra", run: async () => { const file = await desktop.iphonePick(); if (file) run("installFile", { udid, file }); } },
+        { icon: icons.install, label: "Installer un fichier .ipa…", sub: "Une version précise de Sona", run: async () => { const file = await desktop.iphonePick(); if (file) run("installFile", { udid, file }); } },
         { icon: icons.lock, label: "Réinitialiser l'appareil Apple", sub: "Si Apple refuse les connexions : il redemandera un code", run: async () => { if (await confirmSheet("Réinitialiser l'appareil présenté à Apple ?", "Réinitialiser")) run("resetDevice", {}, "Appareil Apple réinitialisé"); } },
         { icon: icons.list, label: "Ouvrir le journal", run: () => desktop.iphoneLogs().then((ok) => !ok && toast("Rien dans le journal pour l'instant")) },
-        ...(installed ? [{ icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "alyra reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) }] : []),
+        ...(installed ? [{ icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "Sona reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) }] : []),
       ]);
     }
     const dev = target("[data-iph-device]");
@@ -7190,11 +6966,11 @@ function bindIphone() {
 /** Connexion d'un compte Apple (la 2FA arrive ensuite dans sa propre fenêtre). */
 function appleLoginSheet(email = "") {
   const wrap = openSheet(`<h2 class="sheet-title">Compte Apple</h2>
-    <p class="muted">alyra signe l'app avec ton identifiant Apple, comme Sideloadly ou AltStore. Le mot de passe ne quitte pas ce PC.</p>
+    <p class="muted">Sona signe l'app avec ton identifiant Apple, comme Sideloadly ou AltStore. Le mot de passe ne quitte pas ce PC.</p>
     <form class="ask" id="apple-form">
       <input class="field" name="email" type="email" placeholder="Identifiant Apple" value="${esc(email)}" autocomplete="username" required>
       <input class="field" name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
-      <label class="switch-row flat"><span><b>Mémoriser sur ce PC</b><small>Dans le coffre de Windows : alyra renouvelle l'app chaque semaine sans rien te redemander.</small></span><input type="checkbox" name="remember" checked><i></i></label>
+      <label class="switch-row flat"><span><b>Mémoriser sur ce PC</b><small>Dans le coffre de Windows : Sona renouvelle l'app chaque semaine sans rien te redemander.</small></span><input type="checkbox" name="remember" checked><i></i></label>
       <p class="iph-error" id="apple-error" hidden></p>
       <div class="pill-row"><button type="button" class="btn ghost" data-cancel>Annuler</button><button class="btn" type="submit">Se connecter</button></div>
     </form>`);
@@ -7248,7 +7024,7 @@ function iphoneTwoFactor() {
   }))));
 }
 
-// ── Mises à jour (app Windows et alyra sur l'iPhone) ──────────────────────
+// ── Mises à jour (app Windows et Sona sur l'iPhone) ──────────────────────
 
 let updatesState = null;
 
@@ -7263,24 +7039,24 @@ async function renderUpdates(model) {
   const iphoneApp = (m?.apps || [])[0];
   const iphoneUpd = iphoneApp && iphoneUpdate(iphoneApp);
   const winLine = u.downloading != null ? `Téléchargement… ${Math.round(u.downloading * 100)} %`
-    : u.available ? `alyra ${esc(u.latest.version)} est disponible (tu as la ${esc(u.current)})`
+    : u.available ? `Sona ${esc(u.latest.version)} est disponible (tu as la ${esc(u.current)})`
     : u.checking ? "Recherche…"
     : `Version ${esc(u.current)}${u.lastCheck ? ` · à jour, vérifié ${esc(since(new Date(u.lastCheck).toISOString()))}` : ""}`;
-  box.innerHTML = `<div class="set-row"><span class="mi-icon">${icons.laptop}</span><span class="set-text"><b>alyra pour Windows</b><small>${winLine}</small></span>
+  box.innerHTML = `<div class="set-row"><span class="mi-icon">${icons.laptop}</span><span class="set-text"><b>Sona pour Windows</b><small>${winLine}</small></span>
       ${u.available && u.downloading == null ? `<button class="btn small" data-upd="install">${u.portable ? "Télécharger" : "Mettre à jour"}</button>` : ""}</div>
-    <a class="set-row" href="#/iphone"><span class="mi-icon">${icons.phone}</span><span class="set-text"><b>alyra sur l'iPhone</b><small>${
+    <a class="set-row" href="#/iphone"><span class="mi-icon">${icons.phone}</span><span class="set-text"><b>Sona sur l'iPhone</b><small>${
       !m?.available ? "Module iPhone absent de cette version"
       : iphoneApp ? `${esc(iphoneApp.version || "?")} sur ${esc(iphoneApp.deviceName || "l'iPhone")}${iphoneUpd ? ` · ${esc(iphoneUpd.version)} disponible` : " · à jour"}${iphoneApp.expiresAt ? ` · expire ${esc(new Date(iphoneApp.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))}` : ""}`
       : m?.latest ? `Pas encore installée · dernière version ${esc(m.latest.version)}` : "Pas encore installée"}</small></span>${icons.right}</a>
     ${toggleRow("upd-check", "Rechercher automatiquement", "Au démarrage puis toutes les 6 heures, pour Windows et pour l'iPhone.", u.autoCheck)}
-    ${u.portable ? "" : toggleRow("upd-install", "Installer sans demander", "alyra se met à jour tout seul et redémarre (la musique reprend où elle en était sur l'iPhone si tu changes d'appareil).", u.autoInstall)}
-    <div class="set-row"><span class="set-text">${u.error ? `<small class="iph-error">${esc(u.error)}</small>` : `<small>Les nouvelles versions arrivent à chaque mise à jour d'alyra.</small>`}</span>
+    ${u.portable ? "" : toggleRow("upd-install", "Installer sans demander", "Sona se met à jour tout seul et redémarre (la musique reprend où elle en était sur l'iPhone si tu changes d'appareil).", u.autoInstall)}
+    <div class="set-row"><span class="set-text">${u.error ? `<small class="iph-error">${esc(u.error)}</small>` : `<small>Les nouvelles versions arrivent à chaque mise à jour de Sona.</small>`}</span>
       <button class="btn ghost small" data-upd="check" ${u.checking || m?.checking ? "disabled" : ""}>Rechercher</button></div>`;
   $('[data-upd="install"]', box)?.addEventListener("click", () => desktop.updates("install").catch((e) => toast(deskErr(e))));
   $('[data-upd="check"]', box).onclick = async () => {
     const [win] = await Promise.all([desktop.updates("check").catch((e) => ({ error: deskErr(e) })), desktop.iphone("check").catch(() => null)]);
     if (win?.error) toast(win.error);
-    else if (!win?.available) toast("alyra est à jour");
+    else if (!win?.available) toast("Sona est à jour");
   };
   $('[data-setting="upd-check"]', box).onchange = (e) => desktop.updates("updatesCheck", e.target.checked);
   $('[data-setting="upd-install"]', box)?.addEventListener("change", (e) => desktop.updates("updatesInstall", e.target.checked));
@@ -7303,7 +7079,7 @@ async function viewLink(code) {
   try { info = await api(`/auth/device/${encodeURIComponent(wanted)}`); }
   catch (e) { error = e.message || "Code inconnu ou expiré."; }
   if (!info) {
-    return page(`<h1 class="page-title">connecter un appareil.</h1>
+    return page(`<h1 class="page-title">Connecter un appareil</h1>
       <p class="page-sub">${esc(error)}</p><p class="muted">Relance la connexion sur l'appareil pour obtenir un nouveau QR code.</p>`);
   }
   setTimeout(() => {
@@ -7322,8 +7098,8 @@ async function viewLink(code) {
     $("#link-ok")?.addEventListener("click", () => answer("/auth/device/approve", `${info.name} est connecté à ton compte. Tu peux fermer cette page.`));
     $("#link-no")?.addEventListener("click", () => answer("/auth/device/deny", "Connexion refusée."));
   });
-  return page(`<h1 class="page-title">connecter un appareil.</h1>
-    <p class="page-sub">« ${esc(info.name)} » demande l'accès à ton compte alyra.</p>
+  return page(`<h1 class="page-title">Connecter un appareil</h1>
+    <p class="page-sub">« ${esc(info.name)} » demande l'accès à ton compte Sona.</p>
     <p class="page-sub">Le code affiché sur l'écran doit être <b>${esc(info.user_code)}</b>. Si ce n'est pas le cas, refuse.</p>
     <div class="actions" id="link-actions"><button class="btn" id="link-ok">Autoriser</button><button class="btn ghost" id="link-no">Refuser</button></div>
     <p class="muted" id="link-msg"></p>`);

@@ -13,6 +13,7 @@ from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
 VALID_KINDS = ("track", "album", "artist")
 
 QUALITY_CHOICES = {
+    "lossless": "Lossless (tes fichiers, sinon meilleure disponible)",
     "best": "Meilleure disponible",
     "standard": "Standard (débit réduit)",
 }
@@ -1423,14 +1424,6 @@ class Repository:
         )
         await self._db.conn.commit()
 
-    # -- Blind test ----------------------------------------------------
-
-    async def blindtest_games_since(self, user_id: int, since: str) -> int:
-        cursor = await self._db.conn.execute(
-            "SELECT COUNT(*) AS n FROM blindtest_scores WHERE user_id=? AND created_at >= ?", (user_id, since)
-        )
-        return (await cursor.fetchone())["n"]
-
     # -- Moments (réactions à un instant d'un titre) -------------------------
 
     async def moment_add(self, user_id: int, source: str, source_id: str, position: float, emoji: str, text: str | None) -> int:
@@ -1456,36 +1449,6 @@ class Repository:
     async def moment_delete(self, user_id: int, moment_id: int) -> None:
         await self._db.conn.execute("DELETE FROM track_moments WHERE id=? AND user_id=?", (moment_id, user_id))
         await self._db.conn.commit()
-
-    async def blindtest_add_score(
-        self, user_id: int, mode: str, day: str, score: int, correct: int, total: int
-    ) -> None:
-        await self._db.conn.execute(
-            """INSERT INTO blindtest_scores (user_id, mode, day, score, correct, total, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, mode, day, score, correct, total, _now()),
-        )
-        await self._db.conn.commit()
-
-    async def blindtest_daily_played(self, user_id: int, day: str) -> bool:
-        cursor = await self._db.conn.execute(
-            "SELECT 1 FROM blindtest_scores WHERE user_id=? AND mode='daily' AND day=? LIMIT 1", (user_id, day)
-        )
-        return (await cursor.fetchone()) is not None
-
-    async def blindtest_leaderboard(self, mode: str, day: str | None, limit: int = 30) -> list[dict]:
-        """Meilleur score de chacun (du jour pour le défi, de tous les temps sinon)."""
-        clauses, params = ["mode=?"], [mode]
-        if day:
-            clauses.append("day=?")
-            params.append(day)
-        cursor = await self._db.conn.execute(
-            f"""SELECT user_id, MAX(score) AS score, MAX(correct) AS correct, MAX(total) AS total
-                FROM blindtest_scores WHERE {' AND '.join(clauses)}
-                GROUP BY user_id ORDER BY score DESC LIMIT ?""",
-            (*params, limit),
-        )
-        return [dict(r) for r in await cursor.fetchall()]
 
     # -- Analyse audio (AutoMix) ----------------------------------------
 
@@ -1607,3 +1570,55 @@ class Repository:
     async def lyrics_cache_delete(self, key: str) -> None:
         await self._db.conn.execute("DELETE FROM lyrics_cache WHERE cache_key=?", (key,))
         await self._db.conn.commit()
+
+    # ── Musique locale (services/local_library.py) ──────────────────────
+
+    async def local_known(self) -> dict[str, tuple[int, float]]:
+        """chemin relatif -> (taille, mtime) : de quoi ne relire que ce qui a changé."""
+        cursor = await self._db.conn.execute("SELECT path, size, mtime FROM local_tracks")
+        return {r["path"]: (r["size"], r["mtime"]) for r in await cursor.fetchall()}
+
+    async def local_upsert(self, rows: list[dict]) -> None:
+        cols = ("id", "path", "title", "artist", "album", "year", "duration_seconds", "track_number", "disc_number",
+                "codec", "lossless", "bitrate", "sample_rate", "bit_depth", "size", "mtime", "norm", "isrc")
+        await self._db.conn.executemany(
+            f"INSERT OR REPLACE INTO local_tracks ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+            [tuple(r.get(c) for c in cols) for r in rows],
+        )
+        await self._db.conn.commit()
+
+    async def local_delete_paths(self, paths: list[str]) -> None:
+        await self._db.conn.executemany("DELETE FROM local_tracks WHERE path=?", [(p,) for p in paths])
+        await self._db.conn.commit()
+
+    async def local_get(self, track_id: str) -> dict | None:
+        cursor = await self._db.conn.execute("SELECT * FROM local_tracks WHERE id=?", (track_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def local_find(self, norm: str, isrc: str | None = None) -> dict | None:
+        """Meilleure version locale d'un titre : ISRC d'abord, sinon nom normalisé ; lossless avant le reste."""
+        if isrc:
+            cursor = await self._db.conn.execute(
+                "SELECT * FROM local_tracks WHERE isrc=? ORDER BY lossless DESC, bitrate DESC LIMIT 1", (isrc.upper(),)
+            )
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+        cursor = await self._db.conn.execute(
+            "SELECT * FROM local_tracks WHERE norm=? ORDER BY lossless DESC, bitrate DESC LIMIT 1", (norm,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def local_list(self, q: str = "", offset: int = 0, limit: int = 50) -> tuple[list[dict], int]:
+        like = f"%{q.strip().casefold()}%" if q.strip() else "%"
+        cursor = await self._db.conn.execute("SELECT COUNT(*) AS c FROM local_tracks WHERE norm LIKE ? OR LOWER(COALESCE(album,'')) LIKE ?", (like, like))
+        total = (await cursor.fetchone())["c"]
+        cursor = await self._db.conn.execute(
+            """SELECT * FROM local_tracks WHERE norm LIKE ? OR LOWER(COALESCE(album,'')) LIKE ?
+               ORDER BY artist COLLATE NOCASE, COALESCE(album,'') COLLATE NOCASE, disc_number, track_number, title COLLATE NOCASE
+               LIMIT ? OFFSET ?""",
+            (like, like, limit, offset),
+        )
+        return [dict(r) for r in await cursor.fetchall()], total

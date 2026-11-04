@@ -157,7 +157,7 @@ struct StatsView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.97))

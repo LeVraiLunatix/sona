@@ -30,10 +30,8 @@ struct RootTabView: View {
     @State private var showingPlayer = false
     @State private var playlistPick: PlaylistPickRequest?
     // Ouvertures depuis les widgets (liens `encre://`).
-    @State private var showingBlindTest = false
     @State private var showingParty = false
     @State private var recap: RecapLaunch?
-    @State private var live: LiveLaunch?
     @State private var showingRecognize = false
     @ObservedObject private var carMode = CarMode.shared
     @Namespace private var zoomNamespace
@@ -96,17 +94,11 @@ struct RootTabView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: $showingBlindTest) {
-            BlindTestView()
-        }
         .fullScreenCover(item: $recap) { launch in
             RecapView(period: launch.period, offset: launch.offset)
         }
         .sheet(isPresented: $showingParty) {
             PartyView().environmentObject(player)
-        }
-        .fullScreenCover(item: $live) { launch in
-            BlindLiveView(joinCode: launch.code)
         }
         .fullScreenCover(isPresented: $carMode.requested) {
             CarModeView()
@@ -169,14 +161,10 @@ struct RootTabView: View {
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let code = query.first { $0.name == "code" }?.value
         switch url.host() {
-        case "blindtest":
-            showingBlindTest = true
         case "recap":
             // Dernière semaine ou dernier mois terminés.
             let period = query.first { $0.name == "period" }?.value == "week" ? "week" : "month"
             recap = RecapLaunch(period: period, offset: -1)
-        case "live":
-            if let code { live = LiveLaunch(code: code) }
         case "album":
             if let source = query.first(where: { $0.name == "source" })?.value,
                let id = query.first(where: { $0.name == "id" })?.value {
@@ -271,8 +259,6 @@ struct RootTabView: View {
                             MixDetailView(mixId: id, path: path)
                         case .friend(let accountId):
                             FriendProfileView(accountId: accountId, path: path)
-                        case .concerts:
-                            ConcertsView()
                         case .smart(let id, let title):
                             SmartPlaylistView(id: id, title: title)
                         }

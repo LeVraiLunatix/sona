@@ -117,8 +117,7 @@ private struct RevealModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 18)
-            .blur(radius: shown ? 0 : 6)
+            .offset(y: shown ? 0 : 8)
             .onAppear {
                 guard !shown else { return }
                 withAnimation(Motion.smooth.delay(Double(min(index, 8)) * 0.06)) { shown = true }

@@ -71,118 +71,11 @@ struct MemoriesCard: View {
                     .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(LinearGradient(colors: [Color(red: 0.85, green: 0.55, blue: 0.2).opacity(0.45), Tone.surface],
-                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .fill(Tone.surface)
                     )
                 }
                 .buttonStyle(.pressable(scale: 0.98))
             }
-        }
-    }
-}
-
-// MARK: - Mode sport
-
-/// Cadence de course mesurée par le podomètre de l'iPhone (pas par minute).
-@MainActor
-final class CadenceMeter: ObservableObject {
-    @Published private(set) var cadence: Double?
-    @Published private(set) var unavailable = !CMPedometer.isCadenceAvailable()
-    private let pedometer = CMPedometer()
-
-    func start() {
-        guard CMPedometer.isCadenceAvailable() else { return }
-        pedometer.startUpdates(from: Date()) { [weak self] data, _ in
-            guard let perSecond = data?.currentCadence?.doubleValue, perSecond > 0 else { return }
-            Task { @MainActor in self?.cadence = perSecond * 60 }
-        }
-    }
-
-    func stop() { pedometer.stopUpdates() }
-}
-
-/// Mode sport : la musique suit ta foulée. Titres au tempo de ta cadence
-/// (ou à sa moitié), enchaînés par l'AutoMix, recalculés au fil de la course.
-struct SportModeView: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var player: PlayerManager
-    @StateObject private var meter = CadenceMeter()
-    @State private var manualTempo: Double = 165
-    @State private var running = false
-    @State private var errorMessage: String?
-
-    private var tempo: Double { meter.cadence.map { min(200, max(120, $0)) } ?? manualTempo }
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 26) {
-                Spacer()
-                ZStack {
-                    Circle().stroke(Color.white.opacity(0.1), lineWidth: 14)
-                    Circle()
-                        .trim(from: 0, to: min(1, (tempo - 100) / 110))
-                        .stroke(LinearGradient(colors: [.green, .yellow, .orange], startPoint: .leading, endPoint: .trailing),
-                                style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(Motion.smooth, value: tempo)
-                    VStack(spacing: 2) {
-                        Text("\(Int(tempo))").font(.system(size: 64, weight: .black, design: .rounded)).monospacedDigit()
-                            .contentTransition(.numericText(value: tempo))
-                        Text(meter.cadence == nil ? "BPM visé" : "pas / min").font(Typo.caption).foregroundStyle(Tone.secondary)
-                    }
-                    .foregroundStyle(Tone.primary)
-                }
-                .frame(width: 230, height: 230)
-
-                if meter.cadence == nil {
-                    VStack(spacing: 8) {
-                        Text(running ? "Cours : ta cadence prendra le relais." : "Choisis un tempo, ou lance et cours : Sona suit ta foulée.")
-                            .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).multilineTextAlignment(.center)
-                        Slider(value: $manualTempo, in: 120...200, step: 5).tint(.green)
-                    }
-                    .padding(.horizontal, 30)
-                }
-
-                if let track = player.current, running {
-                    VStack(spacing: 3) {
-                        Text(track.title).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(1)
-                        Text(track.bpm.map { "\(track.artist) · \(Int($0)) BPM" } ?? track.artist)
-                            .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
-                    }
-                }
-
-                PillButton(title: running ? "Relancer au bon tempo" : "C'est parti", systemImage: "figure.run") {
-                    Task { await start() }
-                }
-                if let errorMessage { Text(errorMessage).font(Typo.rowSubtitle).foregroundStyle(Tone.danger) }
-                Spacer()
-            }
-            .padding(20)
-            .background(
-                LinearGradient(colors: [Color(red: 0.05, green: 0.3, blue: 0.15), Tone.background], startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea()
-            )
-            .navigationTitle("Mode sport")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
-        }
-        .onAppear { meter.start() }
-        .onDisappear { meter.stop() }
-    }
-
-    private func start() async {
-        errorMessage = nil
-        do {
-            // La station se recharge au tempo du moment (cadence mesurée).
-            try await player.playStation(name: "Mode sport") { [meter, manualTempo] in
-                let bpm = await MainActor.run { meter.cadence.map { min(200, max(120, $0)) } ?? manualTempo }
-                let played = await MainActor.run { PlayerManager.shared.upNext.map(\.sourceId) }
-                return try await APIClient.shared.sportTracks(bpm: bpm, exclude: played)
-            }
-            if !player.crossfadeEnabled { player.toggleCrossfade() }
-            running = true
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }

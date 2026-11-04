@@ -48,7 +48,7 @@ def test_settings_roundtrip(client):
     assert updated.status_code == 200
     assert updated.json() == {"quality": "standard", "format": "auto", "autoplay": False}
 
-    bad = client.put("/settings", headers=AUTH, json={"quality": "lossless"})
+    bad = client.put("/settings", headers=AUTH, json={"quality": "ultra"})
     assert bad.status_code == 400
 
 

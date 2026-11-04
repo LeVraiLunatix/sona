@@ -6,7 +6,7 @@ from __future__ import annotations
 import httpx
 
 from app.services import tv_cast
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 TRACK = {"source": "deezer", "source_id": "1", "title": "Room", "artist": "Ziak"}
 VIDEO = "abcdefghijk"

@@ -25,14 +25,12 @@ async def compute(repo, user_id: int, tz_name: str | None, now: datetime | None 
         if p.album:
             per_album.setdefault((p.album.casefold(), p.artist.casefold()), set()).add(p.title.casefold())
     best_album = max((len(t) for t in per_album.values()), default=0)
-    games = await repo.blindtest_games_since(user_id, week.start or "")
 
     challenges = [
         _challenge("discover", "Découvre 5 nouveaux artistes", "sparkle.magnifyingglass", len(week.discoveries), 5, "artistes"),
         _challenge("marathon", "3 heures de musique", "timer", week.minutes, 180, "min"),
         _challenge("variety", "20 artistes différents", "person.3.fill", week.artists, 20, "artistes"),
         _challenge("album", "Un album en entier (8 titres)", "square.stack.fill", best_album, 8, "titres"),
-        _challenge("blindtest", "3 parties de blind test", "waveform.badge.magnifyingglass", games, 3, "parties"),
         _challenge("streak", "Écoute 7 jours d'affilée", "flame.fill", week.streak_days, 7, "jours"),
     ]
 

@@ -272,18 +272,6 @@ struct WhatsPlayingIntent: AppIntent {
 
 // MARK: - Ouvrir l'app
 
-struct DailyChallengeIntent: AppIntent {
-    static let title: LocalizedStringResource = "Défi du jour Sona"
-    static let description = IntentDescription("Ouvre le blind test du jour.")
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        AppRouter.shared.pendingURL = URL(string: "encre://blindtest")
-        return .result()
-    }
-}
-
 struct ListenTogetherIntent: AppIntent {
     static let title: LocalizedStringResource = "Écouter ensemble sur Sona"
     static let openAppWhenRun = true
@@ -327,12 +315,6 @@ struct SonaShortcuts: AppShortcutsProvider {
             phrases: ["Joue \(\.$playlist) sur \(.applicationName)", "Mets mes titres \(\.$playlist) sur \(.applicationName)"],
             shortTitle: "Playlist intelligente",
             systemImageName: "wand.and.stars"
-        )
-        AppShortcut(
-            intent: DailyChallengeIntent(),
-            phrases: ["Défi du jour \(.applicationName)", "Lance le blind test \(.applicationName)"],
-            shortTitle: "Défi du jour",
-            systemImageName: "waveform.badge.magnifyingglass"
         )
         AppShortcut(
             intent: WhatsPlayingIntent(),

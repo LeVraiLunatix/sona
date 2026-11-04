@@ -1,6 +1,6 @@
-/* alyra. pour Windows — habillage « verre liquide » de l'app d'ordinateur.
+/* Sona pour Windows — habillage « verre liquide » de l'app d'ordinateur.
    Chargé seulement dans l'app (classe `desktop` sur <html>, voir app.js) :
-   alyra. web dans un navigateur ne change pas.
+   Sona web dans un navigateur ne change pas.
 
    Principe : la pochette en cours, très floue, remplit le fond de la
    fenêtre et respire doucement ; par-dessus, des panneaux de verre qui
@@ -12,8 +12,8 @@ html.desktop {
   --topbar-h: 72px;
   --gap: 10px;
   --wctl-w: 128px;
-  --bg: #08080c;
-  --bg-elevated: rgba(34, 34, 42, .72);
+  --bg: #101012;
+  --bg-elevated: #19191c;
   --sidebar: transparent;
   --glass: rgba(30, 30, 38, .55);
   --hairline: rgba(255, 255, 255, .08);
@@ -26,19 +26,19 @@ html.desktop {
   --shadow-art: 0 10px 28px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .3);
   --shadow-pop: 0 28px 70px rgba(0, 0, 0, .55);
   /* Verre */
-  --g-fill: linear-gradient(180deg, rgba(255, 255, 255, .095), rgba(255, 255, 255, .035));
-  --g-tint: rgba(18, 18, 26, .38);
-  --g-edge: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 -1px 0 rgba(255, 255, 255, .035), inset 0 0 0 1px rgba(255, 255, 255, .065);
-  --g-lift: 0 18px 48px rgba(0, 0, 0, .32), 0 2px 8px rgba(0, 0, 0, .18);
-  --g-blur: blur(42px) saturate(190%);
-  --g-pill: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .07));
-  --g-pill-edge: inset 0 1px 0 rgba(255, 255, 255, .42), inset 0 0 0 .5px rgba(255, 255, 255, .22);
+  --g-fill: linear-gradient(transparent, transparent);
+  --g-tint: #101012;
+  --g-edge: inset 0 0 0 1px rgba(255, 255, 255, .08);
+  --g-lift: 0 0 0 rgba(0, 0, 0, 0);
+  --g-blur: none;
+  --g-pill: linear-gradient(rgba(255, 255, 255, .08), rgba(255, 255, 255, .08));
+  --g-pill-edge: inset 0 0 0 1px rgba(255, 255, 255, .1);
   color-scheme: dark;
 }
 
 html.desktop body {
   background: var(--bg);
-  font-family: "Inter Tight", "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   user-select: none;
 }
 html.desktop :is(input, textarea, .lyrics, .chat, .page p) { user-select: text; }
@@ -337,7 +337,7 @@ html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
   html.desktop .ambient img, html.desktop .ambient .blob { animation: none; }
 }
 
-/* ── alyra sur l'iPhone ───────────────────────────────────────────────── */
+/* ── Sona sur l'iPhone ───────────────────────────────────────────────── */
 
 .side-badge:empty { display: none; }
 .side-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center;
@@ -551,3 +551,38 @@ html.desktop:not(.drawer-open) .drawer { visibility: hidden; }
 /* Le halo de la pochette (en-tête d'album, de playlist) couvre toute la largeur de la page, sans déborder. */
 html.desktop .hero-glow { inset: -30px -36px auto; }
 html.desktop .profile-head .hero-glow { inset: -30px -36px auto; }
+
+
+/* ═══ Sona v2 ════════════════════════════════════════════════════════════
+   Même mise en page que le web : menu sur le fond, contenu en grand panneau
+   arrondi, lecteur flottant en bas. Plus de fond vivant ni de verre épais.
+   Ce bloc vient en dernier. */
+html.desktop .ambient { display: none; }
+html.desktop { --gap: 0px; --topbar-h: 76px; }
+html.desktop body { background: transparent; background-image: inherit; }
+html.desktop #root { z-index: 1; }
+html.desktop .app { gap: 0; padding: 0; grid-template-rows: 1fr; }
+html.desktop, html.desktop:root { --sidebar-w: 88px; }
+html.desktop .sidebar { position: fixed; border: 0; border-radius: 0 28px 28px 0; padding: 40px 22px 16px; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop .sidebar:hover, html.desktop .sidebar:focus-within { background: rgba(20, 20, 22, .94); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%); box-shadow: var(--shadow-pop), inset -1px 0 0 var(--hairline); }
+html.desktop .content {
+  grid-row: 1; margin: 12px 12px 12px 0; border-radius: 28px; background: var(--bg); border: 1px solid var(--hairline);
+  box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html.desktop .page { padding: 64px 56px 168px; }
+html.desktop .topbar {
+  position: fixed; border-radius: 28px; padding: 0 24px 0 16px; height: 76px; gap: 24px;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--hairline); box-shadow: var(--shadow-pop);
+}
+html.desktop :is(.devices-pop, .sheet, .toast) { background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 24px; box-shadow: var(--shadow-pop); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet)::before { display: none; }
+html.desktop .brand { -webkit-app-region: no-drag; }
+html.desktop .sheet-backdrop { background: rgba(0, 0, 0, .66); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop .wctl { top: 16px; right: 28px; }
+html.desktop .wctl button { border-radius: 10px; box-shadow: none; background: transparent; }
+html.desktop .wctl button:hover { background: var(--fill-strong); }
+html.desktop .wctl .close:hover { box-shadow: none; }
+html.desktop .brand-icon { box-shadow: none; }
+@media (max-width: 1400px) { html.desktop { --sidebar-w: 88px; } }

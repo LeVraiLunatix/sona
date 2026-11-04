@@ -1,7 +1,7 @@
 """Sona Connect : reprise d'un appareil à l'autre, télécommande, transfert."""
 
 from app.services import connect
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 TRACK = {"source": "deezer", "source_id": "1", "title": "Titre", "artist": "Artiste", "duration_seconds": 200}
 NEXT = {"source": "deezer", "source_id": "2", "title": "Suivant", "artist": "Artiste"}

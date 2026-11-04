@@ -12,7 +12,7 @@ import pytest
 
 from app.providers.base import TrackInfo
 from app.services import recognize, search
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 
 def tone(seconds=3, rate=44100):

@@ -262,3 +262,13 @@ def test_parse_enhanced_lrc_word_timings():
     enhanced = lines[1]
     assert [(w.time, w.text.strip()) for w in enhanced.words] == [(10.0, "Je"), (10.5, "suis"), (11.2, "là")]
     assert lines[0].words is None
+
+
+def test_prefetch_endpoint_accepts_and_validates(client):
+    got = client.post("/lyrics/prefetch", headers=AUTH, json={"tracks": [
+        {"title": "T", "artist": "A", "duration": 200}, {"title": "T2", "artist": "A"},
+    ]})
+    assert got.status_code == 202 and got.json()["queued"] == 2
+    assert client.post("/lyrics/prefetch", headers=AUTH, json={"tracks": []}).json() == {"queued": 0}
+    assert client.post("/lyrics/prefetch", headers=AUTH, json={"tracks": [{"title": "", "artist": "A"}]}).status_code == 422
+    assert client.post("/lyrics/prefetch", json={"tracks": []}).status_code == 401

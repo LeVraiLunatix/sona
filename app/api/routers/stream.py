@@ -21,7 +21,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, karaoke, live_stream, stream_health
+from app.services import audio_analysis, karaoke, live_stream, local_library, stream_health
 from app.services.resolver import (
     Candidate, ResolutionError, iter_audio_sources, rejection_reason, score_candidate,
 )
@@ -327,6 +327,29 @@ def _touch(path: str) -> None:
         pass
 
 
+async def local_file(deps: ApiDeps, source: str, source_id: str, quality: str) -> tuple[Path, str, dict] | None:
+    """Fichier de ta musique locale à servir tel quel (lossless, sans
+    réencodage), ou None. Un titre `local` vient forcément de là ; avec la
+    qualité « Lossless », un titre d'une autre source est remplacé par ton
+    fichier s'il existe (ISRC, sinon artiste + titre)."""
+    root = deps.settings.local_music_dir
+    if root is None:
+        return None
+    row = None
+    if source == "local":
+        row = await deps.repo.local_get(source_id)
+    elif quality == "lossless":
+        try:
+            track = await _track_for(deps, source, source_id)
+        except Exception:  # noqa: BLE001 — pas de fiche : on retombe sur le chemin normal
+            return None
+        row = await deps.repo.local_find(local_library.normalize(track.artist, track.title), track.isrc)
+    if row is None:
+        return None
+    path = local_library.resolve_path(root, row)
+    return (path, local_library.media_type(row), row) if path else None
+
+
 def _check_params(quality: str, fmt: str) -> None:
     if quality not in QUALITY_CHOICES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Qualité inconnue : {quality}")
@@ -428,6 +451,11 @@ async def prepare(
     vraie cause), et pour le morceau suivant pendant l'écoute du courant —
     l'enchaînement est alors instantané."""
     _check_params(quality, format)
+    local = await local_file(deps, source, source_id, quality)
+    if local is not None:
+        return {"ready": True, "local": True}
+    if source == "local":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Fichier introuvable dans ta musique locale.")
     await ensure_file(deps, source, source_id, quality, format)
     return {"ready": True}
 
@@ -527,6 +555,15 @@ async def stream(
     deps: ApiDeps = Depends(require_token),
 ):
     _check_params(quality, format)
+    local = await local_file(deps, source, source_id, quality)
+    if local is not None:
+        path, content_type, row = local
+        return FileResponse(
+            path, media_type=content_type, filename=path.name,
+            headers={"X-Audio-Quality": local_library.quality_label(row), "X-Audio-Lossless": str(row["lossless"])},
+        )
+    if source == "local":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Fichier introuvable dans ta musique locale.")
     cached = await _cached_file(deps, source, source_id, format, quality)
     if cached is not None:
         _touch(cached[0])

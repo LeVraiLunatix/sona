@@ -3,7 +3,7 @@
 from app.providers.base import TrackInfo
 from app.services import mixes as mixes_service
 from app.services.mixes import Mix
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 
 def test_public_link_lifecycle(client):

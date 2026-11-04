@@ -477,7 +477,7 @@ struct ConnectDevicesSection: View {
             Text("Sona Connect")
         } footer: {
             Text(connect.otherDevices.isEmpty
-                 ? "Ouvre alyra sur ton ordinateur : il apparaîtra ici."
+                 ? "Ouvre Sona sur ton ordinateur : il apparaîtra ici."
                  : "La musique continue sur l'appareil choisi, à la même seconde.")
         }
         .task { await connect.sync() }
@@ -865,8 +865,7 @@ struct ConnectResumeBanner: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(LinearGradient(colors: [Color.accentColor.opacity(0.35), Tone.surfaceStrong],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Tone.surface)
             )
             .contentShape(Rectangle())
             .onTapGesture { showing = true }

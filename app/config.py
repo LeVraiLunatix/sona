@@ -42,6 +42,9 @@ class Settings:
     # et les réglages côté API (indépendant des `user_id` Telegram).
     api_user_id: int = 1
     stream_cache_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "stream_cache")
+    # Dossier de musique lossless (FLAC, ALAC, WAV…) lu tel quel, sans
+    # réencodage (services/local_library.py). None : fonction désactivée.
+    local_music_dir: Path | None = None
     # Import de l'historique Last.fm dans les stats d'écoute (optionnel) :
     # clé API gratuite (https://www.last.fm/api/account/create) + pseudo.
     # Taille maximale des fichiers audio gardés pour l'app (data/stream_cache) :
@@ -55,8 +58,6 @@ class Settings:
     # Pseudos Last.fm administrateurs de l'app (acceptés d'office, accès au
     # panel d'admin). Par défaut : LASTFM_USER.
     admin_lastfm_users: frozenset[str] = frozenset()
-    # Identifiant d'application Bandsintown (concerts des artistes écoutés).
-    bandsintown_app_id: str = "sona-app"
     # Karaoké (app/services/karaoke.py) : pistes voix / instru séparées par
     # IA, gardées dans `karaoke_dir` (les plus anciennes supprimées au-delà
     # de la taille max), et modèle de séparation téléchargé dans
@@ -139,10 +140,10 @@ def load_settings() -> Settings:
         api_token=os.getenv("API_TOKEN", "").strip() or None,
         api_user_id=int(api_user_id_raw) if api_user_id_raw else 1,
         stream_cache_dir=stream_cache_dir,
+        local_music_dir=(data_dir("LOCAL_MUSIC_DIR", "") if os.getenv("LOCAL_MUSIC_DIR", "").strip() else None),
         stream_cache_max_mb=int(os.getenv("STREAM_CACHE_MAX_MB", "").strip() or 2048),
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip() or None,
         lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
-        bandsintown_app_id=os.getenv("BANDSINTOWN_APP_ID", "").strip() or "sona-app",
         lastfm_api_secret=os.getenv("LASTFM_API_SECRET", "").strip() or None,
         karaoke_dir=data_dir("KARAOKE_DIR", "data/karaoke"),
         models_dir=data_dir("MODELS_DIR", "data/models"),

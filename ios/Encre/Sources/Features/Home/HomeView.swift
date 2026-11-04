@@ -8,7 +8,6 @@ struct HomeView: View {
     @State private var radioError: String?
     @State private var releases: [Release] = []
     @State private var memories: [Memory] = []
-    @State private var showingSport = false
     @State private var daily: DailyTrack?
     @State private var mood: MoodMix?
 
@@ -54,8 +53,6 @@ struct HomeView: View {
                     MemoriesCard(memories: memories).padding(.horizontal, 20).reveal(1)
                 }
 
-                sportCard.padding(.horizontal, 20).reveal(1)
-
                 HStack(spacing: 12) {
                     quickButton("Reconnaître un titre", "shazam.logo.fill", "encre://shazam")
                     quickButton("Mode voiture", "car.fill", "encre://car")
@@ -96,8 +93,6 @@ struct HomeView: View {
                         }
                     }
                 }
-
-                ConcertsTeaser { path.append(Route.concerts) }
 
                 if let radioError {
                     Text(radioError).font(Typo.rowSubtitle).foregroundStyle(Tone.danger).padding(.horizontal, 20)
@@ -163,17 +158,14 @@ struct HomeView: View {
             await viewModel.load()
             await loadExtras()
         }
-        .fullScreenCover(isPresented: $showingSport) {
-            SportModeView().environmentObject(player)
-        }
     }
 
     private func loadExtras() async {
         async let fresh = try? APIClient.shared.releases()
         async let past = try? APIClient.shared.memories()
         async let pick = try? APIClient.shared.dailyTrack()
-        // Dernière position connue (concerts, carte) : la météo du mix, sans redemander.
-        let place = ConcertAlerts.lastLocation
+        // Dernière position connue (carte) : la météo du mix, sans redemander.
+        let place = LocationProvider.lastLocation
         async let moment = try? APIClient.shared.mood(latitude: place?.0, longitude: place?.1)
         releases = await fresh ?? releases
         memories = await past ?? memories
@@ -200,8 +192,7 @@ struct HomeView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.11, green: 0.31, blue: 0.54), Color(red: 0.06, green: 0.16, blue: 0.3)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.98))
@@ -238,8 +229,7 @@ struct HomeView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.18, green: 0.11, blue: 0.36), Color(red: 0.06, green: 0.13, blue: 0.25)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.98))
@@ -260,32 +250,6 @@ struct HomeView: View {
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Tone.surfaceStrong))
         }
         .buttonStyle(.pressable(scale: 0.97))
-    }
-
-    /// Mode sport : la musique au rythme de ta course.
-    private var sportCard: some View {
-        Button { showingSport = true } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "figure.run")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 48, height: 48)
-                    .background(Circle().fill(.white.opacity(0.18)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Mode sport").font(Typo.headline).foregroundStyle(.white)
-                    Text("La musique suit ta foulée, au bon tempo").font(Typo.caption).foregroundStyle(.white.opacity(0.8))
-                }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.white)
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.1, green: 0.55, blue: 0.3), Color(red: 0.05, green: 0.25, blue: 0.2)],
-                                         startPoint: .leading, endPoint: .trailing))
-            )
-        }
-        .buttonStyle(.pressable(scale: 0.98))
     }
 
     private func section<Content: View>(_ title: String, index: Int, @ViewBuilder content: () -> Content) -> some View {
