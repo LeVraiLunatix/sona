@@ -1933,7 +1933,8 @@ function renderTopbar() {
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
         <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${albumHtml(t)}` : ""}`}</div></div>
-      <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div></div>`
+      <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div>
+      <span class="tm cur" id="lcd-cur">0:00</span><span class="tm rem" id="lcd-rem">-0:00</span></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
     ${grip()}
     <div class="right-tools">
@@ -1947,6 +1948,8 @@ function renderTopbar() {
       <button class="tbtn small more-tools" data-act="tools" title="Plus">${icons.more}</button>
       <div class="volume" title="${remote ? `Volume de ${esc(remote.name)}` : `Volume : ${volLabel(volumeShown)} — molette pour régler finement`}"><button class="vol-icon" data-act="volume" title="Volume et préréglages">${volIcon(volumeShown)}</button><input type="range" class="slider" id="vol" min="0" max="1" step="0.005" value="${volumeShown}" style="--p:${volumeShown * 100}%" aria-label="Volume">${remote ? "" : `<span class="vol-pct" id="vol-pct">${volLabel(volumeShown)}</span>`}</div>
     </div>`;
+  // La pochette en cours, très floue, teinte la barre (voir `.topbar::before`).
+  bar.style.setProperty("--bar-cover", t?.cover_url ? `url("${big(t.cover_url, 120)}")` : "none");
   bar.onclick = (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
@@ -1995,6 +1998,44 @@ function renderTopbar() {
 }
 
 /** Mini-lecteur du téléphone, posé au-dessus des onglets (comme dans l'app). */
+/** Mini-lecteur du téléphone : glisser vers la gauche / la droite change de titre,
+ * vers le haut ouvre le lecteur (comme un tiroir). Rien pour un appareil distant. */
+function bindMiniGestures(mp) {
+  if (mp._gestures) return;
+  mp._gestures = true;
+  let g = null;
+  const inner = () => mp.firstElementChild;
+  mp.addEventListener("touchstart", (e) => {
+    if (remoteDevice() || e.target.closest("[data-mp=toggle], [data-mp=next]")) { g = null; return; }
+    const t = e.touches[0];
+    g = { x: t.clientX, y: t.clientY, axis: null, dx: 0 };
+  }, { passive: true });
+  mp.addEventListener("touchmove", (e) => {
+    if (!g) return;
+    const t = e.touches[0];
+    const dx = t.clientX - g.x, dy = t.clientY - g.y;
+    if (!g.axis && Math.hypot(dx, dy) > 8) g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (g.axis === "x" && inner()) {
+      g.dx = dx;
+      inner().style.transition = "none";
+      inner().style.transform = `translateX(${dx * 0.55}px)`;
+      inner().style.opacity = String(1 - Math.min(0.5, Math.abs(dx) / 320));
+    }
+  }, { passive: true });
+  const finish = (e) => {
+    if (!g) return;
+    const t = e.changedTouches?.[0];
+    const dy = t ? t.clientY - g.y : 0;
+    const { axis, dx } = g;
+    g = null;
+    if (inner()) { inner().style.transition = ""; inner().style.transform = ""; inner().style.opacity = ""; }
+    if (axis === "x" && Math.abs(dx) > 70) { mp._swiped = Date.now(); haptic(); dx < 0 ? next() : prev(); }
+    else if (axis === "y" && dy < -36) { mp._swiped = Date.now(); haptic(); openNowPlaying("art"); }
+  };
+  mp.addEventListener("touchend", finish, { passive: true });
+  mp.addEventListener("touchcancel", () => { g = null; if (inner()) { inner().style.transition = ""; inner().style.transform = ""; inner().style.opacity = ""; } }, { passive: true });
+}
+
 function renderMini() {
   const mp = $("#mp");
   if (!mp) return;
@@ -2004,14 +2045,16 @@ function renderMini() {
   document.body.classList.toggle("has-mini", !!t);
   if (!t) { mp.innerHTML = ""; return; }
   const paused = remote ? rnow.paused : audio.paused;
-  mp.innerHTML = `<div class="mp-inner" data-mp="open">
+  mp.innerHTML = `<div class="mp-inner" data-mp="open" style="--mp-cover:url('${esc(big(t.cover_url, 120))}')">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
       <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${artistHtml(t)}` : artistHtml(t)}</div></div>
     <button class="mp-btn" data-mp="toggle" aria-label="Lecture/Pause">${paused ? icons.play : icons.pause}</button>
     <button class="mp-btn" data-mp="next" aria-label="Suivant">${icons.next}</button>
     <div class="mp-progress"><div class="fill" id="mp-fill"></div></div></div>`;
+  bindMiniGestures(mp);
   mp.onclick = (e) => {
+    if (Date.now() - (mp._swiped || 0) < 450) return; // un glissé n'est pas un appui
     const act = e.target.closest("[data-mp]")?.dataset.mp;
     if (act === "toggle") { e.stopPropagation(); haptic(); toggle(); }
     else if (act === "next") { e.stopPropagation(); haptic(); next(); }
@@ -2030,6 +2073,9 @@ function updateProgress() {
     if (fill) fill.style.width = pctRemote;
     const mini = $("#mp-fill");
     if (mini) mini.style.width = pctRemote;
+    const rc = $("#lcd-cur"), rr = $("#lcd-rem");
+    if (rc) rc.textContent = fmt(rnow.position || 0);
+    if (rr) rr.textContent = `-${fmt(Math.max(0, dur - (rnow.position || 0)))}`;
     return;
   }
   const t = state.queue[state.index];
@@ -2044,6 +2090,9 @@ function updateProgress() {
   const cur = $("#np-cur"), rem = $("#np-rem");
   if (cur) cur.textContent = fmt(audio.currentTime);
   if (rem) rem.textContent = `-${fmt(Math.max(0, dur - audio.currentTime))}`;
+  const lc = $("#lcd-cur"), lr = $("#lcd-rem");
+  if (lc) lc.textContent = fmt(audio.currentTime);
+  if (lr) lr.textContent = `-${fmt(Math.max(0, dur - audio.currentTime))}`;
 }
 
 // ── Lecteur plein écran ───────────────────────────────────────────────────
@@ -2378,6 +2427,7 @@ function renderNowPlayingMobile(np, t) {
     <div class="np-bg"><img src="${esc(big(t.cover_url, 300))}" alt=""></div>
     <div class="np-m view-${view}">
       <div class="np-grab" data-np="close" aria-label="Fermer"><span></span></div>
+      ${view === "art" ? `<div class="np-from"><span>Lecture depuis</span><b>${esc(state.station ? `${state.station.name} · radio` : state.name || "ta file d'attente")}</b></div>` : ""}
       ${view === "art"
         ? `<div class="np-stage" data-np-swipe><img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt=""></div>`
         : `<div class="np-mini-head"><img src="${esc(big(t.cover_url, 200))}" alt="" data-np="art">
@@ -2494,22 +2544,90 @@ function bindNowPlayingGestures() {
 function renderQueue() {
   const box = panelBox();
   if (!box) return;
-  const rows = state.queue.map((t, i) => ({ t, i })).slice(Math.max(0, state.index - 3), state.index + 80);
+  const all = state.queue.map((t, i) => ({ t, i }));
+  const cur = state.queue[state.index];
+  const past = all.slice(Math.max(0, state.index - 3), state.index);
+  const upcoming = all.slice(state.index + 1, state.index + 81);
   const label = state.station ? `${state.station.name} · radio` : state.name;
-  box.innerHTML = `<div class="queue scroll"><h3>${label ? `À suivre · ${esc(label)}` : "À suivre"}</h3>
-    ${rows.map(({ t, i }) => `<div class="qrow ${i === state.index ? "current" : ""} ${i < state.index ? "past" : ""}" data-q="${i}" role="button">
-      <img src="${esc(big(t.cover_url, 120))}" alt=""><span style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}</div></span>
-      <span class="d">${i === state.index ? bars() : i > state.index ? `<button class="q-x" data-qx="${i}" aria-label="Retirer">${icons.close}</button>` : ""}</span></div>`).join("")}
-    ${state.index >= state.queue.length - 1 ? `<p class="q-end">${state.station || state.settings?.autoplay !== false ? "La suite arrive toute seule (lecture automatique)." : "Rien après ce morceau."}</p>` : ""}
-    ${state.queue.length > state.index + 1 ? `<button class="q-clear" data-qclear>Vider la file</button>` : ""}</div>`;
+  const dots = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="4" r="1.3"/><circle cx="10.5" cy="4" r="1.3"/><circle cx="5.5" cy="8" r="1.3"/><circle cx="10.5" cy="8" r="1.3"/><circle cx="5.5" cy="12" r="1.3"/><circle cx="10.5" cy="12" r="1.3"/></svg>`;
+  const row = ({ t, i }, kind) => `<div class="qrow ${kind}" data-q="${i}" role="button">
+      <img src="${esc(big(t.cover_url, 120))}" alt="" draggable="false"><span class="qmeta"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}</div></span>
+      <span class="qd">${kind === "now" ? bars()
+        : kind === "next" ? `<button class="q-up" data-qup="${i}" title="Lire ensuite" aria-label="Lire ensuite">${icons.nextUp}</button><button class="q-x" data-qx="${i}" title="Retirer" aria-label="Retirer">${icons.close}</button><span class="q-grip" data-qgrip title="Glisser pour déplacer" aria-label="Déplacer">${dots}</span>` : ""}</span></div>`;
+  const ending = state.index >= state.queue.length - 1
+    ? `<p class="q-end">${icons.sparkles}<span>${state.station || state.settings?.autoplay !== false ? "La suite arrive toute seule (lecture automatique)." : "Rien après ce morceau."}</span></p>` : "";
+  box.innerHTML = `<div class="queue scroll">
+    <div class="q-head"><div><h3>À suivre</h3>${label ? `<p>${esc(label)}</p>` : ""}</div>${upcoming.length ? `<button class="q-clear" data-qclear>Vider</button>` : ""}</div>
+    ${past.length ? `<div class="q-sec">Déjà écoutés</div>${past.map((r) => row(r, "past")).join("")}` : ""}
+    ${cur ? `<div class="q-sec">En lecture</div>${row({ t: cur, i: state.index }, "now")}` : ""}
+    <div class="q-sec">À suivre${upcoming.length ? ` · ${upcoming.length}` : ""}</div>
+    ${upcoming.length ? upcoming.map((r) => row(r, "next")).join("") : `<p class="q-empty">Rien en attente.</p>`}
+    ${ending}</div>`;
   box.onclick = (e) => {
+    if (box._dragged && Date.now() - box._dragged < 300) return;
     const x = e.target.closest("[data-qx]");
-    if (x) { e.stopPropagation(); state.queue.splice(+x.dataset.qx, 1); renderQueue(); return; }
-    if (e.target.closest("[data-qclear]")) { state.queue.length = state.index + 1; state.station = null; renderQueue(); return; }
-    const row = e.target.closest("[data-q]");
-    if (row) playAt(+row.dataset.q);
+    if (x) { e.stopPropagation(); state.queue.splice(+x.dataset.qx, 1); renderQueue(); startConnect.now?.(); return; }
+    const up = e.target.closest("[data-qup]");
+    if (up) {
+      e.stopPropagation();
+      const [item] = state.queue.splice(+up.dataset.qup, 1);
+      state.queue.splice(state.index + 1, 0, item);
+      toast("Lu ensuite");
+      renderQueue(); startConnect.now?.(); return;
+    }
+    if (e.target.closest("[data-qgrip]")) return;
+    if (e.target.closest("[data-qclear]")) { state.queue.length = state.index + 1; state.station = null; renderQueue(); startConnect.now?.(); return; }
+    const rowEl = e.target.closest("[data-q]");
+    if (rowEl) playAt(+rowEl.dataset.q);
   };
-  $(".qrow.current", box)?.scrollIntoView({ block: "center" });
+  box.onpointerdown = (e) => {
+    const grip = e.target.closest("[data-qgrip]");
+    if (grip) { e.preventDefault(); queueDrag(e, grip.closest(".qrow"), box); }
+  };
+  $(".qrow.now", box)?.scrollIntoView({ block: "center" });
+}
+
+/** Réordonner la file en glissant la poignée : seules les lignes « à suivre »
+ * bougent ; les autres s'écartent au passage, et la file n'est modifiée qu'au
+ * relâchement. */
+function queueDrag(e, rowEl, box) {
+  const rows = [...box.querySelectorAll(".qrow.next")];
+  const fromPos = rows.indexOf(rowEl);
+  if (fromPos < 0) return;
+  const order = rows.map((r) => +r.dataset.q);
+  const rects = rows.map((r) => r.getBoundingClientRect());
+  const step = rects.length > 1 ? rects[1].top - rects[0].top : rects[0].height;
+  const startY = e.clientY;
+  let toPos = fromPos;
+  rowEl.classList.add("drag");
+  rows.forEach((r) => { if (r !== rowEl) r.style.transition = "transform .2s cubic-bezier(.2,.8,.2,1)"; });
+  const move = (ev) => {
+    const dy = ev.clientY - startY;
+    rowEl.style.transform = `translateY(${dy}px)`;
+    const centre = rects[fromPos].top + rects[fromPos].height / 2 + dy;
+    toPos = 0;
+    rects.forEach((r, k) => { if (centre > r.top + r.height / 2) toPos = k; });
+    rows.forEach((r, k) => {
+      if (k === fromPos) return;
+      const shift = fromPos < toPos && k > fromPos && k <= toPos ? -step : fromPos > toPos && k < fromPos && k >= toPos ? step : 0;
+      r.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    box._dragged = Date.now();
+    if (toPos !== fromPos) {
+      const [item] = state.queue.splice(order[fromPos], 1);
+      state.queue.splice(order[toPos], 0, item);
+      startConnect.now?.();
+    }
+    renderQueue();
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
 }
 
 /** Mots horodatés d'une ligne : ceux de la source quand elle les donne
