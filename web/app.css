@@ -1981,3 +1981,19 @@ html[data-lyrblur="off"] .lyrics p[data-d] { filter: none; }
     -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   }
 }
+
+/* ═══ Accueil : cartes du haut sur deux colonnes, sans couleurs vives ═══════ */
+.home-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4) var(--s-6); align-items: start; max-width: 1180px; margin-top: var(--s-5); }
+.home-cards { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.home-cards > * { margin: 0 !important; max-width: none !important; width: 100%; }
+.home-top .home-hero { max-width: none; margin: 0; }
+.home-cards:empty { display: none; }
+@media (max-width: 1100px) { .home-top { grid-template-columns: minmax(0, 1fr); } }
+.resume, .daily, .mood, .memory { background: var(--fill); border: 0; box-shadow: none; border-radius: var(--r-card); color: var(--text); }
+.daily .eyebrow, .mood .eyebrow, .memory .eyebrow, .resume .eyebrow { color: var(--text-3); }
+.daily img, .resume img { box-shadow: none; }
+.resume:hover, .daily:hover, .mood:hover, .memory:hover { transform: none; background: var(--fill-strong); }
+
+/* Paroles : le dégradé de chaque mot (background-clip: text) ne se dessine que dans sa boîte, aussi haute que la
+   ligne : le bas des g, y, p était rogné. On agrandit la boîte vers le haut et le bas sans changer l'interligne. */
+.lyrics p .w, .lyrics p .w .ch { padding-block: .16em .28em; margin-block: -.16em -.28em; }

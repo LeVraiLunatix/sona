@@ -572,7 +572,6 @@ html.desktop .content {
 html.desktop .page { padding: 64px 56px 168px; }
 html.desktop .topbar {
   position: fixed; border-radius: 28px; padding: 0 24px 0 16px; height: 76px; gap: 24px;
-  grid-template-columns: auto minmax(180px, 1fr) auto;
   background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
   border: 1px solid var(--hairline); box-shadow: var(--shadow-pop);
 }
@@ -586,3 +585,93 @@ html.desktop .wctl button:hover { background: var(--fill-strong); }
 html.desktop .wctl .close:hover { box-shadow: none; }
 html.desktop .brand-icon { box-shadow: none; }
 @media (max-width: 1400px) { html.desktop { --sidebar-w: 88px; } }
+
+/* ═══ Correctifs PC ══════════════════════════════════════════════════════════
+   Les règles plus haut (verre, puis « Windows 11 à plat ») supposaient une barre
+   en haut et un menu de 260 px, et prennent le pas sur le web par leur priorité.
+   Ce bloc, en dernier, remet sur PC la même mise en page que sur le web. */
+html.desktop { --topbar-h: 76px; --sidebar-w: 88px; --drawer-w: 380px; }
+html.desktop[data-menu="ouvert"] { --sidebar-w: 264px; }
+html.desktop .app { grid-template-rows: minmax(0, 1fr); grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 0; }
+html.desktop.drawer-open .app { grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--drawer-w); }
+html.desktop .drag-top { height: 12px; }
+
+/* Menu : rail d'icônes (les libellés ne dépassent plus), ouvert au survol */
+html.desktop .side-link { font-size: 0; padding: 10px 12px; border-radius: 14px; overflow: hidden; white-space: nowrap; color: var(--text-2); }
+html.desktop .side-link .icon { font-size: 19px; flex: none; }
+html.desktop .side-link:hover { background: var(--fill); color: var(--text); }
+html.desktop .side-link.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+html.desktop .sidebar:hover .side-link, html.desktop .sidebar:focus-within .side-link, html.desktop[data-menu="ouvert"] .side-link { font-size: 14.5px; padding: 10px 16px; }
+html.desktop .brand { padding: 4px 0 24px; margin-left: -7px; font-size: 20px; }
+html.desktop .side-search input { height: 42px; border-radius: 14px; background: var(--fill); box-shadow: none; }
+html.desktop .side-search input:focus { background: var(--fill-strong); box-shadow: 0 0 0 1px var(--accent-soft); }
+html.desktop .side-user { background: transparent; box-shadow: none; border: 0; border-radius: 0; padding: 16px 7px 4px; margin-top: 12px; }
+html.desktop .sidebar:hover .side-user, html.desktop .sidebar:focus-within .side-user, html.desktop[data-menu="ouvert"] .side-user { padding-left: 12px; }
+/* Pas de barre de défilement (avec ses flèches Windows) dans le menu */
+html.desktop .side-list { scrollbar-width: none; }
+html.desktop .side-list::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* Barre du bas : 5 colonnes (poignées de déplacement de la fenêtre de part et d'autre de l'écran du titre) */
+html.desktop .topbar {
+  position: fixed; grid-column: auto; grid-row: auto; height: 76px; border-radius: var(--r-panel); padding: 0 24px 0 16px; gap: 12px;
+  grid-template-columns: auto minmax(8px, 1fr) minmax(260px, 560px) minmax(8px, 1fr) auto;
+  background: var(--glass); border: 1px solid var(--hairline); box-shadow: var(--shadow-pop);
+}
+html.desktop.drawer-open .topbar {
+  left: calc(var(--sidebar-w) + (100vw - var(--sidebar-w) - var(--drawer-w)) / 2);
+  width: min(920px, calc(100vw - var(--sidebar-w) - var(--drawer-w) - 96px));
+}
+@media (max-width: 1400px) { html.desktop .topbar { grid-template-columns: auto minmax(6px, 1fr) minmax(200px, 560px) minmax(6px, 1fr) auto; } }
+@media (max-width: 1100px) { html.desktop .topbar { grid-template-columns: auto minmax(4px, 1fr) minmax(150px, 560px) minmax(4px, 1fr) auto; } }
+html.desktop .topbar .tbtn.big { width: 46px; height: 46px; font-size: 24px; background: var(--accent); color: var(--on-accent); }
+html.desktop .topbar .tbtn.big:hover { background: var(--accent); filter: brightness(1.08); }
+html.desktop .lcd { height: 60px; border-radius: 14px; padding: 0; grid-template-columns: 60px minmax(0, 1fr); gap: 14px; background: transparent; box-shadow: none; }
+html.desktop .lcd.idle { grid-template-columns: 1fr; }
+html.desktop .lcd .art { width: 60px; height: 60px; border-radius: 12px; }
+html.desktop .lcd .progress { left: 74px; right: 0; bottom: 0; height: 4px; border-radius: 4px; background: var(--fill-strong); transition: height .18s var(--ease), background .18s; }
+html.desktop .lcd .progress .fill { border-radius: 4px; background: var(--accent); box-shadow: none; }
+html.desktop .lcd:hover .progress { height: 16px; border-radius: 8px; background: rgba(255, 255, 255, 0.14); }
+html.desktop .lcd:hover .progress .fill { background: rgba(255, 255, 255, 0.28); border-radius: 8px; }
+
+/* Contenu et tiroir (paroles / À suivre) : panneaux arrondis, comme sur le web */
+html.desktop .content { grid-column: 2; grid-row: 1; margin: 12px 12px 12px 0; border-radius: var(--r-panel); background: var(--bg); border: 1px solid var(--hairline); }
+html.desktop .drawer {
+  grid-column: 3; grid-row: 1; margin: 12px 12px 12px 0; border-radius: var(--r-panel); background: var(--bg);
+  border: 1px solid var(--hairline); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html.desktop .page { max-width: 1320px; margin: 0 auto; padding: 64px 56px 168px; }
+
+/* Boutons, titres, cartes : les valeurs du web */
+html.desktop .btn { border-radius: var(--r-ctl); height: 44px; padding: 0 24px; }
+html.desktop .btn.ghost { background: var(--fill-strong); box-shadow: none; }
+html.desktop .btn.ghost:hover { background: rgba(255, 255, 255, 0.14); }
+html.desktop .hero-art { border-radius: var(--r-card); box-shadow: none; }
+html.desktop .card .art-wrap { border-radius: var(--radius-art); }
+html.desktop .feature, html.desktop .home-hero { border-radius: var(--r-card); }
+html.desktop .tr { border-radius: 16px; }
+html.desktop .tr:nth-child(odd) { background: transparent; }
+html.desktop .tr:hover { background: var(--fill); }
+html.desktop .tr.current { background: var(--accent-soft); }
+html.desktop :is(.chip, .top-card, .set-group, .install-card, .health-card, .health-hero, .cast-remote) { background: var(--fill); box-shadow: none; }
+html.desktop .set-group { border-radius: var(--r-card); }
+html.desktop .sheet { border-radius: var(--r-panel); }
+
+/* La barre du bas a plus de boutons sur PC (télécommande, mini-lecteur, visualiseur…) : elle est plus large. */
+html.desktop .topbar { width: min(1120px, calc(100vw - var(--sidebar-w) - 96px)); grid-template-columns: auto minmax(8px, 1fr) minmax(220px, 420px) minmax(8px, 1fr) auto; }
+html.desktop.drawer-open .topbar { width: min(1120px, calc(100vw - var(--sidebar-w) - var(--drawer-w) - 96px)); }
+@media (max-width: 1400px) { html.desktop .topbar { grid-template-columns: auto minmax(6px, 1fr) minmax(180px, 420px) minmax(6px, 1fr) auto; } }
+@media (max-width: 1100px) { html.desktop .topbar { grid-template-columns: auto minmax(4px, 1fr) minmax(140px, 420px) minmax(4px, 1fr) auto; } }
+
+/* Tiroir : il commence sous les boutons de la fenêtre, et son contenu prend toute sa largeur (marges comprises). */
+html.desktop .drawer { margin-top: 44px; margin-bottom: 12px; }
+html.desktop .drawer-head, html.desktop .drawer-body { width: 100%; }
+html.desktop .drawer-head { padding: 12px 10px 8px 14px; }
+
+/* Lecteur plein écran sur PC : l'ancien style « verre » laissait le bouton lecture translucide (icône noire sur
+   fond transparent) et les onglets en verre. Même rendu que sur le web : rond blanc, onglet actif blanc. */
+html.desktop .np-transport .tbtn.big { background: #fff; color: #000; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop .np-transport .tbtn.big:hover { background: #fff; }
+html.desktop .np-tabs { box-shadow: none; }
+html.desktop .np-tabs button.on { background: #fff; color: #000; box-shadow: none; }
+html.desktop .np-art { border-radius: var(--r-panel); box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.07); }
+html.desktop .qrow { border-radius: 16px; }
