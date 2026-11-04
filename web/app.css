@@ -63,10 +63,25 @@ img { display: block; }
 .icon { width: 1em; height: 1em; fill: currentColor; flex: none; }
 ::selection { background: var(--accent-soft); }
 
-/* Barres de défilement discrètes */
-.scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--fill-strong) transparent; }
-.scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.scroll::-webkit-scrollbar-thumb { background: var(--fill-strong); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+/* Barres de défilement : une fine pilule qui flotte, loin des coins arrondis du
+   panneau, plus marquée au survol. Les navigateurs qui savent dessiner
+   ::-webkit-scrollbar (Chrome, Edge, Safari, Sona pour Windows) l'utilisent :
+   scrollbar-width / scrollbar-color doivent alors rester à « auto », sinon
+   Chromium les ignore et remet la barre grise du système. Firefox : version fine. */
+.scroll { overflow-y: auto; --sb: color-mix(in srgb, var(--text) 16%, transparent); --sb-on: color-mix(in srgb, var(--text) 34%, transparent); }
+@supports not selector(::-webkit-scrollbar) {
+  .scroll { scrollbar-width: thin; scrollbar-color: var(--sb) transparent; }
+}
+.scroll::-webkit-scrollbar { width: 14px; height: 14px; background: transparent; }
+.scroll::-webkit-scrollbar-track { background: transparent; margin: 22px 0; }
+.scroll::-webkit-scrollbar-thumb { min-height: 56px; border-radius: 99px; border: 4px solid transparent; background: color-mix(in srgb, var(--text) 9%, transparent) padding-box; }
+.scroll:hover::-webkit-scrollbar-thumb { background-color: var(--sb); }
+.scroll::-webkit-scrollbar-thumb:hover { background-color: var(--sb-on); border-width: 3px; }
+.scroll::-webkit-scrollbar-thumb:active { background-color: color-mix(in srgb, var(--text) 48%, transparent); border-width: 3px; }
+.scroll::-webkit-scrollbar-button, .scroll::-webkit-scrollbar-corner { display: none; width: 0; height: 0; background: transparent; }
+/* Menu : il défile toujours (molette, glisser), mais sans aucune barre. */
+.side-list { scrollbar-width: none; }
+.side-list::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* ── Mise en page ─────────────────────────────────────────────────────── */
 
@@ -1765,6 +1780,43 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .sidebar:hover .side-user .gear, .sidebar:has(:focus-visible) .side-user .gear, html[data-menu="ouvert"] .sidebar .side-user .gear { display: grid; }
 }
 .side-section:has(+ div:empty) { display: none; }
+
+/* Teinte de la pochette en haut des fiches : sur toute la largeur du panneau.
+   Calée sur l'en-tête, elle s'arrêtait net aux bords de la colonne centrale
+   (1320 px) dès que la fenêtre est plus large. Elle se place maintenant dans
+   le panneau qui défile (.content), et défile avec la page. */
+@media (min-width: 761px) {
+  .content .hero, .content .profile-head, .content .blend-head { position: static; }
+  :root .content .hero-glow, :root .content .profile-head .hero-glow { inset: 0 0 auto; }
+}
+
+/* Ouverture d'une page (album, playlist, artiste, onglet…) sur ordinateur :
+   la teinte s'allume, la pochette se pose, le texte puis les titres montent
+   en cascade. Retour en arrière : un simple fondu. Rien si l'on demande
+   moins d'animations (réglage du système). */
+@media (min-width: 761px) and (prefers-reduced-motion: no-preference) {
+  .page.enter { animation: pg-fade .3s ease-out backwards; }
+  .page.enter-back { animation: pg-fade .22s ease-out backwards; }
+  .page.enter .hero-glow { animation: pg-glow 1s ease-out backwards; }
+  .page.enter :is(.hero-art, .profile-avatar) { animation: pg-art .62s cubic-bezier(.16, 1, .3, 1) backwards; }
+  .page.enter :is(.hero-text, .profile-head) > :not(.hero-glow) { animation: pg-rise .5s cubic-bezier(.16, 1, .3, 1) backwards; animation-delay: calc(70ms + var(--d, 0) * 45ms); }
+  .page.enter :is(.tr, .card, .feature) { animation: pg-rise .46s cubic-bezier(.16, 1, .3, 1) backwards; animation-delay: calc(150ms + var(--d, 0) * 26ms); }
+  .page.enter :is(.hero-text, .profile-head) > :nth-child(2), .page.enter :is(.tr, .card, .feature):nth-child(2) { --d: 1; }
+  .page.enter :is(.hero-text, .profile-head) > :nth-child(3), .page.enter :is(.tr, .card, .feature):nth-child(3) { --d: 2; }
+  .page.enter :is(.hero-text, .profile-head) > :nth-child(4), .page.enter :is(.tr, .card, .feature):nth-child(4) { --d: 3; }
+  .page.enter :is(.hero-text, .profile-head) > :nth-child(5), .page.enter :is(.tr, .card, .feature):nth-child(5) { --d: 4; }
+  .page.enter :is(.hero-text, .profile-head) > :nth-child(6), .page.enter :is(.tr, .card, .feature):nth-child(6) { --d: 5; }
+  .page.enter :is(.tr, .card, .feature):nth-child(7) { --d: 6; }
+  .page.enter :is(.tr, .card, .feature):nth-child(8) { --d: 7; }
+  .page.enter :is(.tr, .card, .feature):nth-child(9) { --d: 8; }
+  .page.enter :is(.tr, .card, .feature):nth-child(10) { --d: 9; }
+  .page.enter :is(.tr, .card, .feature):nth-child(11) { --d: 10; }
+  .page.enter :is(.tr, .card, .feature):nth-child(n+12) { --d: 11; }
+}
+@keyframes pg-fade { from { opacity: 0; } }
+@keyframes pg-glow { from { opacity: 0; } }
+@keyframes pg-art { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes pg-rise { from { opacity: 0; transform: translateY(12px); } }
 
 /* ── Personnalisation (Réglages > Apparence) ────────────────────────────── */
 html[data-shape="net"] { --r-panel: 12px; --r-card: 8px; --r-art: 6px; --r-ctl: 10px; }

@@ -760,6 +760,8 @@ async function route() {
     if (i >= 0) { direction = i < stack.length - 1 ? "back" : "none"; stack.length = i + 1; }
     else { stack.push(hash); direction = "push"; }
   }
+  // Une autre page (pas le simple rafraîchissement de celle-ci) : animation d'arrivée.
+  const opened = nav.current !== hash;
   nav.current = hash;
   markNav();
   renderHeader(parts, isRoot);
@@ -783,6 +785,7 @@ async function route() {
     content.innerHTML = html;
     const pageEl = $(".page", content);
     if (pageEl && direction !== "none" && isMobile()) pageEl.classList.add(direction === "push" ? "push" : "pop");
+    else if (pageEl && opened && !isMobile()) pageEl.classList.add(direction === "back" ? "enter-back" : "enter");
     bindPage(content);
     if (direction === "back" && nav.scroll[hash]) content.scrollTop = nav.scroll[hash];
   } catch (e) {
@@ -1880,6 +1883,8 @@ function playAt(index, { position = 0 } = {}) {
   document.title = `${t.title} · ${artistsText(t)}`;
   renderTopbar();
   renderNowPlaying();
+  // Tiroir ouvert (PC) : son onglet reste le même et passe au nouveau titre.
+  if (!state.npOpen && state.drawer) renderDrawer();
   refreshCurrentMarks();
   loadLyrics(t);
   loadFeats(t);
@@ -2461,7 +2466,9 @@ function renderNowPlayingView() {
     </div>`;
   bindNowPlaying(np, t);
   bindNpVolume(np);
-  if (state.npTab === "queue") renderQueue(); else if (state.npTab === "credits") renderCredits(); else renderLyrics();
+  // Lecteur plein écran fermé : sa colonne de droite n'est pas affichée, et
+  // panelBox() viserait alors le tiroir (qui a son propre onglet).
+  if (state.npOpen) { if (state.npTab === "queue") renderQueue(); else if (state.npTab === "credits") renderCredits(); else renderLyrics(); }
   renderSing();
   renderMoments();
   updateProgress();
@@ -2509,7 +2516,7 @@ function renderNowPlayingMobile(np, t) {
     </div>`;
   bindNowPlaying(np, t);
   bindNpVolume(np);
-  if (view === "queue") renderQueue(); else if (view === "lyrics") renderLyrics();
+  if (state.npOpen) { if (view === "queue") renderQueue(); else if (view === "lyrics") renderLyrics(); }
   renderSing();
   renderMoments();
   updateProgress();
@@ -2593,7 +2600,8 @@ function bindNowPlayingGestures() {
 
 function renderQueue() {
   const box = panelBox();
-  if (!box) return;
+  // Seulement dans l'onglet « À suivre » : jamais par-dessus les paroles ou les crédits.
+  if (!box || panelTab() !== "queue") return;
   const all = state.queue.map((t, i) => ({ t, i }));
   const cur = state.queue[state.index];
   const past = all.slice(Math.max(0, state.index - 3), state.index);
@@ -2963,7 +2971,7 @@ function bindCredits(root) {
 /** Onglet « Crédits » du tiroir et du lecteur (titre en cours). */
 async function renderCredits() {
   const t = state.queue[state.index];
-  if (!t || !panelBox()) return;
+  if (!t || !panelBox() || panelTab() !== "credits") return;
   panelBox().innerHTML = `<div class="credits"><p class="none">Chargement des crédits…</p></div>`;
   const data = await loadCredits(t, true);
   const box = panelBox();
@@ -2992,7 +3000,8 @@ const offsetLabel = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toF
 
 function renderLyrics() {
   const box = panelBox();
-  if (!box) return;
+  // Seulement dans l'onglet « Paroles » : jamais par-dessus les crédits ou la file.
+  if (!box || panelTab() !== "lyrics") return;
   const ly = state.lyrics;
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
   const cur = state.queue[state.index];
