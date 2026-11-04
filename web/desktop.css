@@ -558,11 +558,13 @@ html.desktop .profile-head .hero-glow { inset: -30px -36px auto; }
    arrondi, lecteur flottant en bas. Plus de fond vivant ni de verre épais.
    Ce bloc vient en dernier. */
 html.desktop .ambient { display: none; }
-html.desktop { --gap: 0px; --topbar-h: 76px; --sidebar-w: 256px; }
+html.desktop { --gap: 0px; --topbar-h: 76px; }
 html.desktop body { background: transparent; background-image: inherit; }
 html.desktop #root { z-index: 1; }
-html.desktop .app { gap: 0; padding: 0; grid-template-rows: 1fr; grid-template-columns: var(--sidebar-w) 1fr; }
-html.desktop .sidebar { position: relative; background: transparent; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 40px 16px 16px 24px; }
+html.desktop .app { gap: 0; padding: 0; grid-template-rows: 1fr; }
+html.desktop, html.desktop:root { --sidebar-w: 88px; }
+html.desktop .sidebar { position: fixed; border: 0; border-radius: 0 28px 28px 0; padding: 40px 22px 16px; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop .sidebar:hover, html.desktop .sidebar:focus-within { background: rgba(20, 20, 22, .94); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%); box-shadow: var(--shadow-pop), inset -1px 0 0 var(--hairline); }
 html.desktop .content {
   grid-row: 1; margin: 12px 12px 12px 0; border-radius: 28px; background: var(--bg); border: 1px solid var(--hairline);
   box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -576,9 +578,11 @@ html.desktop .topbar {
 }
 html.desktop :is(.devices-pop, .sheet, .toast) { background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 24px; box-shadow: var(--shadow-pop); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet)::before { display: none; }
+html.desktop .brand { -webkit-app-region: no-drag; }
 html.desktop .sheet-backdrop { background: rgba(0, 0, 0, .66); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.desktop .wctl { top: 16px; right: 28px; }
 html.desktop .wctl button { border-radius: 10px; box-shadow: none; background: transparent; }
 html.desktop .wctl button:hover { background: var(--fill-strong); }
 html.desktop .wctl .close:hover { box-shadow: none; }
 html.desktop .brand-icon { box-shadow: none; }
+@media (max-width: 1400px) { html.desktop { --sidebar-w: 88px; } }

@@ -1700,3 +1700,52 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .login-card { padding: var(--s-7) var(--s-5) var(--s-6); }
   .tabbar button.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 }
+
+/* ── Menu en rail : petit au repos, il s'ouvre au survol ─────────────────────
+   Au repos, seules les icônes (et la pastille du compte) : 88 px. Au survol ou
+   au clavier, le menu glisse par-dessus le contenu sans le décaler. */
+@media (min-width: 761px) {
+  :root { --sidebar-w: 88px; --sidebar-open: 264px; }
+  .sidebar {
+    position: fixed; z-index: 30; inset: 0 auto 0 0; width: var(--sidebar-w); overflow: hidden;
+    padding: var(--s-6) 22px var(--s-4); border-radius: 0 28px 28px 0;
+    transition: width .28s cubic-bezier(.32, .72, 0, 1) .06s, background .2s ease, box-shadow .28s ease;
+  }
+  .sidebar:hover, .sidebar:focus-within {
+    width: var(--sidebar-open); background: rgba(20, 20, 22, 0.94);
+    -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
+    box-shadow: var(--shadow-pop), inset -1px 0 0 var(--hairline);
+  }
+  .app { grid-template-columns: var(--sidebar-w) 1fr; }
+  .content { grid-column: 2; }
+
+  .sidebar .brand .wordmark { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: opacity .15s ease, max-width .28s ease; }
+  .sidebar:hover .brand .wordmark, .sidebar:focus-within .brand .wordmark { max-width: 160px; opacity: 1; transition-delay: .1s; }
+
+  .side-search { width: 44px; overflow: hidden; border-radius: 14px; transition: width .28s cubic-bezier(.32, .72, 0, 1) .06s; }
+  .side-search input { width: var(--sidebar-open); min-width: 0; color: transparent; }
+  .side-search input::placeholder { color: transparent; }
+  .sidebar:hover .side-search, .sidebar:focus-within .side-search { width: 100%; }
+  .sidebar:hover .side-search input, .sidebar:focus-within .side-search input { width: 100%; color: var(--text); }
+  .sidebar:hover .side-search input::placeholder, .sidebar:focus-within .side-search input::placeholder { color: var(--text-3); }
+
+  .side-list { overflow-x: hidden; }
+  .side-link { font-size: 0; overflow: hidden; white-space: nowrap; padding: 10px 12px; }
+  .side-link .icon { font-size: 19px; flex: none; }
+  .side-link .side-badge { display: none; }
+  .sidebar:hover .side-link, .sidebar:focus-within .side-link { font-size: 14.5px; padding: 10px var(--s-4); }
+  .sidebar:hover .side-link .side-badge, .sidebar:focus-within .side-link .side-badge { display: inline; }
+
+  /* Titres de groupe : un simple filet au repos */
+  .side-section { height: 1px; padding: 0; margin: var(--s-4) 12px; background: var(--hairline); font-size: 0; overflow: hidden; }
+  .sidebar:hover .side-section, .sidebar:focus-within .side-section {
+    height: auto; padding: var(--s-6) var(--s-4) var(--s-2); margin: 0; background: none; font-size: 11px; overflow: visible;
+  }
+
+  .side-user { padding-left: 7px; }
+  .side-user .name, .side-user .gear { display: none; }
+  .sidebar:hover .side-user, .sidebar:focus-within .side-user { padding-left: var(--s-3); }
+  .sidebar:hover .side-user .name, .sidebar:focus-within .side-user .name { display: block; }
+  .sidebar:hover .side-user .gear, .sidebar:focus-within .side-user .gear { display: grid; }
+}
+.side-section:has(+ div:empty) { display: none; }
