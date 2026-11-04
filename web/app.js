@@ -273,7 +273,6 @@ async function startApp() {
   renderShell();
   bindDrawer();
   restoreResume();
-  if (focus.phase) focusLoop();
   startConnect();
   loadSidebar();
   loadLiked();
@@ -438,10 +437,7 @@ const SIDE_NAV = [
 ];
 const SIDE_MORE = [
   ["radios", "Radios", icons.radio],
-  ["blindtest", "Blind test", icons.wave],
   ["party", "Écoute ensemble", icons.headphones],
-  ["concerts", "Concerts", icons.calendar],
-  ["sport", "Mode sport", icons.bolt],
 ];
 
 function renderShell() {
@@ -614,8 +610,7 @@ async function route() {
     playlist: () => viewUserPlaylist(parts[1]), dplaylist: () => viewAlbum(parts[1], parts[2], true),
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
-    stats: viewStats, recent: viewRecent, radios: viewRadios, concerts: viewConcerts,
-    blindtest: viewBlindTest, live: () => viewLive(parts[1]), party: () => viewParty(parts[1]), sport: viewSport,
+    stats: viewStats, recent: viewRecent, radios: viewRadios, party: () => viewParty(parts[1]),
     settings: viewSettings, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
@@ -873,7 +868,6 @@ async function viewHome() {
     $("[data-install-close]")?.addEventListener("click", () => { store.set("sona.installDismissed", "1"); $("#install").replaceChildren(); });
     $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
     $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
-    $("[data-focus]")?.addEventListener("click", (e) => { e.preventDefault(); focusSheet(); });
     $("[data-recognize]")?.addEventListener("click", (e) => { e.preventDefault(); recognizeSheet(); });
     $("[data-mood-play]")?.addEventListener("click", () => playStation(`${mood.emoji} ${mood.title}`, async () => (await loadMood()).tracks));
     $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
@@ -902,10 +896,7 @@ async function viewHome() {
       <span class="s">${plural(memory.plays, "écoute")} · touche pour réécouter</span></span></button>` : ""}
     <section class="section"><div class="section-head"><h2>Jouer</h2></div>
       <div class="tiles">
-        ${tile({ href: "#/blindtest", icon: icons.wave, title: "Blind test", subtitle: "Défi du jour, solo ou en direct", tone: "violet" })}
         ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
-        ${tile({ href: "#/sport", icon: icons.bolt, title: "Mode sport", subtitle: "La musique au tempo de ta course", tone: "green" })}
-        ${tile({ icon: icons.clock, title: "Mode focus", subtitle: "Travailler en musique, avec des pauses", tone: "orange", data: "data-focus" })}
         ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "alyra écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
       </div></section>
     ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
@@ -915,7 +906,6 @@ async function viewHome() {
       <div class="shelf-nav"><a class="more" href="#/recent">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
       ${trackGrid(recentTracks, "Écoutés récemment")}</section>` : ""}
     ${shelf("Radios", radios.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` })}
-    <a class="concert-teaser" href="#/concerts"><span class="tile-icon">${icons.calendar}</span><span><span class="t">Concerts près de chez toi</span><span class="s">Les dates à venir de tes artistes préférés</span></span>${icons.right}</a>
     ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${t.source}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
     ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
     ${!mixes.length && !recentTracks.length ? empty("♫", "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
@@ -1147,7 +1137,7 @@ async function viewArtist(source, id) {
       bindPage($("#artist-disco"));
     };
     bindDisco();
-    // Biographie (Wikipédia) et concerts : arrivent après la page, sans la retarder.
+    // Biographie (Wikipédia) : arrivent après la page, sans la retarder.
     api(`${base}/bio`).then((bio) => {
       const box = $("#artist-bio");
       if (!box || !bio?.text) return;
@@ -1156,24 +1146,13 @@ async function viewArtist(source, id) {
         <div class="bio-foot"><button class="link-btn" data-bio-more>Lire la suite</button>${bio.url ? `<a class="bio-src" href="${esc(bio.url)}" target="_blank" rel="noopener">${esc(bio.source || "Source")}</a>` : ""}</div></div></section>`;
       $("[data-bio-more]", box).onclick = (e) => { const p = $(".bio-text", box); p.classList.toggle("clamp"); e.target.textContent = p.classList.contains("clamp") ? "Lire la suite" : "Réduire"; };
     }).catch(() => {});
-    api(`${base}/concerts`).then((events) => {
-      const box = $("#artist-concerts");
-      if (!box || !events?.length) return;
-      box.innerHTML = `<section class="section"><div class="section-head"><h2>Concerts à venir</h2></div><div class="concerts">${events.slice(0, 6).map((e) => {
-        const d = new Date(e.datetime);
-        return `<a class="concert" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : ""}>
-          <span class="date"><b>${d.getDate()}</b><small>${d.toLocaleDateString("fr-FR", { month: "short" })}</small></span>
-          <span class="ct"><span class="t">${esc(e.venue || e.city || "Concert")}</span><span class="s">${esc([e.city, e.country].filter(Boolean).join(" · "))}</span></span>
-          ${e.url ? `<span class="go">Billets</span>` : ""}</a>`;
-      }).join("")}</div></section>`;
-    }).catch(() => {});
   });
   return page(hero({
     cover: artist.picture_url, kind: "Artiste", title: artist.name, round: true,
     info: artist.fans ? `${artist.fans.toLocaleString("fr-FR")} fans` : "", list: top.length ? list : "",
     extra: `<button class="btn ghost" data-artist-radio>${icons.radio} Radio</button>` + likeButton("artist", artist.source, artist.source_id, state.likedArtists),
   }) + (top.length ? `<section class="section"><div class="section-head"><h2>Titres populaires</h2></div>${trackTable(top.slice(0, 10), artist.name)}</section>` : "")
-    + `<div id="artist-concerts"></div><div id="artist-disco">${discoHtml()}</div><div id="artist-bio"></div>`
+    + `<div id="artist-disco">${discoHtml()}</div><div id="artist-bio"></div>`
     + shelf("Artistes similaires", related.map((a) => card({ href: `#/artist/${a.source}/${a.source_id}`, cover: a.picture_url, title: a.name, round: true })), { kind: "round" }));
 }
 
@@ -1236,7 +1215,6 @@ function playlistMenu(p) {
     if (p.origin && p.import_status === "done") items.push({ icon: icons.check, label: "Rapport d'import", sub: "Trouvés, à vérifier, introuvables", run: () => importReport(p) });
   }
   if (p.track_count) items.push({ icon: icons.share, label: "Partager un lien…", sub: "Page publique : titres et extraits de 30 s", run: () => sonaShareSheet({ kind: "playlist", source: "sona", id: p.id, title: p.name, subtitle: plural(p.track_count, "titre"), cover_url: p.cover_url || (p.covers || [])[0] }) });
-  items.push({ icon: icons.wave, label: "Blind test sur cette playlist", run: () => { bt.pending = { mode: "playlist", ref: String(p.id), label: p.name }; go("#/blindtest"); } });
   if (p.is_owner) {
     items.push({ icon: icons.trash, label: "Supprimer la playlist", danger: true, run: async () => {
       if (!(await confirmSheet(`Supprimer « ${p.name} » ?`, "Supprimer"))) return;
@@ -3376,130 +3354,6 @@ async function saveHeard(t) {
   } catch { return false; }
 }
 
-// ── Mode focus (Pomodoro) ────────────────────────────────────────────────
-// Des séances de travail en musique (25 min par défaut), puis une pause
-// (5 min) où la musique s'arrête ; un petit chrono flotte en bas à droite.
-
-const FOCUS_PLANS = [[25, 5], [50, 10], [90, 15]];
-const focus = (() => {
-  try {
-    const saved = JSON.parse(store.get("sona.focus") || "null");
-    if (saved && saved.endsAt > Date.now() - 60000) return saved;
-  } catch {}
-  return { phase: null, endsAt: 0, work: 25, rest: 5, rounds: 0, music: "current" };
-})();
-let focusTimer = null;
-
-const focusSave = () => store.set("sona.focus", focus.phase ? JSON.stringify(focus) : null);
-const clock = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
-
-/** Petit « ding » (Web Audio), sans fichier son. */
-function chime() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [880, 1320].forEach((freq, i) => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.9);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.18);
-      osc.stop(ctx.currentTime + i * 0.18 + 1);
-    });
-    setTimeout(() => ctx.close(), 1600);
-  } catch {}
-}
-
-function focusNotify(title, body) {
-  toast(`${title} · ${body}`);
-  if (desktop && "Notification" in window) try { new Notification(title, { body, silent: true }); } catch {}
-}
-
-/** Une radio calme pour travailler (lo-fi, piano, chill…), sinon la première. */
-async function calmRadio() {
-  const radios = (await radioGroups().catch(() => [])).flatMap((g) => g.radios);
-  return radios.find((r) => /lo-?fi|focus|piano|chill|calme|relax|ambient|jazz|study|étud/i.test(r.title)) || radios[0];
-}
-
-async function startFocus(work, rest, music) {
-  Object.assign(focus, { phase: "work", work, rest, music, rounds: 0, endsAt: Date.now() + work * 60000 });
-  focusSave();
-  if (music === "calm") {
-    const radio = await calmRadio();
-    if (radio) await startRadio(radio.id, radio.title);
-  } else if (audio.paused && audio.src) toggle();
-  focusNotify("Mode focus 🎯", `${work} min de concentration, puis ${rest} min de pause.`);
-  focusLoop();
-}
-
-function stopFocus() {
-  focus.phase = null;
-  focusSave();
-  focusLoop();
-}
-
-function focusLoop() {
-  clearInterval(focusTimer);
-  renderFocusPill();
-  if (!focus.phase) return;
-  focusTimer = setInterval(() => {
-    if (Date.now() >= focus.endsAt) {
-      chime();
-      if (focus.phase === "work") {
-        focus.phase = "rest";
-        focus.rounds += 1;
-        focus.endsAt = Date.now() + focus.rest * 60000;
-        if (!audio.paused) audio.pause();
-        focusNotify("Pause ☕", `${focus.rest} min : lève-toi, bois un verre d'eau. La musique reprend après.`);
-      } else {
-        focus.phase = "work";
-        focus.endsAt = Date.now() + focus.work * 60000;
-        if (audio.paused && audio.src) toggle();
-        focusNotify("C'est reparti 🎯", `Séance ${focus.rounds + 1} : ${focus.work} min.`);
-      }
-      focusSave();
-    }
-    renderFocusPill();
-  }, 1000);
-}
-
-function renderFocusPill() {
-  let pill = $(".focus-pill");
-  if (!focus.phase) { pill?.remove(); return; }
-  if (!pill) {
-    pill = document.createElement("button");
-    pill.className = "focus-pill";
-    pill.onclick = focusSheet;
-    document.body.append(pill);
-  }
-  pill.classList.toggle("rest", focus.phase === "rest");
-  pill.innerHTML = `<span>${focus.phase === "work" ? "🎯 Focus" : "☕ Pause"}</span><b>${clock(focus.endsAt - Date.now())}</b>`;
-}
-
-function focusSheet() {
-  if (focus.phase) {
-    return actionSheet("", [
-      { icon: icons.next, label: focus.phase === "work" ? "Passer à la pause" : "Reprendre maintenant", run: () => { focus.endsAt = Date.now(); } },
-      { icon: icons.close, label: "Arrêter le mode focus", danger: true, run: () => { stopFocus(); toast("Mode focus arrêté"); } },
-    ], { header: `<h2 class="sheet-title">${focus.phase === "work" ? "🎯 Concentration" : "☕ Pause"} · ${clock(focus.endsAt - Date.now())}</h2>
-      <p class="muted">${plural(focus.rounds, "séance terminée", "séances terminées")} · ${focus.work} min de travail, ${focus.rest} min de pause.</p>` });
-  }
-  let plan = FOCUS_PLANS.findIndex(([w]) => w === focus.work);
-  if (plan < 0) plan = 0;
-  let music = focus.music || "current";
-  const wrap = openSheet(`<h2 class="sheet-title">Mode focus</h2>
-    <p class="muted">Des séances de concentration en musique, puis une courte pause où la musique s'arrête — la méthode Pomodoro.</p>
-    <h3 class="set-head">Durée</h3>
-    <div class="chips focus-chips">${FOCUS_PLANS.map(([w, r], i) => `<button class="chip ${i === plan ? "on" : ""}" data-plan="${i}">${w} min · pause ${r}</button>`).join("")}</div>
-    <h3 class="set-head">Musique</h3>
-    <div class="chips focus-chips"><button class="chip ${music === "current" ? "on" : ""}" data-music="current">Ma musique en cours</button><button class="chip ${music === "calm" ? "on" : ""}" data-music="calm">Une radio calme</button></div>
-    <button class="btn wide" data-focus-start style="margin-top:18px">${icons.play} Démarrer</button>`);
-  $$("[data-plan]", wrap).forEach((b) => (b.onclick = () => { plan = +b.dataset.plan; $$("[data-plan]", wrap).forEach((x) => x.classList.toggle("on", x === b)); }));
-  $$("[data-music]", wrap).forEach((b) => (b.onclick = () => { music = b.dataset.music; $$("[data-music]", wrap).forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("[data-focus-start]", wrap).onclick = () => { wrap.close(); const [w, r] = FOCUS_PLANS[plan]; startFocus(w, r, music); };
-}
-
 // ── Son : égaliseur, volume égalisé, fondu, reprise ─────────────────────
 // Sur ordinateur (site, alyra pour Windows). Pas sur iPhone : le traitement
 // audio du navigateur y coupe le son écran verrouillé — l'app iPhone a
@@ -4955,8 +4809,8 @@ const playTrackFrom = (t) => t && t.source && t.source_id ? playList([t], 0, "")
 
 async function viewFriends() {
   $("#content").innerHTML = skeleton("Amis");
-  const [friends, parties, rooms] = await Promise.all([
-    api("/friends"), api("/party/active").catch(() => []), api("/blindlive/active").catch(() => []),
+  const [friends, parties] = await Promise.all([
+    api("/friends"), api("/party/active").catch(() => []),
   ]);
   // Rafraîchi toutes les 15 s, comme l'onglet de l'app.
   const timer = setInterval(async () => {
@@ -4973,7 +4827,6 @@ async function viewFriends() {
   });
   const live = [
     ...parties.filter((p) => !p.joined).map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} <b>${esc(p.host_name || "Un ami")}</b> écoute en groupe (${p.members}) — rejoindre</a>`),
-    ...rooms.filter((r) => !r.joined && r.phase !== "finished").map((r) => `<a class="live-pill violet" href="#/live/${esc(r.code)}">${icons.wave} Blind test de <b>${esc(r.host_name || "un ami")}</b> (${r.players}) — rejoindre</a>`),
   ].join("");
   return page(`<h1 class="page-title">amis.</h1><p class="page-sub">Ce qu'écoutent tes amis en ce moment.</p>
     ${live}
@@ -5268,406 +5121,6 @@ async function shareRecapImage(r) {
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast("Image enregistrée dans tes téléchargements");
-}
-
-// ── Concerts ─────────────────────────────────────────────────────────────
-
-async function viewConcerts() {
-  $("#content").innerHTML = skeleton("Concerts");
-  const events = await api("/concerts");
-  const months = [];
-  for (const e of events) {
-    const d = new Date(e.datetime);
-    const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-    if (months.at(-1)?.label !== label) months.push({ label, events: [] });
-    months.at(-1).events.push(e);
-  }
-  return page(`<h1 class="page-title">concerts.</h1><p class="page-sub">Les dates à venir des artistes que tu écoutes le plus.</p>
-    ${months.map((m) => `<section class="section"><div class="section-head"><h2>${esc(m.label[0].toUpperCase() + m.label.slice(1))}</h2></div>
-      <div class="concerts">${m.events.map((e) => {
-        const d = new Date(e.datetime);
-        return `<a class="concert" ${e.url ? `href="${esc(e.url)}" target="_blank" rel="noopener"` : ""}>
-          <span class="date"><b>${d.getDate()}</b><small>${d.toLocaleDateString("fr-FR", { month: "short" })}</small></span>
-          ${e.artist_picture_url ? `<img class="round" src="${esc(e.artist_picture_url)}" alt="">` : ""}
-          <span class="ct"><span class="t">${esc(e.artist)}</span><span class="s">${esc([e.venue, e.city, e.country].filter(Boolean).join(" · "))}</span></span>
-          ${e.url ? `<span class="go">Billets</span>` : ""}</a>`;
-      }).join("")}</div></section>`).join("") || empty("🎟️", "Aucun concert annoncé", "Rien de prévu pour tes artistes préférés pour l'instant.")}`);
-}
-
-// ── Blind test ───────────────────────────────────────────────────────────
-// Mêmes règles que l'app : 15 s par question, 100 points + 10 par seconde
-// restante, +50 à partir de 3 bonnes réponses d'affilée ; mode expert : 5 s
-// d'écoute seulement, points ×1,5. « Paroles » : le titre complet joue
-// jusqu'à la ligne à compléter.
-
-const BT_SECONDS = 15;
-const bt = {
-  mode: "solo", ref: null, label: "", guess: store.get("sona.btGuess") || "title", count: 10, expert: false,
-  round: null, index: 0, score: 0, correct: 0, streak: 0, picked: null, gain: 0, phase: "menu",
-  audio: null, timer: null, cut: null, remaining: BT_SECONDS, resume: false, pending: null, listening: false,
-};
-
-const BT_MODES = {
-  daily: "Défi du jour", solo: "Tes titres", chart: "Top du moment", radio: "Radio", artist: "Artiste", playlist: "Playlist",
-};
-
-async function viewBlindTest() {
-  onLeave(btStop);
-  if (bt.pending) { const p = bt.pending; bt.pending = null; Object.assign(bt, p); setTimeout(() => btStart(p.mode, p.ref, p.label)); }
-  bt.phase = "menu";
-  const [board, rooms] = await Promise.all([api("/blindtest/leaderboard?mode=daily").catch(() => []), api("/blindlive/active").catch(() => [])]);
-  setTimeout(bindBlindMenu);
-  return page(`<h1 class="page-title">blind test.</h1><p class="page-sub">Reconnais les titres le plus vite possible.</p>
-    <div id="bt-root">
-      <button class="bt-daily" data-bt="daily"><span class="eyebrow">${icons.trophy} Défi du jour</span><span class="t">10 titres, les mêmes pour tout le monde</span><span class="s">Seule ta première partie compte pour le classement.</span></button>
-      <section class="section"><div class="section-head"><h2>En direct entre amis</h2></div>
-        <div class="pill-row"><button class="btn" data-live-create>${icons.plus} Créer</button><button class="btn ghost" data-live-join>Rejoindre</button></div>
-        ${rooms.filter((r) => r.phase !== "finished").map((r) => `<a class="live-pill violet" href="#/live/${esc(r.code)}">${icons.wave} ${r.joined ? "Ta partie" : `Partie de <b>${esc(r.host_name || "un ami")}</b>`} · ${plural(r.players, "joueur")} — ${r.joined ? "reprendre" : "rejoindre"}</a>`).join("")}
-      </section>
-      <section class="section"><div class="section-head"><h2>Partie solo</h2></div>
-        <div class="bt-options">
-          <div class="opt-label">Il faut deviner</div>
-          <div class="segmented small">${[["title", "Le titre"], ["artist", "L'artiste"], ["lyrics", "Les paroles"]].map(([k, l]) => `<button data-guess="${k}" class="${bt.guess === k ? "on" : ""}">${l}</button>`).join("")}</div>
-          <div class="opt-label">Questions</div>
-          <div class="segmented small">${[5, 10, 15, 20].map((n) => `<button data-count="${n}" class="${bt.count === n ? "on" : ""}">${n}</button>`).join("")}</div>
-          <label class="switch-row"><span><b>Mode expert</b><small>5 s d'écoute seulement · points ×1,5</small></span><input type="checkbox" data-expert ${bt.expert ? "checked" : ""}><i></i></label>
-        </div>
-        <div class="tiles">
-          ${tile({ icon: icons.note, title: "Tes titres", subtitle: "Ce que toi et tes amis écoutez", tone: "violet", data: 'data-bt="solo"' })}
-          ${tile({ icon: icons.stats, title: "Top du moment", subtitle: "Les hits Deezer", tone: "orange", data: 'data-bt="chart"' })}
-          ${tile({ icon: icons.radio, title: "Une radio", subtitle: "Rap, années 80, électro…", tone: "blue", data: 'data-bt="radio"' })}
-          ${tile({ icon: icons.user, title: "Un artiste", subtitle: "Ses titres et ceux d'artistes proches", tone: "green", data: 'data-bt="artist"' })}
-          ${tile({ icon: icons.list, title: "Une playlist", subtitle: "Une de tes playlists", tone: "pink", data: 'data-bt="playlist"' })}
-        </div>
-      </section>
-      ${board.length ? `<section class="section"><div class="section-head"><h2>Classement du jour</h2></div>${leaderboard(board)}</section>` : ""}
-    </div>`);
-}
-
-const leaderboard = (rows) => `<div class="board">${rows.map((r, i) => `<div class="board-row ${r.is_me ? "me" : ""}">
-  <span class="rk">${i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>${avatar(r.avatar_url, r.name)}<span class="n">${esc(r.name)}</span>
-  <span class="sc">${r.score}<small>${r.correct}/${r.total}</small></span></div>`).join("")}</div>`;
-
-function bindBlindMenu() {
-  $$("[data-guess]").forEach((b) => (b.onclick = () => { bt.guess = b.dataset.guess; store.set("sona.btGuess", bt.guess); $$("[data-guess]").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $$("[data-count]").forEach((b) => (b.onclick = () => { bt.count = +b.dataset.count; $$("[data-count]").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("[data-expert]")?.addEventListener("change", (e) => { bt.expert = e.target.checked; });
-  $("[data-live-create]")?.addEventListener("click", async () => {
-    try { const room = await api("/blindlive", { method: "POST" }); go(`#/live/${room.code}`); } catch (e) { toast(e.message); }
-  });
-  $("[data-live-join]")?.addEventListener("click", async () => {
-    const code = await askText({ title: "Rejoindre une partie", placeholder: "Code de la partie", confirm: "Rejoindre" });
-    if (code) go(`#/live/${code.toUpperCase().replace(/\s/g, "")}`);
-  });
-  $$("[data-bt]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); pickBlindSource(b.dataset.bt); }));
-}
-
-/** Thème d'une partie (radio, artiste, playlist) : `then(ref, label)`. */
-async function pickSource(mode, then) {
-  if (mode === "radio") {
-    const groups = await radioGroups();
-    actionSheet("Quelle radio ?", groups.flatMap((g) => g.radios).map((r) => ({ icon: icons.radio, label: r.title, run: () => then(r.id, r.title) })));
-  } else if (mode === "artist") {
-    const q = await askText({ title: "Quel artiste ?", placeholder: "Nom de l'artiste", confirm: "Chercher" });
-    if (!q) return;
-    const found = await api(`/search/artists?q=${encodeURIComponent(q)}&limit=8`).catch(() => []);
-    if (!found.length) return toast("Aucun artiste trouvé");
-    actionSheet("Lequel ?", found.map((a) => ({ icon: `<img class="mi-thumb round" src="${esc(a.picture_url || "")}" alt="">`, label: a.name, run: () => then(a.source_id, a.name) })));
-  } else if (mode === "playlist") {
-    const lists = await api("/me/playlists").catch(() => []);
-    if (!lists.length) return toast("Aucune playlist");
-    actionSheet("Quelle playlist ?", lists.map((p) => ({ icon: icons.list, label: p.name, sub: plural(p.track_count, "titre"), run: () => then(String(p.id), p.name) })));
-  } else then(null, BT_MODES[mode]);
-}
-
-function pickBlindSource(mode) {
-  pickSource(mode, (ref, label) => btStart(mode, ref, label));
-}
-
-async function btStart(mode, ref, label) {
-  const root = $("#bt-root");
-  if (!root) return;
-  const daily = mode === "daily";
-  Object.assign(bt, { mode, ref, label });
-  const guess = daily ? "title" : bt.guess;
-  root.innerHTML = `<div class="loading-row"><span class="spinner"></span><span class="muted">Préparation de la partie…</span></div>`;
-  let round;
-  try {
-    const q = new URLSearchParams({ mode, count: daily ? 10 : bt.count, guess });
-    if (ref) q.set("ref", ref);
-    round = await api(`/blindtest/round?${q}`);
-  } catch (e) { toast(e.message); return route(); }
-  if (!$("#bt-root")) return;
-  if ((round.questions || []).length < 3) {
-    toast(guess === "lyrics" ? "Pas assez de titres avec paroles synchronisées pour ce thème." : "Pas assez de titres avec extrait pour ce thème.");
-    return route();
-  }
-  if (round.questions[0].kind === "lyrics") {
-    for (const q of round.questions) api(`/stream/${encodeURIComponent(q.track.source)}/${encodeURIComponent(q.track.source_id)}/prepare`, { method: "POST" }).catch(() => {});
-  }
-  Object.assign(bt, { round, index: 0, score: 0, correct: 0, streak: 0, phase: "playing", guessNow: round.guess || guess, expertNow: !daily && bt.expert });
-  bt.resume = !audio.paused;
-  audio.pause();
-  btAsk();
-}
-
-function btAsk() {
-  const q = bt.round.questions[bt.index];
-  if (!q) return btFinish();
-  bt.picked = null;
-  bt.gain = 0;
-  bt.remaining = BT_SECONDS;
-  clearInterval(bt.timer); clearTimeout(bt.cut);
-  bt.audio?.pause();
-  bt.audio = new Audio();
-  if (q.kind === "lyrics") {
-    bt.listening = true;
-    bt.audio.src = `${BASE}/stream/${encodeURIComponent(q.track.source)}/${encodeURIComponent(q.track.source_id)}?token=${encodeURIComponent(token)}`;
-    bt.audio.addEventListener("loadedmetadata", () => { bt.audio.currentTime = Math.max(0, q.clip_start || 0); bt.audio.play().catch(() => {}); }, { once: true });
-    const started = Date.now();
-    const watch = setInterval(() => {
-      if (!bt.audio || bt.picked !== null) return clearInterval(watch);
-      if (bt.audio.currentTime >= (q.line_time || 0) - 0.05 || Date.now() - started > 25000) {
-        clearInterval(watch);
-        bt.audio.pause();
-        bt.listening = false;
-        btStartTimer();
-        btRender();
-      }
-    }, 80);
-    bt.cut = watch;
-  } else {
-    bt.listening = false;
-    bt.audio.src = q.preview_url;
-    bt.audio.addEventListener("loadedmetadata", () => { try { bt.audio.currentTime = Math.random() * 8; } catch {} }, { once: true });
-    bt.audio.play().catch(() => toast("Touche l'écran pour lancer l'extrait"));
-    if (bt.expertNow) bt.cut = setTimeout(() => bt.audio?.pause(), 5000);
-    btStartTimer();
-  }
-  btRender();
-}
-
-function btStartTimer() {
-  clearInterval(bt.timer);
-  const start = Date.now();
-  bt.timer = setInterval(() => {
-    bt.remaining = Math.max(0, BT_SECONDS - (Date.now() - start) / 1000);
-    const meter = $("#bt-time");
-    if (meter) meter.style.width = `${(bt.remaining / BT_SECONDS) * 100}%`;
-    if (bt.remaining <= 0) btAnswer(-1);
-  }, 100);
-}
-
-function btAnswer(choice) {
-  const q = bt.round?.questions[bt.index];
-  if (!q || bt.picked !== null || bt.listening) return;
-  clearInterval(bt.timer);
-  bt.picked = choice;
-  if (choice === q.answer) {
-    bt.correct++; bt.streak++;
-    const base = 100 + Math.floor(bt.remaining * 10) + (bt.streak >= 3 ? 50 : 0);
-    bt.gain = bt.expertNow ? Math.floor((base * 3) / 2) : base;
-    bt.score += bt.gain;
-    haptic();
-  } else bt.streak = 0;
-  let pause = 1600;
-  if (q.kind === "lyrics" && q.line_time != null && bt.audio) {
-    clearInterval(bt.cut);
-    bt.audio.currentTime = Math.max(0, q.line_time - 0.3);
-    bt.audio.play().catch(() => {});
-    pause = Math.min(6, Math.max(2.5, (q.reveal_end ?? q.line_time + 3) - q.line_time + 0.6)) * 1000;
-  }
-  btRender();
-  setTimeout(() => { if (bt.phase !== "playing" || !$("#bt-root")) return; bt.index++; bt.index < bt.round.questions.length ? btAsk() : btFinish(); }, pause);
-}
-
-function btRender() {
-  const root = $("#bt-root");
-  if (!root || !bt.round) return;
-  const q = bt.round.questions[bt.index];
-  const reveal = bt.picked !== null;
-  const prompt = q.kind === "lyrics" ? "Complète les paroles" : bt.guessNow === "artist" ? "Quel artiste ?" : "Quel titre ?";
-  root.innerHTML = `<div class="bt-game">
-    <div class="bt-top"><span>${bt.index + 1} / ${bt.round.questions.length}</span><b>${bt.score} pts</b>${bt.streak >= 3 ? `<span class="streak">🔥 ${bt.streak}</span>` : ""}<button class="tbtn small" data-bt-quit aria-label="Quitter">${icons.close}</button></div>
-    <div class="meter big"><i id="bt-time" style="width:${(bt.remaining / BT_SECONDS) * 100}%"></i></div>
-    <div class="bt-cover ${reveal ? "reveal" : ""}">${reveal ? `<img src="${esc(big(q.track.cover_url || q.cover_url, 500))}" alt="">` : `<span class="bt-wave ${bt.listening ? "listen" : ""}">${icons.wave}</span>`}</div>
-    <h2 class="bt-q">${esc(prompt)}</h2>
-    ${q.kind === "lyrics" ? `<div class="bt-lyrics">${(q.before || []).map((l) => `<p class="before">${esc(l)}</p>`).join("")}<p>${esc(q.prompt || "")}</p></div>` : ""}
-    ${bt.listening ? `<p class="muted center">Écoute bien…</p>` : ""}
-    <div class="bt-choices">${q.choices.map((c, i) => {
-      const cls = reveal ? (i === q.answer ? "right" : i === bt.picked ? "wrong" : "dim") : "";
-      return `<button class="bt-choice ${cls}" data-choice="${i}" ${reveal || bt.listening ? "disabled" : ""}><b>${esc(c.title || c.artist)}</b>${c.title && c.artist && bt.guessNow !== "artist" && q.kind !== "lyrics" ? `<small>${esc(c.artist)}</small>` : ""}</button>`;
-    }).join("")}</div>
-    ${reveal ? `<p class="bt-feedback ${bt.picked === q.answer ? "ok" : "ko"}">${bt.picked === q.answer ? `+${bt.gain} points` : bt.picked === -1 ? "Temps écoulé" : "Raté"} · ${esc(q.track.title)} — ${esc(q.track.artist)}</p>` : ""}
-  </div>`;
-  $$("[data-choice]", root).forEach((b) => (b.onclick = () => btAnswer(+b.dataset.choice)));
-  $("[data-bt-quit]", root).onclick = () => { btStop(); route(); };
-}
-
-async function btFinish() {
-  bt.phase = "finished";
-  const total = bt.round.questions.length;
-  const tracks = bt.round.questions.map((q) => q.track);
-  btStop();
-  api("/blindtest/score", { method: "POST", body: JSON.stringify({ mode: bt.mode, score: bt.score, correct: bt.correct, total }) }).catch(() => {});
-  const board = await api(`/blindtest/leaderboard?mode=${bt.mode === "daily" ? "daily" : "daily"}`).catch(() => []);
-  const root = $("#bt-root");
-  if (!root) return;
-  root.innerHTML = `<div class="bt-end">
-    <div class="eyebrow">${esc(BT_MODES[bt.mode] || "")}${bt.label && bt.label !== BT_MODES[bt.mode] ? ` · ${esc(bt.label)}` : ""}</div>
-    <div class="huge">${bt.score} points</div><p>${bt.correct} bonne${bt.correct > 1 ? "s" : ""} réponse${bt.correct > 1 ? "s" : ""} sur ${total}</p>
-    <div class="pill-row center"><button class="btn" data-again>Rejouer</button><button class="btn ghost" data-menu>Autre thème</button></div>
-    ${board.length ? `<section class="section"><div class="section-head"><h2>Classement du jour</h2></div>${leaderboard(board)}</section>` : ""}
-    <section class="section"><div class="section-head"><h2>Les titres de la partie</h2></div>${trackTable(tracks, "Blind test", { numbers: false })}</section></div>`;
-  bindPage(root);
-  $("[data-again]", root).onclick = () => btStart(bt.mode === "daily" ? "solo" : bt.mode, bt.ref, bt.label);
-  $("[data-menu]", root).onclick = () => route();
-}
-
-function btStop() {
-  clearInterval(bt.timer); clearTimeout(bt.cut); clearInterval(bt.cut);
-  bt.audio?.pause();
-  bt.audio = null;
-  if (bt.phase === "playing") bt.phase = "menu";
-  if (bt.resume) { bt.resume = false; audio.play().catch(() => {}); }
-}
-
-// ── Blind test en direct ─────────────────────────────────────────────────
-
-const live = { code: null, state: null, offset: 0, timer: null, audio: null, playedIndex: -1 };
-
-async function viewLive(code) {
-  code = (code || "").toUpperCase();
-  try {
-    live.state = await api(`/blindlive/${encodeURIComponent(code)}/join`, { method: "POST" });
-  } catch (e) { return page(empty("🎲", "Partie introuvable", e.message)); }
-  live.code = code;
-  live.playedIndex = -1;
-  live.resume = !audio.paused;
-  audio.pause();
-  live.timer = setInterval(liveTick, 1000);
-  onLeave(() => {
-    clearInterval(live.timer);
-    live.audio?.pause(); live.audio = null;
-    if (live.resume) { live.resume = false; audio.play().catch(() => {}); }
-    const leaving = live.code;
-    live.code = null;
-    api(`/blindlive/${encodeURIComponent(leaving)}/leave`, { method: "POST" }).catch(() => {});
-  });
-  setTimeout(liveRender);
-  return page(`<h1 class="page-title">blind test en direct.</h1><div id="live-root"></div>`);
-}
-
-async function liveTick() {
-  if (!live.code) return;
-  try {
-    const fresh = await api(`/blindlive/${encodeURIComponent(live.code)}`);
-    live.offset = fresh.server_time - Date.now() / 1000;
-    const changed = fresh.version !== live.state?.version || fresh.phase !== live.state?.phase;
-    live.state = fresh;
-    if (changed) liveRender(); else liveClock();
-  } catch (e) {
-    clearInterval(live.timer);
-    const root = $("#live-root");
-    if (root) root.innerHTML = empty("👋", "La partie est terminée", e.message);
-  }
-}
-
-const liveNow = () => Date.now() / 1000 + live.offset;
-
-function liveClock() {
-  const s = live.state;
-  const el = $("#live-clock");
-  if (!el || !s) return;
-  if (s.phase === "question") {
-    const now = liveNow();
-    if (now < s.starts_at) el.textContent = `Ça commence dans ${Math.ceil(s.starts_at - now)} s…`;
-    else el.textContent = `${Math.max(0, Math.ceil(s.deadline - now))} s`;
-    const meter = $("#live-time");
-    if (meter) meter.style.width = `${Math.max(0, Math.min(100, ((s.deadline - now) / (s.deadline - s.starts_at)) * 100))}%`;
-  } else if (s.phase === "reveal" && s.next_at) {
-    el.textContent = `Question suivante dans ${Math.max(0, Math.ceil(s.next_at - liveNow()))} s`;
-  }
-}
-
-function livePlay(q) {
-  if (live.playedIndex === q.index) return;
-  live.playedIndex = q.index;
-  live.audio?.pause();
-  const a = new Audio();
-  live.audio = a;
-  const startIn = Math.max(0, (live.state.starts_at - liveNow()) * 1000);
-  if (q.kind === "lyrics" && q.stream) {
-    a.src = `${BASE}/stream/${encodeURIComponent(q.stream.source)}/${encodeURIComponent(q.stream.source_id)}?token=${encodeURIComponent(token)}`;
-    a.addEventListener("loadedmetadata", () => { a.currentTime = q.clip_start || 0; }, { once: true });
-    const stopAt = setInterval(() => { if (a !== live.audio) return clearInterval(stopAt); if (a.currentTime >= (q.line_time || 0) - 0.05 && !a.paused && live.state.phase === "question") { a.pause(); clearInterval(stopAt); } }, 80);
-  } else {
-    a.src = q.preview_url;
-  }
-  setTimeout(() => { if (a === live.audio) a.play().catch(() => toast("Touche l'écran pour entendre l'extrait")); }, startIn);
-}
-
-function liveRender() {
-  const root = $("#live-root");
-  const s = live.state;
-  if (!root || !s) return;
-  const players = `<div class="board">${s.players.map((p, i) => `<div class="board-row ${p.is_me ? "me" : ""}">
-    <span class="rk">${s.phase === "lobby" ? "" : i + 1}</span>${avatar(p.avatar_url, p.name)}<span class="n">${esc(p.name)}${p.is_host ? " 👑" : ""}</span>
-    <span class="sc">${s.phase === "lobby" ? "" : p.score}${p.gained != null ? `<small class="${p.was_right ? "ok" : "ko"}">${p.was_right ? `+${p.gained}` : "✗"}</small>` : p.answered && s.phase === "question" ? "<small>✓</small>" : ""}</span></div>`).join("")}</div>`;
-  if (s.phase === "lobby") {
-    root.innerHTML = `<div class="live-code"><span class="muted">Code de la partie</span><b>${esc(s.code)}</b>
-        <button class="btn ghost small" data-live-share>${icons.share} Inviter</button></div>
-      <div class="lobby-config"><div class="muted">Thème</div><b>${esc(s.label || BT_MODES[s.mode] || s.mode)}</b> · ${esc({ title: "le titre", artist: "l'artiste", lyrics: "les paroles" }[s.guess] || "")} · ${s.count} questions</div>
-      ${s.is_host ? `<div class="pill-row"><button class="btn ghost" data-live-config>Changer le thème</button><button class="btn" data-live-start ${s.players.length < 1 ? "disabled" : ""}>${icons.play} Lancer la partie</button></div>`
-        : `<p class="muted">En attente de ${esc(s.host_name || "l'hôte")}…</p>`}
-      <section class="section"><div class="section-head"><h2>Joueurs</h2></div>${players}</section>`;
-  } else if (s.phase === "question" || s.phase === "reveal") {
-    const q = s.question;
-    if (s.phase === "question") livePlay(q);
-    const reveal = s.phase === "reveal";
-    root.innerHTML = `<div class="bt-game">
-      <div class="bt-top"><span>${q.index + 1} / ${s.total}</span><b id="live-clock"></b></div>
-      <div class="meter big"><i id="live-time"></i></div>
-      <div class="bt-cover ${reveal ? "reveal" : ""}">${reveal && q.cover_url ? `<img src="${esc(big(q.cover_url, 500))}" alt="">` : `<span class="bt-wave listen">${icons.wave}</span>`}</div>
-      ${q.kind === "lyrics" ? `<div class="bt-lyrics">${(q.before || []).map((l) => `<p class="before">${esc(l)}</p>`).join("")}<p>${esc(q.prompt || "")}</p></div>` : ""}
-      <div class="bt-choices">${q.choices.map((c, i) => {
-        const cls = reveal ? (i === q.answer ? "right" : i === q.my_choice ? "wrong" : "dim") : i === q.my_choice ? "picked" : "";
-        return `<button class="bt-choice ${cls}" data-live-choice="${i}" ${reveal || q.my_choice != null ? "disabled" : ""}><b>${esc(c.title || c.artist)}</b>${c.title && c.artist && s.guess !== "artist" && q.kind !== "lyrics" ? `<small>${esc(c.artist)}</small>` : ""}</button>`;
-      }).join("")}</div>
-      ${reveal && q.track ? `<p class="bt-feedback ${q.my_choice === q.answer ? "ok" : "ko"}">${esc(q.track.title)} — ${esc(q.track.artist)}</p>` : ""}
-      <section class="section">${players}</section></div>`;
-    $$("[data-live-choice]", root).forEach((b) => (b.onclick = async () => {
-      haptic();
-      try { live.state = await api(`/blindlive/${encodeURIComponent(s.code)}/answer`, { method: "POST", body: JSON.stringify({ index: q.index, choice: +b.dataset.liveChoice }) }); liveRender(); }
-      catch (e) { toast(e.message); }
-    }));
-    liveClock();
-  } else {
-    live.audio?.pause();
-    const winner = s.players[0];
-    root.innerHTML = `<div class="bt-end"><div class="huge">🏆</div><h2>${esc(winner?.name || "")} gagne !</h2>
-      ${s.is_host ? `<div class="pill-row center"><button class="btn" data-live-start>Revanche</button><button class="btn ghost" data-live-config>Autre thème</button></div>` : `<p class="muted">L'hôte peut lancer une revanche.</p>`}
-      <section class="section">${players}</section>
-      ${s.tracks.length ? `<section class="section"><div class="section-head"><h2>Les titres de la partie</h2></div>${trackTable(s.tracks, "Blind test en direct", { numbers: false })}</section>` : ""}</div>`;
-    bindPage(root);
-  }
-  $("[data-live-share]", root)?.addEventListener("click", () => {
-    const text = `Rejoins mon blind test alyra ! Code : ${s.code}`;
-    navigator.share ? navigator.share({ text }).catch(() => {}) : navigator.clipboard?.writeText(s.code).then(() => toast("Code copié"));
-  });
-  $("[data-live-start]", root)?.addEventListener("click", async (e) => {
-    e.target.disabled = true;
-    try { live.playedIndex = -1; live.state = await api(`/blindlive/${encodeURIComponent(s.code)}/start`, { method: "POST" }); liveRender(); }
-    catch (err) { toast(err.message); e.target.disabled = false; }
-  });
-  $("[data-live-config]", root)?.addEventListener("click", () => actionSheet("Thème de la partie", Object.entries(BT_MODES).filter(([k]) => k !== "daily").map(([mode, label]) => ({
-    icon: icons.wave, label, run: () => pickSource(mode, (ref, refLabel) => actionSheet("Il faut deviner…", [["title", "Le titre"], ["artist", "L'artiste"], ["lyrics", "Les paroles"]].map(([guess, gl]) => ({
-      label: gl, run: async () => {
-        live.state = await api(`/blindlive/${encodeURIComponent(s.code)}/config`, { method: "POST", body: JSON.stringify({ mode, ref, label: refLabel, count: s.count || 10, guess }) });
-        liveRender();
-      },
-    })))),
-  }))));
 }
 
 // ── Écoute ensemble ──────────────────────────────────────────────────────
@@ -6134,44 +5587,6 @@ function quickSearch(title, pick) {
   };
 }
 
-// ── Mode sport ───────────────────────────────────────────────────────────
-
-async function viewSport() {
-  const bpm = +(store.get("sona.sportBpm") || 160);
-  setTimeout(() => {
-    const slider = $("#sport-bpm");
-    const label = $("#sport-val");
-    const set = (v) => { slider.value = v; label.textContent = Math.round(v); slider.style.setProperty("--p", `${((v - 100) / 100) * 100}%`); store.set("sona.sportBpm", String(Math.round(v))); };
-    slider.oninput = () => set(+slider.value);
-    set(bpm);
-    let taps = [];
-    $("#sport-tap").onclick = () => {
-      haptic();
-      const now = Date.now();
-      taps = [...taps.filter((t) => now - t < 4000), now];
-      if (taps.length >= 3) {
-        const gaps = taps.slice(1).map((t, i) => t - taps[i]);
-        set(Math.max(100, Math.min(200, 60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length))));
-      }
-    };
-    $("#sport-go").onclick = async () => {
-      const tempo = Math.round(+slider.value);
-      try {
-        await playStation(`Mode sport · ${tempo} BPM`, () => api(`/sport?bpm=${tempo}&exclude=${encodeURIComponent(state.queue.slice(-100).map((t) => t.source_id).join(","))}`));
-        openNowPlaying("art");
-      } catch (e) { toast(e.message); }
-    };
-  });
-  return page(`<h1 class="page-title">mode sport.</h1><p class="page-sub">La musique au tempo de ta foulée : choisis ta cadence (pas par minute), ou tape-la en rythme.</p>
-    <div class="sport">
-      <div class="sport-val"><b id="sport-val">${bpm}</b><span>pas / min</span></div>
-      <input type="range" class="slider" id="sport-bpm" min="100" max="200" step="1" value="${bpm}" aria-label="Cadence">
-      <div class="chips center">${[["Marche", 115], ["Footing", 155], ["Course", 170], ["Sprint", 185]].map(([l, v]) => `<button class="chip" onclick="document.getElementById('sport-bpm').value=${v};document.getElementById('sport-bpm').dispatchEvent(new Event('input'))">${l}</button>`).join("")}</div>
-      <button class="tap-btn" id="sport-tap">Tape en rythme</button>
-      <button class="btn big" id="sport-go">${icons.play} C'est parti</button>
-    </div>`);
-}
-
 // ── TV et PS5 (appli YouTube de l'écran) ──────────────────────────────────
 
 const cast = { screen: null, timer: null };
@@ -6301,7 +5716,6 @@ async function viewSettings() {
       ${linkRow('href="#/devices"', icons.devices, "Appareils", "Tes PC enregistrés, à piloter d'un appui")}
       ${linkRow('href="#/status"', icons.pulse, "État d'alyra", "Serveur, Relais, télécommande, Stream Deck…")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
-      ${linkRow('href="#/concerts"', icons.calendar, "Concerts")}
     </div>
 
     ${me.is_admin ? `<h3 class="set-head">Administration</h3><div class="set-group">
@@ -6735,7 +6149,6 @@ async function desktopCommand(c) {
       break;
     }
     case "like": if (t) await toggleLike(t); break;
-    case "focus": focusSheet(); break;
     case "volumePreset": {
       const preset = c.preset && c.preset !== "next" ? vol.presets.find((p) => p.id === c.preset) : nextPreset();
       if (!preset) throw new Error("Préréglage inconnu");
@@ -6862,7 +6275,6 @@ async function renderDesktopSettings() {
     ${desktop.platform === "win32" && s.voiceControl ? `<div class="set-row"><span class="set-text"><b>Écoute</b><small>${esc(s.voice?.error || (s.voice?.ready ? `Prêt (${s.voice.culture || "fr"})${s.voice.last ? ` · dernier : « ${s.voice.last} »` : ""}` : "Démarrage…"))}</small></span></div>` : ""}
     ${desktop.platform === "win32" ? toggleRow("desk-coverWallpaper", "Fond d'écran pochette", "Pendant la lecture, le fond d'écran de Windows devient la pochette en cours, floue. Ton fond d'écran revient quand tu coupes l'option.", s.coverWallpaper) : ""}
     ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône d'alyra se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
-    ${linkRow("data-desk-focus", icons.clock, "Mode focus", focus.phase ? `En cours · ${clock(focus.endsAt - Date.now())}` : "Pomodoro : travail en musique, pauses")}
     ${linkRow("data-desk-volume", icons.speaker, "Volume et préréglages", `${volLabel(vol.level)} · ${vol.presets.map((p) => p.label).join(", ")}`)}
     ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Relais", s.deviceNameShown)}
@@ -6879,7 +6291,6 @@ async function renderDesktopSettings() {
     };
   }
   $("[data-desk-volume]", box)?.addEventListener("click", volumeSheet);
-  $("[data-desk-focus]", box)?.addEventListener("click", focusSheet);
   $("[data-desk-overlay-pos]", box)?.addEventListener("click", async () => {
     await desktop.set("overlayPosition", s.overlayPosition === "top" ? "bottom" : "top");
     renderDesktopSettings();

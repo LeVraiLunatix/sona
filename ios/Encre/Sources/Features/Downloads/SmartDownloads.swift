@@ -8,7 +8,6 @@ import UserNotifications
 /// jour, « En boucle » et les nouveaux titres des playlists gardées hors
 /// ligne. Ce qu'on écoute démarre alors instantanément, même en 5G. Les
 /// titres ainsi ajoutés repartent seuls quand ils ne servent plus.
-/// Au passage, prévient des nouveaux concerts proches (voir `ConcertAlerts`).
 @MainActor
 final class SmartDownloads {
     static let shared = SmartDownloads()
@@ -100,70 +99,6 @@ final class SmartDownloads {
         downloads.pruneAuto(keeping: wantedIds)
         lastRun = Date()
 
-        await ConcertAlerts.check()
         await downloads.waitUntilIdle()
-    }
-}
-
-/// Alerte quand un artiste qu'on écoute beaucoup annonce une date près de
-/// la dernière position connue (jamais envoyée au serveur).
-enum ConcertAlerts {
-    static let radiusKm: Double = 150
-
-    static var enabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "encre.concerts.alerts") }
-        set { UserDefaults.standard.set(newValue, forKey: "encre.concerts.alerts") }
-    }
-
-    /// Dernière position connue (latitude, longitude), mise à jour par l'écran Concerts.
-    static var lastLocation: (Double, Double)? {
-        get {
-            guard let values = UserDefaults.standard.array(forKey: "encre.concerts.location") as? [Double], values.count == 2 else { return nil }
-            return (values[0], values[1])
-        }
-        set {
-            if let newValue { UserDefaults.standard.set([newValue.0, newValue.1], forKey: "encre.concerts.location") }
-        }
-    }
-
-    static func requestPermission() async -> Bool {
-        (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-    }
-
-    @MainActor
-    static func check() async {
-        guard enabled, let location = lastLocation, let concerts = try? await APIClient.shared.concerts() else { return }
-        let (lat, lon) = location
-        var notified = Set(UserDefaults.standard.stringArray(forKey: "encre.concerts.notified") ?? [])
-        let near = concerts.filter { concert in
-            guard let cLat = concert.latitude, let cLon = concert.longitude else { return false }
-            return distanceKm(lat, lon, cLat, cLon) <= radiusKm && !notified.contains(concert.id)
-        }
-        for concert in near.prefix(5) {
-            let content = UNMutableNotificationContent()
-            content.title = "🎤 \(concert.artist) en concert près de toi"
-            content.body = [concert.venue, concert.city, concert.date.map(dayLabel)].compactMap { $0 }.joined(separator: " · ")
-            content.sound = .default
-            let request = UNNotificationRequest(identifier: "concert-\(concert.id)", content: content, trigger: nil)
-            try? await UNUserNotificationCenter.current().add(request)
-            notified.insert(concert.id)
-        }
-        UserDefaults.standard.set(Array(notified), forKey: "encre.concerts.notified")
-    }
-
-    static func distanceKm(_ lat1: Double, _ lon1: Double, _ lat2: Double, _ lon2: Double) -> Double {
-        let r = 6371.0
-        let dLat = (lat2 - lat1) * .pi / 180
-        let dLon = (lon2 - lon1) * .pi / 180
-        let a = sin(dLat / 2) * sin(dLat / 2)
-            + cos(lat1 * .pi / 180) * cos(lat2 * .pi / 180) * sin(dLon / 2) * sin(dLon / 2)
-        return 2 * r * atan2(sqrt(a), sqrt(1 - a))
-    }
-
-    static func dayLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = "EEEE d MMMM"
-        return formatter.string(from: date)
     }
 }

@@ -7,7 +7,7 @@ from app.api.schemas import Album, Artist, Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import album_versions, artist_bio, concerts, credits, djradio
+from app.services import album_versions, artist_bio, credits, djradio
 
 router = APIRouter(tags=["catalog"])
 
@@ -79,13 +79,6 @@ async def get_artist_bio(source: str, source_id: str, deps: ApiDeps = Depends(re
     if bio is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de biographie pour cet artiste.")
     return bio
-
-
-@router.get("/artists/{source}/{source_id}/concerts")
-async def get_artist_concerts(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> list[dict]:
-    """Prochains concerts de l'artiste (liste vide si aucun)."""
-    artist = await _handle(lookup.get_artist(deps, source, source_id))
-    return await concerts.artist_events(deps.settings.bandsintown_app_id, artist.name, artist.picture_url)
 
 
 @router.get("/artists/{source}/{source_id}/related", response_model=list[Artist])

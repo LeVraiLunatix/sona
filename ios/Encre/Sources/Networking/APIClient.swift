@@ -630,31 +630,9 @@ final class APIClient {
         return try await send(try request("/party/\(code)/react", method: "POST", bodyData: data))
     }
 
-    // MARK: - Blind test
-
-    func blindRound(mode: String, ref: String? = nil, count: Int = 10, guess: String = "title") async throws -> BlindRound {
-        var query = [
-            URLQueryItem(name: "mode", value: mode),
-            URLQueryItem(name: "count", value: "\(count)"),
-            URLQueryItem(name: "guess", value: guess),
-        ]
-        if let ref { query.append(URLQueryItem(name: "ref", value: ref)) }
-        return try await send(try request("/blindtest/round", query: query))
-    }
-
     /// Analyse audio pour l'AutoMix ; nil tant qu'elle n'est pas prête.
     func analysis(source: String, id: String) async -> TrackAnalysis? {
         try? await send(try request("/analysis/\(source)/\(id)"))
-    }
-
-    func submitBlindScore(mode: String, score: Int, correct: Int, total: Int) async throws {
-        struct Body: Encodable { let mode: String; let score: Int; let correct: Int; let total: Int }
-        let data = try encode(Body(mode: mode, score: score, correct: correct, total: total))
-        try await sendNoContent(try request("/blindtest/score", method: "POST", bodyData: data))
-    }
-
-    func blindLeaderboard(mode: String = "daily") async throws -> [BlindScore] {
-        try await send(try request("/blindtest/leaderboard", query: [URLQueryItem(name: "mode", value: mode)]))
     }
 
     // MARK: - Extras
@@ -665,13 +643,6 @@ final class APIClient {
 
     func memories() async throws -> [Memory] {
         try await send(try request("/memories", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
-    }
-
-    func sportTracks(bpm: Double, exclude: [String]) async throws -> [Track] {
-        try await send(try request("/sport", query: [
-            URLQueryItem(name: "bpm", value: String(Int(bpm.rounded()))),
-            URLQueryItem(name: "exclude", value: exclude.joined(separator: ",")),
-        ]))
     }
 
     /// Instrumentale YouTube du titre (à la même durée), ou nil.
@@ -890,50 +861,6 @@ final class APIClient {
 
     func tvState(_ screenId: String) async throws -> TVState {
         try await send(try request("/tv/\(screenId)/state"))
-    }
-
-    // MARK: - Blind test en direct
-
-    func createLive() async throws -> LiveState {
-        try await send(try request("/blindlive", method: "POST"))
-    }
-
-    func activeLive() async throws -> [LiveSummary] {
-        try await send(try request("/blindlive/active"))
-    }
-
-    func liveState(code: String) async throws -> LiveState {
-        try await send(try request("/blindlive/\(code)"))
-    }
-
-    func joinLive(code: String) async throws -> LiveState {
-        try await send(try request("/blindlive/\(code)/join", method: "POST"))
-    }
-
-    func leaveLive(code: String) async throws {
-        try await sendNoContent(try request("/blindlive/\(code)/leave", method: "POST"))
-    }
-
-    func configureLive(code: String, mode: String, ref: String?, label: String?, count: Int, guess: String) async throws -> LiveState {
-        struct Body: Encodable { let mode: String; let ref: String?; let label: String?; let count: Int; let guess: String }
-        let data = try encode(Body(mode: mode, ref: ref, label: label, count: count, guess: guess))
-        return try await send(try request("/blindlive/\(code)/config", method: "POST", bodyData: data))
-    }
-
-    func startLive(code: String) async throws -> LiveState {
-        try await send(try request("/blindlive/\(code)/start", method: "POST"))
-    }
-
-    func answerLive(code: String, index: Int, choice: Int) async throws -> LiveState {
-        struct Body: Encodable { let index: Int; let choice: Int }
-        let data = try encode(Body(index: index, choice: choice))
-        return try await send(try request("/blindlive/\(code)/answer", method: "POST", bodyData: data))
-    }
-
-    // MARK: - Concerts
-
-    func concerts() async throws -> [Concert] {
-        try await send(try request("/concerts"))
     }
 
     // MARK: - Titres aimés Last.fm

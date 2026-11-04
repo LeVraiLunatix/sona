@@ -84,12 +84,12 @@ private struct ShortcutsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 LogoShape().fill(.white).frame(width: 34, height: 34)
                 Spacer(minLength: 0)
-                Text("Défi du jour").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
-                Text("Blind test · classement entre amis")
+                Text("Écoute ensemble").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                Text("Le même son, au même moment")
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .widgetURL(URL(string: "encre://blindtest"))
+            .widgetURL(URL(string: "encre://party"))
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
@@ -97,7 +97,6 @@ private struct ShortcutsView: View {
                     Text("Sona").font(.system(size: 16, weight: .heavy)).foregroundStyle(.white)
                 }
                 HStack(spacing: 8) {
-                    shortcut("Blind test", "waveform.badge.magnifyingglass", "encre://blindtest")
                     shortcut("Radio DJ", "dial.medium", "encre://djradio")
                     shortcut("Ensemble", "person.2.wave.2.fill", "encre://party")
                     shortcut("Récap", "sparkles", "encre://recap")
@@ -283,12 +282,12 @@ private struct LockScreenView: View {
             HStack(spacing: 8) {
                 LogoShape().fill(.white).frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Défi du jour").font(.system(size: 14, weight: .bold))
-                    Text("Blind test Sona").font(.system(size: 12)).opacity(0.8)
+                    Text("Écoute ensemble").font(.system(size: 14, weight: .bold))
+                    Text("Sona").font(.system(size: 12)).opacity(0.8)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .widgetURL(URL(string: "encre://blindtest"))
+            .widgetURL(URL(string: "encre://party"))
         }
     }
 }

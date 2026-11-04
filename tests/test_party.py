@@ -1,4 +1,4 @@
-"""Écoute ensemble, blind test et concerts — sans appel réseau réel."""
+"""Écoute ensemble — sans appel réseau réel."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.providers.base import TrackInfo
 from app.providers.lastfm_auth import LastfmProfile, LastfmSession
-from app.services import concerts, party
+from app.services import party
 
 LEGACY = {"Authorization": "Bearer test-token"}
 
@@ -41,7 +41,6 @@ def client(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("LASTFM_API_KEY", "cle")
     monkeypatch.setenv("LASTFM_API_SECRET", "secret")
     party.reset()
-    concerts.reset()
 
     import app.api.main as main_module
 
@@ -206,115 +205,6 @@ class FakeDeezer:
         return list(self.tracks.values())
 
 
-def test_blindtest_round_scores_and_daily_leaderboard(client):
-    client.deps.deezer = FakeDeezer()
-    me = login(client, "alice")
-    when = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-    client.post("/plays", headers=me, json={"plays": [
-        {"title": f"Titre {i}", "artist": f"Artiste {i}", "source": "deezer", "source_id": str(i), "played_at": when}
-        for i in range(6)
-    ]})
-    round_ = client.get("/blindtest/round", headers=me).json()
-    questions = round_["questions"]
-    assert len(questions) == 10
-    for q in questions:
-        assert len(q["choices"]) == 4
-        answer = q["choices"][q["answer"]]
-        assert q["preview_url"].endswith(".mp3")
-        assert answer["title"] == q["track"]["title"]
-        assert len({c["artist"] for c in q["choices"]}) == 4
-
-    daily_a = client.get("/blindtest/round", headers=me, params={"mode": "daily"}).json()
-    daily_b = client.get("/blindtest/round", headers=me, params={"mode": "daily"}).json()
-    assert [q["track"]["source_id"] for q in daily_a["questions"]] == [q["track"]["source_id"] for q in daily_b["questions"]]
-    assert daily_a["already_played"] is False
-
-    assert client.post("/blindtest/score", headers=me, json={"mode": "daily", "score": 900, "correct": 8, "total": 10}).json() == {"saved": True}
-    # Le défi du jour ne compte qu'une fois.
-    assert client.post("/blindtest/score", headers=me, json={"mode": "daily", "score": 1500, "correct": 10, "total": 10}).json() == {"saved": False}
-    board = client.get("/blindtest/leaderboard", headers=me).json()
-    assert board == [{"name": "Alice", "avatar_url": None, "is_me": True, "score": 900, "correct": 8, "total": 10}]
-    assert client.get("/blindtest/round", headers=me, params={"mode": "daily"}).json()["already_played"] is True
 
 
-# -- Concerts ------------------------------------------------------------------
 
-def test_concerts_for_top_artists(client, monkeypatch):
-    calls = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.path)
-        if "Ziak" in request.url.path:
-            return httpx.Response(200, json=[{
-                "id": "e1", "datetime": "2026-11-20T20:00:00", "url": "https://bit.ly/x",
-                "venue": {"name": "Zénith", "city": "Paris", "country": "France", "latitude": "48.89", "longitude": "2.39"},
-                "offers": [{"type": "Tickets", "url": "https://tickets"}], "lineup": ["Ziak"],
-            }])
-        return httpx.Response(200, json=[])
-
-    monkeypatch.setattr(concerts, "_client", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    me = login(client, "alice")
-    when = datetime.now(timezone.utc).isoformat()
-    client.post("/plays", headers=me, json={"plays": [
-        {"title": "Grabba", "artist": "Ziak", "played_at": when},
-        {"title": "Kuku", "artist": "Gazo", "played_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()},
-    ]})
-    events = client.get("/concerts", headers=me).json()
-    assert len(events) == 1
-    event = events[0]
-    assert (event["artist"], event["city"], event["latitude"], event["url"]) == ("Ziak", "Paris", 48.89, "https://tickets")
-    # Deuxième appel : servi depuis le cache.
-    before = len(calls)
-    client.get("/concerts", headers=me)
-    assert len(calls) == before
-
-
-class ArtistDeezer(FakeDeezer):
-    """Un artiste (10 titres) et trois artistes proches."""
-
-    def __init__(self):
-        super().__init__()
-        self.artist_tracks = {
-            "ziak": [TrackInfo("deezer", f"z{i}", f"Ziak {i}", "Ziak", None, None, 180, None,
-                               preview_url=f"https://p/z{i}.mp3") for i in range(10)],
-        }
-        for name in ("gazo", "sch", "kerchak"):
-            self.artist_tracks[name] = [TrackInfo("deezer", f"{name}{i}", f"{name} {i}", name.upper(), None, None, 180,
-                                                  None, preview_url=f"https://p/{name}{i}.mp3") for i in range(3)]
-
-    async def get_artist_top_tracks(self, artist_id, limit=25):
-        return self.artist_tracks[artist_id][:limit]
-
-    async def get_related_artists(self, artist_id, limit=20):
-        from app.providers.base import ArtistInfo
-
-        return [ArtistInfo("deezer", n, n.upper(), None) for n in ("gazo", "sch", "kerchak")]
-
-
-def test_blindtest_artist_mode_title_and_artist_guesses(client):
-    client.deps.deezer = ArtistDeezer()
-    me = login(client, "alice")
-
-    by_title = client.get("/blindtest/round", headers=me, params={"mode": "artist", "ref": "ziak", "count": 5}).json()
-    assert by_title["guess"] == "title"
-    assert len(by_title["questions"]) == 5
-    for q in by_title["questions"]:
-        titles = [c["title"] for c in q["choices"]]
-        assert len(set(titles)) == 4 and q["choices"][q["answer"]]["title"] == q["track"]["title"]
-
-    by_artist = client.get("/blindtest/round", headers=me,
-                           params={"mode": "artist", "ref": "ziak", "guess": "artist", "count": 4}).json()
-    questions = by_artist["questions"]
-    assert len(questions) == 4  # un artiste différent par question
-    for q in questions:
-        artists = [c["artist"] for c in q["choices"]]
-        assert len(set(artists)) == 4
-        assert artists[q["answer"]] == q["track"]["artist"]
-
-
-def test_blindtest_chart_and_bad_mode(client):
-    client.deps.deezer = FakeDeezer()
-    me = login(client, "alice")
-    assert len(client.get("/blindtest/round", headers=me, params={"mode": "chart", "count": 8}).json()["questions"]) == 8
-    assert client.get("/blindtest/round", headers=me, params={"mode": "nope"}).status_code == 400
-    assert client.get("/blindtest/round", headers=me, params={"mode": "playlist", "ref": "999"}).status_code == 404

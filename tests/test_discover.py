@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from app.providers.base import ArtistInfo, TrackInfo
 from app.services import discover
 from tests.test_extras import play
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 
 def tr(sid, artist):

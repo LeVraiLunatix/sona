@@ -47,13 +47,13 @@ targets:
         BGTaskSchedulerPermittedIdentifiers:
           - com.sona.encre.smart-downloads
           - com.sona.encre.refresh
-        # Concerts près de chez toi (distance aux salles, jamais envoyée).
-        NSLocationWhenInUseUsageDescription: Sona trie les concerts de tes artistes selon leur distance et place tes écoutes sur ta carte (à 1 km près).
+        # Carte des écoutes (position approximative, jamais envoyée).
+        NSLocationWhenInUseUsageDescription: Sona place tes écoutes sur ta carte (à 1 km près).
         # Import d'une playlist depuis la bibliothèque Musique de l'iPhone
         # (liste complète, là où la page web d'Apple Music s'arrête à 300).
         NSAppleMusicUsageDescription: Sona lit tes playlists Musique pour les importer en entier.
-        # Mode sport (cadence de course) et gestes de la tête avec les AirPods.
-        NSMotionUsageDescription: Sona suit ta foulée en mode sport et reconnaît les gestes de la tête avec tes AirPods.
+        # Gestes de la tête avec les AirPods.
+        NSMotionUsageDescription: Sona reconnaît les gestes de la tête avec tes AirPods.
         # Live Activity de l'écoute ensemble (écran verrouillé, Dynamic Island).
         NSSupportsLiveActivities: true
         NSAlarmKitUsageDescription: Sona te réveille en musique, à l'heure que tu choisis.

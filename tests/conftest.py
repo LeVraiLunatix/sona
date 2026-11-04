@@ -5,7 +5,7 @@ import pytest
 from app.api.routers import friends, stats
 from app.bot import lookup
 from app.api.routers import share as share_router
-from app.services import artist_photos, blindlive, concerts, connect, instrumental, karaoke, party, share, stream_health, tv_cast
+from app.services import artist_photos, connect, instrumental, karaoke, party, share, stream_health, tv_cast
 
 
 @pytest.fixture(autouse=True)
@@ -35,10 +35,8 @@ def _empty_catalog_cache():
     friends._tastes.clear()
     stats._lastfm_sync.clear()
     party.reset()
-    blindlive.reset()
     tv_cast.reset()
     instrumental.reset()
-    concerts.reset()
     connect.reset()
     stream_health.reset()
     karaoke.reset()

@@ -6,7 +6,7 @@ import random
 
 from app.providers.base import ArtistInfo, TrackInfo
 from app.services import djradio
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 
 def track(i, artist, bpm):

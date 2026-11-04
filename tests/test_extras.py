@@ -1,4 +1,4 @@
-"""Nouvelles sorties, « il y a un an », mode sport, instrumentales, moments,
+"""Nouvelles sorties, « il y a un an », instrumentales, moments,
 carte des écoutes, défis et votes de soirée."""
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from app.providers.base import AlbumInfo, TrackInfo
 from app.services import artist_photos, instrumental
 from app.services.resolver import Candidate
-from tests.test_party_blindtest_concerts import client, login  # noqa: F401
+from tests.test_party import client, login  # noqa: F401
 
 
 def play(title, artist, when, **extra):
@@ -68,17 +68,6 @@ def test_memories_from_last_year(client):
     assert got[0]["years_ago"] == 1 and got[0]["tracks"][0]["title"] == "Souvenir"
 
 
-def test_sport_tracks_follow_the_cadence(client, monkeypatch):
-    client.deps.deezer = ExtraDeezer()
-
-    async def artists(deps, user_id, count=15):
-        return [("A", "a")]
-
-    monkeypatch.setattr("app.services.sport.favourite_artists", artists)
-    me = login(client, "alice")
-    got = client.get("/sport", headers=me, params={"bpm": 171, "exclude": "7"}).json()
-    bpms = [t["bpm"] for t in got]
-    assert abs(bpms[0] - 171) <= 3 and "7" not in [t["source_id"] for t in got]
 
 
 def cand(video_id, title, duration):

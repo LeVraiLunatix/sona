@@ -19,7 +19,6 @@ final class NotificationManager: NSObject, ObservableObject {
     nonisolated static let refreshTaskIdentifier = "com.sona.encre.refresh"
 
     @Published var recaps: Bool { didSet { save("recaps", recaps) } }
-    @Published var dailyChallenge: Bool { didSet { save("daily", dailyChallenge) } }
     @Published var friends: Bool { didSet { save("friends", friends) } }
     @Published var releases: Bool { didSet { save("releases", releases) } }
     @Published var dailyTrack: Bool { didSet { save("dailyTrack", dailyTrack) } }
@@ -30,7 +29,6 @@ final class NotificationManager: NSObject, ObservableObject {
     private override init() {
         let defaults = UserDefaults.standard
         recaps = defaults.object(forKey: "notifications.recaps") as? Bool ?? true
-        dailyChallenge = defaults.object(forKey: "notifications.daily") as? Bool ?? true
         friends = defaults.object(forKey: "notifications.friends") as? Bool ?? true
         releases = defaults.object(forKey: "notifications.releases") as? Bool ?? true
         dailyTrack = defaults.object(forKey: "notifications.dailyTrack") as? Bool ?? true
@@ -88,7 +86,7 @@ final class NotificationManager: NSObject, ObservableObject {
     private enum Planned: String, CaseIterable {
         case weekRecap = "sona.recap.week"
         case monthRecap = "sona.recap.month"
-        case daily = "sona.daily"
+        case daily = "sona.daily" // ancien rappel « défi du jour » : seulement annulé
     }
 
     func reschedule() {
@@ -101,10 +99,6 @@ final class NotificationManager: NSObject, ObservableObject {
             add(.monthRecap, title: "Ton récap du mois est prêt ✨",
                 body: "Ton mois en musique : tops, découvertes, profil d'écoute.",
                 url: "encre://recap?period=month", date: DateComponents(day: 1, hour: 10, minute: 5))
-        }
-        if dailyChallenge {
-            add(.daily, title: "Défi du jour 🎯", body: "10 extraits, un classement entre amis. Tu tiens combien ?",
-                url: "encre://blindtest", date: DateComponents(hour: 18, minute: 30))
         }
     }
 
@@ -140,16 +134,6 @@ final class NotificationManager: NSObject, ObservableObject {
         let firstRun = seen.isEmpty
         var fresh: [(id: String, title: String, body: String, url: String)] = []
 
-        if let rooms = try? await APIClient.shared.activeLive() {
-            for room in rooms where !room.joined && room.phase != "finished" {
-                fresh.append((
-                    "live-\(room.code)",
-                    "\(room.hostName ?? "Un ami") lance un blind test 🎮",
-                    room.label.map { "Thème : \($0). Rejoins la partie !" } ?? "Rejoins la partie avant qu'elle commence !",
-                    "encre://live?code=\(room.code)"
-                ))
-            }
-        }
         if let parties = try? await APIClient.shared.activeParties() {
             for party in parties where !party.joined {
                 fresh.append((

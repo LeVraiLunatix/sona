@@ -33,7 +33,7 @@ ce qu'un navigateur ne sait pas faire.
   Bibliothèque → Téléchargés) et lus sans réseau. Sans connexion, Sona s'ouvre
   directement sur cette page.
 - **Paroles** : décalage ± 0,5 s réglable par titre ; **page artiste** :
-  biographie (Wikipédia), prochains concerts, discographie filtrable et triable ;
+  biographie (Wikipédia), discographie filtrable et triable ;
   **récap** partageable en image ; touche `?` pour l'aide des raccourcis.
 - **Paroles en surimpression** : les paroles synchronisées par-dessus les
   autres fenêtres (jeu, navigateur…), en bas ou en haut de l'écran ; on
@@ -75,11 +75,7 @@ ce qu'un navigateur ne sait pas faire.
 - **Barre des tâches** : dans l'aperçu, précédent / lecture / suivant et
   ♥ (plein quand le titre est dans ta bibliothèque) ; l'icône se remplit
   au fil du titre (orange en pause) ; clic droit sur l'icône : lecture /
-  pause, suivant, précédent, mini-lecteur, paroles, mode focus.
-- **Mode focus** (Pomodoro) : 25, 50 ou 90 min de concentration en musique
-  (la tienne ou une radio calme), puis une pause où la musique s'arrête ;
-  un chrono flotte en bas à droite, un « ding » et une notification à
-  chaque changement. Aussi sur le web (tuile « Mode focus » de l'accueil).
+  pause, suivant, précédent, mini-lecteur, paroles.
 - **Fond d'écran pochette** (coupé par défaut) : le fond d'écran de Windows
   devient la pochette en cours, floue et assombrie ; ton fond d'écran
   revient quand tu coupes l'option.

@@ -1,4 +1,4 @@
-"""Petits plus de l'app : nouvelles sorties, « il y a un an », mode sport,
+"""Petits plus de l'app : nouvelles sorties, « il y a un an », 
 karaoké (instrumentale), moments sur la timeline, carte des écoutes, défis
 et badges."""
 
@@ -12,7 +12,7 @@ from app.api.schemas import Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists, sport
+from app.services import challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists
 from app.services import stats as stats_service
 
 router = APIRouter(tags=["extras"])
@@ -90,16 +90,6 @@ async def new_releases(deps: ApiDeps = Depends(require_token)) -> list[dict]:
 @router.get("/memories")
 async def on_this_day(tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> list[dict]:
     return await memories.memories(deps.repo, deps.user_id, tz)
-
-
-@router.get("/sport", response_model=list[Track])
-async def sport_tracks(
-    bpm: float = Query(..., ge=60, le=220, description="Cadence de course (pas par minute)"),
-    exclude: str = Query(""),
-    deps: ApiDeps = Depends(require_token),
-) -> list[Track]:
-    excluded = {x for x in exclude.split(",") if x}
-    return [Track.from_info(t) for t in await sport.tracks_for_tempo(deps, deps.user_id, bpm, excluded)]
 
 
 @router.get("/instrumental/{source}/{source_id}")

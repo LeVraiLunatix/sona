@@ -482,7 +482,7 @@ function updateTaskbarProgress() {
 }
 
 /** Clic droit sur Sona dans la barre des tâches : raccourcis. */
-const JUMP_ACTIONS = { toggle: "Lecture / pause", next: "Titre suivant", previous: "Titre précédent", mini: "Mini-lecteur", lyrics: "Paroles en surimpression", focus: "Mode focus" };
+const JUMP_ACTIONS = { toggle: "Lecture / pause", next: "Titre suivant", previous: "Titre précédent", mini: "Mini-lecteur", lyrics: "Paroles en surimpression" };
 function setJumpList() {
   if (!isWin) return;
   try {
@@ -500,7 +500,6 @@ function runJumpAction(argv) {
   if (!action || !JUMP_ACTIONS[action]) return false;
   if (action === "mini") toggleMini();
   else if (action === "lyrics") setOverlay(!overlay);
-  else if (action === "focus") { showWindow(); pageCommand({ action: "focus" }).catch(() => {}); }
   else pageCommand({ action }).catch(() => {});
   return true;
 }
