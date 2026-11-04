@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#d9efff">
 <title>Sona — ta musique, en clair.</title>
 <meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Ouvre Sona dans le navigateur ou installe l'app.">
 <meta property="og:title" content="Sona — ta musique, en clair.">
@@ -13,92 +13,180 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
 :root {
-  --bg: #000; --ink: #f5f5f7; --ink-2: rgba(245, 245, 247, .62); --ink-3: rgba(245, 245, 247, .38);
-  --line: rgba(255, 255, 255, .09); --fill: rgba(255, 255, 255, .05);
+  --ink: #0a1630; --ink-2: rgba(10, 22, 48, .64); --ink-3: rgba(10, 22, 48, .42);
+  --sky: #9fd8ff; --sky-deep: #5aa9ff; --paper: #f5f8fc; --card: #ffffff; --line: rgba(10, 22, 48, .08);
+  --night: #0b1019; --night-2: #131a28;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
-  color-scheme: dark;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+body { margin: 0; color: var(--ink); font: 18px/1.55 var(--font); -webkit-font-smoothing: antialiased; background: var(--paper); }
 a { color: inherit; text-decoration: none; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 8px; }
-.wrap { max-width: 1040px; margin: 0 auto; padding: 0 32px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 12px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
 
-nav { display: flex; align-items: center; justify-content: space-between; height: 72px; }
-.brand { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
-.brand svg { width: 24px; height: 24px; }
-.btn { display: inline-flex; align-items: center; height: 44px; padding: 0 24px; border-radius: 10px; font-size: 15px; font-weight: 600; background: var(--ink); color: var(--bg); }
-.btn.ghost { background: var(--fill); color: var(--ink); }
-nav .btn { height: 38px; padding: 0 18px; font-size: 14px; }
+/* Ciel : un dégradé doux qui descend du haut de la page */
+.sky { display: flow-root; background: linear-gradient(180deg, #cfeaff 0%, #e4f3ff 38%, var(--paper) 100%); padding-bottom: 96px; }
 
-.hero { padding: 144px 0 112px; }
-h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.04; letter-spacing: -.035em; font-weight: 600; margin: 0 0 24px; max-width: 14ch; }
-.lead { font-size: 20px; color: var(--ink-2); max-width: 44ch; margin: 0 0 40px; }
-.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+nav { display: flex; align-items: center; justify-content: space-between; margin: 24px auto 0; padding: 10px 10px 10px 24px; max-width: 1056px; background: var(--card); border-radius: 999px; box-shadow: 0 1px 0 var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
+.brand svg { width: 28px; height: 28px; color: var(--sky-deep); }
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 28px; border-radius: 999px; font-size: 16px; font-weight: 600; background: var(--sky); color: var(--ink); transition: transform .2s ease, filter .2s ease; }
+.pill:hover { filter: brightness(.97); transform: translateY(-1px); }
+.pill.white { background: var(--card); box-shadow: 0 1px 0 var(--line); }
+.pill.dark { background: var(--ink); color: #fff; }
+nav .pill { height: 44px; padding: 0 22px; }
 
-.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; padding: 72px 0; border-top: 1px solid var(--line); }
-.features h2 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 12px; }
-.features p { margin: 0; color: var(--ink-2); font-size: 16px; }
+.hero { padding: 112px 0 72px; text-align: center; }
+.tag { display: inline-block; font: 500 15px/1 var(--mono); padding: 10px 16px; border: 1.5px solid var(--ink); border-radius: 12px; margin-bottom: 32px; }
+h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045em; font-weight: 700; margin: 0 auto 28px; max-width: 12ch; text-wrap: balance; }
+.lead { font-size: 21px; color: var(--ink-2); max-width: 44ch; margin: 0 auto 44px; }
+.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.note { margin-top: 20px; font-size: 15px; color: var(--ink-3); }
 
-.more { padding: 72px 0 112px; border-top: 1px solid var(--line); }
-.more h2 { font-size: 28px; letter-spacing: -.025em; font-weight: 600; margin: 0 0 32px; }
-.more ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 48px; }
-.more li { padding: 20px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
-.more li b { color: var(--ink); font-weight: 500; display: block; margin-bottom: 2px; }
+/* Maquette de l'app */
+.mock { margin: 24px auto 0; max-width: 1056px; padding: 20px; border-radius: 36px; background: linear-gradient(160deg, #6fb4ff, #2f6fd6 60%, #17356f); }
+.app { display: grid; grid-template-columns: 64px 1fr; height: 460px; border-radius: 22px; overflow: hidden; background: var(--night); color: #f2f5fb; position: relative; }
+.rail { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 22px 0; }
+.rail i { width: 20px; height: 20px; border-radius: 6px; background: rgba(255, 255, 255, .2); }
+.rail i.on { background: var(--sky); }
+.rail i.logo { width: 24px; height: 24px; border-radius: 50%; background: none; border: 4px solid var(--sky); position: relative; margin-bottom: 8px; }
+.rail i.logo::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--sky); }
+.stage { background: var(--night-2); margin: 10px 10px 10px 0; border-radius: 18px; padding: 28px 32px; overflow: hidden; }
+.album { display: flex; gap: 24px; align-items: flex-end; margin-bottom: 20px; }
+.cover { width: 120px; height: 120px; border-radius: 16px; background: linear-gradient(140deg, #8cc8ff, #3b6fd1 55%, #1b2a5c); flex: none; }
+.album small { color: var(--sky); font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.album h3 { margin: 8px 0 4px; font-size: 30px; letter-spacing: -.03em; line-height: 1.1; }
+.album p { margin: 0; color: rgba(242, 245, 251, .6); font-size: 15px; }
+.row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; padding: 11px 14px; border-radius: 12px; font-size: 15px; color: rgba(242, 245, 251, .85); }
+.row span:first-child, .row span:last-child { color: rgba(242, 245, 251, .4); font-variant-numeric: tabular-nums; }
+.row.on { background: rgba(140, 200, 255, .14); color: var(--sky); }
+.row.on span:first-child { color: var(--sky); }
+.bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 82%); height: 60px; border-radius: 22px; background: rgba(19, 26, 40, .92); border: 1px solid rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 14px; padding: 0 20px 0 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
+.bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #8cc8ff, #3b6fd1); flex: none; }
+.bar b { font-size: 14px; display: block; line-height: 1.2; }
+.bar small { font-size: 12px; color: rgba(242, 245, 251, .55); }
+.bar .play { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: var(--sky); display: grid; place-items: center; }
+.bar .play::after { content: ""; border-left: 11px solid #06111f; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px; }
 
-footer { border-top: 1px solid var(--line); padding: 32px 0 56px; color: var(--ink-3); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+/* Points forts */
+.section { padding: 120px 0 0; }
+h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04em; font-weight: 700; margin: 0 0 56px; max-width: 14ch; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.card { background: var(--card); border-radius: 32px; padding: 40px 36px 44px; min-height: 280px; display: flex; flex-direction: column; box-shadow: 0 1px 0 var(--line); }
+.card .n { font: 500 14px/1 var(--mono); color: var(--sky-deep); margin-bottom: auto; padding-bottom: 56px; }
+.card h3 { font-size: 26px; letter-spacing: -.03em; line-height: 1.15; margin: 0 0 12px; }
+.card p { margin: 0; color: var(--ink-2); font-size: 17px; }
 
-@media (max-width: 760px) {
+.also { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 64px; margin-top: 8px; }
+.also div { padding: 28px 0; border-top: 1px solid var(--line); }
+.also b { display: block; font-size: 20px; letter-spacing: -.02em; margin-bottom: 4px; }
+.also span { color: var(--ink-2); font-size: 17px; }
+
+.final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #d4ecff, #bfe0ff); }
+.final h2 { margin: 0 auto 36px; max-width: 12ch; }
+
+footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 48px 0 64px; color: var(--ink-3); font-size: 15px; }
+
+@media (max-width: 860px) {
   .wrap { padding: 0 20px; }
-  .hero { padding: 80px 0 72px; }
-  .features { grid-template-columns: 1fr; gap: 32px; padding: 48px 0; }
-  .more ul { grid-template-columns: 1fr; }
+  nav { margin-top: 16px; padding-left: 18px; }
+  .hero { padding: 72px 0 48px; }
+  .lead { font-size: 18px; }
+  .mock { padding: 12px; border-radius: 28px; }
+  .app { grid-template-columns: 1fr; height: 420px; }
+  .rail { display: none; }
+  .stage { margin: 8px; padding: 20px; }
+  .album h3 { font-size: 24px; }
+  .cover { width: 88px; height: 88px; }
+  .cards { grid-template-columns: 1fr; }
+  .card { min-height: 0; }
+  .card .n { padding-bottom: 32px; }
+  .also { grid-template-columns: 1fr; }
+  .section { padding-top: 88px; }
+  .final { margin-top: 88px; padding: 64px 20px; border-radius: 32px; }
 }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav aria-label="Principal">
-    <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="25" fill="none" stroke="currentColor" stroke-width="6"/><circle cx="32" cy="32" r="7" fill="currentColor"/></svg>
-      Sona
-    </a>
-    <a class="btn" href="/?connexion" data-app>Se connecter</a>
-  </nav>
+<div class="sky">
+  <div class="wrap">
+    <nav aria-label="Principal">
+      <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="25" fill="none" stroke="currentColor" stroke-width="6"/><circle cx="32" cy="32" r="7" fill="currentColor"/></svg>
+        Sona
+      </a>
+      <a class="pill" href="/?connexion" data-app>Se connecter</a>
+    </nav>
 
-  <header class="hero">
-    <h1>Ta musique, en clair.</h1>
-    <p class="lead">Les paroles mot à mot, ton son sans compromis, et ta musique là où tu es : ordinateur, téléphone, salon.</p>
-    <div class="cta">
-      <a class="btn" href="/?connexion" data-app>Ouvrir Sona</a>
-      <a class="btn ghost" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
+    <header class="hero">
+      <span class="tag">/v2</span>
+      <h1>Ta musique, en clair.</h1>
+      <p class="lead">Les paroles mot à mot, ton son sans compromis, et ta musique là où tu es : ordinateur, téléphone, salon.</p>
+      <div class="cta">
+        <a class="pill dark" href="/?connexion" data-app>Ouvrir Sona</a>
+        <a class="pill white" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
+      </div>
+      <p class="note">Gratuit. Dans le navigateur, sur Windows, et sur iPhone.</p>
+    </header>
+
+    <div class="mock" aria-hidden="true">
+      <div class="app">
+        <div class="rail"><i class="logo"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="stage">
+          <div class="album">
+            <div class="cover"></div>
+            <div><small>Album · 2026</small><h3>Premier matin</h3><p>Nils Aubert · 9 titres · 34 min</p></div>
+          </div>
+          <div class="row on"><span>1</span><span>Premier matin</span><span>3:42</span></div>
+          <div class="row"><span>2</span><span>Ligne claire</span><span>2:58</span></div>
+          <div class="row"><span>3</span><span>Silence blanc</span><span>4:05</span></div>
+          <div class="row"><span>4</span><span>Marée</span><span>3:19</span></div>
+          <div class="bar"><div class="mini"></div><div><b>Premier matin</b><small>Nils Aubert · FLAC 24 bits / 96 kHz</small></div><div class="play"></div></div>
+        </div>
+      </div>
     </div>
-  </header>
+  </div>
+</div>
 
-  <section class="features" aria-label="L'essentiel">
-    <div><h2>Paroles mot à mot</h2><p>Les paroles défilent en rythme, mot après mot, et se règlent d'un geste.</p></div>
-    <div><h2>Lossless</h2><p>Branche ton dossier de FLAC ou d'ALAC : Sona les lit tels quels, sans jamais les convertir.</p></div>
-    <div><h2>Où tu veux</h2><p>Lance sur le téléphone, continue sur l'ordinateur, envoie sur l'écran du salon.</p></div>
+<div class="wrap">
+  <section class="section" aria-label="L'essentiel">
+    <span class="tag">/essentiel</span>
+    <h2>Tout est en place. Rien de plus.</h2>
+    <div class="cards">
+      <div class="card"><span class="n">01</span><h3>Paroles mot à mot</h3><p>Les paroles défilent en rythme, mot après mot, et se règlent d'un geste.</p></div>
+      <div class="card"><span class="n">02</span><h3>Vrai lossless</h3><p>Branche ton dossier de FLAC ou d'ALAC : Sona les lit tels quels, sans jamais les convertir.</p></div>
+      <div class="card"><span class="n">03</span><h3>Où tu veux</h3><p>Lance sur le téléphone, continue sur l'ordinateur, envoie sur l'écran du salon.</p></div>
+    </div>
   </section>
 
-  <section class="more" aria-label="Et aussi">
-    <h2>Et aussi</h2>
-    <ul>
-      <li><b>Écoute ensemble</b>Le même son, au même moment, avec tes amis.</li>
-      <li><b>Playlists et bibliothèque</b>Importe depuis d'autres services, partage, collabore.</li>
-      <li><b>Stats et récaps</b>Tes artistes, tes habitudes, ton mois en musique.</li>
-      <li><b>Hors ligne</b>Les titres téléchargés sur l'iPhone se lisent sans réseau.</li>
-    </ul>
+  <section class="section" aria-label="Et aussi">
+    <span class="tag">/aussi</span>
+    <h2>Et aussi.</h2>
+    <div class="also">
+      <div><b>Écoute ensemble</b><span>Le même son, au même moment, avec tes amis.</span></div>
+      <div><b>Playlists et bibliothèque</b><span>Importe depuis d'autres services, partage, collabore.</span></div>
+      <div><b>Stats et récaps</b><span>Tes artistes, tes habitudes, ton mois en musique.</span></div>
+      <div><b>Hors ligne</b><span>Les titres téléchargés sur l'iPhone se lisent sans réseau.</span></div>
+    </div>
+  </section>
+
+  <section class="final" aria-label="Commencer">
+    <h2>Prêt à écouter ?</h2>
+    <div class="cta">
+      <a class="pill dark" href="/?connexion" data-app>Ouvrir Sona</a>
+      <a class="pill white" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
+    </div>
   </section>
 
   <footer>
     <span>Sona v2</span>
-    <a href="/">Ouvrir l'app</a>
+    <a href="/" data-app>Ouvrir l'app</a>
   </footer>
 </div>
 <script>
-// Déjà connecté : le bouton ramène directement à l'app.
+// Déjà connecté : les boutons ramènent directement à l'app.
 let loggedIn = false;
 try { loggedIn = !!localStorage.getItem("sona.token"); } catch { /* navigation privée : on suppose non connecté */ }
 if (loggedIn) document.querySelectorAll("[data-app]").forEach((a) => { a.href = "/"; if (a.closest("nav")) a.textContent = "Ouvrir"; });

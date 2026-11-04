@@ -12,8 +12,8 @@ html.desktop {
   --topbar-h: 72px;
   --gap: 10px;
   --wctl-w: 128px;
-  --bg: #000000;
-  --bg-elevated: #1c1c1e;
+  --bg: #0b1019;
+  --bg-elevated: #131a28;
   --sidebar: transparent;
   --glass: rgba(30, 30, 38, .55);
   --hairline: rgba(255, 255, 255, .08);
@@ -27,7 +27,7 @@ html.desktop {
   --shadow-pop: 0 28px 70px rgba(0, 0, 0, .55);
   /* Verre */
   --g-fill: linear-gradient(transparent, transparent);
-  --g-tint: #0a0a0a;
+  --g-tint: #0b1019;
   --g-edge: inset 0 0 0 1px rgba(255, 255, 255, .08);
   --g-lift: 0 0 0 rgba(0, 0, 0, 0);
   --g-blur: none;
@@ -553,22 +553,32 @@ html.desktop .hero-glow { inset: -30px -36px auto; }
 html.desktop .profile-head .hero-glow { inset: -30px -36px auto; }
 
 
-/* ═══ Sobre ═══════════════════════════════════════════════════════════════
-   Fenêtre unie : plus de fond vivant, plus de panneaux flottants ni de verre.
-   Volets collés, séparés par un trait fin. Ce bloc vient en dernier. */
+/* ═══ Sona v2 ════════════════════════════════════════════════════════════
+   Même mise en page que le web : menu sur le fond, contenu en grand panneau
+   arrondi, lecteur flottant en bas. Plus de fond vivant ni de verre épais.
+   Ce bloc vient en dernier. */
 html.desktop .ambient { display: none; }
-html.desktop { --gap: 0px; --bg-elevated: #1c1c1e; }
-html.desktop .app { gap: 0; padding: 0; }
-html.desktop :is(.sidebar, .topbar, .content, .devices-pop, .sheet, .toast) {
-  background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-radius: 0;
+html.desktop { --gap: 0px; --topbar-h: 76px; --sidebar-w: 256px; }
+html.desktop body { background: transparent; background-image: inherit; }
+html.desktop #root { z-index: 1; }
+html.desktop .app { gap: 0; padding: 0; grid-template-rows: 1fr; grid-template-columns: var(--sidebar-w) 1fr; }
+html.desktop .sidebar { position: relative; background: transparent; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 40px 16px 16px 24px; }
+html.desktop .content {
+  grid-row: 1; margin: 12px 12px 12px 0; border-radius: 28px; background: var(--bg); border: 1px solid var(--hairline);
+  box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-html.desktop .sidebar { background: #0a0a0a; border-right: 1px solid var(--hairline); }
-html.desktop .topbar { border-bottom: 1px solid var(--hairline); }
-html.desktop .content { background: var(--bg); }
-html.desktop :is(.devices-pop, .sheet, .toast) { background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 12px; box-shadow: var(--shadow-pop); }
+html.desktop .page { padding: 64px 56px 168px; }
+html.desktop .topbar {
+  position: fixed; border-radius: 28px; padding: 0 24px 0 16px; height: 76px; gap: 24px;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--hairline); box-shadow: var(--shadow-pop);
+}
+html.desktop :is(.devices-pop, .sheet, .toast) { background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 24px; box-shadow: var(--shadow-pop); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet)::before { display: none; }
-html.desktop .sheet-backdrop { background: rgba(0, 0, 0, .6); -webkit-backdrop-filter: none; backdrop-filter: none; }
-html.desktop .wctl button { border-radius: 8px; box-shadow: none; background: transparent; }
+html.desktop .sheet-backdrop { background: rgba(3, 6, 12, .66); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop .wctl { top: 16px; right: 28px; }
+html.desktop .wctl button { border-radius: 10px; box-shadow: none; background: transparent; }
 html.desktop .wctl button:hover { background: var(--fill-strong); }
 html.desktop .wctl .close:hover { box-shadow: none; }
 html.desktop .brand-icon { box-shadow: none; }
