@@ -2356,8 +2356,7 @@ function renderNowPlayingView() {
           <button class="tbtn" data-np="next">${icons.next}</button>
           <button class="tbtn small ${state.repeat ? "on" : ""}" data-np="repeat">${icons.repeat}</button>
         </div>
-        ${npVolumeRow()}
-        <div class="np-sing" id="np-sing"></div>
+        <div class="np-dock">${npVolumeRow()}<div class="np-sing" id="np-sing"></div></div>
       </div>
       <div class="np-right" id="np-right"></div>
     </div>`;
@@ -3252,6 +3251,14 @@ function renderSing() {
     // Glissé en cours : seulement l'état, pas le curseur.
     const status = $(".np-sing-status", box);
     if (status) status.textContent = sing.status;
+    return;
+  }
+  // Ordinateur : tant que le karaoké est coupé, une simple pastille ; le panneau (curseur, préréglages) apparaît à l'activation.
+  const compact = !isMobile() && !sing.on;
+  box.classList.toggle("compact", compact);
+  if (compact) {
+    box.innerHTML = `<button class="np-chip" data-sing="toggle" title="Chante : voix séparée par IA">${icons.mic}<span>Karaoké</span></button>`;
+    $("[data-sing=toggle]", box).onclick = () => setSing(true);
     return;
   }
   const level = singShownLevel();

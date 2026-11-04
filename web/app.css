@@ -1794,3 +1794,55 @@ html[data-tint="off"] .hero-glow { display: none; }
 .lyr-step button { width: 36px; height: 36px; border-radius: 50%; background: var(--fill-strong); font-size: 20px; font-weight: 600; line-height: 1; }
 .lyr-step button:hover { background: rgba(255, 255, 255, 0.16); }
 .lyr-step output { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ═══ Lecteur en grand ═══════════════════════════════════════════════════════
+   Fond teinté par la pochette (coupable dans Apparence), pochette qui rétrécit en
+   pause, bouton lecture blanc, onglets en pilule, rangée volume + karaoké compacte. */
+.np { background: var(--canvas); }
+.np-bg img { filter: blur(110px) saturate(1.6) brightness(.62); }
+.np-bg::after { background: radial-gradient(120% 90% at 30% 15%, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.6)), linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent 50%); }
+html[data-tint="off"] .np-bg img, html[data-tint="off"] .np-gl { display: none; }
+
+.np-top { padding: 22px 32px; }
+.np-top .tbtn { width: 44px; height: 44px; border-radius: 50%; }
+.np-tabs { padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+.np-tabs button { padding: 8px 22px; border-radius: 999px; font-size: 14px; font-weight: 600; transition: background .25s var(--ease), color .25s var(--ease); }
+.np-tabs button.on { background: #fff; color: #000; }
+
+.np-body { grid-template-columns: minmax(320px, 520px) minmax(0, 1fr); gap: 8vw; padding: 0 8vw 6vh; }
+.np-left { gap: 26px; }
+.np-art {
+  border-radius: var(--r-panel); background: var(--fill);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transition: transform .7s cubic-bezier(.2, .8, .2, 1), box-shadow .7s cubic-bezier(.2, .8, .2, 1);
+}
+.np.paused .np-art { transform: scale(.9); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.np-meta .t { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
+.np-meta .a { font-size: 17px; margin-top: 2px; color: rgba(255, 255, 255, 0.62); }
+
+.np-progress input[type="range"].slider { height: 4px; background: linear-gradient(to right, #fff var(--p, 0%), rgba(255, 255, 255, 0.2) var(--p, 0%)); transition: height .15s var(--ease); }
+.np-progress:hover input[type="range"].slider { height: 8px; }
+.np-progress input[type="range"].slider::-webkit-slider-thumb { background: #fff; }
+.np-times { margin-top: 10px; }
+
+.np-transport { gap: 34px; }
+.np-transport .tbtn:not(.big):hover { background: rgba(255, 255, 255, 0.1); }
+.np-transport .tbtn.big { background: #fff; color: #000; width: 76px; height: 76px; font-size: 38px; transition: transform .25s cubic-bezier(.2, .8, .2, 1), background .2s; }
+.np-transport .tbtn.big:hover { background: #fff; transform: scale(1.06); }
+.np-transport .tbtn.big:active { transform: scale(.96); }
+
+.np-dock { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.np-dock .np-volume { flex: 1; min-width: 190px; background: rgba(255, 255, 255, 0.08); border-radius: 999px; padding: 4px 18px 4px 6px; }
+.np-chip { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 14px; font-weight: 600; transition: background .2s; }
+.np-chip .icon { font-size: 18px; }
+.np-chip:hover { background: rgba(255, 255, 255, 0.15); }
+.np-sing { flex: 1 0 100%; background: rgba(255, 255, 255, 0.08); border-radius: 22px; padding: 14px 16px; }
+.np-sing.compact { flex: none; background: none; border-radius: 0; padding: 0; }
+.np.mobile .np-sing { flex: none; background: none; padding: 0; }
+
+.np .lyrics p { font-size: clamp(28px, 2.8vw, 44px); }
+@media (max-width: 1100px) { .np-body { gap: 5vw; padding: 0 5vw 5vh; } }
+/* Karaoké activé : son panneau prend de la place, la pochette rapetisse d'autant. */
+.np:not(.mobile):has(.np-sing:not(.compact)) .np-art { width: min(100%, max(120px, calc(100vh - 700px))); }
+.np:not(.mobile):has(.np-sing:not(.compact)) .np-left { gap: 18px; }
+.vol-pct { white-space: nowrap; }
