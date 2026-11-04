@@ -1993,3 +1993,7 @@ html[data-lyrblur="off"] .lyrics p[data-d] { filter: none; }
 .daily .eyebrow, .mood .eyebrow, .memory .eyebrow, .resume .eyebrow { color: var(--text-3); }
 .daily img, .resume img { box-shadow: none; }
 .resume:hover, .daily:hover, .mood:hover, .memory:hover { transform: none; background: var(--fill-strong); }
+
+/* Paroles : le dégradé de chaque mot (background-clip: text) ne se dessine que dans sa boîte, aussi haute que la
+   ligne : le bas des g, y, p était rogné. On agrandit la boîte vers le haut et le bas sans changer l'interligne. */
+.lyrics p .w, .lyrics p .w .ch { padding-block: .16em .28em; margin-block: -.16em -.28em; }
