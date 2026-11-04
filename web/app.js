@@ -2979,7 +2979,7 @@ function renderLyrics() {
     // et la vue se recentre en douceur.
     const lyr = $("#lyr", box);
     let touching = false, timer = 0;
-    const hold = () => { state.lyrFree = true; cancelAnimationFrame(lyrScroll.raf); lyr.classList.add("free"); clearTimeout(timer); };
+    const hold = () => { state.lyrFree = true; cancelAnimationFrame(lyrScroll.raf); lyricsWaveCancel(lyr); lyr.classList.add("free"); clearTimeout(timer); };
     const release = () => {
       clearTimeout(timer);
       timer = setTimeout(() => { state.lyrFree = false; lyr.classList.remove("free"); syncLyrics(true, true); }, 1600);
@@ -3065,21 +3065,52 @@ const lyricsLatency = () => (Number(look.lyrOffset) || 0) + Math.min(0.4, Number
 // commence, comme dans Apple Musique. Il s'arrête dès que l'utilisateur touche.
 const LYRICS_SCROLL_LEAD = 0.28;
 const lyrScroll = { raf: 0 };
-function lyricsScrollTo(box, top, instant) {
-  cancelAnimationFrame(lyrScroll.raf);
-  lyrScroll.raf = 0;
-  top = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, top));
-  if (instant || reduceLyricsMotion.matches) { box.scrollTop = top; return; }
+const lyrWaveOK = typeof CSS !== "undefined" && !!CSS.supports && CSS.supports("translate", "0 0") && typeof Element.prototype.animate === "function";
+/** Défilement doux d'un seul bloc : secours (navigateur ancien) et grands sauts. */
+function lyricsScrollAnimate(box, top) {
   const from = box.scrollTop, delta = top - from;
   if (Math.abs(delta) < 1) return;
   const dur = Math.max(520, Math.min(980, 420 + Math.abs(delta) * 0.5));
   const t0 = performance.now();
   const step = (now) => {
     const p = clamp01((now - t0) / dur);
-    box.scrollTop = from + delta * (1 - Math.pow(1 - p, 4)); // départ vif, arrivée douce
+    box.scrollTop = from + delta * (1 - Math.pow(1 - p, 4));
     lyrScroll.raf = p < 1 ? requestAnimationFrame(step) : 0;
   };
   lyrScroll.raf = requestAnimationFrame(step);
+}
+const lyricsWaveCancel = (box) => box.querySelectorAll("p").forEach((p) => p.getAnimations().forEach((a) => { if (a.id === "lyr-wave") a.cancel(); }));
+/** Changement de ligne : le défilement est fait d'un coup, puis chaque ligne visible
+ * revient à sa place en glissant (technique « FLIP »), les lignes du dessous un peu
+ * après celles du dessus : une vague, comme dans Apple Musique. Si une vague est déjà
+ * en cours, chaque ligne repart de sa position du moment : aucun à-coup. */
+function lyricsWave(box, top, delta, anchor) {
+  const h = box.clientHeight, before = box.scrollTop;
+  const live = [];
+  box.querySelectorAll("p").forEach((p, i) => {
+    const y = p.offsetTop - before;
+    if (y + p.offsetHeight < -h * 0.35 || y > h * 1.35) return; // hors écran : pas animée
+    live.push([p, i, parseFloat((getComputedStyle(p).translate || "").split(" ")[1]) || 0]);
+  });
+  lyricsWaveCancel(box);
+  box.scrollTop = top;
+  const a = Number.isInteger(anchor) ? anchor : state.lastLyric;
+  for (const [p, i, current] of live) {
+    const delay = i > a ? Math.min(i - a, 6) * 34 : 0;
+    const anim = p.animate([{ translate: `0 ${current + delta}px` }, { translate: "0 0" }],
+      { duration: 820, delay, easing: "cubic-bezier(.22, .9, .26, 1)", fill: "backwards" });
+    anim.id = "lyr-wave";
+  }
+}
+function lyricsScrollTo(box, top, instant, anchor) {
+  cancelAnimationFrame(lyrScroll.raf);
+  lyrScroll.raf = 0;
+  top = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, top));
+  const delta = top - box.scrollTop;
+  if (instant || reduceLyricsMotion.matches) { lyricsWaveCancel(box); box.scrollTop = top; return; }
+  if (Math.abs(delta) < 1) return;
+  if (!lyrWaveOK || Math.abs(delta) > box.clientHeight * 1.1) { lyricsWaveCancel(box); lyricsScrollAnimate(box, top); return; }
+  lyricsWave(box, top, delta, anchor);
 }
 /** Position de défilement qui place la ligne `el` à ~36 % de la hauteur (une
  * ligne très longue est alignée plus haut pour qu'elle tienne). */
@@ -3088,7 +3119,7 @@ function lyricsFollow(box, index, instant) {
   if (state.lyrFree || !look.lyrAuto) return;
   state.scrollLine = index;
   const el = box.querySelector(`[data-l="${index}"]`) || box.querySelector("p");
-  if (el) lyricsScrollTo(box, lyricsScrollTarget(box, el), instant);
+  if (el) lyricsScrollTo(box, lyricsScrollTarget(box, el), instant, index);
 }
 
 function lyricsActiveIndex(lines, now) {
@@ -3161,6 +3192,7 @@ function syncLyrics(force, smooth) {
   $$("p", box).forEach((p, i) => {
     p.classList.toggle("on", i === active);
     p.classList.toggle("near", Math.abs(i - active) === 1);
+    p.dataset.d = String(Math.min(4, Math.abs(i - Math.max(active, 0))));
   });
   // Pas de recentrage tant que l'utilisateur fait défiler les paroles ; et si le
   // défilement est déjà parti vers cette ligne (anticipation), on ne le relance pas.
