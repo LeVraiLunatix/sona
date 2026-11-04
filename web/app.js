@@ -6278,7 +6278,7 @@ async function viewSettings() {
       ${settings ? toggleRow("autoplay", "Lecture automatique", "Des morceaux similaires seront lus quand la file se termine.", settings.autoplay) : ""}
       ${toggleRow("dj", "DJ vocal", "Une voix annonce chaque titre, comme à la radio.", store.get("sona.dj") === "1")}
       <a class="set-row" data-dj-voice><span class="set-text"><b>Voix du DJ</b><small>${esc({ remy: "Rémy", vivienne: "Vivienne", henri: "Henri", denise: "Denise" }[store.get("sona.djVoice") || "remy"])}</small></span>${icons.right}</a>
-      ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${settings.quality === "standard" ? "Standard (débit réduit)" : "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
+      ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${{ lossless: "Lossless (tes fichiers)", standard: "Standard (débit réduit)" }[settings.quality] || "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
     </div>
 
     <h3 class="set-head">Compte</h3><div class="set-group">
@@ -6331,7 +6331,7 @@ function bindSettings() {
   $("[data-dj-voice]")?.addEventListener("click", () => actionSheet("Voix du DJ", [["remy", "Rémy"], ["vivienne", "Vivienne"], ["henri", "Henri"], ["denise", "Denise"]].map(([id, label]) => ({
     icon: icons.mic, label, checked: (store.get("sona.djVoice") || "remy") === id, run: () => { store.set("sona.djVoice", id); route(); },
   }))));
-  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
+  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers, sinon meilleure disponible)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
     label, checked: state.settings?.quality === q, run: async () => { state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ quality: q }) }); route(); },
   }))));
   $("[data-loved]")?.addEventListener("click", async () => {

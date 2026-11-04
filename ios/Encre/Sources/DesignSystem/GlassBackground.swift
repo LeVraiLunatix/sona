@@ -1,29 +1,21 @@
 import SwiftUI
 
-/// Vrai Liquid Glass système (iOS 26, `glassEffect(_:in:)`) plutôt que
-/// l'ancienne reproduction maison au `.ultraThinMaterial` + dégradés blancs :
-/// le rendu (réfraction, reflets spéculaires, ombre de contact) est fourni
-/// par le système et réagit correctement au fond qui défile dessous, chose
-/// qu'un flou statique ne pouvait pas simuler.
+/// Surfaces sobres : un aplat gris très léger, sans verre, sans reflet ni
+/// ombre. On garde les mêmes points d'entrée (`glassCapsule`, `glassCircle`,
+/// `glassRounded`…) pour ne pas toucher les écrans, mais ils ne dessinent
+/// plus qu'un fond plat. Les barres système (onglets, navigation) gardent
+/// leur rendu natif iOS.
 struct GlassBackground: ViewModifier {
     var shape: AnyShape
     var tint: Color?
     var interactive: Bool
 
     func body(content: Content) -> some View {
-        var glass = Glass.regular
-        if let tint { glass = glass.tint(tint) }
-        if interactive { glass = glass.interactive() }
-        return content.glassEffect(glass, in: shape)
+        content.background(shape.fill(tint?.opacity(0.18) ?? Tone.surfaceStrong))
     }
 }
 
 extension View {
-    /// Fond "verre liquide" derrière une forme quelconque (capsule, cercle,
-    /// rectangle arrondi...). `interactive` ajoute la réaction tactile
-    /// système (léger allumage/ondulation au toucher) — à réserver aux
-    /// éléments qu'on presse vraiment (boutons de transport, onglets), pas
-    /// aux conteneurs purement décoratifs.
     func glassBackground<S: Shape>(_ shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
         modifier(GlassBackground(shape: AnyShape(shape), tint: tint, interactive: interactive))
     }

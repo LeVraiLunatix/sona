@@ -555,8 +555,7 @@ struct RecapShareCard: View {
         .padding(26)
         .frame(width: 360, height: 640)
         .background(
-            LinearGradient(colors: [Color(red: 0.55, green: 0.2, blue: 0.95), Color(red: 0.95, green: 0.3, blue: 0.5), .black],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            Tone.background
         )
     }
 

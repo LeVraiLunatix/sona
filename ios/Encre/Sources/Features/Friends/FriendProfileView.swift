@@ -152,8 +152,7 @@ struct FriendProfileView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.95, green: 0.35, blue: 0.55), Color(red: 0.45, green: 0.2, blue: 0.95)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(Tone.surface)
         )
         .padding(.horizontal, 20)
     }

@@ -328,7 +328,7 @@ Lecture automatique : Activée
 ```
 
 - "Qualité audio" → liste des qualités réellement disponibles pour la source
-  utilisée (jamais de FLAC ou qualité supérieure à ce que la source fournit).
+  utilisée (jamais de FLAC ou qualité supérieure à ce que la source fournit). Seule exception : la qualité « Lossless », qui sert les fichiers de `LOCAL_MUSIC_DIR` tels quels (vrai FLAC/ALAC, jamais converti).
 - "Format" → `Automatique` (recommandé, coché par défaut) vs formats
   explicites si l'utilisateur veut forcer une conversion.
 - "Notifications" → bascule Activé/Désactivé en un clic (édition immédiate).

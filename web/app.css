@@ -1493,97 +1493,74 @@ span.chip { cursor: default; }
 .bio-src { font-size: 12.5px; color: var(--text-3); }
 
 
-/* ═══ alyra. — liquid glass ═══════════════════════════════════════════════════
-   Une seule apparence, sombre : fond graphite où passent trois taches de
-   couleur, du verre translucide par-dessus, du blanc pour tout ce qui est
-   actif. Aucune couleur de marque : la seule couleur de l'écran est celle de
-   la pochette. Police : Inter Tight, serrée. Ce bloc vient en dernier : il
-   reprend les variables du début du fichier (et celles de la version mobile). */
+/* ═══ alyra. — sobre ═════════════════════════════════════════════════════════
+   Fond uni, séparateurs fins, texte clair sur noir. Aucune couleur d'interface :
+   la seule couleur de l'écran est celle des pochettes. Police système (SF Pro
+   sur Apple). Pas de halo, pas de dégradé, pas d'ombre portée sauf sous les
+   fenêtres flottantes. Ce bloc vient en dernier : il reprend les variables du
+   début du fichier. */
 
 :root {
-  --font: "Inter Tight", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
-  --bg: #0e1014;
-  --bg-elevated: #171a21;
-  --sidebar: rgba(255, 255, 255, 0.055);
-  --glass: rgba(24, 28, 38, 0.56);
-  --hairline: rgba(255, 255, 255, 0.12);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  --bg: #000000;
+  --bg-elevated: #1c1c1e;
+  --sidebar: #0a0a0a;
+  --glass: rgba(28, 28, 30, 0.86);
+  --hairline: rgba(255, 255, 255, 0.1);
   --fill: rgba(255, 255, 255, 0.07);
-  --fill-strong: rgba(255, 255, 255, 0.14);
-  --text: #f4f6f8;
-  --text-2: rgba(244, 246, 248, 0.72);
-  --text-3: rgba(244, 246, 248, 0.5);
-  --accent: #f4f6f8;
-  --accent-2: #bfcbe0;
-  --accent-soft: rgba(255, 255, 255, 0.18);
-  --on-accent: #0e1014;
-  --shadow-art: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  --shadow-pop: 0 28px 70px rgba(0, 0, 0, 0.6);
-  --radius-art: 16px;
-  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  --fill-strong: rgba(255, 255, 255, 0.12);
+  --text: #f5f5f7;
+  --text-2: rgba(245, 245, 247, 0.62);
+  --text-3: rgba(245, 245, 247, 0.4);
+  --accent: #f5f5f7;
+  --accent-2: #f5f5f7;
+  --accent-soft: rgba(255, 255, 255, 0.14);
+  --on-accent: #000000;
+  --shadow-art: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --radius-art: 6px;
   color-scheme: dark;
 }
-html { background: var(--bg); }
-/* le fond coloré (body::before) passe derrière le contenu : body ne peint donc pas son propre fond */
-html:not(.desktop) body { background: transparent; }
-body { font-family: var(--font); letter-spacing: -0.005em; }
+html, body { background: var(--bg); }
+body { font-family: var(--font); letter-spacing: 0; }
 button, input, textarea, select { font-family: inherit; }
 
-/* Fond : trois taches de couleur derrière le verre (le site ; l'app Windows a son propre fond vivant) */
-html:not(.desktop) body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(62vmax 62vmax at 6% -10%, rgba(61, 90, 153, 0.85), transparent 68%),
-    radial-gradient(58vmax 58vmax at 104% 12%, rgba(122, 74, 126, 0.7), transparent 68%),
-    radial-gradient(64vmax 46vmax at 40% 112%, rgba(185, 133, 87, 0.5), transparent 68%);
-  animation: ay-drift 46s ease-in-out infinite alternate;
-}
-@keyframes ay-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-2%, 3%, 0) scale(1.1); } }
-@media (prefers-reduced-motion: reduce) { html:not(.desktop) body::before { animation: none; } }
+/* Titres : SF, graisse semi-bold, interlettrage neutre */
+.page-title { letter-spacing: -0.02em; font-weight: 700; }
+.section-head h2 { letter-spacing: -0.015em; font-weight: 600; }
 
-/* Titres : gras, serrés */
-.page-title { letter-spacing: -0.045em; word-spacing: 0.05em; }
-.section-head h2 { letter-spacing: -0.035em; }
+/* Le nom : « alyra. » sans lueur */
+.lit { text-shadow: none; }
+.brand { gap: 8px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.brand-mark, .brand-mark svg { width: 28px; height: 28px; display: block; flex: none; border-radius: 0; background: none; box-shadow: none; }
 
-/* Le nom : « alyra. », le point allumé */
-.lit { text-shadow: 0 0 0.32em rgba(255, 255, 255, 0.9); }
-.brand { gap: 8px; font-size: 24px; font-weight: 700; letter-spacing: -0.05em; }
-.brand-mark { width: 34px; height: 34px; border-radius: 0; background: none; box-shadow: none; display: block; flex: none; }
-.brand-mark svg { width: 34px; height: 34px; display: block; }
-
-/* Verre : bords lumineux, ombre profonde */
-.sidebar { box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07); }
-.topbar { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.07); }
-.side-link { border-radius: 12px; }
-.side-link.active { background: var(--fill-strong); box-shadow: var(--glass-edge); }
-.btn { border-radius: 999px; height: 38px; box-shadow: 0 8px 22px rgba(255, 255, 255, 0.12); }
-.btn.ghost { box-shadow: var(--glass-edge); }
-.chip { box-shadow: var(--glass-edge); }
-.toast { border-radius: 999px; box-shadow: var(--glass-edge), var(--shadow-pop); }
+/* Surfaces plates, un trait fin pour séparer */
+.sidebar { background: var(--sidebar); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-right: 1px solid var(--hairline); }
+.topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-bottom: 1px solid var(--hairline); }
+.side-link { border-radius: 8px; }
+.side-link.active { background: var(--fill-strong); box-shadow: none; }
+.btn { border-radius: 8px; height: 36px; box-shadow: none; }
+.btn.ghost { box-shadow: none; border: 1px solid var(--hairline); }
+.chip { box-shadow: none; border: 1px solid var(--hairline); }
+.toast { border-radius: 10px; background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-pop); }
 .sheet {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08)), rgba(22, 26, 36, 0.72);
-  -webkit-backdrop-filter: blur(40px) saturate(190%); backdrop-filter: blur(40px) saturate(190%);
-  border-radius: 28px; box-shadow: var(--glass-edge), var(--shadow-pop);
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-radius: 14px; box-shadow: var(--shadow-pop); border: 1px solid var(--hairline);
 }
-.sheet-backdrop { background: rgba(8, 10, 14, 0.55); }
+.sheet-backdrop { background: rgba(0, 0, 0, 0.6); }
 .card .art-wrap { box-shadow: var(--shadow-art); }
-.focus-pill { background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(190%); backdrop-filter: blur(28px) saturate(190%); box-shadow: var(--glass-edge), 0 10px 30px rgba(0, 0, 0, 0.4); }
-.focus-pill.rest { background: var(--glass); }
+.focus-pill, .focus-pill.rest { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 1px solid var(--hairline); }
 
 /* Connexion */
-.login-bg {
-  background:
-    radial-gradient(44% 44% at 22% 24%, rgba(61, 90, 153, 0.9), transparent 70%),
-    radial-gradient(42% 42% at 78% 36%, rgba(122, 74, 126, 0.75), transparent 70%),
-    radial-gradient(46% 38% at 50% 88%, rgba(185, 133, 87, 0.55), transparent 70%);
-}
+.login-bg { background: var(--bg); }
 .login-card {
-  max-width: 420px; padding: 40px 34px 34px; border-radius: 40px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
-  -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
-  box-shadow: var(--glass-edge), 0 24px 70px rgba(0, 0, 0, 0.45);
+  max-width: 380px; padding: 36px 30px 30px; border-radius: 16px;
+  background: var(--bg-elevated); border: 1px solid var(--hairline);
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
-.login-mark { width: 92px; height: 92px; display: block; margin: 0 auto 18px; filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.4)); }
-.login h1 { font-size: 56px; letter-spacing: -0.06em; }
-.login p { font-size: 18px; margin-bottom: 28px; }
-.login .btn { height: 52px; padding: 0 30px; font-size: 17px; font-weight: 700; letter-spacing: -0.015em; }
-@media (max-width: 760px) { .login-card { padding: 34px 24px 28px; border-radius: 34px; } .login h1 { font-size: 48px; } }
+.login-mark { width: 64px; height: 64px; display: block; margin: 0 auto 16px; filter: none; }
+.login h1 { font-size: 36px; letter-spacing: -0.03em; font-weight: 600; }
+.login p { font-size: 16px; margin-bottom: 24px; }
+.login .btn { height: 44px; padding: 0 26px; font-size: 15px; font-weight: 600; letter-spacing: 0; }
+@media (max-width: 760px) { .login-card { padding: 30px 22px 24px; border-radius: 14px; } .login h1 { font-size: 32px; } }

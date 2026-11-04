@@ -200,8 +200,7 @@ struct HomeView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.11, green: 0.31, blue: 0.54), Color(red: 0.06, green: 0.16, blue: 0.3)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.98))
@@ -238,8 +237,7 @@ struct HomeView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.18, green: 0.11, blue: 0.36), Color(red: 0.06, green: 0.13, blue: 0.25)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.98))
@@ -281,8 +279,7 @@ struct HomeView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.1, green: 0.55, blue: 0.3), Color(red: 0.05, green: 0.25, blue: 0.2)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.98))

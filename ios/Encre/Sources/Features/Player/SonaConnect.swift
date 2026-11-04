@@ -865,8 +865,7 @@ struct ConnectResumeBanner: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(LinearGradient(colors: [Color.accentColor.opacity(0.35), Tone.surfaceStrong],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Tone.surface)
             )
             .contentShape(Rectangle())
             .onTapGesture { showing = true }

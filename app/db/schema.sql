@@ -340,3 +340,30 @@ CREATE TABLE IF NOT EXISTS lyrics_cache (
     fetched_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
+
+-- Musique locale (services/local_library.py) : fichiers du dossier
+-- LOCAL_MUSIC_DIR lus par mutagen. `id` = empreinte du chemin relatif ;
+-- `norm` = « artiste titre » normalisé, pour retrouver la version lossless
+-- d'un titre demandé depuis une autre source.
+CREATE TABLE IF NOT EXISTS local_tracks (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    year TEXT,
+    duration_seconds INTEGER,
+    track_number INTEGER,
+    disc_number INTEGER,
+    codec TEXT NOT NULL,
+    lossless INTEGER NOT NULL DEFAULT 0,
+    bitrate INTEGER,
+    sample_rate INTEGER,
+    bit_depth INTEGER,
+    size INTEGER NOT NULL,
+    mtime REAL NOT NULL,
+    norm TEXT NOT NULL,
+    isrc TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_local_tracks_norm ON local_tracks (norm);
+CREATE INDEX IF NOT EXISTS idx_local_tracks_album ON local_tracks (artist, album);

@@ -127,7 +127,7 @@ struct FriendsView: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.96))

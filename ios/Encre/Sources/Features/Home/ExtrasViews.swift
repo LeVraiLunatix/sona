@@ -71,8 +71,7 @@ struct MemoriesCard: View {
                     .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(LinearGradient(colors: [Color(red: 0.85, green: 0.55, blue: 0.2).opacity(0.45), Tone.surface],
-                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .fill(Tone.surface)
                     )
                 }
                 .buttonStyle(.pressable(scale: 0.98))
@@ -159,7 +158,7 @@ struct SportModeView: View {
             }
             .padding(20)
             .background(
-                LinearGradient(colors: [Color(red: 0.05, green: 0.3, blue: 0.15), Tone.background], startPoint: .top, endPoint: .bottom)
+                Tone.background
                     .ignoresSafeArea()
             )
             .navigationTitle("Mode sport")

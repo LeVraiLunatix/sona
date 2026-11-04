@@ -230,7 +230,7 @@ struct BlindTestView: View {
             .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: colors.map { $0.opacity(0.85) }, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Tone.surface)
             )
         }
         .buttonStyle(.pressable(scale: 0.96))

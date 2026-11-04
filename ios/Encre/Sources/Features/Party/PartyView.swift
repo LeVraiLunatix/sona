@@ -223,8 +223,7 @@ private struct PartyRoom: View {
         .padding(.vertical, 22)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.35, green: 0.2, blue: 0.9).opacity(0.55), Tone.surface],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(Tone.surface)
         )
     }
 
