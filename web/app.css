@@ -441,7 +441,9 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 
 .np-right { height: 100%; min-height: 0; position: relative; }
 .lyrics {
-  height: 100%; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 38vh 0 45vh;
+  /* Marges latérales : la lueur des mots tenus et le bord des lignes longues ne sont plus coupés.
+     `position: relative` : `offsetTop` des lignes se lit dans le défilement. */
+  position: relative; height: 100%; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 38vh clamp(20px, 3vw, 40px) 45vh;
   overscroll-behavior: contain; touch-action: pan-y;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent);
   mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent);
@@ -450,19 +452,26 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .lyrics p {
   font-size: clamp(26px, 2.6vw, 40px); font-weight: 800; letter-spacing: -.02em; line-height: 1.2;
   margin: 0 0 .7em; color: rgba(255,255,255,.32); cursor: pointer; transform-origin: left center;
-  transition: color .5s var(--ease), filter .6s var(--ease), transform .6s var(--spring), opacity .5s;
-  filter: blur(1.4px);
+  /* Les lignes inactives sont un peu plus petites ; la ligne chantée reprend sa taille
+     naturelle (jamais plus large que la colonne : rien ne déborde, rien n'est coupé). */
+  transform: scale(.94); max-width: 100%; overflow-wrap: anywhere; hyphens: auto; -webkit-hyphens: auto;
+  transition: color .5s var(--ease), filter .6s var(--ease), transform .7s cubic-bezier(.2, .8, .2, 1), opacity .5s;
+  filter: blur(1.4px); will-change: transform;
+  animation: lyr-in .7s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms);
 }
+@keyframes lyr-in { from { opacity: 0; transform: translateY(18px) scale(.94); filter: blur(6px); } }
 .lyrics p:hover { color: rgba(255,255,255,.6); filter: none; }
-.lyrics p.on { color: #fff; filter: none; transform: scale(1.03); }
+.lyrics p.on { color: #fff; filter: none; transform: scale(1); }
 .lyrics p.near { filter: blur(.6px); }
+html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { filter: none; }
+@media (prefers-reduced-motion: reduce) { .lyrics p { animation: none; transition: color .3s, opacity .3s; } }
 .lyrics.plain p { filter: none; color: rgba(255,255,255,.85); cursor: default; font-size: 26px; }
 .lyrics .none { color: rgba(255,255,255,.5); font-size: 22px; font-weight: 600; filter: none; }
 /* Ligne en cours remplie mot par mot, de gauche à droite, avec un bord fondu
    (--p : avancement du mot, de 0 à 1, posé à chaque image). */
 /* Chaque mot est une boîte à part (white-space: pre garde l'espace de fin) pour
    pouvoir monter (--g), grossir et s'illuminer (--e) quand il est tenu. */
-.lyrics p .w { display: inline-block; white-space: pre; transform-origin: 50% 85%; }
+.lyrics p .w { display: inline-block; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; transform-origin: 50% 85%; }
 .lyrics p.on .w {
   color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255,255,255,.38) calc(var(--p, 0) * 116% + 8%));
@@ -1404,7 +1413,7 @@ span.chip { cursor: default; }
   .np-meta-s .t { font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-meta-s .a { color: rgba(255,255,255,.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-panel { display: block; place-items: normal; position: relative; overflow: hidden; }
-  .np-panel .lyrics { padding: 22% 0 60%; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 80%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 80%, transparent); }
+  .np-panel .lyrics { padding: 22% 20px 60%; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 80%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 80%, transparent); }
   .np-panel .lyrics p { font-size: 28px; }
   .np-panel .lyrics.plain p { font-size: 22px; }
   .np-panel .queue { padding: 8px 0 24px; }
@@ -1779,3 +1788,9 @@ html[data-tint="off"] .hero-glow { display: none; }
   .look-logos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .look-seg { flex-wrap: wrap; }
 }
+
+/* Décalage global des paroles (Apparence > Paroles) */
+.lyr-step { display: inline-flex; align-items: center; gap: var(--s-3); flex: none; }
+.lyr-step button { width: 36px; height: 36px; border-radius: 50%; background: var(--fill-strong); font-size: 20px; font-weight: 600; line-height: 1; }
+.lyr-step button:hover { background: rgba(255, 255, 255, 0.16); }
+.lyr-step output { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }

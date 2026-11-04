@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from app.api.auth import require_token
 from app.api.schemas import LyricsLineOut, LyricsOut, LyricsWordOut
@@ -12,6 +13,29 @@ from app.services.lyrics import LyricsResult, detect_language
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["lyrics"])
+
+
+class PrefetchItem(BaseModel):
+    title: str = Field(..., min_length=1)
+    artist: str = Field(..., min_length=1)
+    album: str | None = None
+    duration: int | None = Field(None, ge=1)
+
+
+class PrefetchBody(BaseModel):
+    tracks: list[PrefetchItem] = Field(default_factory=list, max_length=8)
+
+
+@router.post("/lyrics/prefetch", status_code=status.HTTP_202_ACCEPTED)
+async def prefetch_lyrics(body: PrefetchBody, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Préchauffe les paroles des prochains titres de la file : la recherche
+    part en arrière-plan et le résultat attend dans le cache du serveur. Rien
+    n'est renvoyé ici ; l'app les demande ensuite comme d'habitude, et elles
+    arrivent aussitôt."""
+    if deps.lyrics is None:
+        return {"queued": 0}
+    items = [{"title": t.title.strip(), "artist": t.artist.strip(), "album": t.album, "duration": t.duration} for t in body.tracks]
+    return {"queued": deps.lyrics.warm(items)}
 
 
 @router.get("/lyrics", response_model=LyricsOut)

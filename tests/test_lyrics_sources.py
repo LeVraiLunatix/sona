@@ -424,6 +424,55 @@ def test_slow_source_does_not_delay_the_answer_and_upgrades_the_cache(repo, monk
     assert (then.sync, then.source) == ("word", "netease")
 
 
+def test_plain_text_does_not_wait_for_a_slow_source(repo, monkeypatch):
+    """Seul du texte brut est arrivé : une source lente n'a que PLAIN_GRACE pour
+    faire mieux, on ne fait pas attendre l'utilisateur jusqu'au délai maximal."""
+    import app.services.lyrics as lyrics_module
+
+    monkeypatch.setattr(lyrics_module, "PLAIN_GRACE", 0.05)
+    plain = Lyrics(synced=False, lines=[LyricsLine(None, "Bonjour"), LyricsLine(None, "Au revoir")])
+
+    class SlowNetease(FakeNetease):
+        async def search(self, title, artist):
+            await asyncio.sleep(1.5)
+            return await super().search(title, artist)
+
+    netease = SlowNetease([NeteaseSong(1, "Titre", "Artiste", None, 200)], {1: WORD})
+    service = LyricsService(repo, FakeLrclib(plain), netease)
+
+    async def scenario():
+        started = asyncio.get_running_loop().time()
+        first = await service.get("Titre", "Artiste", None, 200)
+        elapsed = asyncio.get_running_loop().time() - started
+        await asyncio.gather(*service._background)
+        return first, elapsed, await service.get("Titre", "Artiste", None, 200)
+
+    first, elapsed, then = run(scenario())
+    assert first.sync == "none" and elapsed < 0.8
+    # La source lente a fini en arrière-plan : le cache a reçu le mot par mot.
+    assert (then.sync, then.source) == ("word", "netease")
+
+
+def test_warm_fills_the_cache_before_the_track_plays(repo):
+    lrclib = FakeLrclib(LINE)
+    service = LyricsService(repo, lrclib)
+
+    async def scenario():
+        queued = service.warm([
+            {"title": "Titre", "artist": "Artiste", "album": None, "duration": 200},
+            {"title": "", "artist": "Sans titre"},  # ignoré
+        ])
+        await asyncio.gather(*service._background)
+        calls_after_warm = lrclib.calls
+        got = await service.get("Titre", "Artiste", None, 200)
+        return queued, calls_after_warm, lrclib.calls, got
+
+    queued, after_warm, after_get, got = run(scenario())
+    assert queued == 1 and after_warm == 1
+    # La demande qui suit vient du cache : aucune nouvelle recherche.
+    assert after_get == 1 and got.sync == "line"
+
+
 def test_upgrade_never_replaces_lyrics_with_worse(repo):
     lrclib = FakeLrclib(LINE)
     service = LyricsService(repo, lrclib)

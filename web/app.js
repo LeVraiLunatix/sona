@@ -72,14 +72,24 @@ const LOGOS = {
       <path d="${SPATH}" fill="none" stroke="url(#${p}-ln)" stroke-width="3.2" stroke-linecap="round"/>
       <circle cx="46" cy="50.5" r="2.3" fill="#fff" fill-opacity=".95"/>` }) },
 
-  orbite: { name: "Orbite", build: (p) => ({
-    defs: orbGrad(p) + rimGrad(p, 6, 14, 58, 50) + blur(p, "g", 2.6) + blur(p, "s", .8),
-    body: `<g transform="rotate(-22 32 32)"><path d="M5 32A27 9.5 0 0 1 59 32" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="2" stroke-linecap="round"/></g>
-      <circle cx="32" cy="32" r="12" fill="#fff" fill-opacity=".16" filter="url(#${p}-g)"/>
-      <circle cx="32" cy="32" r="12" fill="url(#${p}-orb)"/>
-      <circle cx="32" cy="32" r="12" fill="none" stroke="url(#${p}-rim)" stroke-width="1.3"/>
-      <ellipse cx="27.8" cy="27.2" rx="4.4" ry="2.3" transform="rotate(-34 27.8 27.2)" fill="#fff" fill-opacity=".7" filter="url(#${p}-s)"/>
-      <g transform="rotate(-22 32 32)"><path d="M5 32A27 9.5 0 0 0 59 32" fill="none" stroke="url(#${p}-rim)" stroke-width="2.4" stroke-linecap="round"/></g>` }) },
+  orbite: { name: "Orbite", build: (p) => {
+    // Anneau incliné autour d'une sphère de verre. L'arrière de l'anneau est découpé derrière la sphère (rien ne
+    // transparaît à travers) ; l'avant repasse par-dessus, avec la même épaisseur et le même dégradé : pas de couture.
+    const R = 12.5, BACK = "M4 32A28 10 0 0 1 60 32", FRONT = "M4 32A28 10 0 0 0 60 32", TILT = "rotate(-22 32 32)";
+    return {
+      defs: orbGrad(p) + rimGrad(p, 12, 8, 52, 58) + blur(p, "g", 2.8) + blur(p, "s", .9) + blur(p, "h", 1.5)
+        + `<linearGradient id="${p}-ring" gradientUnits="userSpaceOnUse" x1="4" y1="26" x2="60" y2="38">${stop(0, .95)}${stop(.3, .5)}${stop(.62, .34)}${stop(1, .9)}</linearGradient>`
+        + `<mask id="${p}-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="32" cy="32" r="${R + .6}" fill="#000"/></mask>`
+        + `<clipPath id="${p}-ball"><circle cx="32" cy="32" r="${R}"/></clipPath>`,
+      body: `<g transform="${TILT}" mask="url(#${p}-cut)"><path d="${BACK}" fill="none" stroke="url(#${p}-ring)" stroke-width="2.1" stroke-linecap="round"/></g>
+        <circle cx="32" cy="32" r="${R}" fill="#fff" fill-opacity=".08" filter="url(#${p}-g)"/>
+        <circle cx="32" cy="32" r="${R}" fill="url(#${p}-orb)"/>
+        <g clip-path="url(#${p}-ball)"><g transform="${TILT}"><path d="${FRONT}" fill="none" stroke="#000" stroke-opacity=".42" stroke-width="5" transform="translate(0 2.2)" filter="url(#${p}-h)"/></g></g>
+        <circle cx="32" cy="32" r="${R}" fill="none" stroke="url(#${p}-rim)" stroke-width="1.3"/>
+        <ellipse cx="27.6" cy="26.8" rx="4.8" ry="2.5" transform="rotate(-34 27.6 26.8)" fill="#fff" fill-opacity=".72" filter="url(#${p}-s)"/>
+        <g transform="${TILT}"><path d="${FRONT}" fill="none" stroke="url(#${p}-ring)" stroke-width="2.1" stroke-linecap="round"/>
+          <circle cx="9.2" cy="37.5" r="2.2" fill="url(#${p}-orb)"/><circle cx="9.2" cy="37.5" r="2.2" fill="#fff" fill-opacity=".35"/><circle cx="9.2" cy="37.5" r="2.2" fill="none" stroke="url(#${p}-rim)" stroke-width=".8"/></g>` };
+  } },
 
   lecture: { name: "Lecture", build: (p) => {
     const P = "M23.5 16.5L23.5 47.5L49 32Z";
@@ -94,7 +104,7 @@ const logoSvg = (id, p = "x") => { const { defs, body } = LOGOS[id].build(p); re
   return { LOGOS, logoSvg };
 })();
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
-const LOOK_DEFAULT = { logo: "orbe", accent: "neutre", tint: true, shape: "arrondi", menu: "rail" };
+const LOOK_DEFAULT = { logo: "orbite", accent: "neutre", tint: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
 let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
 function applyLook() {
   const root = document.documentElement;
@@ -115,6 +125,7 @@ function applyLook() {
     root.style.setProperty("--on-accent", "#08090c");
   }
   root.dataset.tint = look.tint ? "on" : "off";
+  root.dataset.lyrblur = look.lyrBlur ? "on" : "off";
   root.dataset.shape = look.shape;
   root.dataset.menu = look.menu;
 }
@@ -2640,8 +2651,22 @@ function lyricsRequest(t) {
   }
   return lyricsInflight.get(k);
 }
+// Préchauffage : le serveur cherche tout de suite les paroles des prochains
+// titres de la file (une seule requête, en arrière-plan) ; les deux suivants
+// sont en plus rapatriés ici, pour qu'ils s'affichent sans aucune attente.
+const lyricsWarmed = new Set();
+function warmLyrics(tracks) {
+  const fresh = tracks.filter((t) => t && t.title && t.artist && !lyricsWarmed.has(trackKey(t)) && !lyricsCacheGet(t));
+  if (!fresh.length) return;
+  fresh.forEach((t) => lyricsWarmed.add(trackKey(t)));
+  if (lyricsWarmed.size > 400) lyricsWarmed.clear();
+  const tracks8 = fresh.slice(0, 8).map((t) => ({ title: t.title, artist: t.artist, album: t.album || null, duration: t.duration_seconds || null }));
+  api("/lyrics/prefetch", { method: "POST", body: JSON.stringify({ tracks: tracks8 }) }).catch(() => {});
+}
 function prefetchLyrics() {
-  for (const t of state.queue.slice(state.index + 1, state.index + 3)) {
+  const next = state.queue.slice(state.index + 1, state.index + 6);
+  warmLyrics(next);
+  for (const t of next.slice(0, 2)) {
     if (t && !lyricsCacheGet(t) && !lyricsInflight.has(trackKey(t))) lyricsRequest(t).catch(() => {});
   }
 }
@@ -2652,6 +2677,8 @@ function prefetchLyrics() {
  * réessayée sans rien demander. Un titre déjà vu s'affiche aussitôt. */
 async function loadLyrics(t) {
   let lyrics = lyricsCacheGet(t);
+  // La suite de la file se prépare tout de suite, pendant que celui-ci se charge.
+  warmLyrics(state.queue.slice(state.index + 1, state.index + 6));
   if (lyrics) {
     applyLyrics(lyrics);
   } else {
@@ -2824,6 +2851,10 @@ function renderLyrics() {
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
   box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map(line).join("")}${foot}</div>`;
   state.lyrFree = false;
+  state.scrollLine = -1;
+  cancelAnimationFrame(lyrScroll.raf);
+  // Apparition en cascade des premières lignes (Apple Musique) : --i règle le délai.
+  $$("#lyr p", box).forEach((p, i) => p.style.setProperty("--i", Math.min(i, 14)));
   if (ly.synced) {
     // Défilement libre : dès que le doigt (ou la molette) touche les paroles,
     // le flou part et la vue ne bouge plus toute seule, même quand la ligne
@@ -2831,7 +2862,7 @@ function renderLyrics() {
     // et la vue se recentre en douceur.
     const lyr = $("#lyr", box);
     let touching = false, timer = 0;
-    const hold = () => { state.lyrFree = true; lyr.classList.add("free"); clearTimeout(timer); };
+    const hold = () => { state.lyrFree = true; cancelAnimationFrame(lyrScroll.raf); lyr.classList.add("free"); clearTimeout(timer); };
     const release = () => {
       clearTimeout(timer);
       timer = setTimeout(() => { state.lyrFree = false; lyr.classList.remove("free"); syncLyrics(true, true); }, 1600);
@@ -2903,8 +2934,44 @@ function lyricsClock() {
   if (frozen || Math.abs(raw - s.est - dt * rate) > 0.4) s.est = raw;
   else s.est += dt * rate + (raw - s.est - dt * rate) * 0.25;
   const cur = state.queue[state.index];
-  s.val = s.est + LYRICS_LEAD + (cur ? lyricsOffset(cur) : 0);
+  s.val = s.est + LYRICS_LEAD + lyricsLatency() + (cur ? lyricsOffset(cur) : 0);
   return s.val;
+}
+
+/** Retard propre à l'appareil : le décalage global réglé dans Apparence (casque
+ * Bluetooth, enceinte…) et, quand le navigateur le connaît, la latence de sortie audio. */
+const lyricsLatency = () => (Number(look.lyrOffset) || 0) + Math.min(0.4, Number(sing.ctx?.outputLatency) || 0);
+
+// Défilement automatique : un mouvement amorti de ~0,6 s, qui repart de là où il
+// est (le `smooth` natif, lui, saccade et redémarre à chaque ligne). Il part un
+// peu AVANT la ligne chantée (LYRICS_SCROLL_LEAD) pour arriver pile quand elle
+// commence, comme dans Apple Musique. Il s'arrête dès que l'utilisateur touche.
+const LYRICS_SCROLL_LEAD = 0.28;
+const lyrScroll = { raf: 0 };
+function lyricsScrollTo(box, top, instant) {
+  cancelAnimationFrame(lyrScroll.raf);
+  lyrScroll.raf = 0;
+  top = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, top));
+  if (instant || reduceLyricsMotion.matches) { box.scrollTop = top; return; }
+  const from = box.scrollTop, delta = top - from;
+  if (Math.abs(delta) < 1) return;
+  const dur = Math.max(520, Math.min(980, 420 + Math.abs(delta) * 0.5));
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = clamp01((now - t0) / dur);
+    box.scrollTop = from + delta * (1 - Math.pow(1 - p, 4)); // départ vif, arrivée douce
+    lyrScroll.raf = p < 1 ? requestAnimationFrame(step) : 0;
+  };
+  lyrScroll.raf = requestAnimationFrame(step);
+}
+/** Position de défilement qui place la ligne `el` à ~36 % de la hauteur (une
+ * ligne très longue est alignée plus haut pour qu'elle tienne). */
+const lyricsScrollTarget = (box, el) => el.offsetTop - box.clientHeight * (el.offsetHeight > box.clientHeight * 0.4 ? 0.16 : 0.36);
+function lyricsFollow(box, index, instant) {
+  if (state.lyrFree || !look.lyrAuto) return;
+  state.scrollLine = index;
+  const el = box.querySelector(`[data-l="${index}"]`) || box.querySelector("p");
+  if (el) lyricsScrollTo(box, lyricsScrollTarget(box, el), instant);
 }
 
 function lyricsActiveIndex(lines, now) {
@@ -2924,6 +2991,11 @@ function lyricsFrame() {
   // Le changement de ligne suit la même horloge que les mots (60 i/s, pas
   // seulement aux ~4 `timeupdate` par seconde).
   if (lyricsActiveIndex(ly.lines, now) !== state.lastLyric) syncLyrics();
+  // Le défilement, lui, part un peu avant : il arrive quand la ligne commence.
+  if (!state.lyrFree && look.lyrAuto) {
+    const ahead = lyricsActiveIndex(ly.lines, now + LYRICS_SCROLL_LEAD);
+    if (ahead >= 0 && ahead !== state.scrollLine) lyricsFollow(box, ahead, false);
+  }
   const i = state.lastLyric;
   const line = ly.lines[i];
   const p = line ? box.querySelector(`[data-l="${i}"]`) : null;
@@ -2973,9 +3045,9 @@ function syncLyrics(force, smooth) {
     p.classList.toggle("on", i === active);
     p.classList.toggle("near", Math.abs(i - active) === 1);
   });
-  const el = box.querySelector("p.on") || box.querySelector("p");
-  // Pas de recentrage tant que l'utilisateur fait défiler les paroles.
-  if (el && !state.lyrFree) box.scrollTo({ top: el.offsetTop - box.clientHeight * 0.36, behavior: force && !smooth ? "auto" : "smooth" });
+  // Pas de recentrage tant que l'utilisateur fait défiler les paroles ; et si le
+  // défilement est déjà parti vers cette ligne (anticipation), on ne le relance pas.
+  if (force || state.scrollLine !== active) lyricsFollow(box, Math.max(0, active), !!force && !smooth);
 }
 
 // ── Karaoké (voix / instru séparées par IA sur le serveur) ───────────────
@@ -5794,6 +5866,12 @@ function viewAppearance() {
       <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
       <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Un rail d'icônes qui s'ouvre au survol, ou toujours ouvert.</small></span><span class="chips">${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
     </div>
+    <h3 class="set-head">Paroles</h3><div class="set-group">
+      <label class="switch-row"><span><b>Défilement automatique</b><small>Les paroles suivent le titre et se recentrent toutes seules.</small></span><input type="checkbox" data-look-lyrauto ${look.lyrAuto ? "checked" : ""}><i></i></label>
+      <label class="switch-row"><span><b>Flou des lignes voisines</b><small>Estompe les lignes qui ne sont pas chantées.</small></span><input type="checkbox" data-look-lyrblur ${look.lyrBlur ? "checked" : ""}><i></i></label>
+      <div class="set-row look-seg"><span class="set-text"><b>Décalage global</b><small>Casque Bluetooth ou enceinte en retard ? Avance ou retarde les paroles sur cet appareil.</small></span>
+        <span class="lyr-step"><button data-lyr-global="-0.05" aria-label="Retarder les paroles">−</button><output id="lyr-global">${offsetLabel(Number(look.lyrOffset) || 0)}</output><button data-lyr-global="0.05" aria-label="Avancer les paroles">+</button></span></div>
+    </div>
     <button class="btn ghost" data-look-reset style="margin-top:32px">Réinitialiser l'apparence</button>`);
 }
 
@@ -5807,6 +5885,10 @@ function bindAppearance() {
     $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === look.menu));
     const tint = $("[data-look-tint]", root);
     if (tint) tint.checked = look.tint;
+    const auto = $("[data-look-lyrauto]", root), blur = $("[data-look-lyrblur]", root), glob = $("#lyr-global", root);
+    if (auto) auto.checked = look.lyrAuto;
+    if (blur) blur.checked = look.lyrBlur;
+    if (glob) glob.textContent = offsetLabel(Number(look.lyrOffset) || 0);
   };
   root.addEventListener("click", (e) => {
     const b = e.target.closest("[data-logo], [data-accent], [data-shape], [data-menu], [data-look-reset]");
@@ -5820,6 +5902,14 @@ function bindAppearance() {
     mark();
   });
   $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
+  $("[data-look-lyrauto]", root)?.addEventListener("change", (e) => setLook({ lyrAuto: e.target.checked }));
+  $("[data-look-lyrblur]", root)?.addEventListener("change", (e) => setLook({ lyrBlur: e.target.checked }));
+  // Décalage global des paroles : 0,05 s par appui, borné à ±1,5 s.
+  $$("[data-lyr-global]", root).forEach((b) => (b.onclick = () => {
+    const v = Math.round(Math.max(-1.5, Math.min(1.5, (Number(look.lyrOffset) || 0) + Number(b.dataset.lyrGlobal))) * 100) / 100;
+    setLook({ lyrOffset: v });
+    mark();
+  }));
 }
 
 async function viewSettings() {

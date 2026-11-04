@@ -48,7 +48,14 @@ APPROX_DURATION_TOLERANCE = 12.0
 # Dès qu'une source a répondu avec des paroles synchronisées, les autres ont ce
 # délai pour faire mieux (mot par mot) ; passé ce délai on répond tout de suite
 # et elles finissent en arrière-plan, le cache s'améliore à leur arrivée.
-FAST_GRACE = 0.5
+FAST_GRACE = 0.25
+# Quand seul du texte brut (ou une synchro approximative) est arrivé, les autres
+# sources n'ont que ce délai pour faire mieux : on ne fait plus attendre
+# l'utilisateur jusqu'à `SOURCE_TIMEOUT` pour une source lente. Elles finissent
+# en arrière-plan et le cache s'améliore à leur arrivée (l'app revérifie).
+PLAIN_GRACE = 0.9
+# Préchauffage (titres suivants de la file) : au plus ce nombre de recherches à la fois.
+WARM_CONCURRENCY = 3
 MIN_SCORE = 0.6
 
 # Durées de vie du cache : des paroles au mot près ne s'amélioreront pas ;
@@ -387,6 +394,31 @@ class LyricsService:
         finally:
             self._pending.pop(key, None)
 
+    def warm(self, items: list[dict]) -> int:
+        """Préchauffe le cache pour des titres qui vont passer (suite de la file) :
+        la recherche part tout de suite, en arrière-plan, et le titre arrive avec
+        ses paroles déjà prêtes. Au plus `WARM_CONCURRENCY` recherches à la fois ;
+        les erreurs sont ignorées (l'affichage réessaiera de lui-même). Renvoie
+        le nombre de titres pris en compte."""
+        gate = asyncio.Semaphore(WARM_CONCURRENCY)
+
+        async def one(item: dict) -> None:
+            async with gate:
+                try:
+                    await self.get(item["title"], item["artist"], item.get("album"), item.get("duration"))
+                except Exception:  # noqa: BLE001 — du préchauffage ne doit jamais rien casser
+                    logger.debug("Paroles : préchauffage de %s - %s sans résultat", item.get("artist"), item.get("title"))
+
+        count = 0
+        for item in items[:8]:
+            if not item.get("title") or not item.get("artist"):
+                continue
+            task = asyncio.create_task(one(item))
+            self._background.add(task)
+            task.add_done_callback(self._background.discard)
+            count += 1
+        return count
+
     async def forget(self, title: str, artist: str, duration: int | None) -> None:
         await self._repo.lyrics_cache_delete(cache_key(title, artist, duration))
 
@@ -515,8 +547,8 @@ class LyricsService:
                     best_tier = max(_tier(c.lyrics) for c in candidates)
                     if best_tier >= 4:
                         break
-                    if best_tier >= 3 and deadline is None:
-                        deadline = loop.time() + FAST_GRACE
+                    if deadline is None:
+                        deadline = loop.time() + (FAST_GRACE if best_tier >= 3 else PLAIN_GRACE)
         except asyncio.CancelledError:
             for task in pending:
                 task.cancel()
