@@ -988,15 +988,18 @@ async function viewHome() {
   });
   return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
     <div id="install">${installBanner()}</div>
+    <div class="home-top"><div class="home-cards">
     <div id="resume">${resumeCard()}</div>
     ${daily?.track ? dailyCard(daily) : ""}
     ${mood?.tracks?.length ? moodCard(mood) : ""}
     ${party.state ? `<a class="live-pill" href="#/party">${bars()} Écoute ensemble en cours · ${esc(party.state.code)}</a>` : ""}
     ${parties.map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} ${esc(p.host_name || "Un ami")} écoute en groupe — rejoindre</a>`).join("")}
+    </div>
     ${heroTrack ? `<button class="home-hero" data-play="${heroList}">
       <img src="${esc(big(heroTrack.cover_url, 1000))}" alt=""><span class="shade"></span>
       <span class="label"><span class="eyebrow">Reprendre</span><span class="t">${esc(heroTrack.title)}</span><span class="s">${esc(heroTrack.artist)}</span></span>
       <span class="fab">${icons.play}</span></button>` : ""}
+    </div>
     ${shelf("Faits pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
       href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
       play: register(m.tracks, m.title),
