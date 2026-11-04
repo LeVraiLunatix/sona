@@ -1,4 +1,4 @@
-# Sona
+# Sona v2
 
 Bot Telegram musical privé : recherche et écoute de musique directement dans
 Telegram, avec une interface pensée pour ressembler à une application plutôt
@@ -338,8 +338,7 @@ Fonctions reprises de l'app : mix, radios, radio DJ et lecture automatique,
 paroles synchronisées, karaoké, Sona Connect, diffusion TV/PS5, playlists
 (création, import, visibilité, collaboratives), bibliothèque (titres,
 albums, artistes), amis et Blend, stats, défis et badges (et classements de la semaine entre amis), récaps en story,
-blind test (solo, défi du jour, paroles, en direct entre amis), écoute
-ensemble, concerts, mode sport, moments, DJ vocal, minuteur de sommeil,
+écoute ensemble, moments, DJ vocal, minuteur de sommeil,
 réglages et administration. Restent propres à l'app iOS : les
 téléchargements hors ligne, les widgets, les notifications et les Live
 Activities.
@@ -524,3 +523,11 @@ d'appel réseau réel pour rester rapide et déterministe en CI.
   vit en RAM (pas en base). Un redémarrage du bot ramène chaque utilisateur à
   l'écran d'accueil au prochain clic — acceptable pour un usage privé à
   quelques utilisateurs.
+
+## Musique locale (lossless)
+
+Renseigne `LOCAL_MUSIC_DIR` (dossier existant sur le serveur) puis appelle
+`POST /local/scan` : les fichiers FLAC, ALAC, WAV, AIFF, MP3… sont indexés
+(tags, pochette, vraie qualité) et servis tels quels par `/stream/local/{id}`.
+Avec la qualité « Lossless », un titre d'une autre source est remplacé par ton
+fichier quand il existe (même ISRC, ou même artiste et titre).

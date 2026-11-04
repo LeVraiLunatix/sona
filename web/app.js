@@ -1,5 +1,5 @@
-/* alyra web : même compte, mêmes playlists, mêmes stats que l'app.
-   Connexion Last.fm, puis tout passe par l'API du serveur alyra (jeton de
+/* Sona web : même compte, mêmes playlists, mêmes stats que l'app.
+   Connexion Last.fm, puis tout passe par l'API du serveur Sona (jeton de
    session gardé dans le navigateur). Servi par le serveur lui-même (/web/)
    ou par Vercel : dans ce cas l'API est appelée à l'adresse de la balise
    <meta name="sona-server">.
@@ -76,9 +76,9 @@ function since(iso) {
   return new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-// alyra pour Windows (dossier desktop/ du dépôt) : la même page, dans l'app
+// Sona pour Windows (dossier desktop/ du dépôt) : la même page, dans l'app
 // d'ordinateur, qui expose `window.sonaDesktop` (télécommande du téléphone,
-// mini-lecteur, zone de notification…). Voir « alyra pour Windows » plus bas.
+// mini-lecteur, zone de notification…). Voir « Sona pour Windows » plus bas.
 const desktop = window.sonaDesktop || null;
 if (desktop) {
   document.documentElement.classList.add("desktop", `desktop-${desktop.platform}`);
@@ -285,7 +285,7 @@ async function startApp() {
   else partyRestore();
 }
 
-/** Échange un jeton Last.fm autorisé contre une session alyra. `quiet` :
+/** Échange un jeton Last.fm autorisé contre une session Sona. `quiet` :
     jeton pas encore autorisé (on revient dans l'appli trop tôt) — pas d'erreur. */
 async function exchangeLastfm(lastfmToken, quiet = false) {
   try {
@@ -302,7 +302,7 @@ async function exchangeLastfm(lastfmToken, quiet = false) {
     store.set("sona.token", token);
     return true;
   } catch {
-    if (!quiet) renderLogin("Serveur alyra injoignable.");
+    if (!quiet) renderLogin("Serveur Sona injoignable.");
     return false;
   }
 }
@@ -310,19 +310,19 @@ async function exchangeLastfm(lastfmToken, quiet = false) {
 async function renderLogin(error, waiting = false) {
   document.body.style.overflow = "hidden";
   const config = await fetch(BASE + "/auth/config").then((r) => r.json()).catch(() => ({}));
-  // App d'ordinateur : la page n'a pas d'adresse web, Last.fm revient sur alyra web du serveur.
+  // App d'ordinateur : la page n'a pas d'adresse web, Last.fm revient sur Sona web du serveur.
   const cb = desktop ? `${SERVER}/web/` : location.origin + location.pathname;
   const url = config.api_key ? `https://www.last.fm/api/auth/?api_key=${encodeURIComponent(config.api_key)}&cb=${encodeURIComponent(cb)}` : null;
   $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
-    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#ay-mark"/></svg>
-    <h1>alyra<span class="lit">.</span></h1>
+    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>
+    <h1>Sona</h1>
     <p>ta musique, en clair.</p>
     ${url ? `<a class="btn" id="login-btn" href="${esc(url)}">se connecter avec last.fm.</a>` : '<p class="error">Serveur injoignable ou connexion Last.fm non configurée.</p>'}
-    ${waiting ? `<p class="fine wait">Autorise alyra sur la page Last.fm, puis reviens ici.<br><button class="link-btn" id="login-check">J'ai autorisé, continuer</button></p>` : ""}
+    ${waiting ? `<p class="fine wait">Autorise Sona sur la page Last.fm, puis reviens ici.<br><button class="link-btn" id="login-check">J'ai autorisé, continuer</button></p>` : ""}
     ${error ? `<p class="error">${esc(error)}</p>` : ""}
-    <p class="fine">Le même compte que dans l'app alyra.</p>
-    ${desktop ? `<p class="fine">Une fenêtre Last.fm s'ouvre : autorise alyra, elle se ferme toute seule.</p>` : ""}
-    ${!standalone && !desktop && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer alyra comme une app." : "Astuce : installe alyra depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
+    <p class="fine">Le même compte que dans l'app Sona.</p>
+    ${desktop ? `<p class="fine">Une fenêtre Last.fm s'ouvre : autorise Sona, elle se ferme toute seule.</p>` : ""}
+    ${!standalone && !desktop && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer Sona comme une app." : "Astuce : installe Sona depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
   </div></div>`;
   const btn = $("#login-btn");
   // Appli installée : la page Last.fm s'ouvre dans un navigateur à part, d'où
@@ -339,7 +339,7 @@ async function renderLogin(error, waiting = false) {
         if (desktop) desktop.openAuth(authUrl);
         else if (!window.open(authUrl, "_blank")) location.href = authUrl;
         renderLogin(null, true);
-      } catch { if (!desktop) location.href = btn.href; else renderLogin("Serveur alyra injoignable."); }
+      } catch { if (!desktop) location.href = btn.href; else renderLogin("Serveur Sona injoignable."); }
     };
   }
   const check = $("#login-check");
@@ -367,7 +367,7 @@ function renderLoginDone() {
   $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
     <img class="login-icon" src="icons/icon-192.png" alt="">
     <h1>C'est autorisé ✓</h1>
-    <p>Tu peux fermer cette page et revenir dans l'appli alyra : la connexion se termine toute seule.</p>
+    <p>Tu peux fermer cette page et revenir dans l'appli Sona : la connexion se termine toute seule.</p>
   </div></div>`;
 }
 
@@ -394,12 +394,12 @@ window.addEventListener("beforeinstallprompt", (e) => {
   const banner = $("#install");
   if (banner) banner.innerHTML = installBanner();
 });
-window.addEventListener("appinstalled", () => { installPrompt = null; $("#install")?.replaceChildren(); toast("alyra est installé ✓"); });
+window.addEventListener("appinstalled", () => { installPrompt = null; $("#install")?.replaceChildren(); toast("Sona est installé ✓"); });
 
 function installBanner() {
   if (standalone || store.get("sona.installDismissed") || !isMobile() || (!installPrompt && !isIOS)) return "";
   return `<div class="install-card"><img src="icons/icon-192.png" alt="">
-    <div><div class="t">Installe alyra</div><div class="s">Sur ton écran d'accueil, comme une vraie app.</div></div>
+    <div><div class="t">Installe Sona</div><div class="s">Sur ton écran d'accueil, comme une vraie app.</div></div>
     <button class="btn small" data-install>Installer</button><button class="x" data-install-close aria-label="Plus tard">${icons.close}</button></div>`;
 }
 
@@ -410,11 +410,11 @@ async function installApp() {
     if (choice?.outcome === "accepted") installPrompt = null;
     return;
   }
-  openSheet(`<h2 class="sheet-title">Installer alyra</h2>
+  openSheet(`<h2 class="sheet-title">Installer Sona</h2>
     <ol class="steps">${isIOS
       ? `<li>Ouvre cette page dans <b>Safari</b>.</li><li>Touche ${icons.share} <b>Partager</b>, en bas de l'écran.</li><li>Choisis <b>Sur l'écran d'accueil</b>, puis <b>Ajouter</b>.</li>`
       : `<li>Ouvre le menu du navigateur (⋮).</li><li>Choisis <b>Installer l'appli</b> (ou « Ajouter à l'écran d'accueil »).</li>`}</ol>
-    <p class="muted">alyra s'ouvre alors en plein écran, sans la barre du navigateur, avec son icône.</p>`);
+    <p class="muted">Sona s'ouvre alors en plein écran, sans la barre du navigateur, avec son icône.</p>`);
 }
 
 // ── Coquille ───────────────────────────────────────────────────────────────
@@ -444,14 +444,14 @@ function renderShell() {
   const name = account.display_name || account.username;
   $("#root").innerHTML = `<div class="app">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#ay-mark"/></svg></span><span class="wordmark">alyra<span class="lit">.</span></span></div>
+      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="wordmark">Sona</span></div>
       <label class="side-search">${icons.search}<input id="side-q" type="search" placeholder="Rechercher" autocomplete="off"></label>
       <div class="side-list scroll">
         ${SIDE_NAV.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
         <div class="side-section">Découvrir et jouer</div>
         ${SIDE_MORE.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
         ${desktop ? `<div class="side-section">Sur ce PC</div>
-        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}alyra sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>` : ""}
+        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}Sona sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>` : ""}
         <div class="side-section">Faites pour toi</div>
         <div id="side-smart"></div>
         <div class="side-section">Playlists</div>
@@ -872,7 +872,7 @@ async function viewHome() {
     $("[data-mood-play]")?.addEventListener("click", () => playStation(`${mood.emoji} ${mood.title}`, async () => (await loadMood()).tracks));
     $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
   });
-  return page(`<h1 class="page-title">écouter.</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
+  return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
     <div id="install">${installBanner()}</div>
     <div id="resume">${resumeCard()}</div>
     ${daily?.track ? dailyCard(daily) : ""}
@@ -884,7 +884,7 @@ async function viewHome() {
       <span class="label"><span class="eyebrow">Reprendre</span><span class="t">${esc(heroTrack.title)}</span><span class="s">${esc(heroTrack.artist)}</span></span>
       <span class="fab">${icons.play}</span></button>` : ""}
     ${shelf("Faits pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
-      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix alyra", title: m.title, subtitle: m.subtitle,
+      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
       play: register(m.tracks, m.title),
     })), { kind: "large" })}
     ${shelf("Nouvelles sorties", releases.map((r) => card({
@@ -897,7 +897,7 @@ async function viewHome() {
     <section class="section"><div class="section-head"><h2>Jouer</h2></div>
       <div class="tiles">
         ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
-        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "alyra écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
+        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "Sona écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
       </div></section>
     ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
       href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
@@ -965,13 +965,13 @@ async function viewRadios() {
   $("#content").innerHTML = skeleton("Radios");
   const groups = await radioGroups();
   setTimeout(() => $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); })));
-  return page(`<h1 class="page-title">radios.</h1><p class="page-sub">Une station par univers : elle ne s'arrête jamais.</p>
+  return page(`<h1 class="page-title">Radios</h1><p class="page-sub">Une station par univers : elle ne s'arrête jamais.</p>
     ${groups.map((g) => shelf(g.title, g.radios.map(radioCard))).join("")}`);
 }
 
 async function viewSearch(q) {
   const recents = JSON.parse(store.get("sona.searches") || "[]");
-  const html = page(`<h1 class="page-title">chercher.</h1>
+  const html = page(`<h1 class="page-title">Chercher</h1>
     <label class="search-hero">${icons.search}<input id="q" type="search" placeholder="Artistes, titres, albums, liens…" value="${esc(q)}" autocomplete="off" enterkeyhint="search"></label>
     ${recents.length ? `<div class="chips" id="recents">${recents.map((r) => `<button class="chip">${esc(r)}</button>`).join("")}</div>` : ""}
     <div id="results"></div>`);
@@ -1240,7 +1240,7 @@ async function viewMix(id) {
   $("#content").innerHTML = skeleton("");
   const mix = (await api("/home/mixes")).find((m) => m.id === id);
   if (!mix) return page(empty("♫", "Mix introuvable", "Il a peut-être été renouvelé."));
-  return page(hero({ cover: mix.covers[0], kind: "Mix alyra", title: mix.title, info: mix.subtitle, list: register(mix.tracks, mix.title) })
+  return page(hero({ cover: mix.covers[0], kind: "Mix Sona", title: mix.title, info: mix.subtitle, list: register(mix.tracks, mix.title) })
     + trackTable(mix.tracks, mix.title));
 }
 
@@ -1249,7 +1249,7 @@ const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", 
 async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
   const seg = `<div class="segmented">${LIB_KINDS.map(([k, label]) => `<a href="#/library/${k}" class="${k === kind ? "on" : ""}">${label}</a>`).join("")}</div>`;
-  $("#content").innerHTML = page(`<h1 class="page-title">bibliothèque.</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
+  $("#content").innerHTML = page(`<h1 class="page-title">Bibliothèque</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   let body = "";
   if (kind === "playlists") {
     const [playlists, smart] = await Promise.all([api("/me/playlists").catch(() => []), api(`/smart?tz=${encodeURIComponent(tz())}`).catch(() => [])]);
@@ -1298,7 +1298,7 @@ async function viewLibrary(kind) {
       href: `#/${k}/${i.source}/${i.source_id}`, cover: i.cover_url, title: i.title, subtitle: i.subtitle || "", round: k === "artist",
     })).join("")}</div>` : empty(k === "album" ? "💿" : "🎤", "Rien ici pour l'instant", `Ajoute ${k === "album" ? "un album" : "un artiste"} avec le cœur de sa fiche.`);
   }
-  return page(`<h1 class="page-title">bibliothèque.</h1>${seg}${body}`);
+  return page(`<h1 class="page-title">Bibliothèque</h1>${seg}${body}`);
 }
 
 async function newPlaylist(tracks = []) {
@@ -1316,7 +1316,7 @@ async function newPlaylist(tracks = []) {
 async function importPlaylist() {
   const url = await askText({
     title: "Importer une playlist", placeholder: "Lien Spotify, Apple Music, Deezer, YouTube ou SoundCloud", confirm: "Importer",
-    hint: "Colle le lien de partage d'une playlist publique (ou des likes d'un profil SoundCloud) : alyra retrouve chaque titre, te dit ce qui est à vérifier, et la resynchronise chaque jour.",
+    hint: "Colle le lien de partage d'une playlist publique (ou des likes d'un profil SoundCloud) : Sona retrouve chaque titre, te dit ce qui est à vérifier, et la resynchronise chaque jour.",
   });
   if (!url) return;
   try {
@@ -1454,8 +1454,8 @@ async function viewHealth() {
   const cookieState = !cookies.present ? ["Aucun fichier", "bad"] : cookies.logged_in === false ? ["Déconnectés (expirés)", "bad"]
     : cookies.logged_in ? ["Connectés", "ok"] : ["Pas encore vérifiés", "warn"];
   setTimeout(bindHealth);
-  return page(`<h1 class="page-title">état de la lecture.</h1>
-    <p class="page-sub">alyra surveille la lecture et se répare tout seul quand il peut. Ici, de quoi réparer le reste sans toucher au serveur.</p>
+  return page(`<h1 class="page-title">État de la lecture</h1>
+    <p class="page-sub">Sona surveille la lecture et se répare tout seul quand il peut. Ici, de quoi réparer le reste sans toucher au serveur.</p>
     <div class="health-hero ${tone}"><span class="dot"></span><div><div class="t">${title}</div>
       <div class="s">${esc(h.advice || sub)}</div>
       <div class="meta">${h.recent_ok} titre(s) lancé(s) · ${h.recent_failures} échec(s) sur la dernière demi-heure · dernier titre lancé ${ago(h.last_success_seconds)}</div></div></div>
@@ -2700,7 +2700,7 @@ function renderLyrics() {
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
   const cur = state.queue[state.index];
   if (!ly.lines.length) {
-    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">alyra les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
+    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">Sona les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
     return;
   }
   const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
@@ -3128,7 +3128,7 @@ audio.addEventListener("volumechange", () => {
 // Le curseur suit l'oreille : volume réel = position², d'où beaucoup de
 // finesse dans les volumes bas (en vocal, la nuit). Préréglages modifiables,
 // et sur PC le « mode vocal » : quand une app (Discord…) prend le micro,
-// alyra passe sur « En vocal », puis revient au volume d'avant.
+// Sona passe sur « En vocal », puis revient au volume d'avant.
 
 const VOL_PRESETS = [
   { id: "voc", label: "En vocal", level: 0.3 },
@@ -3252,7 +3252,7 @@ async function volumeSheet() {
       <button class="vs-save" data-vsave="${p.id}" title="Enregistrer le volume actuel pour « ${esc(p.label)} »">${icons.pencil}</button></div>`).join("")}</div>
     <p class="muted vs-hint">${icons.pencil} enregistre le volume actuel dans le préréglage.</p>
     ${deskSettings ? `<div class="set-group">${toggleRow("vs-voice", "Mode vocal automatique",
-      "Quand Discord (ou une autre app) utilise ton micro, alyra passe sur « En vocal », puis revient au volume d'avant à la fin de l'appel.", deskSettings.micWatch !== false)}</div>
+      "Quand Discord (ou une autre app) utilise ton micro, Sona passe sur « En vocal », puis revient au volume d'avant à la fin de l'appel.", deskSettings.micWatch !== false)}</div>
       ${vol.voice.active ? `<p class="muted vs-hint">🎧 En vocal en ce moment${vol.voice.apps.length ? ` (${esc(vol.voice.apps.join(", "))})` : ""}.</p>` : ""}` : ""}`);
   const range = $("#vs-range", wrap);
   range.oninput = () => setVolume(+range.value / 100);
@@ -3293,14 +3293,14 @@ function micChanged({ inUse, apps }) {
 
 // ── Reconnaître un titre ─────────────────────────────────────────────────
 // Le micro écoute 8 s, le serveur identifie l'extrait (service de Shazam)
-// et le retrouve dans alyra ; il est rangé dans la playlist « Entendu dehors ».
+// et le retrouve dans Sona ; il est rangé dans la playlist « Entendu dehors ».
 
 async function recognizeSheet() {
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
   catch { return toast("Autorise le micro pour reconnaître un titre"); }
   const wasPlaying = !audio.paused;
-  if (wasPlaying) audio.pause();  // sinon alyra se reconnaît elle-même
+  if (wasPlaying) audio.pause();  // sinon Sona se reconnaît elle-même
   let cancelled = false;
   const wrap = openSheet(`<h2 class="sheet-title">Reconnaître un titre</h2><div class="rec" id="rec">
       <div class="rec-pulse"><span>${icons.wave}</span></div><b id="rec-msg">J'écoute… 8 s</b><small class="muted">Approche-toi de la musique.</small></div>`,
@@ -3331,7 +3331,7 @@ async function recognizeSheet() {
     } else {
       const f = data.found, t = data.track;
       box.innerHTML = `<img class="rec-art" src="${esc(f.cover_url || t?.cover_url || "")}" alt=""><b class="rec-title">${esc(f.title)}</b><span class="muted">${esc(f.artist)}</span>
-        ${t ? `<button class="btn" data-rec-play>${icons.play} Écouter dans alyra</button><small class="muted" id="rec-saved"></small>` : `<small class="muted">Introuvable dans le catalogue d'alyra.</small>`}`;
+        ${t ? `<button class="btn" data-rec-play>${icons.play} Écouter dans Sona</button><small class="muted" id="rec-saved"></small>` : `<small class="muted">Introuvable dans le catalogue de Sona.</small>`}`;
       if (t) {
         $("[data-rec-play]", box).onclick = () => { wrap.close(); playList([t], 0, "Entendu dehors"); };
         saveHeard(t).then((ok) => { const el = $("#rec-saved", box); if (el && ok) el.textContent = "✓ Ajouté à « Entendu dehors »"; });
@@ -3355,7 +3355,7 @@ async function saveHeard(t) {
 }
 
 // ── Son : égaliseur, volume égalisé, fondu, reprise ─────────────────────
-// Sur ordinateur (site, alyra pour Windows). Pas sur iPhone : le traitement
+// Sur ordinateur (site, Sona pour Windows). Pas sur iPhone : le traitement
 // audio du navigateur y coupe le son écran verrouillé — l'app iPhone a
 // tout cela, en natif.
 
@@ -3505,7 +3505,7 @@ document.addEventListener("pointerdown", () => ensureSound(), { once: true });
 
 /** Feuille « Son » : égaliseur, volume égalisé, fondu. */
 function soundSheet() {
-  if (!soundAvailable) return toast("Sur iPhone, ces réglages sont dans l'app alyra");
+  if (!soundAvailable) return toast("Sur iPhone, ces réglages sont dans l'app Sona");
   const wrap = openSheet(`<h2 class="sheet-title">Son</h2>
     <div class="eq-presets">${EQ_PRESETS.map(([name, gains]) => `<button class="chip" data-eq-preset="${esc(name)}">${esc(name)}</button>`).join("")}</div>
     <div class="eq-bands">${EQ_BANDS.map((_, i) => `<label class="eq-band"><span class="eq-val" id="eq-val-${i}"></span>
@@ -3576,7 +3576,7 @@ function restoreResume() {
   loadLyrics(t);
 }
 
-// ── Casque débranché : pause (alyra pour Windows) ─────────────────────────
+// ── Casque débranché : pause (Sona pour Windows) ─────────────────────────
 
 /** Une sortie audio disparaît pendant la lecture (casque, enceinte) : pause. */
 function watchHeadphones() {
@@ -3835,7 +3835,7 @@ function startConnect() {
     page n'a pas été touchée — un clic n'importe où la lance alors. */
 function remotePlay() {
   audio.play().catch(() => {
-    toast(isMobile() ? "Touche l'écran pour lancer la lecture" : "Clique sur la page alyra pour autoriser la lecture à distance");
+    toast(isMobile() ? "Touche l'écran pour lancer la lecture" : "Clique sur la page Sona pour autoriser la lecture à distance");
     document.addEventListener("click", () => audio.play().catch(() => {}), { once: true });
   });
 }
@@ -3971,7 +3971,7 @@ function renderDevices() {
       <span style="min-width:0"><span class="n">${d.is_me ? (isMobile() ? "Ce téléphone" : "Cet ordinateur") : esc(d.name)}</span>
         <span class="st">${d.playing ? `${bars()} ${esc(d.track?.title || "En lecture")}` : d.is_me ? esc(d.name) : "Connecté"}</span></span>
       <span class="go">${d.is_me ? (remote || (session && !audio.src) ? "Écouter ici" : "") : "Écouter dessus"}</span></button>`).join("")}
-    ${devices.length < 2 ? `<p class="dp-hint">Ouvre alyra sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}
+    ${devices.length < 2 ? `<p class="dp-hint">Ouvre Sona sur ton iPhone (ou un autre ordinateur) : il apparaîtra ici.</p>` : ""}
     <a class="dp-device" href="#/devices" data-dp-all><span class="dp-icon">${icons.devices}</span><span style="min-width:0"><span class="n">Mes appareils</span>
       <span class="st">Tes PC enregistrés, à piloter d'un appui</span></span><span class="go">${icons.right}</span></a>
     <button class="dp-device" data-cast><span class="dp-icon">${icons.tv}</span><span style="min-width:0"><span class="n">TV ou PS5</span>
@@ -4003,7 +4003,7 @@ async function viewDevices() {
   devs.loaded = true;
   startConnect.now?.();
   setTimeout(() => bindDevicesPage());
-  return page(`<h1 class="page-title">appareils.</h1>
+  return page(`<h1 class="page-title">Appareils</h1>
     <p class="page-sub">Tes PC restent ici, même éteints. Touche-en un pour le piloter, d'où que tu sois.</p>
     <div id="devices-root">${devicesBody()}</div>`);
 }
@@ -4147,7 +4147,7 @@ function deviceMenu(id) {
 function devicesBody() {
   const { saved, others } = devicesList();
   const chosen = chosenDevice();
-  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>alyra pour Windows</b> sur ton PC, connecté avec ce compte : il s'ajoute ici tout seul et y reste, même éteint. Les autres appareils (navigateur, iPhone) s'ajoutent avec <b>Ajouter</b>.</span></p>`;
+  const hint = `<p class="dev-hint">${icons.laptop}<span>Ouvre <b>Sona pour Windows</b> sur ton PC, connecté avec ce compte : il s'ajoute ici tout seul et y reste, même éteint. Les autres appareils (navigateur, iPhone) s'ajoutent avec <b>Ajouter</b>.</span></p>`;
   return `${chosen ? deviceRemote(chosen) : ""}
     <h3 class="set-head">Mes appareils</h3>
     ${saved.length ? `<div class="dev-list">${saved.map(deviceRow).join("")}</div>` : `<div class="dev-empty">Aucun appareil enregistré pour l'instant.</div>`}
@@ -4182,7 +4182,7 @@ function pickDevice(id) {
   const { saved, others } = devicesList();
   const d = [...saved, ...others].find((x) => x.id === id);
   if (!d) return;
-  if (!d.online) return toast(`${d.name} est éteint : ouvre alyra dessus pour le piloter.`);
+  if (!d.online) return toast(`${d.name} est éteint : ouvre Sona dessus pour le piloter.`);
   haptic();
   // Il joue déjà : un seul lecteur à la fois, la musique d'ici s'arrête.
   if (d.playing && audio.src && !audio.paused) audio.pause();
@@ -4276,7 +4276,7 @@ function bindDevicesPage() {
   };
 }
 
-// ── État d'alyra : ce qui marche, et sinon pourquoi ───────────────────────
+// ── État de Sona : ce qui marche, et sinon pourquoi ───────────────────────
 
 async function viewStatus() {
   setTimeout(() => {
@@ -4287,7 +4287,7 @@ async function viewStatus() {
     const timer = setInterval(refreshStatus, 5000);
     onLeave(() => clearInterval(timer));
   });
-  return page(`<h1 class="page-title">état d'alyra.</h1>
+  return page(`<h1 class="page-title">État de Sona</h1>
     <p class="page-sub">Chaque élément en vert marche ; sinon, la raison est juste en dessous.</p>
     <div id="status-root"><p class="muted">Vérification…</p></div>`);
 }
@@ -4309,8 +4309,8 @@ async function refreshStatus() {
   const c = state.connect;
   const groups = [];
 
-  groups.push(["alyra", [
-    health.error ? statusRow("bad", "Serveur alyra", `Injoignable : ${health.error}`) : statusRow("ok", "Serveur alyra", `En ligne · version ${health.version || "?"}`),
+  groups.push(["Sona", [
+    health.error ? statusRow("bad", "Serveur Sona", `Injoignable : ${health.error}`) : statusRow("ok", "Serveur Sona", `En ligne · version ${health.version || "?"}`),
     !health.error && ({
       ok: statusRow("ok", "Lecture", "Tout fonctionne"),
       degraded: statusRow("warn", "Lecture", "Perturbée : certains titres peuvent mettre du temps à se lancer"),
@@ -4326,11 +4326,11 @@ async function refreshStatus() {
     fresh ? statusRow("ok", "Synchronisation", `À jour (${agoText(Date.now() - c.lastOk)})`)
       : c.lastError ? statusRow("bad", "Synchronisation", `${c.lastError} (${agoText(Date.now() - c.lastErrorAt)})`)
       : statusRow("warn", "Synchronisation", "En attente du serveur…"),
-    others.length ? statusRow("ok", "Appareils allumés", others.map((d) => d.name).join(", ")) : statusRow("off", "Appareils allumés", "Aucun autre appareil alyra ouvert en ce moment"),
+    others.length ? statusRow("ok", "Appareils allumés", others.map((d) => d.name).join(", ")) : statusRow("off", "Appareils allumés", "Aucun autre appareil Sona ouvert en ce moment"),
     saved ? statusRow(saved.length ? "ok" : "off", "Appareils enregistrés", saved.length
       ? `${plural(saved.length, "appareil")} · ${saved.filter((d) => others.some((o) => o.id === d.id)).length} allumé(s)` : "Aucun pour l'instant") : "",
     c.control ? (chosen ? statusRow("ok", "Appareil piloté", `Tu pilotes ${chosen.name}`)
-      : statusRow("warn", "Appareil piloté", `${(saved || []).find((d) => d.id === c.control)?.name || "L'appareil choisi"} est éteint : ouvre alyra dessus`)) : "",
+      : statusRow("warn", "Appareil piloté", `${(saved || []).find((d) => d.id === c.control)?.name || "L'appareil choisi"} est éteint : ouvre Sona dessus`)) : "",
   ]]);
 
   if (ds) {
@@ -4338,7 +4338,7 @@ async function refreshStatus() {
     const r = ds.remote || {};
     const phones = (r.clients || []).filter((x) => x.name !== "Stream Deck");
     const d = ds.discord || {};
-    groups.push([`alyra pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}`, [
+    groups.push([`Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}`, [
       u.available && u.latest ? statusRow("warn", "Version", `${ds.version} · la ${u.latest.version} est disponible (Réglages → Mises à jour)`)
         : u.error ? statusRow("warn", "Version", `${ds.version} · vérification impossible : ${u.error}`)
         : statusRow("ok", "Version", `${ds.version} · à jour`),
@@ -4346,16 +4346,16 @@ async function refreshStatus() {
         : r.running ? statusRow("ok", "Télécommande du téléphone", `Port ${r.port}${phones.length ? ` · ${phones.map((x) => x.name).join(", ")}` : " · aucun téléphone connecté"}`)
         : statusRow("bad", "Télécommande du téléphone", r.error || "Arrêtée"),
       ds.streamDeck ? statusRow("ok", "Stream Deck", `Plugin connecté ${agoText(Date.now() - ds.streamDeck.since)}`)
-        : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre alyra")
+        : !r.running ? statusRow("bad", "Stream Deck", "La télécommande est arrêtée : le plugin ne peut pas joindre Sona")
         : statusRow("off", "Stream Deck", "Plugin non connecté : installe-le (version Windows, fichier .streamDeckPlugin) et ouvre le logiciel Stream Deck"),
       !d.wanted ? statusRow("off", "Statut Discord", "Désactivé")
-        : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute alyra » sur ton profil")
+        : d.connected ? statusRow("ok", "Statut Discord", "Connecté : « Écoute Sona » sur ton profil")
         : statusRow("warn", "Statut Discord", d.error || "Connexion à Discord…"),
       ds.shortcuts?.refused?.length ? statusRow("warn", "Raccourcis clavier", `${plural(ds.shortcuts.refused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`)
         : statusRow(ds.shortcuts?.count ? "ok" : "off", "Raccourcis clavier", ds.shortcuts?.count ? plural(ds.shortcuts.count, "raccourci actif", "raccourcis actifs") : "Aucun"),
       statusRow(ds.overlay ? "ok" : "off", "Paroles en surimpression", ds.overlay ? "Affichées" : "Masquées"),
-      ds.iphone?.available ? statusRow("ok", "alyra sur l'iPhone", ds.iphone.devices ? plural(ds.iphone.devices, "iPhone vu", "iPhone vus") : "Aucun iPhone branché ou sur le Wi-Fi")
-        : statusRow("warn", "alyra sur l'iPhone", "Module iPhone absent de cette version"),
+      ds.iphone?.available ? statusRow("ok", "Sona sur l'iPhone", ds.iphone.devices ? plural(ds.iphone.devices, "iPhone vu", "iPhone vus") : "Aucun iPhone branché ou sur le Wi-Fi")
+        : statusRow("warn", "Sona sur l'iPhone", "Module iPhone absent de cette version"),
     ]]);
   }
   root.innerHTML = groups.map(([title, rows]) => `<h3 class="set-head">${esc(title)}</h3><div class="set-group">${rows.filter(Boolean).join("")}</div>`).join("");
@@ -4482,7 +4482,7 @@ function trackMenu(t, ctx = null, index = -1) {
     offline.supported && { icon: icons.download, label: offlineHas(t) ? "Supprimer le téléchargement" : "Télécharger pour l'écoute hors ligne",
       run: () => (offlineHas(t) ? offlineRemove(t).then(() => toast("Téléchargement supprimé")) : offlineDownload(t)) },
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
-    { icon: icons.share, label: "Partager un lien alyra…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
+    { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
     { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
   ], { header });
 }
@@ -4513,7 +4513,7 @@ const shareText = (t) => `🎧 ${t.title} — ${t.artist}\n${trackLink(t)}`;
 async function shareTrack(t) {
   const text = shareText(t);
   try {
-    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via alyra)`, url: trackLink(t) });
+    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via Sona)`, url: trackLink(t) });
     else { await navigator.clipboard.writeText(text); toast("Lien copié"); }
   } catch {}
 }
@@ -4523,7 +4523,7 @@ const SHARE_VALIDITY = [[null, "Sans limite"], [24, "24 h"], [168, "7 jours"], [
 const SHARE_KINDS = { track: "Titre", album: "Album", playlist: "Playlist" };
 
 /** « Partager » : un lien vers une page publique en lecture seule — jamais
- * le titre complet (alyra est privé) ; les membres l'ouvrent dans alyra. */
+ * le titre complet (Sona est privé) ; les membres l'ouvrent dans Sona. */
 function sonaShareSheet(target) {
   let validity = null;
   const wrap = openSheet(`<h2 class="sheet-title">Partager</h2>
@@ -4532,7 +4532,7 @@ function sonaShareSheet(target) {
     <h3 class="set-head">Validité du lien</h3>
     <div class="chips share-validity">${SHARE_VALIDITY.map(([h, label]) => `<button class="chip ${h === null ? "on" : ""}" data-validity="${h ?? ""}">${label}</button>`).join("")}</div>
     <div class="share-result"><button class="btn wide" data-share-create>${icons.share} Créer le lien</button></div>
-    <p class="muted small-note">Sans compte alyra, on voit la pochette et des extraits officiels de 30 s, jamais le titre complet. Les membres l'ouvrent dans l'app, sur le site ou dans Telegram. Révocable à tout moment dans Réglages › Liens de partage.</p>`, { cls: "share-sheet" });
+    <p class="muted small-note">Sans compte Sona, on voit la pochette et des extraits officiels de 30 s, jamais le titre complet. Les membres l'ouvrent dans l'app, sur le site ou dans Telegram. Révocable à tout moment dans Réglages › Liens de partage.</p>`, { cls: "share-sheet" });
   const result = $(".share-result", wrap);
   const reset = () => { result.innerHTML = `<button class="btn wide" data-share-create>${icons.share} Créer le lien</button>`; };
   $(".share-validity", wrap).onclick = (e) => {
@@ -4580,7 +4580,7 @@ async function shareLinksSheet() {
   };
 }
 
-/** Lien de partage reçu (« Ouvrir dans alyra ») : l'album s'ouvre, un titre
+/** Lien de partage reçu (« Ouvrir dans Sona ») : l'album s'ouvre, un titre
  * ou une playlist s'affiche avec ses titres. */
 async function viewShared(token) {
   $("#content").innerHTML = skeleton("");
@@ -4828,10 +4828,10 @@ async function viewFriends() {
   const live = [
     ...parties.filter((p) => !p.joined).map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} <b>${esc(p.host_name || "Un ami")}</b> écoute en groupe (${p.members}) — rejoindre</a>`),
   ].join("");
-  return page(`<h1 class="page-title">amis.</h1><p class="page-sub">Ce qu'écoutent tes amis en ce moment.</p>
+  return page(`<h1 class="page-title">Amis</h1><p class="page-sub">Ce qu'écoutent tes amis en ce moment.</p>
     ${live}
     ${friends.length ? `<div class="friend-list" id="friends-list">${friendRows(friends)}</div>`
-      : empty("👋", "Personne pour l'instant", "Les autres comptes alyra qui partagent leur écoute apparaîtront ici.")}`);
+      : empty("👋", "Personne pour l'instant", "Les autres comptes Sona qui partagent leur écoute apparaîtront ici.")}`);
 }
 
 function friendRows(friends) {
@@ -4920,7 +4920,7 @@ function friendsBoards({ boards, champion }) {
 async function viewStats() {
   const { period, offset } = statsView;
   const seg = `<div class="segmented">${PERIODS.map(([k, label]) => `<button data-period="${k}" class="${k === period ? "on" : ""}">${label}</button>`).join("")}</div>`;
-  $("#content").innerHTML = page(`<h1 class="page-title">stats.</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
+  $("#content").innerHTML = page(`<h1 class="page-title">Stats</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   bindStatsControls();
   const [r, challenges, live] = await Promise.all([
     api(`/stats?period=${period}&offset=${offset}&tz=${encodeURIComponent(tz())}`),
@@ -4941,7 +4941,7 @@ async function viewStats() {
     $("[data-import-history]")?.addEventListener("click", importLastfmHistory);
   });
   const nowPlaying = live?.now_playing;
-  return page(`<h1 class="page-title">stats.</h1>${seg}
+  return page(`<h1 class="page-title">Stats</h1>${seg}
     <div class="period-nav">${period === "all" ? "" : `<button data-offset="-1" aria-label="Période précédente">${icons.left}</button>`}
       <span>${esc(r.label)}</span>${period !== "all" && offset < 0 ? `<button data-offset="1" aria-label="Période suivante">${icons.right}</button>` : "<i></i>"}</div>
     ${r.plays ? `
@@ -5014,7 +5014,7 @@ async function viewRecent() {
     if (groups.at(-1)?.day !== day) groups.push({ day, plays: [] });
     groups.at(-1).plays.push(p);
   }
-  return page(`<h1 class="page-title">écoutes récentes.</h1><p class="page-sub">Tout ce que tu as écouté, ici et dans l'app.</p>
+  return page(`<h1 class="page-title">Écoutes récentes</h1><p class="page-sub">Tout ce que tu as écouté, ici et dans l'app.</p>
     ${groups.map((g) => `<section class="section"><div class="section-head"><h2>${esc(g.day[0].toUpperCase() + g.day.slice(1))}</h2></div>
       ${trackTable(g.plays.filter((p) => p.source && p.source_id), "Écoutes récentes", { numbers: false })}</section>`).join("") || empty("🎧", "Pas encore d'écoute", "Lance un titre : il apparaîtra ici.")}`);
 }
@@ -5109,12 +5109,12 @@ async function shareRecapImage(r) {
     r.top_tracks.slice(0, 5).forEach((t, i) => { text(`${i + 1}  ${t.name}`, 80, y, 50, 600); text(t.subtitle || "", 150, y + 46, 32, 400, "#ffffff99"); y += 112; });
   }
   if (r.personality) text(`${r.personality.emoji}  ${r.personality.title}`, 80, H - 150, 54, 700);
-  text("Fait avec alyra", 80, H - 80, 32, 500, "#ffffff77");
+  text("Fait avec Sona", 80, H - 80, 32, 500, "#ffffff77");
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) return toast("Impossible de créer l'image");
   const file = new File([blob], "sona-recap.png", { type: "image/png" });
   try {
-    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `Mon récap alyra : ${r.label}` }); return; }
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `Mon récap Sona : ${r.label}` }); return; }
   } catch (e) { if (e?.name === "AbortError") return; }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = "sona-recap.png";
@@ -5397,7 +5397,7 @@ async function viewParty(code) {
   party.renderedVersion = null;
   onLeave(() => { party.renderedVersion = null; });
   setTimeout(renderParty);
-  return page(`<h1 class="page-title">écoute ensemble.</h1><p class="page-sub">Le même son, au même moment, chacun sur son téléphone.</p>
+  return page(`<h1 class="page-title">Écoute ensemble</h1><p class="page-sub">Le même son, au même moment, chacun sur son téléphone.</p>
     <div id="party-root" data-active='${esc(JSON.stringify(active))}'></div>`);
 }
 
@@ -5539,7 +5539,7 @@ function bindParty(root, s) {
   };
   const url = `${location.origin}${location.pathname}?party=${s.code}`;
   $("[data-party-share]", root).onclick = () => {
-    const text = `Écoute avec moi sur alyra ! Code : ${s.code}`;
+    const text = `Écoute avec moi sur Sona ! Code : ${s.code}`;
     navigator.share ? navigator.share({ text, url }).catch(() => {}) : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
   };
   $("[data-party-copy]", root).onclick = () => navigator.clipboard?.writeText(s.code).then(() => toast("Code copié")).catch(() => toast(s.code));
@@ -5686,7 +5686,7 @@ async function viewSettings() {
   state.settings = settings;
   const name = me.display_name || me.username;
   setTimeout(bindSettings);
-  return page(`<h1 class="page-title">réglages.</h1>
+  return page(`<h1 class="page-title">Réglages</h1>
     <div class="set-account">${avatar(me.avatar_url, name, "profile-avatar small")}<div><b>${esc(name)}</b><small>Last.fm · ${esc(me.username)}</small></div></div>
 
     <h3 class="set-head">Lecture</h3><div class="set-group">
@@ -5701,20 +5701,20 @@ async function viewSettings() {
       ${linkRow("data-public-link", icons.globe, "Page « J'écoute » publique", "Un lien qui montre en direct ce que tu écoutes")}
       ${linkRow("data-share-links", icons.share, "Liens de partage", "Tes liens publics, leurs vues ; les révoquer")}
       ${toggleRow("scrobble_to_lastfm", "Scrobbler sur Last.fm", "Chaque morceau écouté au moins à moitié est ajouté à ton profil Last.fm ; un titre aimé devient ♥ sur Last.fm.", me.scrobble_to_lastfm)}
-      <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque alyra"}</small></span>${icons.right}</a>
+      <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque Sona"}</small></span>${icons.right}</a>
       <a class="set-row" data-history><span class="mi-icon">${icons.download}</span><span class="set-text"><b>Importer mon historique Last.fm</b><small id="history-status">Pour des stats complètes</small></span>${icons.right}</a>
       <a class="set-row" data-clear-history><span class="mi-icon">${icons.clock}</span><span class="set-text"><b>Effacer l'historique de navigation</b><small>Les fiches consultées récemment</small></span>${icons.right}</a>
     </div>
 
-    ${desktop ? `<h3 class="set-head">alyra pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>
+    ${desktop ? `<h3 class="set-head">Sona pour ${desktop.platform === "darwin" ? "Mac" : "Windows"}</h3><div class="set-group" id="desk-settings"><p class="set-row muted">Chargement…</p></div>
     <h3 class="set-head">Mises à jour</h3><div class="set-group" id="desk-updates"><p class="set-row muted">Chargement…</p></div>` : ""}
 
     <h3 class="set-head">Appli</h3><div class="set-group">
-      ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>alyra est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
-        : linkRow("data-install-app", icons.install, "Installer alyra sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
+      ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
+        : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
       ${soundAvailable ? linkRow("data-sound", icons.wave, "Son", "Égaliseur, volume égalisé, fondu entre les titres") : ""}
       ${linkRow('href="#/devices"', icons.devices, "Appareils", "Tes PC enregistrés, à piloter d'un appui")}
-      ${linkRow('href="#/status"', icons.pulse, "État d'alyra", "Serveur, Relais, télécommande, Stream Deck…")}
+      ${linkRow('href="#/status"', icons.pulse, "État de Sona", "Serveur, Relais, télécommande, Stream Deck…")}
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
     </div>
 
@@ -5783,7 +5783,7 @@ function bindSettings() {
   $("[data-share-links]")?.addEventListener("click", shareLinksSheet);
   if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
-    if (!(await confirmSheet("Se déconnecter d'alyra ?", "Se déconnecter"))) return;
+    if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
     try { await api("/auth/logout", { method: "POST" }); } catch {}
     signOut();
   });
@@ -5796,7 +5796,7 @@ const publicUrl = (token) => `${SERVER || location.origin}/p/${token}`;
 async function publicLinkSheet() {
   const { token } = await api("/me/public-link");
   const share = (url) => navigator.share
-    ? navigator.share({ title: "J'écoute sur alyra", url }).catch(() => {})
+    ? navigator.share({ title: "J'écoute sur Sona", url }).catch(() => {})
     : navigator.clipboard?.writeText(url).then(() => toast("Lien copié"));
   if (!token) {
     if (!(await confirmSheet("Créer ta page « J'écoute » ? Toute personne qui a le lien verra ce que tu écoutes, en direct (à mettre sur ton profil Discord, Instagram…).", "Créer le lien"))) return;
@@ -5830,7 +5830,7 @@ async function viewAdmin() {
   setTimeout(() => $$("[data-decide]").forEach((b) => (b.onclick = async () => {
     try { await api(`/admin/accounts/${b.dataset.id}/${b.dataset.decide}`, { method: "POST" }); toast("C'est fait"); route(); } catch (e) { toast(e.message); }
   })));
-  return page(`<h1 class="page-title">accès à l'app.</h1><p class="page-sub">Chaque nouveau compte attend ta validation.</p>
+  return page(`<h1 class="page-title">Accès à l'app</h1><p class="page-sub">Chaque nouveau compte attend ta validation.</p>
     ${groups.map(([status, label]) => {
       const list = accounts.filter((a) => a.status === status);
       if (!list.length) return "";
@@ -5884,7 +5884,7 @@ async function explainPlaybackError(src) {
     if (res.status === 429) return "Trop de demandes : réessaie dans un instant";
     if (res.status >= 500) return detail && typeof detail === "string" ? detail : "YouTube ne répond pas pour ce titre pour le moment";
     return detail && typeof detail === "string" ? detail : "Ce titre ne se lance pas";
-  } catch { return "Le serveur alyra est injoignable"; }
+  } catch { return "Le serveur Sona est injoignable"; }
 }
 
 audio.addEventListener("error", async () => {
@@ -5961,7 +5961,7 @@ function keyboardHelpSheet() {
   openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2><div class="shortcuts">${rows.map(([k, d]) => `<div class="sc"><kbd>${esc(k)}</kbd><span>${esc(d)}</span></div>`).join("")}</div>`);
 }
 
-// ── alyra pour Windows ─────────────────────────────────────────────────────
+// ── Sona pour Windows ─────────────────────────────────────────────────────
 // La même page dans l'app d'ordinateur (dossier desktop/) : barre de titre
 // et fond en verre (desktop.css), état de lecture envoyé à l'app (zone de
 // notification, aperçu de la barre des tâches, mini-lecteur, télécommande
@@ -6036,7 +6036,7 @@ function desktopInit() {
   setInterval(() => desktopReport(), 1000);
 }
 
-/** Ce que joue alyra (ici, ou l'appareil Relais piloté depuis le PC). */
+/** Ce que joue Sona (ici, ou l'appareil Relais piloté depuis le PC). */
 function desktopSnapshot() {
   const remote = remoteDevice();
   const rnow = deviceNow(remote);
@@ -6226,7 +6226,7 @@ async function openRemotePairing() {
     if (!box) return;
     const others = info.urls.slice(1).filter((u) => u.rank < 9);
     box.innerHTML = `<h2 class="sheet-title">Télécommande</h2>
-      <p class="muted">Pilote alyra sur ce PC depuis ton téléphone : pochette, paroles, file d'attente et recherche. Le téléphone doit être sur le même Wi-Fi.</p>
+      <p class="muted">Pilote Sona sur ce PC depuis ton téléphone : pochette, paroles, file d'attente et recherche. Le téléphone doit être sur le même Wi-Fi.</p>
       ${!s.remoteEnabled ? `<div class="pair-off">${icons.phone}<b>Télécommande désactivée</b><small>Active-la pour afficher le QR code.</small></div>`
         : info.qr ? `<div class="pair-qr"><div class="qr-frame"><img src="${info.qr}" alt="QR code d'association"></div>
             <div class="pair-steps"><b>Scanne avec l'appareil photo</b><span>Ouvre le lien : la télécommande s'affiche. Ajoute-la à l'écran d'accueil pour la retrouver.</span>
@@ -6237,7 +6237,7 @@ async function openRemotePairing() {
         ${toggleRow("remote-on", "Télécommande sur le réseau local", "Le PC accepte les téléphones associés (réseau local uniquement).", s.remoteEnabled)}
         ${s.remoteEnabled ? linkRow("data-remote-reset", icons.lock, "Nouveau code d'association", "Les téléphones déjà associés devront rescanner") : ""}
       </div>
-      <p class="fine-print">Rien ne passe ? Windows a peut-être demandé d'autoriser alyra dans son pare-feu : accepte pour les <b>réseaux privés</b>.</p>`;
+      <p class="fine-print">Rien ne passe ? Windows a peut-être demandé d'autoriser Sona dans son pare-feu : accepte pour les <b>réseaux privés</b>.</p>`;
     const toggleInput = $('[data-setting="remote-on"]', box);
     toggleInput.onchange = async () => { await desktop.set("remoteEnabled", toggleInput.checked); paint(); };
     $("[data-remote-reset]", box)?.addEventListener("click", async () => {
@@ -6261,24 +6261,24 @@ async function renderDesktopSettings() {
   box.innerHTML = `${linkRow("data-desk-remote", icons.phone, "Télécommande du téléphone",
       !s.remoteEnabled ? "Désactivée" : desk.clients.length ? `${plural(desk.clients.length, "téléphone connecté", "téléphones connectés")}` : "Scanne un QR code avec ton téléphone")}
     ${toggleRow("desk-mini", "Mini-lecteur", "Une petite fenêtre en verre, toujours au premier plan.", s.mini)}
-    ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : alyra reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
-    ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "alyra démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
+    ${toggleRow("desk-closeToTray", "Continuer en arrière-plan", "Fermer la fenêtre ne coupe pas la musique : Sona reste près de l'horloge, et l'iPhone peut toujours piloter le PC.", s.closeToTray)}
+    ${toggleRow("desk-launchAtLogin", "Lancer avec Windows", "Sona démarre discrètement, prêt à recevoir la musique de l'iPhone.", s.launchAtLogin)}
     ${toggleRow("desk-lyricsOverlay", "Paroles en surimpression", "Les paroles synchronisées par-dessus tes autres fenêtres (on clique au travers).", s.lyricsOverlay)}
     ${s.lyricsOverlay ? linkRow("data-desk-overlay-pos", icons.quote, "Position des paroles", s.overlayPosition === "top" ? "En haut de l'écran" : "En bas de l'écran") : ""}
-    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute alyra » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant qu'alyra tourne sur ce PC.", s.discordEnabled)}
+    ${toggleRow("desk-discordEnabled", "Statut Discord", "« Écoute Sona » sur ton profil Discord : titre, pochette et progression — aussi pour ce que tu écoutes sur l'iPhone ou le site, tant qu'Sona tourne sur ce PC.", s.discordEnabled)}
     ${s.discordEnabled ? linkRow("data-desk-discord", icons.globe, "Discord", discordStatusText(s)) : ""}
     ${linkRow("data-desk-shortcuts", icons.bolt, "Raccourcis clavier", shortcutsSummary(s))}
     ${toggleRow("desk-pauseOnLock", "Pause quand le PC se verrouille", "Aussi en veille. La musique repart au déverrouillage.", s.pauseOnLock)}
     ${toggleRow("desk-pauseOnHeadphones", "Pause quand le casque est débranché", "Plus de musique qui part soudain dans les haut-parleurs.", s.pauseOnHeadphones)}
     ${desktop.platform === "win32" ? toggleRow("desk-micWatch", "Mode vocal automatique", "Quand Discord (ou une autre app) utilise ton micro, la musique passe sur ton préréglage « En vocal », puis revient après l'appel.", s.micWatch !== false) : ""}
-    ${desktop.platform === "win32" ? toggleRow("desk-voiceControl", "Commandes vocales « alyra… »", "Dis « alyra, suivant », « alyra, pause », « alyra, plus fort » ou « alyra, mets du PNL ». Reconnaissance vocale de Windows, hors ligne (voix française de Windows nécessaire).", s.voiceControl) : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-voiceControl", "Commandes vocales « Sona… »", "Dis « Sona, suivant », « Sona, pause », « Sona, plus fort » ou « Sona, mets du PNL ». Reconnaissance vocale de Windows, hors ligne (voix française de Windows nécessaire).", s.voiceControl) : ""}
     ${desktop.platform === "win32" && s.voiceControl ? `<div class="set-row"><span class="set-text"><b>Écoute</b><small>${esc(s.voice?.error || (s.voice?.ready ? `Prêt (${s.voice.culture || "fr"})${s.voice.last ? ` · dernier : « ${s.voice.last} »` : ""}` : "Démarrage…"))}</small></span></div>` : ""}
     ${desktop.platform === "win32" ? toggleRow("desk-coverWallpaper", "Fond d'écran pochette", "Pendant la lecture, le fond d'écran de Windows devient la pochette en cours, floue. Ton fond d'écran revient quand tu coupes l'option.", s.coverWallpaper) : ""}
-    ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône d'alyra se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
+    ${desktop.platform === "win32" ? toggleRow("desk-taskbarProgress", "Progression dans la barre des tâches", "L'icône de Sona se remplit au fil du titre (orange en pause).", s.taskbarProgress) : ""}
     ${linkRow("data-desk-volume", icons.speaker, "Volume et préréglages", `${volLabel(vol.level)} · ${vol.presets.map((p) => p.label).join(", ")}`)}
     ${desktop.platform === "win32" ? toggleRow("desk-gameMode", "Mode jeu automatique", "Un jeu en plein écran : plus de notifications, paroles en surimpression discrètes.", s.gameMode) : ""}
     ${linkRow("data-desk-name", icons.laptop, "Nom dans Relais", s.deviceNameShown)}
-    ${linkRow("data-desk-server", icons.globe, "Serveur alyra", s.serverUrl || SERVER || "Par défaut")}`;
+    ${linkRow("data-desk-server", icons.globe, "Serveur Sona", s.serverUrl || SERVER || "Par défaut")}`;
   $("[data-desk-remote]", box).onclick = () => openRemotePairing();
   for (const key of ["mini", "closeToTray", "launchAtLogin", "lyricsOverlay", "discordEnabled", "pauseOnLock", "pauseOnHeadphones", "gameMode", "micWatch", "voiceControl", "coverWallpaper", "taskbarProgress"]) {
     const input = $(`[data-setting="desk-${key}"]`, box);
@@ -6296,8 +6296,8 @@ async function renderDesktopSettings() {
     renderDesktopSettings();
   });
   $("[data-desk-discord]", box)?.addEventListener("click", async () => {
-    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "Application d'alyra", confirm: "Enregistrer",
-      hint: "Rien à faire : alyra utilise sa propre application Discord. Laisse vide, sauf pour afficher le statut avec ta propre application (son Application ID, sur discord.com/developers). Discord doit être ouvert sur ce PC, avec « Partager mon activité » activé." });
+    const id = await askText({ title: "Application Discord", value: s.discordClientId, placeholder: "Application de Sona", confirm: "Enregistrer",
+      hint: "Rien à faire : Sona utilise sa propre application Discord. Laisse vide, sauf pour afficher le statut avec ta propre application (son Application ID, sur discord.com/developers). Discord doit être ouvert sur ce PC, avec « Partager mon activité » activé." });
     if (id == null) return;
     await desktop.set("discordClientId", id).catch((e) => toast(deskErr(e)));
     setTimeout(renderDesktopSettings, 900);
@@ -6312,7 +6312,7 @@ async function renderDesktopSettings() {
     renderDesktopSettings();
   };
   $("[data-desk-server]", box).onclick = async () => {
-    const url = await askText({ title: "Serveur alyra", value: s.serverUrl || SERVER, placeholder: "https://…", confirm: "Enregistrer", hint: "Laisse l'adresse par défaut sauf si ton serveur alyra a changé d'adresse. alyra redémarre." });
+    const url = await askText({ title: "Serveur Sona", value: s.serverUrl || SERVER, placeholder: "https://…", confirm: "Enregistrer", hint: "Laisse l'adresse par défaut sauf si ton serveur Sona a changé d'adresse. Sona redémarre." });
     if (url == null) return;
     try { await desktop.set("serverUrl", url === SERVER ? "" : url); } catch (e) { toast(e.message); }
   };
@@ -6343,7 +6343,7 @@ const prettyAccel = (a) => a.replace("CommandOrControl", "Ctrl").replace("Super"
 function shortcutsSummary(s) {
   const n = Object.keys(s.shortcuts || {}).length;
   if (s.shortcutsRefused?.length) return `${plural(s.shortcutsRefused.length, "raccourci déjà pris", "raccourcis déjà pris")} par une autre app`;
-  return n ? plural(n, "raccourci actif", "raccourcis actifs") : "Contrôler alyra depuis n'importe quelle app";
+  return n ? plural(n, "raccourci actif", "raccourcis actifs") : "Contrôler Sona depuis n'importe quelle app";
 }
 
 async function shortcutsSheet() {
@@ -6365,7 +6365,7 @@ async function shortcutsSheet() {
   };
   document.addEventListener("keydown", onKey, true);
   const wrap = openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2>
-    <p class="muted">Ils marchent même quand alyra est en arrière-plan. Touche un bouton, puis appuie sur la combinaison (avec Ctrl, Alt ou Maj). Les touches multimédia du clavier marchent déjà sans rien régler.</p>
+    <p class="muted">Ils marchent même quand Sona est en arrière-plan. Touche un bouton, puis appuie sur la combinaison (avec Ctrl, Alt ou Maj). Les touches multimédia du clavier marchent déjà sans rien régler.</p>
     <div class="set-group" id="sc-list"></div>`, { onClose: () => { document.removeEventListener("keydown", onKey, true); renderDesktopSettings(); } });
   const list = $("#sc-list", wrap);
   function paint() {
@@ -6387,8 +6387,8 @@ async function shortcutsSheet() {
   paint();
 }
 
-// ── alyra sur l'iPhone (app Windows) ──────────────────────────────────────
-// Comme CordLauncher : alyra s'installe sur l'iPhone depuis le PC, signée
+// ── Sona sur l'iPhone (app Windows) ──────────────────────────────────────
+// Comme CordLauncher : Sona s'installe sur l'iPhone depuis le PC, signée
 // avec le compte Apple de l'utilisateur, par câble ou en Wi-Fi, puis elle est
 // renouvelée avant d'expirer et mise à jour toute seule (mode automatique).
 // Le travail est fait par l'app (desktop/src/iphone.js + sona-iphone).
@@ -6396,7 +6396,7 @@ async function shortcutsSheet() {
 const iph = { state: null, target: null, twoFactorSheet: null, cleanup: null };
 const deskErr = (e) => String(e?.message || e || "Erreur").replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 const PHASES = {
-  account: "Connexion au compte Apple", downloading: "Téléchargement d'alyra", preparing: "Préparation (compte, appareil)",
+  account: "Connexion au compte Apple", downloading: "Téléchargement de Sona", preparing: "Préparation (compte, appareil)",
   signing: "Signature avec ton compte Apple", installing: "Envoi sur l'iPhone", done: "Terminé",
 };
 
@@ -6450,8 +6450,8 @@ async function viewIphone() {
     if (!iph.state?.latest) desktop.iphone("check").catch(() => {});
     bindIphone();
   });
-  return page(`<h1 class="page-title">alyra sur l'iPhone.</h1>
-    <p class="page-sub">Installe alyra sur ton iPhone depuis ce PC, avec ton compte Apple. Elle reste ensuite à jour et se renouvelle toute seule, par câble ou en Wi-Fi.</p>
+  return page(`<h1 class="page-title">Sona sur l'iPhone</h1>
+    <p class="page-sub">Installe Sona sur ton iPhone depuis ce PC, avec ton compte Apple. Elle reste ensuite à jour et se renouvelle toute seule, par câble ou en Wi-Fi.</p>
     <div id="iphone-root">${iphoneBody()}</div>`);
 }
 
@@ -6466,7 +6466,7 @@ function iphoneBody() {
   const m = iph.state;
   if (!m) return `<p class="muted">Chargement…</p>`;
   if (!m.available) {
-    return `<div class="iph-card"><div class="pair-off">${icons.phone}<b>Module iPhone absent</b><small>Cette version d'alyra a été fabriquée sans lui. Installe la dernière version d'alyra pour Windows.</small></div></div>`;
+    return `<div class="iph-card"><div class="pair-off">${icons.phone}<b>Module iPhone absent</b><small>Cette version de Sona a été fabriquée sans lui. Installe la dernière version de Sona pour Windows.</small></div></div>`;
   }
   const device = iphoneTargetDevice(m);
   const installed = device ? (m.apps || []).find((a) => a.udid === device.udid) : (m.apps || [])[0];
@@ -6484,7 +6484,7 @@ function iphoneBody() {
 
   let action = "";
   const disabled = busy || !reachable || !ready ? "disabled" : "";
-  if (!installed) action = `<button class="btn" data-iph="install" ${disabled}>${icons.download} Installer alyra${m.latest ? ` ${esc(m.latest.version)}` : ""}</button>`;
+  if (!installed) action = `<button class="btn" data-iph="install" ${disabled}>${icons.download} Installer Sona${m.latest ? ` ${esc(m.latest.version)}` : ""}</button>`;
   else if (upd) action = `<button class="btn" data-iph="update" ${disabled}>${icons.download} Mettre à jour vers ${esc(upd.version)}</button>`;
   else action = `<button class="btn ${health === "ok" ? "ghost" : ""}" data-iph="renew" ${disabled || (!installed.ipa ? "disabled" : "")}>${icons.repeat} Renouveler</button>`;
   const why = busy ? "" : !ready ? "Connecte d'abord ton compte Apple, juste en dessous."
@@ -6496,9 +6496,9 @@ function iphoneBody() {
     <div class="iph-ring ${health}" style="--r:${ring}"><img src="icons/icon-192.png" alt=""><span class="iph-left">${installed ? esc(leftLabel(installed)) : ""}</span></div>
     <div class="iph-hero-text">
       <span class="eyebrow">${installed ? (health === "expired" ? "Expirée" : health === "ok" ? "Installée" : "À renouveler bientôt") : "Pas encore installée"}${device?.name ? ` · ${esc(device.name)}` : ""}</span>
-      <h2>alyra ${installed?.version ? esc(installed.version) : m.latest ? esc(m.latest.version) : ""}</h2>
+      <h2>Sona ${installed?.version ? esc(installed.version) : m.latest ? esc(m.latest.version) : ""}</h2>
       <p>${installed
-        ? `${installed.expiresAt ? `Valable jusqu'au ${new Date(installed.expiresAt).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${health === "ok" ? "" : " — renouvelle-la pour la garder"}.` : "Suivie par alyra."}${upd ? ` La version ${esc(upd.version)} est sortie.` : ""}`
+        ? `${installed.expiresAt ? `Valable jusqu'au ${new Date(installed.expiresAt).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}${health === "ok" ? "" : " — renouvelle-la pour la garder"}.` : "Suivie par Sona."}${upd ? ` La version ${esc(upd.version)} est sortie.` : ""}`
         : "Ta musique, tes playlists et Relais sur l'iPhone. Signée avec ton compte Apple, gratuitement."}</p>
       ${busy ? `<div class="iph-progress"><div class="iph-progress-head"><b>${esc(PHASES[progress?.phase] || busy)}</b><span>${pct != null ? `${pct} %` : ""}</span></div>
         <div class="iph-bar ${pct == null ? "indeterminate" : ""}"><i style="width:${pct ?? 30}%"></i></div></div>`
@@ -6513,14 +6513,14 @@ function iphoneBody() {
     return `<div class="iph-device ${device && d.udid === device.udid ? "on" : ""}" data-iph-device="${esc(d.udid)}" role="button">
       <span class="dp-icon">${icons.phone}</span>
       <span class="iph-device-text"><b>${esc(d.name || "iPhone")}</b>
-        <small>${d.iosVersion ? `iOS ${esc(d.iosVersion)} · ` : ""}<span class="pill-mini ${d.connection}">${conn}</span>${!d.trusted && d.connection === "usb" ? " · touche « Se fier » sur l'iPhone" : ""}${app?.version ? ` · alyra ${esc(app.version)}` : ""}</small></span>
+        <small>${d.iosVersion ? `iOS ${esc(d.iosVersion)} · ` : ""}<span class="pill-mini ${d.connection}">${conn}</span>${!d.trusted && d.connection === "usb" ? " · touche « Se fier » sur l'iPhone" : ""}${app?.version ? ` · Sona ${esc(app.version)}` : ""}</small></span>
       ${d.connection === "usb" && d.trusted ? `<label class="iph-wifi" title="Renouveler et mettre à jour sans câble, sur le même Wi-Fi"><span>Wi-Fi</span><input type="checkbox" data-iph-wifi="${esc(d.udid)}" ${d.wifi ? "checked" : ""}><i></i></label>` : ""}
     </div>`;
   }).join("");
 
   const profiles = (m.status?.profiles || []).map((p) => `<div class="iph-profile ${p.active ? "on" : ""}">
       ${avatar(null, p.email, "avatar")}
-      <span class="iph-device-text"><b>${esc(p.email)}</b><small>${p.active ? "Signe alyra · " : ""}${p.pausedFor ? `En pause ${Math.ceil(p.pausedFor / 60)} min (Apple) · ` : ""}${p.connected ? "Connecté" : p.remembered ? "Mot de passe mémorisé" : "À reconnecter"}</small></span>
+      <span class="iph-device-text"><b>${esc(p.email)}</b><small>${p.active ? "Signe Sona · " : ""}${p.pausedFor ? `En pause ${Math.ceil(p.pausedFor / 60)} min (Apple) · ` : ""}${p.connected ? "Connecté" : p.remembered ? "Mot de passe mémorisé" : "À reconnecter"}</small></span>
       <span class="iph-profile-acts">${p.active ? "" : `<button class="btn ghost small" data-iph-switch="${esc(p.email)}">Utiliser</button>`}
         ${!p.connected && !p.remembered ? `<button class="btn ghost small" data-iph-login="${esc(p.email)}">Se connecter</button>` : ""}
         <button class="tbtn small" data-iph-forget="${esc(p.email)}" title="Oublier ce compte">${icons.close}</button></span>
@@ -6533,22 +6533,22 @@ function iphoneBody() {
           <small>${m.devicesError ? "Puis branche l'iPhone avec un câble." : "Branche-le avec un câble, déverrouille-le et touche « Se fier ». Ensuite, active le Wi-Fi ici pour te passer du câble."}</small></div>`}
       </section>
       <section class="iph-card"><div class="iph-card-head"><h3>Compte Apple</h3></div>
-        ${profiles || `<p class="muted iph-note">alyra signe l'app avec ton compte Apple (gratuit). Le mot de passe reste sur ce PC, dans le coffre de Windows.</p>`}
+        ${profiles || `<p class="muted iph-note">Sona signe l'app avec ton compte Apple (gratuit). Le mot de passe reste sur ce PC, dans le coffre de Windows.</p>`}
         <div class="iph-card-foot"><button class="btn ${profiles ? "ghost" : ""}" data-iph="add-account">${icons.plus} ${profiles ? "Ajouter un compte" : "Connecter mon compte Apple"}</button></div>
       </section>
       <section class="iph-card"><div class="iph-card-head"><h3>Automatique</h3></div>
-        <div class="set-group flat">${toggleRow("iph-auto", "Mises à jour et renouvellement automatiques", "alyra installe chaque nouvelle version et renouvelle l'app deux jours avant qu'elle expire, dès que l'iPhone est branché ou sur le même Wi-Fi. Sinon, un rappel la veille.", m.auto)}</div>
-        <p class="iph-note muted">${m.latest ? `Dernière version : alyra ${esc(m.latest.version)}` : "Dernière version inconnue"}${m.lastCheck ? ` · vérifié ${esc(since(new Date(m.lastCheck).toISOString()))}` : ""}</p>
+        <div class="set-group flat">${toggleRow("iph-auto", "Mises à jour et renouvellement automatiques", "Sona installe chaque nouvelle version et renouvelle l'app deux jours avant qu'elle expire, dès que l'iPhone est branché ou sur le même Wi-Fi. Sinon, un rappel la veille.", m.auto)}</div>
+        <p class="iph-note muted">${m.latest ? `Dernière version : Sona ${esc(m.latest.version)}` : "Dernière version inconnue"}${m.lastCheck ? ` · vérifié ${esc(since(new Date(m.lastCheck).toISOString()))}` : ""}</p>
         <div class="iph-card-foot"><button class="btn ghost" data-iph="check" ${m.checking ? "disabled" : ""}>${m.checking ? "Recherche…" : "Rechercher une mise à jour"}</button></div>
       </section>
       <section class="iph-card iph-help"><div class="iph-card-head"><h3>Première installation</h3></div>
         <ol class="steps">
           <li>Installe <b>Appareils Apple</b> (Microsoft Store) ou <b>iTunes</b> : Windows en a besoin pour parler à l'iPhone.</li>
           <li>Branche l'iPhone, déverrouille-le et touche <b>Se fier</b>.</li>
-          <li>Connecte ton compte Apple ici, puis <b>Installer alyra</b>.</li>
+          <li>Connecte ton compte Apple ici, puis <b>Installer Sona</b>.</li>
           <li>Sur l'iPhone : <b>Réglages › Général › VPN et gestion de l'appareil</b> › fais confiance à ton compte, puis active le <b>mode développeur</b> si iOS le demande.</li>
         </ol>
-        <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (alyra la renouvelle) et 3 apps au plus par iPhone.</p>
+        <p class="iph-note muted">Compte Apple gratuit : l'app est valable 7 jours (Sona la renouvelle) et 3 apps au plus par iPhone.</p>
       </section>
     </div>`;
 }
@@ -6574,12 +6574,12 @@ function bindIphone() {
     if (act === "add-account") return appleLoginSheet();
     if (act === "menu") {
       const installed = device && (iph.state?.apps || []).some((a) => a.udid === device.udid);
-      return actionSheet("alyra sur l'iPhone", [
+      return actionSheet("Sona sur l'iPhone", [
         ...(installed ? [{ icon: icons.download, label: "Réinstaller la dernière version", run: () => run("install", { udid }) }] : []),
-        { icon: icons.install, label: "Installer un fichier .ipa…", sub: "Une version précise d'alyra", run: async () => { const file = await desktop.iphonePick(); if (file) run("installFile", { udid, file }); } },
+        { icon: icons.install, label: "Installer un fichier .ipa…", sub: "Une version précise de Sona", run: async () => { const file = await desktop.iphonePick(); if (file) run("installFile", { udid, file }); } },
         { icon: icons.lock, label: "Réinitialiser l'appareil Apple", sub: "Si Apple refuse les connexions : il redemandera un code", run: async () => { if (await confirmSheet("Réinitialiser l'appareil présenté à Apple ?", "Réinitialiser")) run("resetDevice", {}, "Appareil Apple réinitialisé"); } },
         { icon: icons.list, label: "Ouvrir le journal", run: () => desktop.iphoneLogs().then((ok) => !ok && toast("Rien dans le journal pour l'instant")) },
-        ...(installed ? [{ icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "alyra reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) }] : []),
+        ...(installed ? [{ icon: icons.trash, label: "Ne plus suivre sur cet iPhone", sub: "Sona reste installée, mais ne sera plus renouvelée", danger: true, run: () => run("forgetApp", { udid }) }] : []),
       ]);
     }
     const dev = target("[data-iph-device]");
@@ -6601,11 +6601,11 @@ function bindIphone() {
 /** Connexion d'un compte Apple (la 2FA arrive ensuite dans sa propre fenêtre). */
 function appleLoginSheet(email = "") {
   const wrap = openSheet(`<h2 class="sheet-title">Compte Apple</h2>
-    <p class="muted">alyra signe l'app avec ton identifiant Apple, comme Sideloadly ou AltStore. Le mot de passe ne quitte pas ce PC.</p>
+    <p class="muted">Sona signe l'app avec ton identifiant Apple, comme Sideloadly ou AltStore. Le mot de passe ne quitte pas ce PC.</p>
     <form class="ask" id="apple-form">
       <input class="field" name="email" type="email" placeholder="Identifiant Apple" value="${esc(email)}" autocomplete="username" required>
       <input class="field" name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
-      <label class="switch-row flat"><span><b>Mémoriser sur ce PC</b><small>Dans le coffre de Windows : alyra renouvelle l'app chaque semaine sans rien te redemander.</small></span><input type="checkbox" name="remember" checked><i></i></label>
+      <label class="switch-row flat"><span><b>Mémoriser sur ce PC</b><small>Dans le coffre de Windows : Sona renouvelle l'app chaque semaine sans rien te redemander.</small></span><input type="checkbox" name="remember" checked><i></i></label>
       <p class="iph-error" id="apple-error" hidden></p>
       <div class="pill-row"><button type="button" class="btn ghost" data-cancel>Annuler</button><button class="btn" type="submit">Se connecter</button></div>
     </form>`);
@@ -6659,7 +6659,7 @@ function iphoneTwoFactor() {
   }))));
 }
 
-// ── Mises à jour (app Windows et alyra sur l'iPhone) ──────────────────────
+// ── Mises à jour (app Windows et Sona sur l'iPhone) ──────────────────────
 
 let updatesState = null;
 
@@ -6674,24 +6674,24 @@ async function renderUpdates(model) {
   const iphoneApp = (m?.apps || [])[0];
   const iphoneUpd = iphoneApp && iphoneUpdate(iphoneApp);
   const winLine = u.downloading != null ? `Téléchargement… ${Math.round(u.downloading * 100)} %`
-    : u.available ? `alyra ${esc(u.latest.version)} est disponible (tu as la ${esc(u.current)})`
+    : u.available ? `Sona ${esc(u.latest.version)} est disponible (tu as la ${esc(u.current)})`
     : u.checking ? "Recherche…"
     : `Version ${esc(u.current)}${u.lastCheck ? ` · à jour, vérifié ${esc(since(new Date(u.lastCheck).toISOString()))}` : ""}`;
-  box.innerHTML = `<div class="set-row"><span class="mi-icon">${icons.laptop}</span><span class="set-text"><b>alyra pour Windows</b><small>${winLine}</small></span>
+  box.innerHTML = `<div class="set-row"><span class="mi-icon">${icons.laptop}</span><span class="set-text"><b>Sona pour Windows</b><small>${winLine}</small></span>
       ${u.available && u.downloading == null ? `<button class="btn small" data-upd="install">${u.portable ? "Télécharger" : "Mettre à jour"}</button>` : ""}</div>
-    <a class="set-row" href="#/iphone"><span class="mi-icon">${icons.phone}</span><span class="set-text"><b>alyra sur l'iPhone</b><small>${
+    <a class="set-row" href="#/iphone"><span class="mi-icon">${icons.phone}</span><span class="set-text"><b>Sona sur l'iPhone</b><small>${
       !m?.available ? "Module iPhone absent de cette version"
       : iphoneApp ? `${esc(iphoneApp.version || "?")} sur ${esc(iphoneApp.deviceName || "l'iPhone")}${iphoneUpd ? ` · ${esc(iphoneUpd.version)} disponible` : " · à jour"}${iphoneApp.expiresAt ? ` · expire ${esc(new Date(iphoneApp.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))}` : ""}`
       : m?.latest ? `Pas encore installée · dernière version ${esc(m.latest.version)}` : "Pas encore installée"}</small></span>${icons.right}</a>
     ${toggleRow("upd-check", "Rechercher automatiquement", "Au démarrage puis toutes les 6 heures, pour Windows et pour l'iPhone.", u.autoCheck)}
-    ${u.portable ? "" : toggleRow("upd-install", "Installer sans demander", "alyra se met à jour tout seul et redémarre (la musique reprend où elle en était sur l'iPhone si tu changes d'appareil).", u.autoInstall)}
-    <div class="set-row"><span class="set-text">${u.error ? `<small class="iph-error">${esc(u.error)}</small>` : `<small>Les nouvelles versions arrivent à chaque mise à jour d'alyra.</small>`}</span>
+    ${u.portable ? "" : toggleRow("upd-install", "Installer sans demander", "Sona se met à jour tout seul et redémarre (la musique reprend où elle en était sur l'iPhone si tu changes d'appareil).", u.autoInstall)}
+    <div class="set-row"><span class="set-text">${u.error ? `<small class="iph-error">${esc(u.error)}</small>` : `<small>Les nouvelles versions arrivent à chaque mise à jour de Sona.</small>`}</span>
       <button class="btn ghost small" data-upd="check" ${u.checking || m?.checking ? "disabled" : ""}>Rechercher</button></div>`;
   $('[data-upd="install"]', box)?.addEventListener("click", () => desktop.updates("install").catch((e) => toast(deskErr(e))));
   $('[data-upd="check"]', box).onclick = async () => {
     const [win] = await Promise.all([desktop.updates("check").catch((e) => ({ error: deskErr(e) })), desktop.iphone("check").catch(() => null)]);
     if (win?.error) toast(win.error);
-    else if (!win?.available) toast("alyra est à jour");
+    else if (!win?.available) toast("Sona est à jour");
   };
   $('[data-setting="upd-check"]', box).onchange = (e) => desktop.updates("updatesCheck", e.target.checked);
   $('[data-setting="upd-install"]', box)?.addEventListener("change", (e) => desktop.updates("updatesInstall", e.target.checked));
@@ -6714,7 +6714,7 @@ async function viewLink(code) {
   try { info = await api(`/auth/device/${encodeURIComponent(wanted)}`); }
   catch (e) { error = e.message || "Code inconnu ou expiré."; }
   if (!info) {
-    return page(`<h1 class="page-title">connecter un appareil.</h1>
+    return page(`<h1 class="page-title">Connecter un appareil</h1>
       <p class="page-sub">${esc(error)}</p><p class="muted">Relance la connexion sur l'appareil pour obtenir un nouveau QR code.</p>`);
   }
   setTimeout(() => {
@@ -6733,8 +6733,8 @@ async function viewLink(code) {
     $("#link-ok")?.addEventListener("click", () => answer("/auth/device/approve", `${info.name} est connecté à ton compte. Tu peux fermer cette page.`));
     $("#link-no")?.addEventListener("click", () => answer("/auth/device/deny", "Connexion refusée."));
   });
-  return page(`<h1 class="page-title">connecter un appareil.</h1>
-    <p class="page-sub">« ${esc(info.name)} » demande l'accès à ton compte alyra.</p>
+  return page(`<h1 class="page-title">Connecter un appareil</h1>
+    <p class="page-sub">« ${esc(info.name)} » demande l'accès à ton compte Sona.</p>
     <p class="page-sub">Le code affiché sur l'écran doit être <b>${esc(info.user_code)}</b>. Si ce n'est pas le cas, refuse.</p>
     <div class="actions" id="link-actions"><button class="btn" id="link-ok">Autoriser</button><button class="btn ghost" id="link-no">Refuser</button></div>
     <p class="muted" id="link-msg"></p>`);

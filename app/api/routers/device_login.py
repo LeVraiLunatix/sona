@@ -85,7 +85,7 @@ async def approve(payload: CodeIn, deps: ApiDeps = Depends(require_token)) -> di
     """Autorise l'appareil : il reçoit sa propre session sur ce compte."""
     if deps.account is None:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte alyra (pas avec le jeton du serveur) pour autoriser un appareil.",
+            status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte Sona (pas avec le jeton du serveur) pour autoriser un appareil.",
         )
     found = device_login.by_user_code(payload.user_code)
     if found is None or found.expired():

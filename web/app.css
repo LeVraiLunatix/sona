@@ -1,5 +1,5 @@
-/* alyra. web — verre liquide : barre latérale translucide, lecteur en haut,
-   grandes pochettes, lecteur plein écran avec paroles. Voir le bloc « alyra. »
+/* Sona web — verre liquide : barre latérale translucide, lecteur en haut,
+   grandes pochettes, lecteur plein écran avec paroles. Voir le bloc « Sona »
    à la fin du fichier pour les couleurs, la police et la matière. */
 
 :root {
@@ -687,7 +687,7 @@ input[type="range"].slider::-moz-range-thumb { width: 12px; height: 12px; border
 .dev-vol { display: flex; align-items: center; gap: 10px; color: var(--text-3); margin: 4px 6px 12px; }
 .dev-vol input { flex: 1; }
 
-/* État d'alyra */
+/* État de Sona */
 .st-row { display: grid; grid-template-columns: 12px 1fr; gap: 14px; align-items: center; }
 .st-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-3); }
 .st-dot.ok { background: #30d158; box-shadow: 0 0 0 3px rgba(48, 209, 88, .18); }
@@ -1493,86 +1493,170 @@ span.chip { cursor: default; }
 .bio-src { font-size: 12.5px; color: var(--text-3); }
 
 
-/* ═══ alyra. — sobre ═════════════════════════════════════════════════════════
-   Fond uni, séparateurs fins, texte clair sur noir. Aucune couleur d'interface :
-   la seule couleur de l'écran est celle des pochettes. Police système (SF Pro
-   sur Apple). Pas de halo, pas de dégradé, pas d'ombre portée sauf sous les
-   fenêtres flottantes. Ce bloc vient en dernier : il reprend les variables du
-   début du fichier. */
+/* ═══ Sona v2 ═══════════════════════════════════════════════════════════════
+   Interface sobre et aérée. Un noir franc, du gris pour les surfaces, un seul
+   trait fin pour séparer ; aucune couleur d'interface (la couleur vient des
+   pochettes). Échelle d'espacement de 4 px, texte en police système. Ce bloc
+   vient en dernier : il reprend les variables et les composants plus haut. */
 
 :root {
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
   --bg: #000000;
-  --bg-elevated: #1c1c1e;
-  --sidebar: #0a0a0a;
-  --glass: rgba(28, 28, 30, 0.86);
-  --hairline: rgba(255, 255, 255, 0.1);
-  --fill: rgba(255, 255, 255, 0.07);
-  --fill-strong: rgba(255, 255, 255, 0.12);
+  --bg-elevated: #161618;
+  --sidebar: #000000;
+  --glass: rgba(22, 22, 24, 0.9);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --fill: rgba(255, 255, 255, 0.05);
+  --fill-strong: rgba(255, 255, 255, 0.09);
   --text: #f5f5f7;
-  --text-2: rgba(245, 245, 247, 0.62);
-  --text-3: rgba(245, 245, 247, 0.4);
+  --text-2: rgba(245, 245, 247, 0.6);
+  --text-3: rgba(245, 245, 247, 0.38);
   --accent: #f5f5f7;
   --accent-2: #f5f5f7;
-  --accent-soft: rgba(255, 255, 255, 0.14);
+  --accent-soft: rgba(255, 255, 255, 0.12);
   --on-accent: #000000;
-  --shadow-art: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
-  --radius-art: 6px;
+  --shadow-art: none;
+  --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --radius-art: 8px;
+  --sidebar-w: 248px;
+  --topbar-h: 64px;
+  --page-x: 56px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
   color-scheme: dark;
 }
 html, body { background: var(--bg); }
-body { font-family: var(--font); letter-spacing: 0; }
+body { font-family: var(--font); font-size: 15px; line-height: 1.5; letter-spacing: 0; }
 button, input, textarea, select { font-family: inherit; }
 
-/* Titres : SF, graisse semi-bold, interlettrage neutre */
-.page-title { letter-spacing: -0.02em; font-weight: 700; }
-.section-head h2 { letter-spacing: -0.015em; font-weight: 600; }
+/* Fenêtre : volets collés, séparés par un trait */
+.sidebar { background: var(--sidebar); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-right: 1px solid var(--hairline); padding: var(--s-5) var(--s-4) var(--s-4); gap: var(--s-1); }
+.topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-bottom: 1px solid var(--hairline); padding: 0 var(--s-6); gap: var(--s-5); }
 
-/* Le nom : « alyra. » sans lueur */
+/* Marque */
 .lit { text-shadow: none; }
-.brand { gap: 8px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
-.brand-mark, .brand-mark svg { width: 28px; height: 28px; display: block; flex: none; border-radius: 0; background: none; box-shadow: none; }
+.brand { gap: var(--s-3); padding: var(--s-1) var(--s-3) var(--s-5); font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+.brand-mark, .brand-mark svg { width: 24px; height: 24px; display: block; flex: none; border-radius: 0; background: none; box-shadow: none; color: var(--text); }
 
-/* Surfaces plates, un trait fin pour séparer */
-.sidebar { background: var(--sidebar); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-right: 1px solid var(--hairline); }
-.topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-bottom: 1px solid var(--hairline); }
-.side-link { border-radius: 8px; }
-.side-link.active { background: var(--fill-strong); box-shadow: none; }
-.btn { border-radius: 8px; height: 36px; box-shadow: none; }
-.btn.ghost { box-shadow: none; border: 1px solid var(--hairline); }
-.chip { box-shadow: none; border: 1px solid var(--hairline); }
-.toast { border-radius: 10px; background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-pop); }
-.sheet {
-  background: var(--bg-elevated);
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  border-radius: 14px; box-shadow: var(--shadow-pop); border: 1px solid var(--hairline);
-}
-.sheet-backdrop { background: rgba(0, 0, 0, 0.6); }
-.card .art-wrap { box-shadow: var(--shadow-art); }
-.focus-pill, .focus-pill.rest { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 1px solid var(--hairline); }
+/* Navigation */
+.side-search { margin: 0 0 var(--s-4); }
+.side-search input { height: 38px; border-radius: 10px; background: var(--fill); font-size: 14px; padding-left: 36px; }
+.side-search input:focus { background: var(--fill-strong); box-shadow: none; }
+.side-search .icon { left: 12px; top: 11px; }
+.side-section { padding: var(--s-5) var(--s-3) var(--s-2); font-size: 11px; letter-spacing: 0.08em; color: var(--text-3); }
+.side-link { gap: var(--s-3); padding: 9px var(--s-3); border-radius: 10px; font-size: 14.5px; font-weight: 500; color: var(--text-2); }
+.side-link .icon { color: currentColor; font-size: 18px; }
+.side-link:hover { background: var(--fill); color: var(--text); }
+.side-link.active { background: var(--fill-strong); color: var(--text); box-shadow: none; font-weight: 500; }
+.side-user { padding: var(--s-4) var(--s-3) var(--s-1); margin-top: var(--s-3); }
 
-/* Connexion */
-.login-bg { background: var(--bg); }
-.login-card {
-  max-width: 380px; padding: 36px 30px 30px; border-radius: 16px;
-  background: var(--bg-elevated); border: 1px solid var(--hairline);
-  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
-}
-.login-mark { width: 64px; height: 64px; display: block; margin: 0 auto 16px; filter: none; }
-.login h1 { font-size: 36px; letter-spacing: -0.03em; font-weight: 600; }
-.login p { font-size: 16px; margin-bottom: 24px; }
-.login .btn { height: 44px; padding: 0 26px; font-size: 15px; font-weight: 600; letter-spacing: 0; }
-@media (max-width: 760px) { .login-card { padding: 30px 22px 24px; border-radius: 14px; } .login h1 { font-size: 32px; } }
+/* Lecteur du haut */
+.lcd { height: 48px; border-radius: 10px; background: var(--fill); border: 0; }
+.lcd .art { width: 48px; height: 48px; border-radius: 0; }
+.tbtn:hover { background: var(--fill); }
+.tbtn.on { color: var(--text); text-decoration: underline; text-underline-offset: 6px; }
+input[type="range"].slider { height: 3px; }
 
-/* Tuiles et interrupteurs : plus de couleurs vives, des aplats gris. */
-.tile, .concert-teaser, .tile.violet, .tile.blue, .tile.green, .tile.orange, .tile.pink {
-  background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 12px;
-}
-.tile-icon { background: var(--fill-strong); border-radius: 10px; }
+/* Contenu : large marge, mesure confortable */
+.page { padding: var(--s-7) var(--page-x) var(--s-8); max-width: 1320px; margin: 0 auto; animation: none; }
+.page-title { font-size: 32px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.15; margin: 0 0 var(--s-2); word-spacing: 0; }
+.page-sub { font-size: 15px; color: var(--text-2); margin: 0 0 var(--s-7); max-width: 56ch; }
+.section { margin-top: var(--s-8); }
+.section:first-child { margin-top: var(--s-6); }
+.section-head { border-top: 0; padding-top: 0; margin-bottom: var(--s-5); align-items: center; }
+.section-head h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.section-head .more { color: var(--text-2); font-size: 14px; }
+.section-head .more:hover { color: var(--text); }
+.shelf-nav { gap: var(--s-2); }
+.shelf-nav button { width: 32px; height: 32px; background: var(--fill); }
+
+/* Cartes et étagères */
+.shelf { gap: var(--s-5); grid-auto-columns: calc((100% - 4 * var(--s-5)) / 5); }
+.shelf.large { grid-auto-columns: calc((100% - 2 * var(--s-5)) / 3); }
+.shelf.round { grid-auto-columns: calc((100% - 6 * var(--s-5)) / 7); }
+.grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s-6) var(--s-5); }
+.card .art-wrap { box-shadow: none; transition: opacity .2s var(--ease); }
+.card:hover .art-wrap { transform: none; box-shadow: none; }
+.card .art-wrap::after { display: none; }
+.card .t { margin-top: var(--s-3); font-size: 14px; font-weight: 500; }
+.card .s { margin-top: 2px; font-size: 13px; color: var(--text-2); }
+.card .play-fab { box-shadow: none; }
+.feature { border-radius: 12px; box-shadow: none; }
+.feature:hover { transform: none; box-shadow: none; }
+
+/* Lignes de titres */
+.track-grid { gap: 0 var(--s-5); }
+.mini { padding: var(--s-3) var(--s-2) var(--s-3) 0; gap: var(--s-4); grid-template-columns: 48px 1fr auto; }
+.mini img { width: 48px; height: 48px; border-radius: 6px; box-shadow: none; }
+.mini:hover .t, .mini.current .t { color: var(--text); }
+.tracks { margin-top: var(--s-3); }
+.tr { padding: var(--s-3) var(--s-3); gap: var(--s-4); border-radius: 10px; }
+.tr:nth-child(odd) { background: transparent; }
+.tr:hover { background: var(--fill); }
+.tr.current { background: var(--fill); }
+.tr.current .ti, .tr.current .n, .tr .acts button.liked, .tr .acts button:hover { color: var(--text); }
+.tr img { border-radius: 6px; }
+.bars i { background: var(--text); }
+
+/* En-tête d'album / playlist / artiste */
+.hero { grid-template-columns: 240px 1fr; gap: var(--s-7); padding: var(--s-4) 0 var(--s-6); align-items: end; }
+.hero-art { width: 240px; height: 240px; border-radius: 10px; box-shadow: none; }
+.hero .kind { letter-spacing: 0.08em; color: var(--text-3); }
+.hero h1 { font-size: 36px; font-weight: 600; letter-spacing: -0.025em; }
+.hero .by { font-size: 18px; color: var(--text-2); font-weight: 500; }
+.hero .actions { gap: var(--s-3); margin-top: var(--s-5); }
+.hero-glow { display: none; }
+
+/* Boutons, puces, champs */
+.btn { height: 40px; padding: 0 var(--s-5); border-radius: 10px; font-size: 14.5px; font-weight: 600; box-shadow: none; }
+.btn.ghost { background: var(--fill-strong); color: var(--text); border: 0; box-shadow: none; }
+.btn.ghost:hover { background: rgba(255, 255, 255, 0.14); }
+.chips { gap: var(--s-2); margin-top: var(--s-4); }
+.chip { padding: 8px var(--s-4); border-radius: 999px; border: 0; background: var(--fill); box-shadow: none; }
+.chip.on { background: var(--text); color: var(--bg); }
+.field { height: 44px; border-radius: 10px; background: var(--fill); }
+.field:focus { box-shadow: 0 0 0 1px var(--text-3); }
+.search-hero input { height: 52px; border-radius: 12px; background: var(--fill); }
+.search-hero input:focus { background: var(--fill-strong); box-shadow: none; }
+
+/* Tuiles d'accueil : aplats */
+.tile, .tile.violet, .tile.blue, .tile.green, .tile.orange, .tile.pink { background: var(--fill); border: 0; border-radius: 12px; padding: var(--s-5); gap: var(--s-4); }
+.tile:hover, .tile.blue:hover { background: var(--fill-strong); }
+.tile-icon { background: var(--fill-strong); border-radius: 10px; width: 44px; height: 44px; }
+.tiles { gap: var(--s-4); }
+.live-pill.violet, .badge.earned, .stat-hero, .resume, .dev-remote { background: var(--fill); border: 0; }
+
+/* Réglages */
+.set-head { margin: var(--s-7) 0 var(--s-3) var(--s-4); letter-spacing: 0.06em; color: var(--text-3); }
+.set-group, .set-account { border-radius: 14px; max-width: 680px; }
+.set-row { padding: var(--s-4) var(--s-5); min-height: 60px; gap: var(--s-4); }
+.switch-row { padding: var(--s-4) var(--s-5); }
 .switch-row input:checked + i { background: var(--text); }
 .switch-row input:checked + i::after { background: var(--bg); box-shadow: none; }
 .switch-row i::after { box-shadow: none; }
-.live-pill.violet, .badge.earned, .stat-hero { background: var(--bg-elevated); border-color: var(--hairline); }
-.concert-teaser { background: var(--bg-elevated); }
-.resume, .dev-remote { background: var(--bg-elevated); border: 1px solid var(--hairline); }
+
+/* Fenêtres et notifications */
+.toast { border-radius: 12px; background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-pop); }
+.sheet { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; border-radius: 16px; box-shadow: var(--shadow-pop); }
+.sheet-backdrop { background: rgba(0, 0, 0, 0.6); }
+.focus-pill, .focus-pill.rest { display: none; }
+
+/* Connexion */
+.login-bg { background: var(--bg); }
+.login-card { max-width: 380px; padding: var(--s-7) var(--s-6) var(--s-6); border-radius: 20px; background: var(--bg-elevated); border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.login-mark { width: 56px; height: 56px; display: block; margin: 0 auto var(--s-5); filter: none; color: var(--text); }
+.login h1 { font-size: 34px; font-weight: 600; letter-spacing: -0.03em; }
+.login p { font-size: 15px; margin-bottom: var(--s-6); }
+.login .btn { height: 46px; padding: 0 var(--s-6); font-size: 15px; }
+
+/* Écrans moyens et mobile : marges plus serrées */
+@media (max-width: 1100px) { :root { --page-x: 32px; } .page { padding-top: var(--s-6); } }
+@media (max-width: 760px) {
+  :root { --page-x: 20px; }
+  .page { padding: var(--s-5) var(--page-x) var(--s-7); }
+  .page-title { font-size: 28px; }
+  .page-sub { margin-bottom: var(--s-6); }
+  .section { margin-top: var(--s-7); }
+  .hero { grid-template-columns: 1fr; gap: var(--s-5); }
+  .hero-art { width: min(240px, 70vw); height: auto; aspect-ratio: 1; }
+  .login-card { padding: var(--s-6) var(--s-5) var(--s-5); }
+}

@@ -1,6 +1,6 @@
-/* alyra. pour Windows — habillage « verre liquide » de l'app d'ordinateur.
+/* Sona pour Windows — habillage « verre liquide » de l'app d'ordinateur.
    Chargé seulement dans l'app (classe `desktop` sur <html>, voir app.js) :
-   alyra. web dans un navigateur ne change pas.
+   Sona web dans un navigateur ne change pas.
 
    Principe : la pochette en cours, très floue, remplit le fond de la
    fenêtre et respire doucement ; par-dessus, des panneaux de verre qui
@@ -337,7 +337,7 @@ html.desktop .pair-sheet .sheet { width: min(560px, 92vw); }
   html.desktop .ambient img, html.desktop .ambient .blob { animation: none; }
 }
 
-/* ── alyra sur l'iPhone ───────────────────────────────────────────────── */
+/* ── Sona sur l'iPhone ───────────────────────────────────────────────── */
 
 .side-badge:empty { display: none; }
 .side-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center;
