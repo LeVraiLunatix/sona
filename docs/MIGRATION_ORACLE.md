@@ -201,7 +201,7 @@ ajoute les secrets GitHub `TELEGRAM_BOT_TOKEN` (le token du bot) et
 `https://<ton-adresse>/web/` : connexion Last.fm, écoute, recherche,
 playlists et paroles depuis n'importe quel navigateur.
 
-**Sur Vercel** (adresse du genre `sona-xxx.vercel.app`, mise à jour à chaque
+**Sur Vercel** (adresse du genre `sona-app.vercel.app`, mise à jour à chaque
 push sur master) :
 
 1. <https://vercel.com> → connecte-toi avec GitHub → **Add New… → Project**.

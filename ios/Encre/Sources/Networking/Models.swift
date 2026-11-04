@@ -1212,9 +1212,6 @@ struct TVState: Decodable {
     var volume: Int?
 }
 
-// MARK: - Blind test en direct
-
-
 // MARK: - AutoMix
 
 /// Analyse audio d'un titre (serveur) : sonie (LUFS), début réel, moment où

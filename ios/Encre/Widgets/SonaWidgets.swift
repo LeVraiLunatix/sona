@@ -71,7 +71,7 @@ struct ShortcutsWidget: Widget {
                 .containerBackground(for: .widget) { sonaGradient }
         }
         .configurationDisplayName("Raccourcis Sona")
-        .description("Le blind test du jour, ton récap, l'écoute ensemble et la radio DJ en un geste.")
+        .description("Ton récap, l'écoute ensemble et la radio DJ en un geste.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

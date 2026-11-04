@@ -140,7 +140,7 @@ jobs:
                   "bundleIdentifier": "com.sona.encre",
                   "developerName": "Sona",
                   "subtitle": "Ta musique, tes amis, tes stats.",
-                  "localizedDescription": "Sona : écoute, playlists, stats, blind tests et écoute ensemble entre amis.",
+                  "localizedDescription": "Sona : écoute, playlists, stats et écoute ensemble entre amis.",
                   "iconURL": f"https://raw.githubusercontent.com/{repo}/master/ios/Encre/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
                   "tintColor": "8B5CF6",
                   "versions": [{
