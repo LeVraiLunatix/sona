@@ -6331,7 +6331,7 @@ function bindSettings() {
   $("[data-dj-voice]")?.addEventListener("click", () => actionSheet("Voix du DJ", [["remy", "Rémy"], ["vivienne", "Vivienne"], ["henri", "Henri"], ["denise", "Denise"]].map(([id, label]) => ({
     icon: icons.mic, label, checked: (store.get("sona.djVoice") || "remy") === id, run: () => { store.set("sona.djVoice", id); route(); },
   }))));
-  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers, sinon meilleure disponible)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
+  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
     label, checked: state.settings?.quality === q, run: async () => { state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ quality: q }) }); route(); },
   }))));
   $("[data-loved]")?.addEventListener("click", async () => {

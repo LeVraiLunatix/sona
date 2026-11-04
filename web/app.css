@@ -1564,3 +1564,15 @@ button, input, textarea, select { font-family: inherit; }
 .login p { font-size: 16px; margin-bottom: 24px; }
 .login .btn { height: 44px; padding: 0 26px; font-size: 15px; font-weight: 600; letter-spacing: 0; }
 @media (max-width: 760px) { .login-card { padding: 30px 22px 24px; border-radius: 14px; } .login h1 { font-size: 32px; } }
+
+/* Tuiles et interrupteurs : plus de couleurs vives, des aplats gris. */
+.tile, .concert-teaser, .tile.violet, .tile.blue, .tile.green, .tile.orange, .tile.pink {
+  background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 12px;
+}
+.tile-icon { background: var(--fill-strong); border-radius: 10px; }
+.switch-row input:checked + i { background: var(--text); }
+.switch-row input:checked + i::after { background: var(--bg); box-shadow: none; }
+.switch-row i::after { box-shadow: none; }
+.live-pill.violet, .badge.earned, .stat-hero { background: var(--bg-elevated); border-color: var(--hairline); }
+.concert-teaser { background: var(--bg-elevated); }
+.resume, .dev-remote { background: var(--bg-elevated); border: 1px solid var(--hairline); }
