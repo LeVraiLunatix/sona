@@ -12,8 +12,8 @@ html.desktop {
   --topbar-h: 72px;
   --gap: 10px;
   --wctl-w: 128px;
-  --bg: #0b1019;
-  --bg-elevated: #131a28;
+  --bg: #101012;
+  --bg-elevated: #19191c;
   --sidebar: transparent;
   --glass: rgba(30, 30, 38, .55);
   --hairline: rgba(255, 255, 255, .08);
@@ -27,7 +27,7 @@ html.desktop {
   --shadow-pop: 0 28px 70px rgba(0, 0, 0, .55);
   /* Verre */
   --g-fill: linear-gradient(transparent, transparent);
-  --g-tint: #0b1019;
+  --g-tint: #101012;
   --g-edge: inset 0 0 0 1px rgba(255, 255, 255, .08);
   --g-lift: 0 0 0 rgba(0, 0, 0, 0);
   --g-blur: none;
@@ -576,7 +576,7 @@ html.desktop .topbar {
 }
 html.desktop :is(.devices-pop, .sheet, .toast) { background: var(--bg-elevated); border: 1px solid var(--hairline); border-radius: 24px; box-shadow: var(--shadow-pop); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.desktop :is(.sidebar, .topbar, .devices-pop, .sheet)::before { display: none; }
-html.desktop .sheet-backdrop { background: rgba(3, 6, 12, .66); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.desktop .sheet-backdrop { background: rgba(0, 0, 0, .66); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.desktop .wctl { top: 16px; right: 28px; }
 html.desktop .wctl button { border-radius: 10px; box-shadow: none; background: transparent; }
 html.desktop .wctl button:hover { background: var(--fill-strong); }

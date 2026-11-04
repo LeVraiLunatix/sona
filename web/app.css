@@ -1501,21 +1501,21 @@ span.chip { cursor: default; }
 
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
-  --canvas: #060a12;
-  --bg: #0b1019;            /* panneau de contenu */
-  --bg-elevated: #131a28;   /* cartes, feuilles */
+  --canvas: #08080a;
+  --bg: #101012;            /* panneau de contenu */
+  --bg-elevated: #19191c;   /* cartes, feuilles */
   --sidebar: transparent;
-  --glass: rgba(19, 26, 40, 0.82);
+  --glass: rgba(25, 25, 28, 0.82);
   --hairline: rgba(255, 255, 255, 0.07);
   --fill: rgba(255, 255, 255, 0.045);
   --fill-strong: rgba(255, 255, 255, 0.085);
   --text: #f2f5fb;
   --text-2: rgba(242, 245, 251, 0.62);
   --text-3: rgba(242, 245, 251, 0.38);
-  --accent: #8cc8ff;
-  --accent-2: #8cc8ff;
-  --accent-soft: rgba(140, 200, 255, 0.14);
-  --on-accent: #06111f;
+  --accent: #f5f5f7;
+  --accent-2: #f5f5f7;
+  --accent-soft: rgba(255, 255, 255, 0.1);
+  --on-accent: #0a0a0b;
   --shadow-art: none;
   --shadow-pop: 0 24px 64px rgba(0, 0, 0, 0.55);
   --radius-art: 18px;
@@ -1527,10 +1527,7 @@ span.chip { cursor: default; }
 html { background: var(--canvas); }
 body {
   font-family: var(--font); font-size: 15px; line-height: 1.5; letter-spacing: 0; background: transparent;
-  background-image:
-    radial-gradient(70vw 55vh at -5% -10%, rgba(64, 120, 220, 0.22), transparent 70%),
-    radial-gradient(55vw 45vh at 105% 105%, rgba(90, 150, 240, 0.10), transparent 70%);
-  background-color: var(--canvas); background-attachment: fixed;
+  background-color: var(--canvas);
 }
 button, input, textarea, select { font-family: inherit; }
 
@@ -1628,12 +1625,16 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
 /* En-tête d'album, de playlist, d'artiste */
 .hero { grid-template-columns: 280px 1fr; gap: var(--s-8); padding: var(--s-4) 0 var(--s-7); align-items: end; }
 .hero-art { width: 280px; height: 280px; border-radius: 24px; box-shadow: none; }
-.hero .kind { letter-spacing: 0.1em; color: var(--accent); }
+.hero .kind { letter-spacing: 0.1em; color: var(--text-2); }
 .hero h1 { font-size: 48px; font-weight: 700; letter-spacing: -0.04em; margin: var(--s-3) 0 var(--s-2); }
 .hero .by { font-size: 20px; color: var(--text-2); font-weight: 500; }
 .hero .info { margin-top: var(--s-3); }
 .hero .actions { gap: var(--s-3); margin-top: var(--s-6); }
-.hero-glow { display: block; opacity: .5; }
+.page { isolation: isolate; }
+.hero-glow { display: block; position: absolute; z-index: -1; inset: calc(-1 * var(--s-8)) calc(-1 * var(--page-x)) auto; height: 520px; opacity: 1; overflow: hidden; pointer-events: none; }
+.hero-glow img { filter: blur(90px) saturate(1.5); opacity: .6; transform: scale(1.4); }
+.hero-glow::after { background: linear-gradient(to bottom, transparent 20%, var(--bg) 98%); }
+.hero > :not(.hero-glow) { position: relative; z-index: 1; }
 
 /* ── Boutons, puces, champs : tout en pilule ────────────────────────────── */
 .btn { height: 44px; padding: 0 var(--s-6); border-radius: 999px; font-size: 15px; font-weight: 600; background: var(--accent); color: var(--on-accent); box-shadow: none; }
@@ -1667,7 +1668,7 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
 /* Feuilles, notifications */
 .toast { border-radius: 999px; background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-pop); border: 1px solid var(--hairline); }
 .sheet { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; border: 1px solid var(--hairline); border-radius: 28px; box-shadow: var(--shadow-pop); }
-.sheet-backdrop { background: rgba(3, 6, 12, 0.66); }
+.sheet-backdrop { background: rgba(0, 0, 0, 0.66); }
 .focus-pill, .focus-pill.rest { display: none; }
 
 /* Connexion */

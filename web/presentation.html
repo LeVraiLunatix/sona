@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#d9efff">
+<meta name="theme-color" content="#ececf0">
 <title>Sona — ta musique, en clair.</title>
 <meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Ouvre Sona dans le navigateur ou installe l'app.">
 <meta property="og:title" content="Sona — ta musique, en clair.">
@@ -13,9 +13,9 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
 :root {
-  --ink: #0a1630; --ink-2: rgba(10, 22, 48, .64); --ink-3: rgba(10, 22, 48, .42);
-  --sky: #9fd8ff; --sky-deep: #5aa9ff; --paper: #f5f8fc; --card: #ffffff; --line: rgba(10, 22, 48, .08);
-  --night: #0b1019; --night-2: #131a28;
+  --ink: #0b0b0d; --ink-2: rgba(11, 11, 13, .62); --ink-3: rgba(11, 11, 13, .4);
+  --sky: #ececf0; --sky-deep: #0b0b0d; --paper: #f6f6f8; --card: #ffffff; --line: rgba(11, 11, 13, .08);
+  --night: #0a0a0b; --night-2: #151518; --mock: #f5f5f7;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -27,11 +27,11 @@ a { color: inherit; text-decoration: none; }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
 
 /* Ciel : un dégradé doux qui descend du haut de la page */
-.sky { display: flow-root; background: linear-gradient(180deg, #cfeaff 0%, #e4f3ff 38%, var(--paper) 100%); padding-bottom: 96px; }
+.sky { display: flow-root; background: linear-gradient(180deg, #e6e6ea 0%, #efeff2 40%, var(--paper) 100%); padding-bottom: 96px; }
 
 nav { display: flex; align-items: center; justify-content: space-between; margin: 24px auto 0; padding: 10px 10px 10px 24px; max-width: 1056px; background: var(--card); border-radius: 999px; box-shadow: 0 1px 0 var(--line); }
 .brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
-.brand svg { width: 28px; height: 28px; color: var(--sky-deep); }
+.brand svg { width: 28px; height: 28px; color: var(--ink); }
 .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 28px; border-radius: 999px; font-size: 16px; font-weight: 600; background: var(--sky); color: var(--ink); transition: transform .2s ease, filter .2s ease; }
 .pill:hover { filter: brightness(.97); transform: translateY(-1px); }
 .pill.white { background: var(--card); box-shadow: 0 1px 0 var(--line); }
@@ -50,24 +50,24 @@ h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045
 .app { display: grid; grid-template-columns: 64px 1fr; height: 460px; border-radius: 22px; overflow: hidden; background: var(--night); color: #f2f5fb; position: relative; }
 .rail { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 22px 0; }
 .rail i { width: 20px; height: 20px; border-radius: 6px; background: rgba(255, 255, 255, .2); }
-.rail i.on { background: var(--sky); }
-.rail i.logo { width: 24px; height: 24px; border-radius: 50%; background: none; border: 4px solid var(--sky); position: relative; margin-bottom: 8px; }
-.rail i.logo::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--sky); }
+.rail i.on { background: var(--mock); }
+.rail i.logo { width: 24px; height: 24px; border-radius: 50%; background: none; border: 4px solid var(--mock); position: relative; margin-bottom: 8px; }
+.rail i.logo::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--mock); }
 .stage { background: var(--night-2); margin: 10px 10px 10px 0; border-radius: 18px; padding: 28px 32px; overflow: hidden; }
 .album { display: flex; gap: 24px; align-items: flex-end; margin-bottom: 20px; }
 .cover { width: 120px; height: 120px; border-radius: 16px; background: linear-gradient(140deg, #8cc8ff, #3b6fd1 55%, #1b2a5c); flex: none; }
-.album small { color: var(--sky); font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.album small { color: rgba(242, 245, 251, .6); font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 .album h3 { margin: 8px 0 4px; font-size: 30px; letter-spacing: -.03em; line-height: 1.1; }
 .album p { margin: 0; color: rgba(242, 245, 251, .6); font-size: 15px; }
 .row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; padding: 11px 14px; border-radius: 12px; font-size: 15px; color: rgba(242, 245, 251, .85); }
 .row span:first-child, .row span:last-child { color: rgba(242, 245, 251, .4); font-variant-numeric: tabular-nums; }
-.row.on { background: rgba(140, 200, 255, .14); color: var(--sky); }
-.row.on span:first-child { color: var(--sky); }
+.row.on { background: rgba(255, 255, 255, .1); color: #fff; }
+.row.on span:first-child { color: #fff; }
 .bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 82%); height: 60px; border-radius: 22px; background: rgba(19, 26, 40, .92); border: 1px solid rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 14px; padding: 0 20px 0 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 .bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #8cc8ff, #3b6fd1); flex: none; }
 .bar b { font-size: 14px; display: block; line-height: 1.2; }
 .bar small { font-size: 12px; color: rgba(242, 245, 251, .55); }
-.bar .play { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: var(--sky); display: grid; place-items: center; }
+.bar .play { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: var(--mock); display: grid; place-items: center; }
 .bar .play::after { content: ""; border-left: 11px solid #06111f; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px; }
 
 /* Points forts */
@@ -84,7 +84,7 @@ h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04e
 .also b { display: block; font-size: 20px; letter-spacing: -.02em; margin-bottom: 4px; }
 .also span { color: var(--ink-2); font-size: 17px; }
 
-.final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #d4ecff, #bfe0ff); }
+.final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #e9e9ed, #dcdce2); }
 .final h2 { margin: 0 auto 36px; max-width: 12ch; }
 
 footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 48px 0 64px; color: var(--ink-3); font-size: 15px; }
