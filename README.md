@@ -531,3 +531,7 @@ Renseigne `LOCAL_MUSIC_DIR` (dossier existant sur le serveur) puis appelle
 (tags, pochette, vraie qualité) et servis tels quels par `/stream/local/{id}`.
 Avec la qualité « Lossless », un titre d'une autre source est remplacé par ton
 fichier quand il existe (même ISRC, ou même artiste et titre).
+
+## Personnalisation
+
+Réglages > Apparence : le logo (six propositions en verre liquide), la couleur d'accent, la teinte de la pochette sur les pages d'album, la forme des coins (arrondies ou nettes) et le menu (rail qui s'ouvre au survol, ou toujours ouvert). Les choix sont gardés sur l'appareil (`localStorage`, clé `sona.look`).

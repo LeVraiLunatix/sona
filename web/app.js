@@ -21,6 +21,109 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
+// ── Apparence : logo, couleur, formes, menu (gardés sur cet appareil) ──────────
+// Six logos en verre liquide, dessinés dans un carré de 64 ; le choix remplace le symbole #sona-mark.
+const { LOGOS, logoSvg } = (() => {
+// Logos de Sona : six propositions en verre liquide, dessinées dans un carré de 64.
+// Chaque logo renvoie { defs, body } ; `p` préfixe les identifiants (plusieurs logos sur une même page).
+const stop = (off, o) => `<stop offset="${off}" stop-color="#fff" stop-opacity="${o}"/>`;
+const rimGrad = (p, x1 = 12, y1 = 8, x2 = 52, y2 = 58) =>
+  `<linearGradient id="${p}-rim" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stop(0, 1)}${stop(.4, .42)}${stop(.68, .26)}${stop(1, .85)}</linearGradient>`;
+const bodyGrad = (p, x1 = 18, y1 = 8, x2 = 46, y2 = 58) =>
+  `<linearGradient id="${p}-body" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stop(0, .36)}${stop(.55, .1)}${stop(1, .2)}</linearGradient>`;
+const blur = (p, id, sd) => `<filter id="${p}-${id}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${sd}"/></filter>`;
+const orbGrad = (p) => `<radialGradient id="${p}-orb" cx=".34" cy=".28" r=".9">${stop(0, .62)}${stop(.5, .16)}${stop(1, .06)}</radialGradient>`;
+const SPATH = "M40.7 17A10 10 0 1 0 32 32A10 10 0 1 1 23.3 47";
+
+const LOGOS = {
+  orbe: { name: "Orbe", build: (p) => ({
+    defs: orbGrad(p) + rimGrad(p) + blur(p, "g", 3) + blur(p, "s", 1.1),
+    body: `<circle cx="32" cy="32" r="22" fill="#fff" fill-opacity=".14" filter="url(#${p}-g)"/>
+      <circle cx="32" cy="32" r="22" fill="url(#${p}-orb)"/>
+      <circle cx="32" cy="32" r="22" fill="none" stroke="url(#${p}-rim)" stroke-width="1.5"/>
+      <ellipse cx="24.5" cy="21.5" rx="8.5" ry="4.4" transform="rotate(-34 24.5 21.5)" fill="#fff" fill-opacity=".72" filter="url(#${p}-s)"/>
+      <path d="M44.5 44.5A17 17 0 0 1 31 50" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="2" stroke-linecap="round"/>` }) },
+
+  barres: { name: "Barres", build: (p) => {
+    const bars = [[14, 24], [27.5, 40], [41, 30]];
+    return { defs: bodyGrad(p, 0, 8, 0, 58) + rimGrad(p, 10, 8, 54, 58) + blur(p, "g", 3),
+      body: bars.map(([x, h]) => { const y = 32 - h / 2;
+        return `<rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="#fff" fill-opacity=".12" filter="url(#${p}-g)"/>
+        <rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="url(#${p}-body)"/>
+        <rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="none" stroke="url(#${p}-rim)" stroke-width="1.4"/>
+        <path d="M${x + 2.6} ${y + 6}V${y + h * .42}" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/>`; }).join("") }; } },
+
+  disque: { name: "Disque", build: (p) => ({
+    defs: orbGrad(p) + rimGrad(p) + blur(p, "g", 3),
+    body: `<circle cx="32" cy="32" r="24" fill="#fff" fill-opacity=".1" filter="url(#${p}-g)"/>
+      <circle cx="32" cy="32" r="24" fill="url(#${p}-orb)"/>
+      <circle cx="32" cy="32" r="24" fill="none" stroke="url(#${p}-rim)" stroke-width="1.5"/>
+      <circle cx="32" cy="32" r="18.4" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".8"/>
+      <circle cx="32" cy="32" r="14" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width=".8"/>
+      <circle cx="32" cy="32" r="7.4" fill="#fff" fill-opacity=".16"/>
+      <circle cx="32" cy="32" r="7.4" fill="none" stroke="url(#${p}-rim)" stroke-width="1"/>
+      <circle cx="32" cy="32" r="1.7" fill="#fff" fill-opacity=".95"/>
+      <path d="M15.2 22.5A19.5 19.5 0 0 1 23 14.6" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M48.8 41.5A19.5 19.5 0 0 1 41 49.4" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.7" stroke-linecap="round"/>` }) },
+
+  trait: { name: "Trait", build: (p) => ({
+    defs: `<linearGradient id="${p}-ln" gradientUnits="userSpaceOnUse" x1="22" y1="12" x2="44" y2="54">${stop(0, 1)}${stop(.6, .72)}${stop(1, .42)}</linearGradient>` + blur(p, "g", 2.2),
+    body: `<path d="${SPATH}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="3.4" stroke-linecap="round" filter="url(#${p}-g)"/>
+      <path d="${SPATH}" fill="none" stroke="url(#${p}-ln)" stroke-width="3.2" stroke-linecap="round"/>
+      <circle cx="46" cy="50.5" r="2.3" fill="#fff" fill-opacity=".95"/>` }) },
+
+  orbite: { name: "Orbite", build: (p) => ({
+    defs: orbGrad(p) + rimGrad(p, 6, 14, 58, 50) + blur(p, "g", 2.6) + blur(p, "s", .8),
+    body: `<g transform="rotate(-22 32 32)"><path d="M5 32A27 9.5 0 0 1 59 32" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="2" stroke-linecap="round"/></g>
+      <circle cx="32" cy="32" r="12" fill="#fff" fill-opacity=".16" filter="url(#${p}-g)"/>
+      <circle cx="32" cy="32" r="12" fill="url(#${p}-orb)"/>
+      <circle cx="32" cy="32" r="12" fill="none" stroke="url(#${p}-rim)" stroke-width="1.3"/>
+      <ellipse cx="27.8" cy="27.2" rx="4.4" ry="2.3" transform="rotate(-34 27.8 27.2)" fill="#fff" fill-opacity=".7" filter="url(#${p}-s)"/>
+      <g transform="rotate(-22 32 32)"><path d="M5 32A27 9.5 0 0 0 59 32" fill="none" stroke="url(#${p}-rim)" stroke-width="2.4" stroke-linecap="round"/></g>` }) },
+
+  lecture: { name: "Lecture", build: (p) => {
+    const P = "M23.5 16.5L23.5 47.5L49 32Z";
+    return { defs: rimGrad(p, 14, 10, 52, 56) + blur(p, "g", 3)
+        + `<mask id="${p}-m" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><path d="${P}" fill="#fff" stroke="#fff" stroke-width="10.4" stroke-linejoin="round"/><path d="${P}" fill="#000" stroke="#000" stroke-width="8.8" stroke-linejoin="round"/></mask>`,
+      body: `<g fill="#fff" stroke="#fff" stroke-width="9" stroke-linejoin="round" opacity=".16" filter="url(#${p}-g)"><path d="${P}"/></g>
+        <g fill="#fff" stroke="#fff" stroke-width="8.8" stroke-linejoin="round" opacity=".2"><path d="${P}"/></g>
+        <path d="${P}" fill="none" stroke="url(#${p}-rim)" stroke-width="10.4" stroke-linejoin="round" mask="url(#${p}-m)"/>
+        <path d="M24.6 22.5V30" stroke="#fff" stroke-opacity=".75" stroke-width="1.6" stroke-linecap="round"/>` }; } },
+};
+const logoSvg = (id, p = "x") => { const { defs, body } = LOGOS[id].build(p); return `<defs>${defs}</defs>${body}`; };
+  return { LOGOS, logoSvg };
+})();
+const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
+const LOOK_DEFAULT = { logo: "orbe", accent: "neutre", tint: true, shape: "arrondi", menu: "rail" };
+let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
+function applyLook() {
+  const root = document.documentElement;
+  const sym = document.getElementById("sona-mark");
+  if (sym && LOGOS[look.logo]) sym.innerHTML = logoSvg(look.logo, "sm");
+  const fav = document.querySelector('link[rel="icon"]');
+  if (fav && LOGOS[look.logo]) {
+    fav.type = "image/svg+xml"; fav.removeAttribute("sizes");
+    fav.href = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0b0b0c"/>${logoSvg(look.logo, "fv")}</svg>`);
+  }
+  for (const k of ["--accent", "--accent-2", "--accent-soft", "--on-accent"]) root.style.removeProperty(k);
+  const c = ACCENTS[look.accent]?.[1];
+  if (c) {
+    const n = parseInt(c.slice(1), 16);
+    root.style.setProperty("--accent", c);
+    root.style.setProperty("--accent-2", c);
+    root.style.setProperty("--accent-soft", `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, 0.16)`);
+    root.style.setProperty("--on-accent", "#08090c");
+  }
+  root.dataset.tint = look.tint ? "on" : "off";
+  root.dataset.shape = look.shape;
+  root.dataset.menu = look.menu;
+}
+function setLook(patch) {
+  look = { ...look, ...patch };
+  store.set("sona.look", JSON.stringify(look));
+  applyLook();
+}
+applyLook();
 /** Pochette en grand (Deezer : taille dans l'adresse). */
 const big = (url, size = 1000) => (url || "").replace(/\/(\d+)x\1(-\d+-\d+-\d+-\d+)?\.jpg$/, `/${size}x${size}$2.jpg`);
 const sameTrack = (a, b) => a && b && a.source === b.source && a.source_id === b.source_id;
@@ -611,7 +714,7 @@ async function route() {
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
     stats: viewStats, recent: viewRecent, radios: viewRadios, party: () => viewParty(parts[1]),
-    settings: viewSettings, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
+    settings: viewSettings, appearance: viewAppearance, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -5676,6 +5779,49 @@ const toggleRow = (key, title, sub, on) => `<label class="switch-row"><span><b>$
   <input type="checkbox" data-setting="${key}" ${on ? "checked" : ""}><i></i></label>`;
 const linkRow = (attrs, icon, title, sub = "") => `<a class="set-row" ${attrs}><span class="mi-icon">${icon}</span><span class="set-text"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${icons.right}</a>`;
 
+function viewAppearance() {
+  const chip = (attr, val, label, on) => `<button class="chip${on ? " on" : ""}" data-${attr}="${val}">${label}</button>`;
+  const logos = Object.entries(LOGOS).map(([id, l]) => `<button class="look-logo${look.logo === id ? " on" : ""}" data-logo="${id}" aria-label="${esc(l.name)}">
+    <svg viewBox="0 0 64 64" aria-hidden="true">${logoSvg(id, "lk" + id)}</svg><span>${esc(l.name)}</span></button>`).join("");
+  const accents = Object.entries(ACCENTS).map(([id, [name, c]]) => `<button class="look-sw${look.accent === id ? " on" : ""}" data-accent="${id}" style="--c:${c || "#f2f5fb"}" aria-label="${esc(name)}"><span>${esc(name)}</span></button>`).join("");
+  setTimeout(bindAppearance);
+  return page(`<h1 class="page-title">Apparence</h1>
+    <p class="page-sub">Choisis le logo, la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
+    <h3 class="set-head">Logo</h3><div class="look-logos">${logos}</div>
+    <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
+    <h3 class="set-head">Interface</h3><div class="set-group">
+      <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
+      <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
+      <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Un rail d'icônes qui s'ouvre au survol, ou toujours ouvert.</small></span><span class="chips">${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
+    </div>
+    <button class="btn ghost" data-look-reset style="margin-top:32px">Réinitialiser l'apparence</button>`);
+}
+
+function bindAppearance() {
+  const root = $(".page");
+  if (!root) return;
+  const mark = () => {
+    $$("[data-logo]", root).forEach((b) => b.classList.toggle("on", b.dataset.logo === look.logo));
+    $$("[data-accent]", root).forEach((b) => b.classList.toggle("on", b.dataset.accent === look.accent));
+    $$("[data-shape]", root).forEach((b) => b.classList.toggle("on", b.dataset.shape === look.shape));
+    $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === look.menu));
+    const tint = $("[data-look-tint]", root);
+    if (tint) tint.checked = look.tint;
+  };
+  root.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-logo], [data-accent], [data-shape], [data-menu], [data-look-reset]");
+    if (!b) return;
+    haptic();
+    if (b.dataset.lookReset !== undefined) setLook({ ...LOOK_DEFAULT });
+    else if (b.dataset.logo) setLook({ logo: b.dataset.logo });
+    else if (b.dataset.accent) setLook({ accent: b.dataset.accent });
+    else if (b.dataset.shape) setLook({ shape: b.dataset.shape });
+    else if (b.dataset.menu) setLook({ menu: b.dataset.menu });
+    mark();
+  });
+  $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
+}
+
 async function viewSettings() {
   $("#content").innerHTML = skeleton("Réglages");
   const [me, settings, health, loved] = await Promise.all([
@@ -5694,6 +5840,10 @@ async function viewSettings() {
       ${toggleRow("dj", "DJ vocal", "Une voix annonce chaque titre, comme à la radio.", store.get("sona.dj") === "1")}
       <a class="set-row" data-dj-voice><span class="set-text"><b>Voix du DJ</b><small>${esc({ remy: "Rémy", vivienne: "Vivienne", henri: "Henri", denise: "Denise" }[store.get("sona.djVoice") || "remy"])}</small></span>${icons.right}</a>
       ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${{ lossless: "Lossless (tes fichiers)", standard: "Standard (débit réduit)" }[settings.quality] || "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
+    </div>
+
+    <h3 class="set-head">Apparence</h3><div class="set-group">
+      ${linkRow('href="#/appearance"', icons.sparkles, "Apparence", "Logo, couleur, formes et menu")}
     </div>
 
     <h3 class="set-head">Compte</h3><div class="set-group">
