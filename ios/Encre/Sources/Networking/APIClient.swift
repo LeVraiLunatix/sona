@@ -1093,3 +1093,41 @@ extension APIClient {
         try await sendNoContent(req)
     }
 }
+
+// MARK: - Biographie, diagnostic, appareils
+
+extension APIClient {
+    /// Biographie (Wikipédia) ; 404 quand aucune page de musicien n'est trouvée.
+    func artistBio(source: String, id: String) async throws -> ArtistBio {
+        try await send(try request("/artists/\(source)/\(id)/bio"))
+    }
+
+    func diagnose(source: String, id: String) async throws -> DiagnoseReport {
+        var req = try request("/admin/diagnose/\(source)/\(id)", method: "POST")
+        req.timeoutInterval = 150
+        return try await send(req)
+    }
+
+    func unrejectSources(source: String, id: String) async throws {
+        try await sendNoContent(try request("/admin/diagnose/\(source)/\(id)/unreject", method: "POST"))
+    }
+
+    func useSource(source: String, id: String, url: String) async throws {
+        struct Body: Encodable { let url: String }
+        let data = try encode(Body(url: url))
+        try await sendNoContent(try request("/admin/diagnose/\(source)/\(id)/use-source", method: "POST", bodyData: data))
+    }
+
+    func deviceLinkInfo(code: String) async throws -> DeviceLinkInfo {
+        try await send(try request("/auth/device/\(code)"))
+    }
+
+    func answerDeviceLink(code: String, approve: Bool) async throws {
+        struct Body: Encodable {
+            let userCode: String
+            enum CodingKeys: String, CodingKey { case userCode = "user_code" }
+        }
+        let data = try encode(Body(userCode: code))
+        try await sendNoContent(try request("/auth/device/\(approve ? "approve" : "deny")", method: "POST", bodyData: data))
+    }
+}

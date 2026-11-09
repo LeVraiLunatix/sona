@@ -8,6 +8,8 @@ struct ArtistDetailView: View {
     @State private var artist: Artist?
     @State private var topTracks: [Track] = []
     @State private var exclusives: [Track] = []
+    @State private var bio: ArtistBio?
+    @State private var bioExpanded = false
     @State private var albums: [Album] = []
     @State private var singles: [Album] = []
     @State private var otherVersions: [Album] = []
@@ -41,6 +43,7 @@ struct ArtistDetailView: View {
                             carousel("Autres versions", otherVersions).reveal(3)
                         }
                         if !related.isEmpty { relatedSection.reveal(4) }
+                        if let bio { bioSection(bio).reveal(4) }
                     }
                     .padding(.top, 20)
                 }
@@ -179,6 +182,30 @@ struct ArtistDetailView: View {
         .padding(.horizontal, 20)
     }
 
+    /// « À propos » : biographie Wikipédia, repliée tant qu'on ne demande pas la suite.
+    private func bioSection(_ bio: ArtistBio) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "À propos")
+            Text(bio.text)
+                .font(Typo.body)
+                .foregroundStyle(Tone.secondary)
+                .lineLimit(bioExpanded ? nil : 5)
+                .animation(Motion.smooth, value: bioExpanded)
+            HStack {
+                Button(bioExpanded ? "Réduire" : "Lire la suite") { bioExpanded.toggle() }
+                    .font(Typo.rowSubtitle)
+                    .foregroundStyle(Tone.primary)
+                Spacer()
+                if let link = bio.url, let url = URL(string: link) {
+                    Link(bio.source ?? "Wikipédia", destination: url)
+                        .font(Typo.rowSubtitle)
+                        .foregroundStyle(Tone.tertiary)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
     private func carousel(_ title: String, _ list: [Album]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: title).padding(.horizontal, 20)
@@ -226,6 +253,9 @@ struct ArtistDetailView: View {
         }
         let similar = (try? await APIClient.shared.relatedArtists(source: source, id: id)) ?? []
         withAnimation(Motion.smooth) { related = similar }
+        if let found = try? await APIClient.shared.artistBio(source: source, id: id) {
+            withAnimation(Motion.smooth) { bio = found }
+        }
         if let page = try? await APIClient.shared.library(kind: "artist", limit: 200) {
             inLibrary = page.items.contains { $0.source == source && $0.sourceId == id }
         }

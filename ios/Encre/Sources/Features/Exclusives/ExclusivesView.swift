@@ -39,7 +39,9 @@ struct ExclusiveTag: View {
 
 struct ExclusivesView: View {
     @Binding var path: NavigationPath
-    @EnvironmentObject private var player: PlayerManager
+    // Pas d'@EnvironmentObject : cette page s'ouvre aussi depuis les Réglages (une feuille),
+    // où l'environnement du lecteur manque et fait planter l'app.
+    @ObservedObject private var player = PlayerManager.shared
     @State private var tracks: [Track] = []
     @State private var status: ExclusiveStatusDTO?
     @State private var isLoading = true

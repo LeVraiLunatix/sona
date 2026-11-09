@@ -102,6 +102,11 @@ struct SettingsView: View {
 
                 Section {
                     NavigationLink {
+                        DeviceLinkView()
+                    } label: {
+                        Label("Connecter un appareil (TV…)", systemImage: "tv")
+                    }
+                    NavigationLink {
                         AppearanceView()
                     } label: {
                         Label("Apparence", systemImage: "paintpalette")

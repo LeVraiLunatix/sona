@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct EncreApp: App {
     @AppStorage(Look.accentKey) private var accent = LookAccent.neutre.rawValue
+    @ObservedObject private var launchAuth = AuthManager.shared
+    @State private var showsSplash = true
 
     init() {
         // Pochettes et photos d'artistes rechargées sans cesse en défilant :
@@ -24,9 +26,25 @@ struct EncreApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppGate()
-                .preferredColorScheme(.dark)
-                .tint(LookAccent(rawValue: accent)?.color)
+            ZStack {
+                AppGate()
+                if showsSplash {
+                    LaunchSplashView()
+                        .transition(.opacity.combined(with: .scale(scale: 1.06)))
+                        .zIndex(1)
+                }
+            }
+            .preferredColorScheme(.dark)
+            .tint(LookAccent(rawValue: accent)?.color)
+            .task {
+                // Au moins le temps de l'animation, puis dès que le compte est vérifié (6 s au plus).
+                let started = Date()
+                try? await Task.sleep(for: .milliseconds(2300))
+                while launchAuth.state == .checking, Date().timeIntervalSince(started) < 6 {
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+                withAnimation(.easeInOut(duration: 0.55)) { showsSplash = false }
+            }
         }
     }
 }
