@@ -13,6 +13,7 @@ struct LaunchSplashView: View {
     @State private var started = Date()
     @State private var showsTitle = false
     @State private var showsTagline = false
+    @State private var swells = false
 
     var body: some View {
         ZStack {
@@ -27,7 +28,6 @@ struct LaunchSplashView: View {
                     center: .center, startRadius: 0, endRadius: 280
                 )
                 .frame(width: 560, height: 560)
-                .offset(y: -40)
             }
 
             // Ondes concentriques, comme une onde sonore qui part de la sphère.
@@ -41,13 +41,15 @@ struct LaunchSplashView: View {
                             .frame(width: 110 + 380 * phase, height: 110 + 380 * phase)
                     }
                 }
-                .offset(y: -40)
-                .opacity(min(1, max(0, (t - 0.5) / 0.8)))
+                .opacity(min(1, max(0, (t - 0.3) / 0.8)))
             }
 
-            VStack(spacing: 22) {
-                OrbitLogo(size: 170, live: true, drawIn: 1.4)
+            // Le logo démarre exactement où et comme l'écran de lancement système (même image, 120 pt,
+            // au centre) : aucun saut ; puis il grossit et sa lune se met à tourner.
+            OrbitLogo(size: 120, live: true, drawIn: 0)
+                .scaleEffect(swells ? 1.3 : 1)
 
+            VStack(spacing: 10) {
                 Text("Sona")
                     .font(.system(size: 46, weight: .bold))
                     .tracking(-1)
@@ -62,7 +64,7 @@ struct LaunchSplashView: View {
                     .opacity(showsTagline ? 1 : 0)
                     .offset(y: showsTagline ? 0 : 10)
             }
-            .offset(y: -40)
+            .offset(y: 170)
 
             VStack {
                 Spacer()
@@ -79,8 +81,9 @@ struct LaunchSplashView: View {
         .animation(.easeInOut(duration: 0.9), value: leaving)
         .onAppear {
             started = Date()
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.82).delay(1.0)) { showsTitle = true }
-            withAnimation(.easeOut(duration: 0.7).delay(1.4)) { showsTagline = true }
+            withAnimation(.spring(response: 1.1, dampingFraction: 0.78).delay(0.35)) { swells = true }
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.82).delay(0.9)) { showsTitle = true }
+            withAnimation(.easeOut(duration: 0.7).delay(1.3)) { showsTagline = true }
         }
         .accessibilityHidden(true)
     }
