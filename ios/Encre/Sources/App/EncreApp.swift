@@ -28,11 +28,9 @@ struct EncreApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // L'app se pose en douceur pendant que l'écran de démarrage s'éloigne : pas de coupure.
+                // L'app reste telle quelle (aucune transformation ni animation sur elle : elles
+                // faisaient « zoomer » ses écrans) ; l'écran de démarrage se fond par-dessus.
                 AppGate()
-                    .scaleEffect(splashLeaving || !showsSplash ? 1 : 0.96)
-                    .opacity(splashLeaving || !showsSplash ? 1 : 0)
-                    .animation(.easeOut(duration: 0.9), value: splashLeaving)
                 if showsSplash {
                     LaunchSplashView(leaving: splashLeaving)
                         .zIndex(1)
