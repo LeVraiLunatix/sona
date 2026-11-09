@@ -21,7 +21,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, karaoke, live_stream, local_library, stream_health
+from app.services import audio_analysis, exclusives, karaoke, live_stream, local_library, stream_health
 from app.services.resolver import (
     Candidate, ResolutionError, iter_audio_sources, rejection_reason, score_candidate,
 )
@@ -350,6 +350,20 @@ async def local_file(deps: ApiDeps, source: str, source_id: str, quality: str) -
     return (path, local_library.media_type(row), row) if path else None
 
 
+async def exclusive_file(deps: ApiDeps, source_id: str) -> tuple[Path, str]:
+    """Fichier d'un exclu, rassemblé depuis Discord à la première lecture."""
+    row = await deps.repo.exclusive_get(source_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Exclu inconnu.")
+    if deps.exclusive_storage is None or not deps.exclusive_storage.enabled:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Stockage des exclus non configuré.")
+    try:
+        path = await exclusives.materialize(deps.exclusive_storage, deps.settings.exclusives_cache_dir, row)
+    except exclusives.StorageError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Stockage Discord : {exc}") from exc
+    return path, row["mime"]
+
+
 def _check_params(quality: str, fmt: str) -> None:
     if quality not in QUALITY_CHOICES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Qualité inconnue : {quality}")
@@ -451,6 +465,9 @@ async def prepare(
     vraie cause), et pour le morceau suivant pendant l'écoute du courant —
     l'enchaînement est alors instantané."""
     _check_params(quality, format)
+    if source == exclusives.SOURCE:
+        await exclusive_file(deps, source_id)
+        return {"ready": True}
     local = await local_file(deps, source, source_id, quality)
     if local is not None:
         return {"ready": True, "local": True}
@@ -555,6 +572,9 @@ async def stream(
     deps: ApiDeps = Depends(require_token),
 ):
     _check_params(quality, format)
+    if source == exclusives.SOURCE:
+        path, content_type = await exclusive_file(deps, source_id)
+        return FileResponse(path, media_type=content_type, filename=path.name)
     local = await local_file(deps, source, source_id, quality)
     if local is not None:
         path, content_type, row = local

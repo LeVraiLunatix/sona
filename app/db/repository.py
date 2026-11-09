@@ -1622,3 +1622,48 @@ class Repository:
             (like, like, limit, offset),
         )
         return [dict(r) for r in await cursor.fetchall()], total
+
+    # -- Exclus (titres inédits stockés sur Discord) ---------------------------
+
+    async def exclusive_add(self, row: dict) -> None:
+        cols = ("id", "title", "artist", "artist_source", "artist_source_id", "year", "kind", "duration_seconds",
+                "mime", "filename", "size", "chunks", "cover_chunks", "cover_mime")
+        await self._db.conn.execute(
+            f"INSERT INTO exclusives ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+            tuple(row.get(c) for c in cols),
+        )
+        await self._db.conn.commit()
+
+    async def exclusive_get(self, exclusive_id: str) -> dict | None:
+        cursor = await self._db.conn.execute("SELECT * FROM exclusives WHERE id=?", (exclusive_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def exclusive_list(self, artist_source: str | None = None, artist_source_id: str | None = None,
+                             artist_name: str | None = None) -> list[dict]:
+        """Tous les exclus, ou ceux d'un artiste (par fiche, sinon par nom exact sans casse)."""
+        if artist_source_id:
+            cursor = await self._db.conn.execute(
+                """SELECT * FROM exclusives WHERE (artist_source=? AND artist_source_id=?)
+                   OR (artist_source_id IS NULL AND artist=? COLLATE NOCASE)
+                   ORDER BY COALESCE(year,'') DESC, created_at DESC""",
+                (artist_source, artist_source_id, artist_name or ""),
+            )
+        else:
+            cursor = await self._db.conn.execute("SELECT * FROM exclusives ORDER BY created_at DESC")
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def exclusive_update(self, exclusive_id: str, fields: dict) -> None:
+        allowed = ("title", "artist", "artist_source", "artist_source_id", "year", "kind", "cover_chunks", "cover_mime")
+        items = [(k, v) for k, v in fields.items() if k in allowed]
+        if not items:
+            return
+        await self._db.conn.execute(
+            f"UPDATE exclusives SET {', '.join(f'{k}=?' for k, _ in items)} WHERE id=?",
+            (*[v for _, v in items], exclusive_id),
+        )
+        await self._db.conn.commit()
+
+    async def exclusive_delete(self, exclusive_id: str) -> None:
+        await self._db.conn.execute("DELETE FROM exclusives WHERE id=?", (exclusive_id,))
+        await self._db.conn.commit()

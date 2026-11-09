@@ -45,6 +45,11 @@ class Settings:
     # Dossier de musique lossless (FLAC, ALAC, WAV…) lu tel quel, sans
     # réencodage (services/local_library.py). None : fonction désactivée.
     local_music_dir: Path | None = None
+    # Exclus (titres inédits ajoutés par l'admin) : webhook Discord qui sert
+    # de stockage (services/discord_storage.py) et dossier de cache des
+    # fichiers déjà rassemblés. Sans webhook : section désactivée.
+    exclusives_webhook: str | None = None
+    exclusives_cache_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "exclusives")
     # Import de l'historique Last.fm dans les stats d'écoute (optionnel) :
     # clé API gratuite (https://www.last.fm/api/account/create) + pseudo.
     # Taille maximale des fichiers audio gardés pour l'app (data/stream_cache) :
@@ -141,6 +146,8 @@ def load_settings() -> Settings:
         api_user_id=int(api_user_id_raw) if api_user_id_raw else 1,
         stream_cache_dir=stream_cache_dir,
         local_music_dir=(data_dir("LOCAL_MUSIC_DIR", "") if os.getenv("LOCAL_MUSIC_DIR", "").strip() else None),
+        exclusives_webhook=os.getenv("DISCORD_STORAGE_WEBHOOK", "").strip() or None,
+        exclusives_cache_dir=data_dir("EXCLUSIVES_CACHE_DIR", "data/exclusives"),
         stream_cache_max_mb=int(os.getenv("STREAM_CACHE_MAX_MB", "").strip() or 2048),
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip() or None,
         lastfm_user=os.getenv("LASTFM_USER", "").strip() or None,
