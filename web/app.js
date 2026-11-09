@@ -3043,7 +3043,7 @@ function dateLabel(d) {
 
 function creditsHTML(t, d) {
   const row = (label, value) => value ? `<div class="cr"><span class="cl">${esc(label)}</span><span class="cv">${value}</span></div>` : "";
-  const artistLink = (a) => a.source_id ? `<button class="link" data-credit-artist="${esc(t.source)}/${esc(a.source_id)}">${esc(a.name)}</button>` : esc(a.name);
+  const artistLink = (a) => a.source_id ? `<button class="link" data-credit-artist="${esc(artistSrc(t))}/${esc(a.source_id)}">${esc(a.name)}</button>` : esc(a.name);
   // Compositeurs, producteurs… : un clic lance une recherche sur leur nom.
   const nameLink = (n) => `<button class="link" data-credit-search="${esc(n)}">${esc(n)}</button>`;
   const artists = d?.artists?.length ? d.artists : [{ name: t.artist, source_id: t.artist_source_id, role: "main" }];
