@@ -25,6 +25,11 @@ targets:
       path: Generated/Info.plist
       properties:
         CFBundleDisplayName: Sona
+        # Le numéro de version vient de la CI (MARKETING_VERSION / CURRENT_PROJECT_VERSION). Sans ces
+        # deux lignes, XcodeGen écrit « 1.0 » et « 1 » en dur : toutes les IPA se déclaraient
+        # identiques, iOS ne voyait pas de mise à jour et gardait l'ancien écran de lancement en cache.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo
@@ -81,6 +86,8 @@ targets:
       path: Generated/Widgets-Info.plist
       properties:
         CFBundleDisplayName: Sona
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
