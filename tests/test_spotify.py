@@ -216,3 +216,26 @@ def test_the_public_page_gives_deezer_something_to_search():
     """Avec l'artiste tiré de la page, `complete_preview` peut enfin chercher l'extrait."""
     track = run(FakeSpotify(), lambda c: c.get_track(TRACK_ID), configured=False)
     assert preview._search_query(track) == "The Weeknd Blinding Lights"
+
+
+def _embed_page(count: int) -> str:
+    import json
+
+    items = [{"uri": f"spotify:track:{i:022d}", "title": f"Titre {i}", "subtitle": "Artiste", "duration": 180000} for i in range(count)]
+    data = {"props": {"pageProps": {"state": {"data": {"entity": {"name": "Ma playlist", "trackList": items}}}}}}
+    return f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(data)}</script>'
+
+
+def test_embed_playlist_at_the_cap_warns_that_titles_may_be_missing():
+    from app.providers.spotify import parse_embed_playlist
+
+    playlist = parse_embed_playlist(_embed_page(100))
+    assert len(playlist.tracks) == 100
+    assert playlist.note and "100 premiers" in playlist.note
+
+
+def test_short_embed_playlist_has_no_warning():
+    from app.providers.spotify import parse_embed_playlist
+
+    playlist = parse_embed_playlist(_embed_page(42))
+    assert len(playlist.tracks) == 42 and playlist.note is None

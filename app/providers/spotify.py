@@ -20,6 +20,8 @@ EMBED_PLAYLIST_URL = "https://open.spotify.com/embed/playlist/{playlist_id}"
 # Au-delà, un import prendrait plusieurs minutes pour une playlist qu'on
 # n'écoutera jamais en entier.
 PLAYLIST_MAX_TRACKS = 1000
+# Le lecteur intégrable public ne liste que les 100 premiers titres d'une playlist.
+EMBED_PLAYLIST_LIMIT = 100
 
 # Réponses qui disent « pas pour toi » plutôt qu'une panne : identifiants
 # rejetés à l'obtention du jeton, accès interdit, quota dépassé. Depuis 2026,
@@ -202,11 +204,18 @@ def parse_embed_playlist(page: str) -> ExternalPlaylist:
             preview_url=(item.get("audioPreview") or {}).get("url") or None,
         ))
     cover = _largest_source((entity.get("coverArt") or {}).get("sources")) or _largest_source(entity.get("images"))
+    # La liste s'arrête à 100 titres : on ne sait pas s'il en manque, mais c'est probable.
+    # Mieux vaut le dire que de laisser croire à un import complet.
+    capped = len(entity["trackList"]) >= EMBED_PLAYLIST_LIMIT
     return ExternalPlaylist(
         name=entity.get("name") or entity.get("title") or "Playlist Spotify",
         description=None,
         cover_url=cover,
         tracks=tracks[:PLAYLIST_MAX_TRACKS],
+        note=(
+            f"Spotify ne donne que les {EMBED_PLAYLIST_LIMIT} premiers titres de cette playlist : "
+            "les suivants, s'il y en a, n'ont pas pu être importés."
+        ) if capped else None,
     )
 
 
