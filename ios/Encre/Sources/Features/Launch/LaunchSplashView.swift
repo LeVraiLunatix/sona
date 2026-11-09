@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Écran de démarrage animé : le logo se dessine barre après barre au milieu
-/// d'ondes qui se propagent, puis le nom et la phrase d'accroche montent. Il
-/// reste le temps que l'app soit prête (compte vérifié), au moins un instant
-/// pour que l'animation s'achève, puis s'efface en s'agrandissant.
+/// Écran de démarrage animé : le logo (l'orbite : anneau, sphère de verre, lune) se trace au milieu
+/// d'ondes qui se propagent, puis le nom et l'accroche montent. Il reste le temps que l'app soit
+/// prête (compte vérifié), au moins un instant pour que l'animation s'achève ; puis, avec
+/// `leaving`, le logo s'agrandit et se fond pendant que l'app apparaît dessous (voir `EncreApp`),
+/// sans coupure.
 ///
-/// Il prend le relais de l'écran de lancement système (fond noir et logo, voir
-/// `UILaunchScreen`) : même fond, donc aucun saut au passage de l'un à l'autre.
+/// Il prend le relais de l'écran de lancement système (même fond noir) : aucun saut visible.
 struct LaunchSplashView: View {
+    /// Passe à `true` pour lancer la sortie (fondu enchaîné avec l'app).
+    var leaving = false
     @State private var started = Date()
     @State private var showsTitle = false
     @State private var showsTagline = false
@@ -22,59 +24,63 @@ struct LaunchSplashView: View {
                 let breathe = 0.5 + 0.5 * sin(t * 1.6)
                 RadialGradient(
                     colors: [Color.white.opacity(0.10 + 0.05 * breathe), .clear],
-                    center: .center, startRadius: 0, endRadius: 260
+                    center: .center, startRadius: 0, endRadius: 280
                 )
-                .frame(width: 520, height: 520)
+                .frame(width: 560, height: 560)
                 .offset(y: -40)
             }
 
-            // Ondes concentriques, comme une onde sonore qui part du logo.
+            // Ondes concentriques, comme une onde sonore qui part de la sphère.
             TimelineView(.animation) { timeline in
                 let t = timeline.date.timeIntervalSince(started)
                 ZStack {
                     ForEach(0..<4, id: \.self) { index in
-                        let phase = (t * 0.55 + Double(index) * 0.25).truncatingRemainder(dividingBy: 1)
+                        let phase = (t * 0.5 + Double(index) * 0.25).truncatingRemainder(dividingBy: 1)
                         Circle()
-                            .strokeBorder(Color.white.opacity((1 - phase) * 0.22), lineWidth: 1.2)
-                            .frame(width: 130 + 360 * phase, height: 130 + 360 * phase)
-                            .scaleEffect(t > 0.6 ? 1 : 0.2)
+                            .strokeBorder(Color.white.opacity((1 - phase) * 0.2), lineWidth: 1.2)
+                            .frame(width: 110 + 380 * phase, height: 110 + 380 * phase)
                     }
                 }
                 .offset(y: -40)
-                .opacity(min(1, t / 0.8))
+                .opacity(min(1, max(0, (t - 0.5) / 0.8)))
             }
 
-            VStack(spacing: 18) {
-                SonaLogo(size: 128, live: true)
-                    .offset(y: -40)
+            VStack(spacing: 22) {
+                OrbitLogo(size: 170, live: true, drawIn: 1.4)
 
                 Text("Sona")
                     .font(.system(size: 46, weight: .bold))
                     .tracking(-1)
                     .foregroundStyle(Tone.primary)
                     .opacity(showsTitle ? 1 : 0)
-                    .offset(y: showsTitle ? -40 : -28)
+                    .offset(y: showsTitle ? 0 : 14)
                     .blur(radius: showsTitle ? 0 : 6)
 
                 Text("Ta musique, tes amis, tes stats.")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Tone.secondary)
                     .opacity(showsTagline ? 1 : 0)
-                    .offset(y: showsTagline ? -40 : -30)
+                    .offset(y: showsTagline ? 0 : 10)
             }
+            .offset(y: -40)
 
             VStack {
                 Spacer()
                 LoadingBar()
                     .frame(width: 120, height: 3)
                     .padding(.bottom, 70)
-                    .opacity(showsTagline ? 1 : 0)
+                    .opacity(showsTagline && !leaving ? 1 : 0)
             }
         }
+        // Sortie : tout grandit doucement et se fond, l'app apparaît en dessous.
+        .scaleEffect(leaving ? 1.35 : 1)
+        .blur(radius: leaving ? 14 : 0)
+        .opacity(leaving ? 0 : 1)
+        .animation(.easeInOut(duration: 0.9), value: leaving)
         .onAppear {
             started = Date()
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.82).delay(0.75)) { showsTitle = true }
-            withAnimation(.easeOut(duration: 0.7).delay(1.15)) { showsTagline = true }
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.82).delay(1.0)) { showsTitle = true }
+            withAnimation(.easeOut(duration: 0.7).delay(1.4)) { showsTagline = true }
         }
         .accessibilityHidden(true)
     }
