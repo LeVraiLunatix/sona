@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
-    accounts, device_login, browse, connect, extras, catalog, friends, history, home, karaoke, library, lyrics, party,
+    accounts, device_login, browse, connect, exclusives, extras, catalog, friends, history, home, karaoke, library, lyrics, party,
     public,
     playlists,
     local, search, share, stats, stream, tv, user_settings,
@@ -24,6 +24,7 @@ from app.api.state import ApiDeps
 from app.config import load_settings
 from app.services import karaoke as karaoke_service, playlist_import, stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
+from app.services.discord_storage import DiscordStorage
 from app.services.lyrics import LyricsService
 from app.db.database import Database
 from app.db.repository import Repository
@@ -94,6 +95,7 @@ async def lifespan(app: FastAPI):
         lastfm_auth=lastfm_auth,
         musicbrainz=musicbrainz,
         lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch, genius),
+        exclusive_storage=DiscordStorage(settings.exclusives_webhook),
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
@@ -121,6 +123,7 @@ async def lifespan(app: FastAPI):
         await apple.aclose()
         await spotify.aclose()
         await lrclib.aclose()
+        await app.state.deps.exclusive_storage.aclose()
         for client in (netease, musixmatch, genius):
             if client is not None:
                 await client.aclose()
@@ -197,6 +200,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog.router)
     app.include_router(stream.router)
     app.include_router(local.router)
+    app.include_router(exclusives.router)
     app.include_router(karaoke.router)
     app.include_router(library.router)
     app.include_router(history.router)

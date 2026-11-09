@@ -11,6 +11,7 @@ from app.providers.lrclib import LrclibClient
 from app.providers.musicbrainz import MusicBrainzClient
 from app.providers.soundcloud import SoundcloudClient
 from app.providers.spotify import SpotifyClient
+from app.services.discord_storage import DiscordStorage
 from app.services.lyrics import LyricsService
 
 
@@ -31,6 +32,8 @@ class ApiDeps:
     musicbrainz: MusicBrainzClient | None = None
     # Paroles multi-sources avec cache (sinon LRCLIB seul, sans cache).
     lyrics: LyricsService | None = None
+    # Stockage Discord des exclus (webhook) ; absent = section « Exclus » fermée.
+    exclusive_storage: DiscordStorage | None = None
     # SoundCloud (import de playlists et de likes) ; sinon le client commun.
     soundcloud: SoundcloudClient | None = None
     account: Account | None = None

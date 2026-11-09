@@ -535,6 +535,16 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 .credits .link:hover { color: var(--accent); }
 .credits .cr-none { margin: 14px 0 0; font-size: 13px; opacity: .55; }
 .feat { color: var(--text-2); }
+/* Pastille des exclus et inédits (ajoutés à la main) */
+.tag-exclu { display: inline-block; vertical-align: 1px; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.np .tag-exclu { background: rgba(255,255,255,.18); color: inherit; }
+.excl-form { display: flex; flex-direction: column; gap: 4px; }
+.excl-label { display: flex; flex-direction: column; font-size: 13px; color: var(--text-2); flex: 1; min-width: 0; }
+.excl-label .field { margin: 6px 0 8px; color: var(--text); }
+.excl-row { display: flex; gap: 12px; }
+.excl-results { display: flex; flex-direction: column; gap: 2px; margin: -6px 0 6px; }
+.excl-result { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; text-align: left; background: var(--fill); color: var(--text); }
+.excl-result img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 .np .feat { color: inherit; opacity: .75; }
 .tr.current .feat { color: inherit; opacity: .8; }
 /* Album en plusieurs disques : « Disque 1 », « Disque 2 »… */

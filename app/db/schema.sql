@@ -354,3 +354,27 @@ CREATE TABLE IF NOT EXISTS local_tracks (
 );
 CREATE INDEX IF NOT EXISTS idx_local_tracks_norm ON local_tracks (norm);
 CREATE INDEX IF NOT EXISTS idx_local_tracks_album ON local_tracks (artist, album);
+
+-- Exclus : titres inédits / exclusivités ajoutés à la main par l'admin
+-- (services/exclusives.py). Le fichier audio vit sur Discord (webhook,
+-- services/discord_storage.py) : `chunks` = JSON des morceaux de ~9,5 Mio.
+-- L'artiste est rattaché à sa fiche (artist_source + artist_source_id) pour
+-- que le titre apparaisse sur sa page ; `kind` = 'exclu' ou 'inedit'.
+CREATE TABLE IF NOT EXISTS exclusives (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    artist_source TEXT,
+    artist_source_id TEXT,
+    year TEXT,
+    kind TEXT NOT NULL DEFAULT 'exclu',
+    duration_seconds INTEGER,
+    mime TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    chunks TEXT NOT NULL,
+    cover_chunks TEXT,
+    cover_mime TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_exclusives_artist ON exclusives (artist_source, artist_source_id);

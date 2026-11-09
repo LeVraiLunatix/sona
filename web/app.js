@@ -160,7 +160,11 @@ function featHtml(t, links = false) {
   return ` <span class="feat">(feat. ${f.map((a) => links ? goArtist(t, a.source_id, a.name) : esc(a.name)).join(", ")})</span>`;
 }
 /** Nom d'artiste qui ouvre sa fiche au clic (voir l'écouteur `data-goartist`, plus bas). */
-const goArtist = (t, id, name) => id ? `<span class="link" data-goartist="${esc(t.source)}/${esc(id)}">${esc(name)}</span>` : esc(name);
+const goArtist = (t, id, name) => id ? `<span class="link" data-goartist="${esc(artistSrc(t))}/${esc(id)}">${esc(name)}</span>` : esc(name);
+/** Source de la fiche artiste : celle du titre, sauf pour un exclu (sa source est « exclusive », sa fiche vient de Deezer…). */
+const artistSrc = (t) => t.artist_source || t.source;
+/** Pastille « Exclu · 2019 » / « Inédit · 2019 » des titres ajoutés à la main. */
+const tagHtml = (t) => t.tag ? ` <span class="tag-exclu">${esc(t.tag)}${t.year ? ` · ${esc(t.year)}` : ""}</span>` : "";
 /** « Favé (feat. RnBoi) », chaque nom cliquable. */
 const artistHtml = (t) => goArtist(t, t.artist_source_id, t.artist) + featHtml(t, true);
 /** Nom de l'album, cliquable quand on connaît son identifiant. */
@@ -598,6 +602,7 @@ const SIDE_NAV = [
 ];
 const SIDE_MORE = [
   ["radios", "Radios", icons.radio],
+  ["exclusives", "Exclus", icons.sparkles],
   ["party", "Écoute ensemble", icons.headphones],
 ];
 
@@ -773,7 +778,7 @@ async function route() {
     playlist: () => viewUserPlaylist(parts[1]), dplaylist: () => viewAlbum(parts[1], parts[2], true),
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
-    stats: viewStats, recent: viewRecent, radios: viewRadios, party: () => viewParty(parts[1]),
+    stats: viewStats, recent: viewRecent, radios: viewRadios, exclusives: viewExclusives, party: () => viewParty(parts[1]),
     settings: viewSettings, appearance: viewAppearance, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
@@ -900,9 +905,9 @@ function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null
     return `${head}<div class="tr ${on ? "current" : ""}" data-i="${i}" role="button" tabindex="0">
       <span class="n">${on ? bars() : `<span>${numbers ? num : ""}</span>`}${icons.play}</span>
       <img src="${esc(big(t.cover_url, 120))}" alt="" loading="lazy">
-      <span style="min-width:0"><div class="ti">${esc(t.title)}</div>
-        <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(t.source)}/${esc(t.artist_source_id)}">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t, true)}</div></span>
-      <span class="al">${showAlbum && t.album ? (t.album_source_id ? `<span class="link" data-album="${esc(t.source)}/${esc(t.album_source_id)}">${esc(t.album)}</span>` : esc(t.album)) : ""}</span>
+      <span style="min-width:0"><div class="ti">${esc(t.title)}${tagHtml(t)}</div>
+        <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(artistSrc(t))}/${esc(t.artist_source_id)}">${esc(t.artist)}</span>` : esc(t.artist)}${featHtml(t, true)}</div></span>
+      <span class="al">${t.exclusive ? esc(t.year || "") : showAlbum && t.album ? (t.album_source_id ? `<span class="link" data-album="${esc(t.source)}/${esc(t.album_source_id)}">${esc(t.album)}</span>` : esc(t.album)) : ""}</span>
       <span class="d">${offlineHas(t) ? `<span class="dl-mark" title="Disponible hors ligne">${icons.download}</span>` : ""}${t.duration_seconds ? fmt(t.duration_seconds) : ""}</span>
       <span class="acts">
         <button data-act="next" title="Lire ensuite">${icons.nextUp}</button>
@@ -922,7 +927,7 @@ function trackGrid(tracks, name) {
   return `<div class="track-grid" data-list="${list}">${tracks.map((t, i) => `
     <button class="mini ${sameTrack(t, current) ? "current" : ""}" data-i="${i}">
       <img src="${esc(big(t.cover_url, 120))}" alt="" loading="lazy">
-      <span style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.artist)}${featHtml(t)}</div></span>
+      <span style="min-width:0"><div class="t">${esc(t.title)}${tagHtml(t)}</div><div class="s">${esc(t.artist)}${featHtml(t)}</div></span>
       <span></span></button>`).join("")}</div>`;
 }
 
@@ -1007,7 +1012,7 @@ function tile({ href, icon, title, subtitle, tone = "", data = "" }) {
 
 async function viewHome() {
   $("#content").innerHTML = skeleton("Écouter");
-  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, daily, mood] = await Promise.all([
+  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, daily, mood, exclusivesAll] = await Promise.all([
     api("/home/mixes").catch(() => []),
     api("/plays/recent?limit=80").catch(() => []),
     api("/releases").catch(() => []),
@@ -1018,6 +1023,7 @@ async function viewHome() {
     api("/party/active").catch(() => []),
     api("/home/daily").catch(() => null),
     loadMood(),
+    api("/exclusives").then((r) => r.tracks).catch(() => []),
   ]);
   const recentTracks = playsToTracks(recent);
   const name = (account.display_name || account.username || "").split(" ")[0];
@@ -1054,6 +1060,9 @@ async function viewHome() {
       href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
       play: register(m.tracks, m.title),
     })), { kind: "large" })}
+    ${exclusivesAll.length ? `<section class="section"><div class="section-head"><h2>Exclus</h2>
+      <div class="shelf-nav"><a class="more" href="#/exclusives">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
+      ${trackGrid(exclusivesAll.slice(0, 12), "Exclus")}</section>` : ""}
     ${shelf("Nouvelles sorties", releases.map((r) => card({
       href: `#/album/${r.source}/${r.source_id}`, cover: r.cover_url, title: r.title, subtitle: `${r.artist} · ${r.kind}`,
     })))}
@@ -1073,7 +1082,7 @@ async function viewHome() {
       <div class="shelf-nav"><a class="more" href="#/recent">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
       ${trackGrid(recentTracks, "Écoutés récemment")}</section>` : ""}
     ${shelf("Radios", radios.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` })}
-    ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${t.source}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
+    ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
     ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
     ${!mixes.length && !recentTracks.length ? empty("♫", "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
 }
@@ -1134,6 +1143,103 @@ async function viewRadios() {
   setTimeout(() => $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); })));
   return page(`<h1 class="page-title">Radios</h1><p class="page-sub">Une station par univers : elle ne s'arrête jamais.</p>
     ${groups.map((g) => shelf(g.title, g.radios.map(radioCard))).join("")}`);
+}
+
+// ── Exclus ───────────────────────────────────────────────────────────────
+
+async function viewExclusives() {
+  $("#content").innerHTML = skeleton("Exclus");
+  const [{ tracks }, status] = await Promise.all([api("/exclusives"), api("/exclusives/status").catch(() => ({}))]);
+  setTimeout(() => $("[data-excl-add]")?.addEventListener("click", () => exclusiveSheet()));
+  const playAll = tracks.length ? register(tracks, "Exclus") : "";
+  return page(`<h1 class="page-title">Exclus</h1>
+    <p class="page-sub">Des titres inédits, introuvables ailleurs : ajoutés à la main, rangés sur la page de leur artiste.</p>
+    <div class="pill-row tight">${tracks.length ? `<button class="btn" data-play="${playAll}">${icons.play} Tout lire</button>` : ""}
+      ${status.can_add ? `<button class="btn ghost" data-excl-add>${icons.plus} Ajouter un exclu</button>` : ""}</div>
+    ${tracks.length ? trackTable(tracks, "Exclus", { showAlbum: false, numbers: false })
+      : empty("✦", "Aucun exclu pour le moment", status.can_add ? "Ajoute ton premier titre inédit avec le bouton ci-dessus." : "Les titres inédits ajoutés par l'admin apparaîtront ici.")}
+    ${status.enabled === false ? `<p class="muted">Stockage non configuré : renseigne DISCORD_STORAGE_WEBHOOK sur le serveur.</p>` : ""}`);
+}
+
+/** Formulaire admin : ajoute un exclu (fichier, titre, artiste, année, type) ou modifie `existing`. */
+function exclusiveSheet(existing = null) {
+  const pick = { source: existing?.artist_source || null, id: existing?.artist_source_id || null };
+  const wrap = openSheet(`<h2 class="sheet-title">${existing ? "Modifier l'exclu" : "Ajouter un exclu"}</h2>
+    <div class="excl-form">
+      ${existing ? "" : `<label class="excl-label">Fichier audio<input class="field" type="file" id="ex-file" accept="audio/*,.flac,.m4a,.mp3,.wav,.opus,.ogg"></label>`}
+      <label class="excl-label">Titre<input class="field" id="ex-title" value="${esc(existing?.title || "")}" autocomplete="off"></label>
+      <label class="excl-label">Artiste
+        <input class="field" id="ex-artist" value="${esc(existing?.artist || "")}" placeholder="Cherche l'artiste…" autocomplete="off">
+      </label>
+      <div class="excl-results" id="ex-results"></div>
+      <p class="muted" id="ex-linked"></p>
+      <div class="excl-row">
+        <label class="excl-label">Année<input class="field" id="ex-year" inputmode="numeric" maxlength="4" value="${esc(existing?.year || new Date().getFullYear())}"></label>
+        <label class="excl-label">Type<select class="field" id="ex-kind"><option value="exclu">Exclu</option><option value="inedit" ${existing?.tag === "Inédit" ? "selected" : ""}>Inédit (jamais sorti)</option></select></label>
+      </div>
+      <label class="excl-label">Pochette (facultatif)<input class="field" type="file" id="ex-cover" accept="image/jpeg,image/png,image/webp"></label>
+      <div class="pill-row"><button class="btn ghost" data-no>Annuler</button><button class="btn" id="ex-save">${existing ? "Enregistrer" : "Ajouter"}</button></div>
+    </div>`, { cls: "excl-sheet" });
+  const linked = () => { $("#ex-linked", wrap).textContent = pick.id ? "✓ Rattaché à la fiche de l'artiste : l'exclu s'affichera sur sa page." : "Choisis l'artiste dans la liste pour l'afficher sur sa page."; };
+  linked();
+  let timer;
+  $("#ex-artist", wrap).oninput = (e) => {
+    pick.source = pick.id = null;
+    linked();
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    if (q.length < 2) { $("#ex-results", wrap).innerHTML = ""; return; }
+    timer = setTimeout(async () => {
+      const found = await api(`/search/artists?q=${encodeURIComponent(q)}&limit=5`).catch(() => []);
+      $("#ex-results", wrap).innerHTML = found.map((a, i) => `<button class="excl-result" data-i="${i}"><img src="${esc(big(a.picture_url, 80))}" alt=""><span>${esc(a.name)}</span></button>`).join("");
+      $$(".excl-result", wrap).forEach((b) => (b.onclick = () => {
+        const a = found[+b.dataset.i];
+        $("#ex-artist", wrap).value = a.name;
+        pick.source = a.source; pick.id = a.source_id;
+        $("#ex-results", wrap).innerHTML = "";
+        linked();
+      }));
+    }, 250);
+  };
+  $("[data-no]", wrap).onclick = () => wrap.close();
+  $("#ex-save", wrap).onclick = async (e) => {
+    const btn = e.currentTarget;
+    const title = $("#ex-title", wrap).value.trim();
+    const artist = $("#ex-artist", wrap).value.trim();
+    const file = $("#ex-file", wrap)?.files[0];
+    const cover = $("#ex-cover", wrap).files[0];
+    if (!title || !artist) return toast("Titre et artiste obligatoires");
+    if (!existing && !file) return toast("Choisis un fichier audio");
+    btn.disabled = true;
+    btn.textContent = existing ? "Enregistrement…" : "Envoi vers Drivecord…";
+    try {
+      const fields = { title, artist, year: $("#ex-year", wrap).value.trim(), kind: $("#ex-kind", wrap).value };
+      let id = existing?.source_id;
+      if (existing) {
+        await api(`/exclusives/${id}`, { method: "PATCH", body: JSON.stringify({ ...fields, artist_source: pick.source, artist_source_id: pick.id }) });
+      } else {
+        const q = new URLSearchParams({ ...fields, filename: file.name });
+        if (pick.id) { q.set("artist_source", pick.source); q.set("artist_source_id", pick.id); }
+        const made = await api(`/exclusives?${q}`, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+        id = made.source_id;
+      }
+      if (cover) await api(`/exclusives/${id}/cover`, { method: "POST", body: cover, headers: { "Content-Type": cover.type } });
+      toast(existing ? "Exclu modifié" : "Exclu ajouté");
+      wrap.close();
+      route();
+    } catch (err) {
+      toast(err.message);
+      btn.disabled = false;
+      btn.textContent = existing ? "Enregistrer" : "Ajouter";
+    }
+  };
+}
+
+async function deleteExclusive(t) {
+  if (!(await confirmSheet(`Supprimer « ${t.title} » ? Le fichier sera aussi effacé de Discord.`, "Supprimer"))) return;
+  await api(`/exclusives/${t.source_id}`, { method: "DELETE" });
+  toast("Exclu supprimé");
+  route();
 }
 
 async function viewSearch(q) {
@@ -1278,6 +1384,8 @@ async function viewArtist(source, id) {
     api(base), api(`${base}/top-tracks`).catch(() => []),
     api(`${base}/albums`).catch(() => ({ albums: [], singles: [] })), api(`${base}/related`).catch(() => []),
   ]);
+  // Exclus de l'artiste (ajoutés à la main) : tout en haut de sa page, avec l'année et le tag.
+  const exclusives = (await api(`${base}/exclusives?name=${encodeURIComponent(artist.name)}`).catch(() => ({ tracks: [] }))).tracks;
   const list = register(top, artist.name);
   // Discographie : filtre (tout / albums / singles) et tri (récent / ancien / A-Z).
   const disco = { filter: "all", sort: "recent" };
@@ -1318,7 +1426,8 @@ async function viewArtist(source, id) {
     cover: artist.picture_url, kind: "Artiste", title: artist.name, round: true,
     info: artist.fans ? `${artist.fans.toLocaleString("fr-FR")} fans` : "", list: top.length ? list : "",
     extra: `<button class="btn ghost" data-artist-radio>${icons.radio} Radio</button>` + likeButton("artist", artist.source, artist.source_id, state.likedArtists),
-  }) + (top.length ? `<section class="section"><div class="section-head"><h2>Titres populaires</h2></div>${trackTable(top.slice(0, 10), artist.name)}</section>` : "")
+  }) + (exclusives.length ? `<section class="section exclusives"><div class="section-head"><h2>Exclus</h2></div>${trackTable(exclusives, `Exclus · ${artist.name}`, { showAlbum: false, numbers: false })}</section>` : "")
+    + (top.length ? `<section class="section"><div class="section-head"><h2>Titres populaires</h2></div>${trackTable(top.slice(0, 10), artist.name)}</section>` : "")
     + `<div id="artist-disco">${discoHtml()}</div><div id="artist-bio"></div>`
     + shelf("Artistes similaires", related.map((a) => card({ href: `#/artist/${a.source}/${a.source_id}`, cover: a.picture_url, title: a.name, round: true })), { kind: "round" }));
 }
@@ -1718,7 +1827,7 @@ async function playStation(name, loader) {
 /** « Si tu aimes ce titre » : des artistes proches, jamais écoutés. */
 async function startDiscoverRadio(t) {
   toast(`Découvertes autour de ${t.artist}…`);
-  const loader = () => api(`/discover/radio/${encodeURIComponent(t.source)}/${encodeURIComponent(t.artist_source_id)}?artist=${encodeURIComponent(t.artist)}`);
+  const loader = () => api(`/discover/radio/${encodeURIComponent(artistSrc(t))}/${encodeURIComponent(t.artist_source_id)}?artist=${encodeURIComponent(t.artist)}`);
   try { await playStation(`Si tu aimes ${t.artist}`, loader); }
   catch (e) { toast(e.message === "Rien à jouer pour cette radio." ? "Tu connais déjà tous les artistes proches !" : e.message); }
 }
@@ -2448,7 +2557,7 @@ function renderNowPlayingView() {
     <div class="np-body">
       <div class="np-left">
         <img class="np-art" src="${esc(big(t.cover_url, 1000))}" alt="">
-        <div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
+        <div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}${tagHtml(t)}</div>
           <div class="a">${artistHtml(t)}${t.album ? ` · ${albumHtml(t)}` : ""}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" title="Bibliothèque">${liked ? icons.heartFill : icons.heart}</button></div>
         <div class="np-progress"><div class="np-seek-wrap"><input type="range" class="slider" id="np-seek" min="0" max="1000" value="0" aria-label="Position"><div class="moments" id="np-moments"></div></div>
@@ -2492,7 +2601,7 @@ function renderNowPlayingMobile(np, t) {
             <button class="tbtn ${liked ? "on" : ""}" data-np="like">${liked ? icons.heartFill : icons.heart}</button>
             <button class="tbtn" data-np="more">${icons.more}</button></div>
           <div class="np-stage np-panel" id="np-right"></div>`}
-      ${view === "art" ? `<div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}</div>
+      ${view === "art" ? `<div class="np-meta"><div style="min-width:0"><div class="t">${esc(t.title)}${tagHtml(t)}</div>
           <div class="a">${artistHtml(t)}${t.album ? ` · ${albumHtml(t)}` : ""}</div></div>
           <button class="tbtn ${liked ? "on" : ""}" data-np="like" aria-label="J'aime">${liked ? icons.heartFill : icons.heart}</button>
           <button class="tbtn" data-np="more" aria-label="Plus d'options">${icons.more}</button></div>` : ""}
@@ -2542,7 +2651,7 @@ function bindNowPlaying(np, t) {
     if (act === "repeat") { state.repeat = !state.repeat; renderNowPlaying(); renderTopbar(); }
     if (act === "like") { haptic(); toggleLike(t); }
     if (act === "more") { e.stopPropagation(); trackMenu(t, { nowPlaying: true }); }
-    if (act === "artist") { closeNowPlaying(); go(`#/artist/${t.source}/${t.artist_source_id}`); }
+    if (act === "artist") { closeNowPlaying(); go(`#/artist/${artistSrc(t)}/${t.artist_source_id}`); }
   };
   const seek = $("#np-seek", np);
   seek.oninput = () => { seek._dragging = true; seek.style.setProperty("--p", `${seek.value / 10}%`); };
@@ -4855,7 +4964,9 @@ function trackMenu(t, ctx = null, index = -1) {
     { icon: icons.radio, label: "Lancer la radio DJ", sub: "Des titres qui s'enchaînent bien avec celui-ci", run: () => startDJRadio(t) },
     t.artist_source_id && { icon: icons.sparkles, label: "Si tu aimes ce titre…", sub: "Une radio d'artistes proches que tu n'as jamais écoutés", run: () => startDiscoverRadio(t) },
     party.state && { icon: icons.headphones, label: party.state.is_host ? "Jouer ensuite dans la session" : "Proposer à la session", run: () => partyPropose(t) },
-    t.artist_source_id && { icon: icons.user, label: "Aller à l'artiste", run: () => { closeNowPlaying(); go(`#/artist/${t.source}/${t.artist_source_id}`); } },
+    t.artist_source_id && { icon: icons.user, label: "Aller à l'artiste", run: () => { closeNowPlaying(); go(`#/artist/${artistSrc(t)}/${t.artist_source_id}`); } },
+    t.exclusive && account?.is_admin && { icon: icons.sparkles, label: "Modifier l'exclu", run: () => exclusiveSheet(t) },
+    t.exclusive && account?.is_admin && { icon: icons.trash, label: "Supprimer l'exclu", danger: true, run: () => deleteExclusive(t) },
     t.album_source_id && { icon: icons.note, label: "Aller à l'album", run: () => { closeNowPlaying(); go(`#/album/${t.source}/${t.album_source_id}`); } },
     playing && { icon: icons.sparkles, label: "Réagir à cet instant", sub: "Tes amis verront ta réaction à ce moment du titre", run: () => addMoment(t) },
     playing && { icon: icons.moon, label: sleep.until ? `Minuteur : ${sleepLabel()}` : "Minuteur de sommeil", run: sleepMenu },

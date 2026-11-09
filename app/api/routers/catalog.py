@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.api.auth import require_token
 from app.api.schemas import Album, Artist, Track
+from app.api.routers.exclusives import track_for as exclusive_track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
@@ -22,7 +23,12 @@ async def _handle(coro):
 
 
 @router.get("/tracks/{source}/{source_id}", response_model=Track)
-async def get_track(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> Track:
+async def get_track(request: Request, source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> Track:
+    if source == "exclusive":
+        row = await deps.repo.exclusive_get(source_id)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Exclu inconnu.")
+        return exclusive_track(request, row)
     track = await _handle(lookup.get_track(deps, source, source_id))
     await deps.repo.history_add(deps.user_id, track)
     # Titre de la bibliothèque ajouté avant qu'on garde les fiches : complété
