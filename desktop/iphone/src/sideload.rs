@@ -193,11 +193,16 @@ fn save_profiles(index: &ProfileIndex) -> Result<(), String> {
 
 // ── Erreurs lisibles ────────────────────────────────────────────────────────
 
+/// Dernière erreur isideload, avant traduction en phrase lisible.
+static LAST_RAW_ERROR: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
 /// Erreur isideload lisible : les rapports sont des arbres (message,
 /// `├ fichier.rs:ligne`…) ; on garde la chaîne des messages, sans décoration.
 /// Le rapport complet part dans `logs/iphone.log`.
 pub fn short_error(e: impl std::fmt::Display + std::fmt::Debug) -> String {
     let full = e.to_string();
+    // Le texte brut sert à décider d'un repli (voir `login`) : le message lisible, lui, ne le dit plus.
+    *LAST_RAW_ERROR.lock().unwrap() = full.clone();
     log_error(&format!("{e:?}"));
     let mut messages: Vec<String> = Vec::new();
     for line in full.lines() {
@@ -228,6 +233,8 @@ pub fn humanize(chain: &str) -> String {
         "Mot de passe Apple incorrect. Vérifie-le et réessaie."
     } else if has(&["additional authentication", "2fa", "two-factor", "trusted device", "sms"]) {
         "La vérification en deux étapes d’Apple n’a pas abouti. Réessaie et saisis le nouveau code."
+    } else if has(&["grandslam", "gsa.apple.com"]) && has(&["503", "service temporarily unavailable"]) {
+        "Apple est momentanément indisponible ou refuse cette connexion (erreur 503), alors que le mot de passe n’est pas en cause. Patiente 30 à 60 minutes sans insister, ou essaie avec le partage de connexion d’un téléphone."
     } else if has(&["not provisioned", "-45061", "reprovision"]) {
         "Le serveur de connexion Apple ne reconnaît plus ce PC. Réessaie : Sona le redéclare tout seul (sinon, Réinitialiser l’appareil Apple)."
     } else if has(&["anisette"]) {
@@ -383,8 +390,11 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
     let mut result = Err(String::new());
     for (i, server) in ANISETTE_SERVERS.iter().enumerate() {
         result = login_attempt(email.clone(), password.clone(), server).await;
-        let Err(message) = &result else { break };
-        if !is_anisette_failure(message) || i + 1 == ANISETTE_SERVERS.len() {
+        if result.is_ok() {
+            break;
+        }
+        let raw = LAST_RAW_ERROR.lock().unwrap().clone();
+        if !is_anisette_failure(&raw) || i + 1 == ANISETTE_SERVERS.len() {
             break;
         }
         log_error(&format!("Anisette : {server} a échoué, identité oubliée, essai du serveur suivant"));
@@ -416,7 +426,11 @@ const ANISETTE_SERVERS: [&str; 4] = [
 
 fn is_anisette_failure(message: &str) -> bool {
     let lower = message.to_lowercase();
-    ["anisette", "not provisioned", "-45061", "reprovision"].iter().any(|n| lower.contains(n))
+    // Un 503 de GrandSlam (le serveur de connexion Apple) est souvent la réponse d'Apple à une
+    // identité d'anisette qu'il n'aime pas : un autre serveur d'anisette peut passer.
+    let apple_503 = (lower.contains("grandslam") || lower.contains("gsa.apple.com"))
+        && (lower.contains("503") || lower.contains("service temporarily unavailable"));
+    apple_503 || ["anisette", "not provisioned", "-45061", "reprovision"].iter().any(|n| lower.contains(n))
 }
 
 /// Oublie l'identité anisette gardée par isideload dans le coffre Windows (au mieux).
@@ -829,4 +843,30 @@ pub async fn download(url: &str, dest: &std::path::Path, on_progress: impl Fn(u6
     file.flush().await.map_err(write_error)?;
     on_progress(received, total);
     Ok(hex::encode(hasher.finalize()))
+}
+
+#[cfg(test)]
+mod anisette_fallback_tests {
+    use super::*;
+
+    #[test]
+    fn apple_503_and_anisette_errors_trigger_the_fallback() {
+        let apple_503 = "Failed to log in to Apple ID → Received error response from grandslam → reqwest::Error { kind: Status(503, Some(ReasonPhrase(b\"Service Temporarily Unavailable\"))), url: \"https://gsa.apple.com/grandslam/GsService2\" }";
+        assert!(is_anisette_failure(apple_503));
+        assert!(is_anisette_failure("Failed to get anisette headers → not provisioned for this server (-45061); reprovision required"));
+        assert!(is_anisette_failure("reqwest::Error { kind: Status(522) } https://ani.stikstore.app/v3/get_headers anisette"));
+    }
+
+    #[test]
+    fn password_and_rate_limit_errors_do_not() {
+        assert!(!is_anisette_failure("Failed to log in to Apple ID → -22406 incorrect password"));
+        assert!(!is_anisette_failure("429 Too Many Requests from grandslam"));
+        assert!(!is_anisette_failure("Impossible de joindre l'iPhone"));
+    }
+
+    #[test]
+    fn the_503_gets_an_honest_message() {
+        let text = humanize("Failed to log in to Apple ID → Received error response from grandslam → Status(503) Service Temporarily Unavailable");
+        assert!(text.contains("503") && text.contains("momentanément"), "{text}");
+    }
 }
