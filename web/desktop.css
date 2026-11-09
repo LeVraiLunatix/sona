@@ -655,8 +655,8 @@ html.desktop.drawer-open .topbar { width: min(1120px, calc(100vw - var(--sidebar
 @media (max-width: 1400px) { html.desktop .topbar { grid-template-columns: auto minmax(6px, 1fr) minmax(180px, 420px) minmax(6px, 1fr) auto; } }
 @media (max-width: 1100px) { html.desktop .topbar { grid-template-columns: auto minmax(4px, 1fr) minmax(140px, 420px) minmax(4px, 1fr) auto; } }
 
-/* Tiroir : il commence sous les boutons de la fenêtre, et son contenu prend toute sa largeur (marges comprises). */
-html.desktop .drawer { margin-top: 44px; margin-bottom: 12px; }
+/* Tiroir : il commence sous les boutons de la fenêtre (qui finissent à 50 px : 12 px d'air), et son contenu prend toute sa largeur (marges comprises). */
+html.desktop .drawer { margin-top: 62px; margin-bottom: 12px; }
 html.desktop .drawer-head, html.desktop .drawer-body { width: 100%; }
 html.desktop .drawer-head { padding: 12px 10px 8px 14px; }
 
