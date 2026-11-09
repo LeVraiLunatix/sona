@@ -139,8 +139,7 @@ struct DiagnoseSheet: View {
                 Text(report.message ?? report.result ?? "").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
             }
             if let ref = report.track {
-                Text("Référence : \(ref.title ?? "?") — \(ref.artist ?? "?")" + (ref.album.map { " · \($0)" } ?? "")
-                     + (ref.durationSeconds.map { " · \(Self.duration($0))" } ?? ""))
+                Text(Self.referenceLine(ref))
                     .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
             }
         }
@@ -188,8 +187,7 @@ struct DiagnoseSheet: View {
             }
             ForEach(list) { c in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text((c.title ?? "?") + " · " + (c.platform ?? "?") + (c.durationSeconds.map { " · \(Self.duration($0))" } ?? "")
-                         + (c.score.map { " · score \(Int($0))" } ?? ""))
+                    Text(Self.candidateLine(c))
                         .font(Typo.rowTitle)
                     Text(detail(c)).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                 }
@@ -198,6 +196,21 @@ struct DiagnoseSheet: View {
     }
 
     private static func duration(_ seconds: Int) -> String { String(format: "%d:%02d", seconds / 60, seconds % 60) }
+
+    // Phrases construites pas à pas : une seule grosse expression de `+` fait expirer le compilateur.
+    private static func referenceLine(_ ref: DiagnoseReport.Reference) -> String {
+        var parts: [String] = ["Référence : " + (ref.title ?? "?") + " — " + (ref.artist ?? "?")]
+        if let album = ref.album { parts.append(album) }
+        if let seconds = ref.durationSeconds { parts.append(duration(seconds)) }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func candidateLine(_ c: DiagnoseReport.Candidate) -> String {
+        var parts: [String] = [c.title ?? "?", c.platform ?? "?"]
+        if let seconds = c.durationSeconds { parts.append(duration(seconds)) }
+        if let score = c.score { parts.append("score " + String(Int(score))) }
+        return parts.joined(separator: " · ")
+    }
 
     private func run() async {
         isRunning = true
