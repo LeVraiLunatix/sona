@@ -102,6 +102,11 @@ struct SettingsView: View {
 
                 Section {
                     NavigationLink {
+                        AppearanceView()
+                    } label: {
+                        Label("Apparence", systemImage: "paintpalette")
+                    }
+                    NavigationLink {
                         ExclusivesView(path: .constant(NavigationPath()))
                     } label: {
                         Label("Exclus", systemImage: "sparkles")

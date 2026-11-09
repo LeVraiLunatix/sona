@@ -97,7 +97,9 @@ struct FullPlayerView: View {
         }
         .animation(.easeInOut(duration: 0.9), value: palette)
         .task(id: player.current?.coverURL) {
-            let colors = await ArtworkPalette.meshColors(for: player.current?.coverURL)
+            let colors = Look.tintEnabled
+                ? await ArtworkPalette.meshColors(for: player.current?.coverURL)
+                : ArtworkPalette.fallback
             palette = colors
         }
         .task(id: player.current?.id) { await refreshLikeState() }

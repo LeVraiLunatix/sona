@@ -230,7 +230,7 @@ struct ExclusiveEditorView: View {
                         }
                     }
                 }
-                Section("Titre") {
+                Section {
                     TextField("Titre", text: $title)
                     TextField("Artiste", text: $artist)
                         .onChange(of: artist) { _, value in searchArtists(value) }
@@ -247,6 +247,8 @@ struct ExclusiveEditorView: View {
                             }
                         }
                     }
+                } header: {
+                    Text("Titre")
                 } footer: {
                     Text(artistSourceId == nil
                          ? "Choisis l'artiste dans la liste pour afficher l'exclu sur sa page."

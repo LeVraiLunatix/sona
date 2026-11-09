@@ -9,6 +9,7 @@ struct AlbumDetailView: View {
     @State private var album: Album?
     @State private var errorMessage: String?
     @State private var palette: [Color] = ArtworkPalette.fallback
+    @AppStorage(Look.tintKey) private var tintOn = true
     @State private var inLibrary = false
     @State private var libraryBounce = 0
     @State private var shareTarget: ShareTarget?
@@ -84,6 +85,7 @@ struct AlbumDetailView: View {
             .frame(height: 520)
             .blur(radius: 40)
             .ignoresSafeArea()
+            .opacity(tintOn ? 1 : 0)
             .animation(.easeInOut(duration: 0.8), value: palette)
     }
 

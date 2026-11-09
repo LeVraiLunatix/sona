@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct EncreApp: App {
+    @AppStorage(Look.accentKey) private var accent = LookAccent.neutre.rawValue
+
     init() {
         // Pochettes et photos d'artistes rechargées sans cesse en défilant :
         // un cache HTTP généreux (mémoire + disque) rend les listes fluides
@@ -24,6 +26,7 @@ struct EncreApp: App {
         WindowGroup {
             AppGate()
                 .preferredColorScheme(.dark)
+                .tint(LookAccent(rawValue: accent)?.color)
         }
     }
 }
