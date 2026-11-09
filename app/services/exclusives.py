@@ -37,7 +37,7 @@ def tag_label(kind: str) -> str:
     return KINDS.get(kind, KINDS["exclu"])
 
 
-def track_dict(row: dict, cover_url: str) -> dict:
+def track_dict(row: dict, cover_url: str, extras: list[dict] | None = None) -> dict:
     """Le titre au format de l'app. `artist_source_id` reste celui de la fiche de
     l'artiste (Deezer…) ; `artist_source` dit de quelle source il vient, puisque
     `source` vaut ici « exclusive »."""
@@ -55,7 +55,14 @@ def track_dict(row: dict, cover_url: str) -> dict:
         "tag": tag_label(row["kind"]),
         "exclusive": True,
         "artists": [],
+        **_quality_fields(row, extras),
     }
+
+
+def _quality_fields(row: dict, extras: list[dict] | None) -> dict:
+    versions = versions_of(row, extras)
+    best = pick_version(versions, "best")
+    return {"quality": best["label"], "lossless": bool(best.get("lossless")), "versions": len(versions)}
 
 
 def clean_year(value: str | None) -> str | None:
@@ -89,21 +96,29 @@ async def spool(stream: AsyncIterator[bytes], suffix: str, limit: int) -> tuple[
 
 
 def probe(path: Path) -> dict:
-    """Durée et pochette intégrée du fichier."""
+    """Durée, qualité (codec, lossless, débit, fréquence, bits) et pochette intégrée du fichier."""
     duration = None
+    quality: dict = {"codec": None, "lossless": 0, "bitrate": None, "sample_rate": None, "bit_depth": None}
     try:
         audio = MutagenFile(path)
         if audio is not None and audio.info is not None and getattr(audio.info, "length", None):
             duration = round(audio.info.length)
     except Exception as exc:  # noqa: BLE001 — un fichier sans tags reste utilisable
         logger.info("Exclu : durée illisible (%s)", exc)
+    # Même lecture que la musique locale : codec, lossless ou non, 24 bits / 96 kHz…
+    try:
+        card = local_library.read_file(path.parent, path)
+        if card:
+            quality = {k: card.get(k) for k in quality}
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Exclu : qualité illisible (%s)", exc)
     cover = None
     try:
         found = local_library.cover(path)
         cover = found
     except Exception:  # noqa: BLE001
         cover = None
-    return {"duration": duration, "cover": cover}
+    return {"duration": duration, "cover": cover, "quality": quality}
 
 
 async def _file_parts(path: Path) -> AsyncIterator[bytes]:
@@ -141,6 +156,7 @@ async def add(storage: DiscordStorage, repo, path: Path, size: int, filename: st
             "artist_source": artist_source if artist_source_id else None, "artist_source_id": artist_source_id or None,
             "year": clean_year(year), "kind": kind if kind in KINDS else "exclu",
             "duration_seconds": info["duration"], "mime": AUDIO_TYPES.get(suffix, "application/octet-stream"),
+            **info["quality"],
             "filename": f"{artist} - {title}{suffix}", "size": size,
             "chunks": json.dumps([c.to_json() for c in chunks]),
             "cover_chunks": cover_chunks, "cover_mime": cover_mime,
@@ -152,26 +168,78 @@ async def add(storage: DiscordStorage, repo, path: Path, size: int, filename: st
     return row
 
 
+async def add_version(storage: DiscordStorage, repo, exclusive_id: str, path: Path, size: int, filename: str,
+                      content_type: str | None) -> dict:
+    """Ajoute une autre version (ex. FLAC) à un exclu existant."""
+    suffix = audio_suffix(filename, content_type)
+    info = await asyncio.to_thread(probe, path)
+    chunks = await storage.store(_file_parts(path), f"exclu{suffix}")
+    row = {
+        "id": uuid.uuid4().hex[:12], "exclusive_id": exclusive_id, **info["quality"],
+        "mime": AUDIO_TYPES.get(suffix, "application/octet-stream"), "filename": f"version{suffix}", "size": size,
+        "chunks": json.dumps([c.to_json() for c in chunks]),
+    }
+    try:
+        await repo.exclusive_version_add(row)
+    except Exception:
+        await storage.delete(chunks)
+        raise
+    return row
+
+
+MAIN = "main"
+
+
+def versions_of(row: dict, extras: list[dict] | None) -> list[dict]:
+    """Le fichier d'origine puis les versions ajoutées, chacune avec son libellé de qualité
+    (« FLAC 24 bits / 96 kHz », « MP3 320 kbps »)."""
+    main = {**row, "version_id": MAIN}
+    found = [main] + [{**e, "version_id": e["id"]} for e in (extras or [])]
+    for v in found:
+        v["label"] = local_library.quality_label({**v, "codec": v.get("codec") or Path(v["filename"]).suffix.lstrip(".").upper() or "Audio"})
+    return found
+
+
+def _rank(v: dict) -> tuple:
+    return (int(bool(v.get("lossless"))), (v.get("bit_depth") or 0) * (v.get("sample_rate") or 0), v.get("bitrate") or 0, v["size"])
+
+
+def pick_version(versions: list[dict], quality: str, wanted: str | None = None) -> dict:
+    """La version à lire : celle demandée, sinon selon la qualité choisie dans les réglages
+    (lossless : la meilleure sans perte, à défaut la meilleure ; standard : la plus légère)."""
+    if wanted:
+        for v in versions:
+            if v["version_id"] == wanted:
+                return v
+    if quality == "standard":
+        return min(versions, key=lambda v: (_rank(v)[0], v["size"]))
+    return max(versions, key=_rank)
+
+
 def chunks_of(raw: str | None) -> list[Chunk]:
     return [Chunk.from_json(c) for c in json.loads(raw)] if raw else []
 
 
-async def materialize(storage: DiscordStorage, cache_dir: Path, row: dict) -> Path:
-    """Fichier complet sur disque : rassemblé depuis Discord à la première lecture."""
+async def materialize(storage: DiscordStorage, cache_dir: Path, row: dict, version: dict | None = None) -> Path:
+    """Fichier complet sur disque : rassemblé depuis Discord à la première lecture.
+    `version` : une des versions de `versions_of` (sinon le fichier d'origine)."""
     cache_dir.mkdir(parents=True, exist_ok=True)
-    suffix = Path(row["filename"]).suffix
-    target = cache_dir / f"{row['id']}{suffix}"
+    source = version or row
+    extra = version is not None and version.get("version_id") != MAIN
+    suffix = Path(source["filename"]).suffix
+    name = f"{row['id']}_{version['version_id']}" if extra else row["id"]
+    target = cache_dir / f"{name}{suffix}"
     if target.is_file():
         target.touch()
         return target
-    lock = _locks.setdefault(row["id"], asyncio.Lock())
+    lock = _locks.setdefault(name, asyncio.Lock())
     async with lock:
         if target.is_file():
             return target
         partial = target.with_suffix(target.suffix + ".part")
         try:
             with partial.open("wb") as out:
-                for chunk in chunks_of(row["chunks"]):
+                for chunk in chunks_of(source["chunks"]):
                     await asyncio.to_thread(out.write, await storage.read(chunk))
             partial.replace(target)
         except BaseException:
@@ -189,8 +257,10 @@ async def read_cover(storage: DiscordStorage, row: dict) -> tuple[bytes, str] | 
 
 
 async def remove(storage: DiscordStorage, repo, cache_dir: Path, row: dict) -> None:
+    extras = (await repo.exclusive_versions(row["id"])).get(row["id"], [])
     await repo.exclusive_delete(row["id"])
-    await storage.delete(chunks_of(row["chunks"]) + chunks_of(row.get("cover_chunks")))
+    await storage.delete(chunks_of(row["chunks"]) + chunks_of(row.get("cover_chunks"))
+                         + [c for e in extras for c in chunks_of(e["chunks"])])
     for leftover in cache_dir.glob(f"{row['id']}*"):
         leftover.unlink(missing_ok=True)
     _locks.pop(row["id"], None)

@@ -32,6 +32,12 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("playlists", "import_uncertain", "INTEGER NOT NULL DEFAULT 0"),
     ("playlists", "import_added", "INTEGER NOT NULL DEFAULT 0"),
     ("playlists", "synced_at", "TEXT"),
+    # Qualité du fichier d'un exclu (lue dans ses tags à l'ajout).
+    ("exclusives", "codec", "TEXT"),
+    ("exclusives", "lossless", "INTEGER NOT NULL DEFAULT 0"),
+    ("exclusives", "bitrate", "INTEGER"),
+    ("exclusives", "sample_rate", "INTEGER"),
+    ("exclusives", "bit_depth", "INTEGER"),
 )
 
 

@@ -164,7 +164,7 @@ const goArtist = (t, id, name) => id ? `<span class="link" data-goartist="${esc(
 /** Source de la fiche artiste : celle du titre, sauf pour un exclu (sa source est « exclusive », sa fiche vient de Deezer…). */
 const artistSrc = (t) => t.artist_source || t.source;
 /** Pastille « Exclu · 2019 » / « Inédit · 2019 » des titres ajoutés à la main. */
-const tagHtml = (t) => t.tag ? ` <span class="tag-exclu">${esc(t.tag)}${t.year ? ` · ${esc(t.year)}` : ""}</span>` : "";
+const tagHtml = (t) => t.tag ? ` <span class="tag-exclu">${esc(t.tag)}${t.year ? ` · ${esc(t.year)}` : ""}</span>${t.lossless ? ` <span class="tag-exclu tag-lossless" title="${esc(t.quality || "Sans perte")}">Lossless</span>` : ""}` : "";
 /** « Favé (feat. RnBoi) », chaque nom cliquable. */
 const artistHtml = (t) => goArtist(t, t.artist_source_id, t.artist) + featHtml(t, true);
 /** Nom de l'album, cliquable quand on connaît son identifiant. */
@@ -1178,6 +1178,8 @@ function exclusiveSheet(existing = null) {
         <label class="excl-label">Type<select class="field" id="ex-kind"><option value="exclu">Exclu</option><option value="inedit" ${existing?.tag === "Inédit" ? "selected" : ""}>Inédit (jamais sorti)</option></select></label>
       </div>
       <label class="excl-label">Pochette (facultatif)<input class="field" type="file" id="ex-cover" accept="image/jpeg,image/png,image/webp"></label>
+      ${existing ? `<div class="excl-versions"><div class="excl-label">Qualités disponibles</div><div id="ex-versions"><p class="muted">Chargement…</p></div>
+        <label class="excl-label">Ajouter une version (ex. le FLAC)<input class="field" type="file" id="ex-version" accept="audio/*,.flac,.m4a,.mp3,.wav,.opus,.ogg"></label></div>` : ""}
       <div class="pill-row"><button class="btn ghost" data-no>Annuler</button><button class="btn" id="ex-save">${existing ? "Enregistrer" : "Ajouter"}</button></div>
     </div>`, { cls: "excl-sheet" });
   const linked = () => { $("#ex-linked", wrap).textContent = pick.id ? "✓ Rattaché à la fiche de l'artiste : l'exclu s'affichera sur sa page." : "Choisis l'artiste dans la liste pour l'afficher sur sa page."; };
@@ -1202,6 +1204,28 @@ function exclusiveSheet(existing = null) {
     }, 250);
   };
   $("[data-no]", wrap).onclick = () => wrap.close();
+  if (existing) {
+    const draw = async () => {
+      const { versions } = await api(`/exclusives/${existing.source_id}/versions`).catch(() => ({ versions: [] }));
+      $("#ex-versions", wrap).innerHTML = versions.map((v) => `<div class="excl-ver"><span>${esc(v.label)}${v.lossless ? ` <span class="tag-exclu tag-lossless">Lossless</span>` : ""}<small>${(v.size / 1048576).toFixed(1)} Mo${v.main ? " · fichier d'origine" : ""}</small></span>${v.main ? "" : `<button class="btn ghost small" data-delver="${esc(v.id)}">Retirer</button>`}</div>`).join("");
+      $$("[data-delver]", wrap).forEach((b) => (b.onclick = async () => {
+        b.disabled = true;
+        try { await api(`/exclusives/${existing.source_id}/versions/${b.dataset.delver}`, { method: "DELETE" }); exclVersion.delete(existing.source_id); draw(); } catch (err) { toast(err.message); b.disabled = false; }
+      }));
+    };
+    draw();
+    $("#ex-version", wrap).onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      $("#ex-versions", wrap).insertAdjacentHTML("beforeend", `<p class="muted" id="ex-sending">Envoi de ${esc(file.name)} vers Drivecord…</p>`);
+      try {
+        await api(`/exclusives/${existing.source_id}/versions?filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+        toast("Version ajoutée");
+      } catch (err) { toast(err.message); }
+      e.target.value = "";
+      draw();
+    };
+  }
   $("#ex-save", wrap).onclick = async (e) => {
     const btn = e.currentTarget;
     const title = $("#ex-title", wrap).value.trim();
@@ -1233,6 +1257,29 @@ function exclusiveSheet(existing = null) {
       btn.textContent = existing ? "Enregistrer" : "Ajouter";
     }
   };
+}
+
+const exclVersionLabel = (t) => (exclVersion.has(t.source_id) ? "Choisie : " : "Automatique selon tes réglages · ") + (t.quality || "");
+
+/** Choix de la version d'un exclu (FLAC, MP3…) ; relance la lecture à la même seconde si c'est le titre en cours. */
+async function exclusiveQualitySheet(t) {
+  const { versions } = await api(`/exclusives/${encodeURIComponent(t.source_id)}/versions`);
+  const chosen = exclVersion.get(t.source_id);
+  actionSheet("Qualité", [
+    { label: "Automatique", sub: "Selon Réglages › Qualité audio", checked: !chosen, run: () => switchVersion(t, null) },
+    ...versions.map((v) => ({ label: v.label, sub: `${v.lossless ? "Sans perte · " : ""}${(v.size / 1048576).toFixed(1)} Mo`, checked: chosen === v.id, run: () => switchVersion(t, v.id) })),
+  ]);
+}
+
+function switchVersion(t, id) {
+  id ? exclVersion.set(t.source_id, id) : exclVersion.delete(t.source_id);
+  const current = state.queue[state.index];
+  if (!current || !sameTrack(current, t)) return toast("Qualité mémorisée pour ce titre");
+  const at = audio.currentTime;
+  const wasPlaying = !audio.paused;
+  audio.src = streamUrl(t);
+  audio.addEventListener("loadedmetadata", () => { audio.currentTime = at; if (wasPlaying) audio.play().catch(() => {}); }, { once: true });
+  toast("Qualité changée");
 }
 
 async function deleteExclusive(t) {
@@ -1890,7 +1937,11 @@ function addToQueue(track) {
 // l'app Windows) : lisibles sans réseau, et la page « Téléchargés » s'ouvre
 // toute seule quand le serveur est injoignable.
 
-const streamUrl = (t) => `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
+/** Version d'un exclu choisie à la main dans le menu « Qualité » (sinon, selon les réglages). */
+const exclVersion = new Map();
+const streamUrl = (t) => `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`
+  + `&quality=${encodeURIComponent(state.settings?.quality || "best")}`
+  + (t.exclusive && exclVersion.has(t.source_id) ? `&version=${encodeURIComponent(exclVersion.get(t.source_id))}` : "");
 const OFFLINE_CACHE = "sona-offline-v1";
 const offline = {
   supported: "caches" in window,
@@ -4066,7 +4117,7 @@ function restoreResume() {
   state.index = saved.index;
   state.name = saved.name || "";
   audio.preload = "metadata";
-  audio.src = `${BASE}/stream/${encodeURIComponent(t.source)}/${encodeURIComponent(t.source_id)}?token=${encodeURIComponent(token)}`;
+  audio.src = streamUrl(t);
   if (saved.position > 1) audio.addEventListener("loadedmetadata", () => { audio.currentTime = saved.position; }, { once: true });
   if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album || "",
@@ -4965,6 +5016,8 @@ function trackMenu(t, ctx = null, index = -1) {
     t.artist_source_id && { icon: icons.sparkles, label: "Si tu aimes ce titre…", sub: "Une radio d'artistes proches que tu n'as jamais écoutés", run: () => startDiscoverRadio(t) },
     party.state && { icon: icons.headphones, label: party.state.is_host ? "Jouer ensuite dans la session" : "Proposer à la session", run: () => partyPropose(t) },
     t.artist_source_id && { icon: icons.user, label: "Aller à l'artiste", run: () => { closeNowPlaying(); go(`#/artist/${artistSrc(t)}/${t.artist_source_id}`); } },
+    t.exclusive && t.versions > 1 && { icon: icons.wave, label: "Qualité", sub: exclVersionLabel(t), run: () => exclusiveQualitySheet(t) },
+    t.exclusive && t.versions === 1 && t.quality && { icon: icons.wave, label: "Qualité", sub: t.quality },
     t.exclusive && account?.is_admin && { icon: icons.sparkles, label: "Modifier l'exclu", run: () => exclusiveSheet(t) },
     t.exclusive && account?.is_admin && { icon: icons.trash, label: "Supprimer l'exclu", danger: true, run: () => deleteExclusive(t) },
     t.album_source_id && { icon: icons.note, label: "Aller à l'album", run: () => { closeNowPlaying(); go(`#/album/${t.source}/${t.album_source_id}`); } },
@@ -6256,7 +6309,7 @@ async function viewSettings() {
       ${settings ? toggleRow("autoplay", "Lecture automatique", "Des morceaux similaires seront lus quand la file se termine.", settings.autoplay) : ""}
       ${toggleRow("dj", "DJ vocal", "Une voix annonce chaque titre, comme à la radio.", store.get("sona.dj") === "1")}
       <a class="set-row" data-dj-voice><span class="set-text"><b>Voix du DJ</b><small>${esc({ remy: "Rémy", vivienne: "Vivienne", henri: "Henri", denise: "Denise" }[store.get("sona.djVoice") || "remy"])}</small></span>${icons.right}</a>
-      ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${{ lossless: "Lossless (tes fichiers)", standard: "Standard (débit réduit)" }[settings.quality] || "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
+      ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${{ lossless: "Lossless (tes fichiers et exclus)", standard: "Standard (débit réduit)" }[settings.quality] || "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
     </div>
 
     <h3 class="set-head">Apparence</h3><div class="set-group">
@@ -6312,7 +6365,7 @@ function bindSettings() {
   $("[data-dj-voice]")?.addEventListener("click", () => actionSheet("Voix du DJ", [["remy", "Rémy"], ["vivienne", "Vivienne"], ["henri", "Henri"], ["denise", "Denise"]].map(([id, label]) => ({
     icon: icons.mic, label, checked: (store.get("sona.djVoice") || "remy") === id, run: () => { store.set("sona.djVoice", id); route(); },
   }))));
-  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
+  $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers et exclus)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
     label, checked: state.settings?.quality === q, run: async () => { state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ quality: q }) }); route(); },
   }))));
   $("[data-loved]")?.addEventListener("click", async () => {

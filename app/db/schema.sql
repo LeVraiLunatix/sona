@@ -373,8 +373,31 @@ CREATE TABLE IF NOT EXISTS exclusives (
     filename TEXT NOT NULL,
     size INTEGER NOT NULL,
     chunks TEXT NOT NULL,
+    codec TEXT,
+    lossless INTEGER NOT NULL DEFAULT 0,
+    bitrate INTEGER,
+    sample_rate INTEGER,
+    bit_depth INTEGER,
     cover_chunks TEXT,
     cover_mime TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_exclusives_artist ON exclusives (artist_source, artist_source_id);
+
+-- Versions supplémentaires d'un exclu (ex. FLAC en plus du MP3) : même
+-- stockage Discord, qualité propre. Le fichier d'origine reste dans `exclusives`.
+CREATE TABLE IF NOT EXISTS exclusive_versions (
+    id TEXT PRIMARY KEY,
+    exclusive_id TEXT NOT NULL,
+    codec TEXT,
+    lossless INTEGER NOT NULL DEFAULT 0,
+    bitrate INTEGER,
+    sample_rate INTEGER,
+    bit_depth INTEGER,
+    mime TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    chunks TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_exclusive_versions ON exclusive_versions (exclusive_id);
