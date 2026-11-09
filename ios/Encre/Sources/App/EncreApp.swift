@@ -5,6 +5,7 @@ struct EncreApp: App {
     @AppStorage(Look.accentKey) private var accent = LookAccent.neutre.rawValue
     @ObservedObject private var launchAuth = AuthManager.shared
     @State private var showsSplash = true
+    @State private var splashLeaving = false
 
     init() {
         // Pochettes et photos d'artistes rechargées sans cesse en défilant :
@@ -27,11 +28,15 @@ struct EncreApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
+                // L'app se pose en douceur pendant que l'écran de démarrage s'éloigne : pas de coupure.
                 AppGate()
+                    .scaleEffect(splashLeaving || !showsSplash ? 1 : 0.96)
+                    .opacity(splashLeaving || !showsSplash ? 1 : 0)
+                    .animation(.easeOut(duration: 0.9), value: splashLeaving)
                 if showsSplash {
-                    LaunchSplashView()
-                        .transition(.opacity.combined(with: .scale(scale: 1.06)))
+                    LaunchSplashView(leaving: splashLeaving)
                         .zIndex(1)
+                        .allowsHitTesting(!splashLeaving)
                 }
             }
             .preferredColorScheme(.dark)
@@ -43,7 +48,10 @@ struct EncreApp: App {
                 while launchAuth.state == .checking, Date().timeIntervalSince(started) < 6 {
                     try? await Task.sleep(for: .milliseconds(150))
                 }
-                withAnimation(.easeInOut(duration: 0.55)) { showsSplash = false }
+                // Sortie en deux temps : l'animation de fondu (0,9 s), puis on retire la vue.
+                splashLeaving = true
+                try? await Task.sleep(for: .milliseconds(1000))
+                showsSplash = false
             }
         }
     }
