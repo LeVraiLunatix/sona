@@ -73,9 +73,9 @@ final class HomeViewModel: ObservableObject {
         var seen = Set<String>()
         artists = (recentTracks + libraryTracks).compactMap { t -> ArtistSummary? in
             guard let artistSourceId = t.artistSourceId else { return nil }
-            let key = "\(t.source):\(artistSourceId)"
+            let key = "\(t.artistRouteSource):\(artistSourceId)"
             guard seen.insert(key).inserted else { return nil }
-            return ArtistSummary(name: t.artist, coverURL: t.coverURL, source: t.source, artistSourceId: artistSourceId)
+            return ArtistSummary(name: t.artist, coverURL: t.coverURL, source: t.artistRouteSource, artistSourceId: artistSourceId)
         }
     }
 

@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var memories: [Memory] = []
     @State private var daily: DailyTrack?
     @State private var mood: MoodMix?
+    @State private var exclusives: [Track] = []
 
     var body: some View {
         ScrollView {
@@ -39,6 +40,20 @@ struct HomeView: View {
                             .zoomSource(.mix(id: mix.id))
                         }
                     }
+                }
+
+                if !exclusives.isEmpty {
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionHeader(title: "Exclus", actionLabel: "Tout voir") { path.append(Route.exclusives) }
+                            .padding(.horizontal, 20)
+                        Carousel(items: exclusives) { track in
+                            VStack(alignment: .leading, spacing: 6) {
+                                TrackTile(track: track) { player.play(track, context: exclusives, name: "Exclus") }
+                                ExclusiveTag(track: track).padding(.leading, 1)
+                            }
+                        }
+                    }
+                    .reveal(1)
                 }
 
                 if !releases.isEmpty {
@@ -117,7 +132,7 @@ struct HomeView: View {
                                     track: track,
                                     isCurrent: player.current?.id == track.id,
                                     isPlaying: player.isPlaying,
-                                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } },
                                     onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
                                 ) {
                                     player.play(track, context: viewModel.libraryTracks, name: "Bibliothèque")
@@ -167,10 +182,12 @@ struct HomeView: View {
         // Dernière position connue (carte) : la météo du mix, sans redemander.
         let place = LocationProvider.lastLocation
         async let moment = try? APIClient.shared.mood(latitude: place?.0, longitude: place?.1)
+        async let special = try? APIClient.shared.exclusives()
         releases = await fresh ?? releases
         memories = await past ?? memories
         daily = await pick ?? daily
         mood = await moment ?? mood
+        exclusives = await special ?? exclusives
     }
 
     /// Mix « selon le moment » : pluie, soleil, nuit, soirée…

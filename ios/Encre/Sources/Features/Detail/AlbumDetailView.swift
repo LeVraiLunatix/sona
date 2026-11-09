@@ -159,7 +159,7 @@ struct AlbumDetailView: View {
                     showsArtwork: false,
                     isCurrent: player.current?.id == track.id,
                     isPlaying: player.isPlaying,
-                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } }
+                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } }
                 ) {
                     player.play(track, context: album.tracks, name: album.title)
                 }

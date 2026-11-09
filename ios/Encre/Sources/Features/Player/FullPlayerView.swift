@@ -26,6 +26,8 @@ struct FullPlayerView: View {
     @State private var storyTrack: Track?
     @State private var shareTarget: ShareTarget?
     @State private var creditsTrack: Track?
+    @State private var qualityTrack: Track?
+    @State private var editingExclusive: ExclusiveEditorRequest?
     @State private var momentRequest: MomentRequest?
     @State private var moments: [TrackMoment] = []
     @ObservedObject private var gestures = HeadGestures.shared
@@ -120,6 +122,8 @@ struct FullPlayerView: View {
         .sheet(item: $storyTrack) { track in StoryShareSheet(track: track) }
         .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
         .sheet(item: $creditsTrack) { track in CreditsView(track: track) }
+        .sheet(item: $qualityTrack) { track in ExclusiveQualitySheet(track: track) }
+        .sheet(item: $editingExclusive) { request in ExclusiveEditorView(existing: request.existing) {} }
         .sheet(item: $momentRequest) { request in
             AddMomentSheet(track: request.track, position: request.position) {
                 Task { await loadMoments() }
@@ -248,6 +252,8 @@ struct FullPlayerView: View {
                 shareStory: { track in storyTrack = track },
                 shareLink: { track in shareTarget = .track(track) },
                 showCredits: { track in creditsTrack = track },
+                showQuality: { track in qualityTrack = track },
+                editExclusive: { track in editingExclusive = ExclusiveEditorRequest(existing: track) },
                 addMoment: { track in momentRequest = MomentRequest(track: track, position: player.positionSeconds) }
             )
         )
@@ -318,16 +324,19 @@ struct FullPlayerView: View {
     private func titleRow(_ track: Track, compact: Bool) -> some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(track.title)
-                    .font(.system(size: compact ? 17 : 22, weight: .bold))
-                    .foregroundStyle(Tone.primary)
-                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(track.title)
+                        .font(.system(size: compact ? 17 : 22, weight: .bold))
+                        .foregroundStyle(Tone.primary)
+                        .lineLimit(1)
+                    ExclusiveTag(track: track, compact: compact)
+                }
                 // « Favé (feat. RnBoi) » : chaque nom ouvre sa fiche artiste.
                 let feats = artistsCache.featured(for: track)
                 HStack(spacing: 0) {
                     Button {
                         if let artistId = track.artistSourceId {
-                            onOpenRoute(.artist(source: track.source, id: artistId))
+                            onOpenRoute(.artist(source: track.artistRouteSource, id: artistId))
                         }
                     } label: { Text(track.artist) }
                         .buttonStyle(.pressable)
@@ -336,7 +345,7 @@ struct FullPlayerView: View {
                         Text(" (feat. ")
                         ForEach(Array(feats.enumerated()), id: \.offset) { index, artist in
                             Button {
-                                if let id = artist.sourceId { onOpenRoute(.artist(source: track.source, id: id)) }
+                                if let id = artist.sourceId { onOpenRoute(.artist(source: track.artistRouteSource, id: id)) }
                             } label: { Text(artist.name + (index < feats.count - 1 ? ", " : "")) }
                                 .buttonStyle(.pressable)
                                 .disabled(artist.sourceId == nil)
@@ -867,6 +876,8 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         var shareStory: (Track) -> Void
         var shareLink: (Track) -> Void
         var showCredits: (Track) -> Void
+        var showQuality: (Track) -> Void
+        var editExclusive: (Track) -> Void
         var addMoment: (Track) -> Void
     }
 
@@ -939,6 +950,15 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         } else {
             main.append(item("Télécharger", "arrow.down.circle") { DownloadManager.shared.download([track]) })
         }
+        if track.isExclusive {
+            var exclusive: [UIMenuElement] = [
+                item("Qualité" + (track.quality.map { " · \($0)" } ?? ""), "waveform") { actions.showQuality(track) },
+            ]
+            if AuthManager.shared.account?.isAdmin == true {
+                exclusive.append(item("Modifier l'exclu", "pencil") { actions.editExclusive(track) })
+            }
+            main.append(UIMenu(title: "Exclu", image: UIImage(systemName: "sparkles"), children: exclusive))
+        }
         main.append(UIMenu(title: "Réagir et partager", image: UIImage(systemName: "square.and.arrow.up"), children: [
             item("Crédits du titre", "list.bullet.rectangle") { actions.showCredits(track) },
             item("Réagir à ce moment", "bubble.left.and.exclamationmark.bubble.right") { actions.addMoment(track) },
@@ -950,7 +970,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         ]
         if let artistId = track.artistSourceId {
             radios.append(item("Radio de l'artiste", "dot.radiowaves.left.and.right") {
-                actions.startRadio(track.source, artistId)
+                actions.startRadio(track.artistRouteSource, artistId)
             })
         }
         if let artistId = track.artistSourceId {
@@ -959,7 +979,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
                 Task { @MainActor in
                     let player = PlayerManager.shared
                     do {
-                        let tracks = try await APIClient.shared.discoverRadio(source: track.source, artistId: artistId, artist: track.artist)
+                        let tracks = try await APIClient.shared.discoverRadio(source: track.artistRouteSource, artistId: artistId, artist: track.artist)
                         guard let first = tracks.first else {
                             player.errorMessage = "Tu connais déjà tous les artistes proches de \(track.artist) !"
                             return
@@ -990,7 +1010,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         var navigation: [UIMenuElement] = []
         if let artistId = track.artistSourceId {
             navigation.append(item("Voir l'artiste", "person.crop.circle") {
-                actions.openRoute(.artist(source: track.source, id: artistId))
+                actions.openRoute(.artist(source: track.artistRouteSource, id: artistId))
             })
         }
         if let albumId = track.albumSourceId {

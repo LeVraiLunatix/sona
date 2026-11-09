@@ -21,6 +21,9 @@ struct TrackRow: View {
     @ObservedObject private var downloads = DownloadManager.shared
     @State private var showsCredits = false
     @State private var sharing = false
+    @State private var showsQuality = false
+    @State private var editor: ExclusiveEditorRequest?
+    @State private var confirmsDelete = false
 
     var body: some View {
         Button(action: action) {
@@ -46,10 +49,13 @@ struct TrackRow: View {
                     .frame(width: 50, height: 50)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title)
-                        .font(Typo.rowTitle)
-                        .foregroundStyle(Tone.primary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(track.title)
+                            .font(Typo.rowTitle)
+                            .foregroundStyle(Tone.primary)
+                            .lineLimit(1)
+                        ExclusiveTag(track: track)
+                    }
                     Text(track.artistLine())
                         .font(Typo.rowSubtitle)
                         .foregroundStyle(Tone.secondary)
@@ -66,6 +72,13 @@ struct TrackRow: View {
         .buttonStyle(.pressable(scale: 0.98))
         .sheet(isPresented: $showsCredits) { CreditsView(track: track) }
         .sheet(isPresented: $sharing) { SonaShareSheet(target: .track(track)) }
+        .sheet(isPresented: $showsQuality) { ExclusiveQualitySheet(track: track) }
+        .sheet(item: $editor) { request in ExclusiveEditorView(existing: request.existing) {} }
+        .confirmationDialog("Supprimer « \(track.title) » ? Le fichier sera aussi effacé de Discord.", isPresented: $confirmsDelete, titleVisibility: .visible) {
+            Button("Supprimer", role: .destructive) {
+                Task { try? await APIClient.shared.deleteExclusive(id: track.sourceId) }
+            }
+        }
         .contextMenu {
             if PartyManager.shared.isGuest {
                 Button { Task { await PartyManager.shared.propose(track) } } label: {
@@ -109,6 +122,19 @@ struct TrackRow: View {
             if let addToPlaylist {
                 Button { addToPlaylist([track]) } label: {
                     Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
+                }
+            }
+            if track.isExclusive {
+                Button { showsQuality = true } label: {
+                    Label("Qualité" + (track.quality.map { " · \($0)" } ?? ""), systemImage: "waveform")
+                }
+                if AuthManager.shared.account?.isAdmin == true {
+                    Button { editor = ExclusiveEditorRequest(existing: track) } label: {
+                        Label("Modifier l'exclu", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) { confirmsDelete = true } label: {
+                        Label("Supprimer l'exclu", systemImage: "trash")
+                    }
                 }
             }
             Button { showsCredits = true } label: { Label("Crédits du titre", systemImage: "list.bullet.rectangle") }

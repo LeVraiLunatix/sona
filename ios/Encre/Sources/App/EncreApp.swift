@@ -62,6 +62,8 @@ struct AppGate: View {
         .task {
             LyricsActivity.shared.bind(PlayerManager.shared)
             await auth.refresh()
+            // La qualité audio du compte (Réglages) : le serveur en dépend pour choisir le fichier.
+            await PlaybackQuality.refresh()
         }
         .onChange(of: scenePhase) { _, phase in
             // Au retour dans l'app : un accès accordé (ou révoqué) entre-temps

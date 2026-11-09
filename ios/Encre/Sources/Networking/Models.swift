@@ -64,9 +64,21 @@ struct Track: Codable, Identifiable, Hashable {
     var discNumber: Int? = nil
     var trackNumber: Int? = nil
     var artists: [TrackArtist]? = nil
+    /// Exclus (titres inédits ajoutés à la main) : la `source` du titre vaut
+    /// « exclusive », la fiche de l'artiste vient d'ailleurs (`artistSource`),
+    /// `tag` est l'étiquette (« Exclu » / « Inédit ») et `quality` le format du
+    /// meilleur fichier (« FLAC 24 bits / 96 kHz »).
+    var artistSource: String? = nil
+    var tag: String? = nil
+    var exclusive: Bool? = nil
+    var quality: String? = nil
+    var lossless: Bool? = nil
+    var versions: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case source, title, artist, album, year, bpm, artists
+        case tag, exclusive, quality, lossless, versions
+        case artistSource = "artist_source"
         case discNumber = "disc_number"
         case trackNumber = "track_number"
         case sourceId = "source_id"
@@ -78,10 +90,45 @@ struct Track: Codable, Identifiable, Hashable {
 
     var id: String { "\(source):\(sourceId)" }
 
+    /// Source de la fiche artiste : celle du titre, sauf pour un exclu.
+    var artistRouteSource: String { artistSource ?? source }
+    var isExclusive: Bool { exclusive == true || source == "exclusive" }
+
     var durationLabel: String {
         guard let s = durationSeconds else { return "--:--" }
         return String(format: "%d:%02d", s / 60, s % 60)
     }
+}
+
+// MARK: - Exclus
+
+struct ExclusiveListDTO: Codable {
+    var tracks: [Track]
+}
+
+struct ExclusiveStatusDTO: Codable {
+    var enabled: Bool
+    var canAdd: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case canAdd = "can_add"
+    }
+}
+
+/// Un fichier d'un exclu (le MP3 d'origine, un FLAC ajouté…).
+struct ExclusiveVersionDTO: Codable, Identifiable, Hashable {
+    var id: String
+    var label: String
+    var lossless: Bool
+    var size: Int
+    var main: Bool
+
+    var sizeLabel: String { ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file) }
+}
+
+struct ExclusiveVersionsDTO: Codable {
+    var versions: [ExclusiveVersionDTO]
 }
 
 /// Artiste crédité sur un titre (`role` : « main » ou « featured »).

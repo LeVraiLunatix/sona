@@ -176,7 +176,7 @@ struct LibraryView: View {
                         track: track,
                         isCurrent: player.current?.id == track.id,
                         isPlaying: player.isPlaying,
-                        onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.source, id: id)) } },
+                        onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } },
                         onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
                         onRemove: { Task { await viewModel.remove(item) } }
                     ) {

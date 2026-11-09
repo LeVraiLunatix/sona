@@ -13,6 +13,7 @@ struct SettingsView: View {
     /// Commit déployé sur le serveur : pour vérifier qu'une mise à jour est passée.
     @State private var serverVersion: String?
     @State private var errorMessage: String?
+    @State private var quality = PlaybackQuality.current
     @ObservedObject private var notifications = NotificationManager.shared
 
     var body: some View {
@@ -85,6 +86,26 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker("Qualité audio", selection: $quality) {
+                        ForEach(PlaybackQuality.choices, id: \.id) { choice in Text(choice.label).tag(choice.id) }
+                    }
+                    .onChange(of: quality) { _, value in
+                        guard value != PlaybackQuality.current else { return }
+                        PlaybackQuality.set(value)
+                        Task { _ = try? await APIClient.shared.updateSettings(quality: value) }
+                    }
+                } header: {
+                    Text("Lecture")
+                } footer: {
+                    Text(PlaybackQuality.choices.first { $0.id == quality }?.detail ?? "")
+                }
+
+                Section {
+                    NavigationLink {
+                        ExclusivesView(path: .constant(NavigationPath()))
+                    } label: {
+                        Label("Exclus", systemImage: "sparkles")
+                    }
                     NavigationLink {
                         WakeAlarmView()
                     } label: {

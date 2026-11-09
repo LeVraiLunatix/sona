@@ -19,4 +19,6 @@ enum Route: Hashable {
     case friend(accountId: Int)
     /// Playlist intelligente (en boucle, oubliés, découvertes…).
     case smart(id: String, title: String)
+    /// Titres inédits ajoutés à la main.
+    case exclusives
 }

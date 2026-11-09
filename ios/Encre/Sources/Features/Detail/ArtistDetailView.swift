@@ -7,6 +7,7 @@ struct ArtistDetailView: View {
 
     @State private var artist: Artist?
     @State private var topTracks: [Track] = []
+    @State private var exclusives: [Track] = []
     @State private var albums: [Album] = []
     @State private var singles: [Album] = []
     @State private var otherVersions: [Album] = []
@@ -28,6 +29,7 @@ struct ArtistDetailView: View {
                     header(artist)
                     VStack(alignment: .leading, spacing: 34) {
                         actions.reveal(0)
+                        if !exclusives.isEmpty { exclusivesSection.reveal(1) }
                         if !topTracks.isEmpty { popular.reveal(1) }
                         if !albums.isEmpty {
                             carousel("Albums", albums).reveal(2)
@@ -158,6 +160,25 @@ struct ArtistDetailView: View {
         .padding(.horizontal, 20)
     }
 
+    /// Les exclus de l'artiste (ajoutés à la main), avec l'année et la pastille Exclu / Inédit.
+    private var exclusivesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Exclus")
+            LazyVStack(spacing: 2) {
+                ForEach(exclusives) { track in
+                    TrackRow(
+                        track: track,
+                        isCurrent: player.current?.id == track.id,
+                        isPlaying: player.isPlaying
+                    ) {
+                        player.play(track, context: exclusives, name: "Exclus · \(artist?.name ?? "")")
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
     private func carousel(_ title: String, _ list: [Album]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: title).padding(.horizontal, 20)
@@ -187,6 +208,7 @@ struct ArtistDetailView: View {
             async let topTask = APIClient.shared.artistTopTracks(source: source, id: id)
             async let albumsTask = APIClient.shared.artistAlbums(source: source, id: id)
             let loaded = try await artistTask
+            exclusives = (try? await APIClient.shared.artistExclusives(source: source, id: id, name: loaded.name)) ?? []
             // Titres et albums facultatifs : une fiche avec photo et nom vaut
             // mieux qu'un écran d'erreur si l'un des deux ne répond pas.
             let top = (try? await topTask) ?? []

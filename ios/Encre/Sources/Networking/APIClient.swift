@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 enum APIError: LocalizedError {
     case notConfigured
@@ -903,11 +904,15 @@ final class APIClient {
     /// Demande au serveur de télécharger et vérifier le morceau, sans
     /// l'envoyer. Long délai : un premier téléchargement peut prendre du
     /// temps ; un morceau déjà prêt répond immédiatement.
-    func prepareStream(source: String, id: String, quality: String = "best", format: String = "auto") async throws {
-        var req = try request("/stream/\(source)/\(id)/prepare", method: "POST", query: [
+    func prepareStream(source: String, id: String, quality: String = PlaybackQuality.current, format: String = "auto") async throws {
+        var query = [
             URLQueryItem(name: "quality", value: quality),
             URLQueryItem(name: "format", value: format),
-        ])
+        ]
+        if let version = ExclusiveVersionChoice.shared.version(source: source, id: id) {
+            query.append(URLQueryItem(name: "version", value: version))
+        }
+        var req = try request("/stream/\(source)/\(id)/prepare", method: "POST", query: query)
         req.timeoutInterval = 180
         try await sendNoContent(req)
     }
@@ -925,7 +930,7 @@ final class APIClient {
     /// `live: false` : le fichier complet vérifié, jamais le relais direct de
     /// YouTube (téléchargement hors ligne).
     func streamRequest(
-        source: String, id: String, quality: String = "best", format: String = "auto", live: Bool = true
+        source: String, id: String, quality: String = PlaybackQuality.current, format: String = "auto", live: Bool = true
     ) throws -> (url: URL, headers: [String: String]) {
         guard let base = APIConfig.shared.baseURL, APIConfig.shared.isConfigured else {
             throw APIError.notConfigured
@@ -938,7 +943,153 @@ final class APIClient {
             URLQueryItem(name: "format", value: format),
         ]
         if !live { components?.queryItems?.append(URLQueryItem(name: "live", value: "false")) }
+        if let version = ExclusiveVersionChoice.shared.version(source: source, id: id) {
+            components?.queryItems?.append(URLQueryItem(name: "version", value: version))
+        }
         guard let url = components?.url else { throw APIError.invalidResponse }
         return (url, ["Authorization": "Bearer \(APIConfig.shared.bearer)"])
+    }
+}
+
+// MARK: - Exclus et qualité audio
+
+/// Qualité audio choisie dans Réglages (« lossless », « best » ou « standard »),
+/// gardée sur l'iPhone et synchronisée avec le compte : le serveur s'en sert
+/// pour choisir le fichier (FLAC d'un exclu, musique locale en lossless…).
+enum PlaybackQuality {
+    static let key = "sona.quality"
+    static var current: String { UserDefaults.standard.string(forKey: key) ?? "best" }
+
+    static func set(_ quality: String) {
+        UserDefaults.standard.set(quality, forKey: key)
+    }
+
+    /// Relit le réglage du compte (au lancement, à l'ouverture des Réglages).
+    static func refresh() async {
+        if let settings = try? await APIClient.shared.getSettings() { set(settings.quality) }
+    }
+
+    static let choices: [(id: String, label: String, detail: String)] = [
+        ("lossless", "Lossless", "Le fichier sans perte quand il existe (exclus en FLAC, ta musique locale)"),
+        ("best", "Meilleure disponible", "La meilleure qualité trouvée"),
+        ("standard", "Standard", "Débit réduit, pour économiser les données"),
+    ]
+
+    static var label: String { choices.first { $0.id == current }?.label ?? "Meilleure disponible" }
+}
+
+/// Version d'un exclu choisie à la main (menu « Qualité » du titre), sinon le
+/// serveur décide d'après `PlaybackQuality`.
+final class ExclusiveVersionChoice: @unchecked Sendable {
+    static let shared = ExclusiveVersionChoice()
+    private let lock = NSLock()
+    private var chosen: [String: String] = [:]
+
+    func version(source: String, id: String) -> String? {
+        guard source == "exclusive" else { return nil }
+        lock.lock(); defer { lock.unlock() }
+        return chosen[id]
+    }
+
+    func set(_ version: String?, for id: String) {
+        lock.lock(); defer { lock.unlock() }
+        chosen[id] = version
+    }
+}
+
+extension APIClient {
+    func exclusivesStatus() async throws -> ExclusiveStatusDTO {
+        try await send(try request("/exclusives/status"))
+    }
+
+    func exclusives() async throws -> [Track] {
+        let list: ExclusiveListDTO = try await send(try request("/exclusives"))
+        return list.tracks
+    }
+
+    /// Les exclus d'un artiste (page artiste) ; `name` rattache aussi ceux saisis sans fiche.
+    func artistExclusives(source: String, id: String, name: String) async throws -> [Track] {
+        let list: ExclusiveListDTO = try await send(try request(
+            "/artists/\(source)/\(id)/exclusives", query: [URLQueryItem(name: "name", value: name)]
+        ))
+        return list.tracks
+    }
+
+    func exclusiveVersions(id: String) async throws -> [ExclusiveVersionDTO] {
+        let result: ExclusiveVersionsDTO = try await send(try request("/exclusives/\(id)/versions"))
+        return result.versions
+    }
+
+    /// Envoie le fichier tel quel (le corps de la requête est l'audio), depuis le disque.
+    private func upload(_ path: String, query: [URLQueryItem], file: URL, mime: String) async throws -> Track {
+        var req = try request(path, method: "POST", query: query)
+        req.setValue(mime, forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 900
+        let (data, response) = try await session.upload(for: req, fromFile: file)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
+        }
+        return try decoder.decode(Track.self, from: data)
+    }
+
+    private static func audioMime(for file: URL) -> String {
+        UTType(filenameExtension: file.pathExtension.lowercased())?.preferredMIMEType ?? "application/octet-stream"
+    }
+
+    func addExclusive(
+        file: URL, title: String, artist: String, artistSource: String?, artistSourceId: String?, year: String, kind: String
+    ) async throws -> Track {
+        var query = [
+            URLQueryItem(name: "title", value: title),
+            URLQueryItem(name: "artist", value: artist),
+            URLQueryItem(name: "year", value: year),
+            URLQueryItem(name: "kind", value: kind),
+            URLQueryItem(name: "filename", value: file.lastPathComponent),
+        ]
+        if let artistSource, let artistSourceId {
+            query.append(URLQueryItem(name: "artist_source", value: artistSource))
+            query.append(URLQueryItem(name: "artist_source_id", value: artistSourceId))
+        }
+        return try await upload("/exclusives", query: query, file: file, mime: Self.audioMime(for: file))
+    }
+
+    func addExclusiveVersion(id: String, file: URL) async throws -> Track {
+        try await upload(
+            "/exclusives/\(id)/versions", query: [URLQueryItem(name: "filename", value: file.lastPathComponent)],
+            file: file, mime: Self.audioMime(for: file)
+        )
+    }
+
+    func deleteExclusiveVersion(id: String, version: String) async throws {
+        try await sendNoContent(try request("/exclusives/\(id)/versions/\(version)", method: "DELETE"))
+    }
+
+    func deleteExclusive(id: String) async throws {
+        try await sendNoContent(try request("/exclusives/\(id)", method: "DELETE"))
+    }
+
+    func updateExclusive(
+        id: String, title: String, artist: String, artistSource: String?, artistSourceId: String?, year: String, kind: String
+    ) async throws {
+        struct Body: Encodable {
+            let title: String, artist: String, year: String, kind: String
+            let artistSource: String?, artistSourceId: String?
+            enum CodingKeys: String, CodingKey {
+                case title, artist, year, kind
+                case artistSource = "artist_source"
+                case artistSourceId = "artist_source_id"
+            }
+        }
+        let data = try encode(Body(title: title, artist: artist, year: year, kind: kind,
+                                   artistSource: artistSource, artistSourceId: artistSourceId))
+        try await sendNoContent(try request("/exclusives/\(id)", method: "PATCH", bodyData: data))
+    }
+
+    func setExclusiveCover(id: String, image: Data, mime: String) async throws {
+        var req = try request("/exclusives/\(id)/cover", method: "POST")
+        req.setValue(mime, forHTTPHeaderField: "Content-Type")
+        req.httpBody = image
+        try await sendNoContent(req)
     }
 }
