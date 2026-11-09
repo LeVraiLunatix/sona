@@ -27,6 +27,7 @@ struct FullPlayerView: View {
     @State private var shareTarget: ShareTarget?
     @State private var creditsTrack: Track?
     @State private var qualityTrack: Track?
+    @State private var diagnosticTrack: Track?
     @State private var editingExclusive: ExclusiveEditorRequest?
     @State private var momentRequest: MomentRequest?
     @State private var moments: [TrackMoment] = []
@@ -125,6 +126,7 @@ struct FullPlayerView: View {
         .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
         .sheet(item: $creditsTrack) { track in CreditsView(track: track) }
         .sheet(item: $qualityTrack) { track in ExclusiveQualitySheet(track: track) }
+        .sheet(item: $diagnosticTrack) { track in DiagnoseSheet(track: track) }
         .sheet(item: $editingExclusive) { request in ExclusiveEditorView(existing: request.existing) {} }
         .sheet(item: $momentRequest) { request in
             AddMomentSheet(track: request.track, position: request.position) {
@@ -255,6 +257,7 @@ struct FullPlayerView: View {
                 shareLink: { track in shareTarget = .track(track) },
                 showCredits: { track in creditsTrack = track },
                 showQuality: { track in qualityTrack = track },
+                showDiagnostic: { track in diagnosticTrack = track },
                 editExclusive: { track in editingExclusive = ExclusiveEditorRequest(existing: track) },
                 addMoment: { track in momentRequest = MomentRequest(track: track, position: player.positionSeconds) }
             )
@@ -879,6 +882,7 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
         var shareLink: (Track) -> Void
         var showCredits: (Track) -> Void
         var showQuality: (Track) -> Void
+        var showDiagnostic: (Track) -> Void
         var editExclusive: (Track) -> Void
         var addMoment: (Track) -> Void
     }
@@ -960,6 +964,9 @@ struct PlayerActionsMenu: UIViewRepresentable, Equatable {
                 exclusive.append(item("Modifier l'exclu", "pencil") { actions.editExclusive(track) })
             }
             main.append(UIMenu(title: "Exclu", image: UIImage(systemName: "sparkles"), children: exclusive))
+        }
+        if !track.isExclusive, AuthManager.shared.account?.isAdmin == true {
+            main.append(item("Diagnostic de lecture", "waveform.path.ecg") { actions.showDiagnostic(track) })
         }
         main.append(UIMenu(title: "Réagir et partager", image: UIImage(systemName: "square.and.arrow.up"), children: [
             item("Crédits du titre", "list.bullet.rectangle") { actions.showCredits(track) },

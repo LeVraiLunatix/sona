@@ -83,6 +83,9 @@ struct RootTabView: View {
         .sheet(isPresented: $showingSettings) {
             NavigationStack { SettingsView() }
                 .environmentObject(AuthManager.shared)
+                // Une feuille n'hérite pas de l'environnement du lecteur : sans
+                // ça, ouvrir une page qui l'utilise (Exclus, depuis les Réglages) faisait planter l'app.
+                .environmentObject(player)
         }
         // « Appareils » : un PC choisi, et hop, le lecteur le pilote.
         .sheet(isPresented: $showingDevices) {

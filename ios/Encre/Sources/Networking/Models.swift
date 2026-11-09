@@ -100,6 +100,63 @@ struct Track: Codable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Biographie, diagnostic de lecture, connexion d'appareil
+
+struct ArtistBio: Codable {
+    var text: String
+    var url: String?
+    var source: String?
+}
+
+/// Compte rendu du « Diagnostic de lecture » d'un titre (admin) : ce que YouTube et SoundCloud
+/// ont renvoyé et pourquoi chaque source a été retenue ou écartée.
+struct DiagnoseReport: Decodable {
+    struct Reference: Decodable {
+        var title: String?
+        var artist: String?
+        var album: String?
+        var durationSeconds: Int?
+        enum CodingKeys: String, CodingKey {
+            case title, artist, album
+            case durationSeconds = "duration_seconds"
+        }
+    }
+
+    struct Candidate: Decodable, Identifiable {
+        var title: String?
+        var artist: String?
+        var platform: String?
+        var durationSeconds: Int?
+        var outcome: String?
+        var score: Double?
+        var rejected: String?
+        var id: String { "\(platform ?? "")|\(title ?? "")|\(artist ?? "")|\(durationSeconds ?? 0)|\(score ?? 0)" }
+        enum CodingKeys: String, CodingKey {
+            case title, artist, platform, outcome, score, rejected
+            case durationSeconds = "duration_seconds"
+        }
+    }
+
+    var ready: Bool?
+    var message: String?
+    var result: String?
+    var track: Reference?
+    var excluded: Int?
+    var tried: [Candidate]?
+    var found: [Candidate]?
+}
+
+struct DeviceLinkInfo: Codable {
+    var userCode: String
+    var name: String
+    var expiresIn: Int?
+    enum CodingKeys: String, CodingKey {
+        case name
+        case userCode = "user_code"
+        case expiresIn = "expires_in"
+    }
+}
+
 // MARK: - Exclus
 
 struct ExclusiveListDTO: Codable {
@@ -278,6 +335,8 @@ struct Lyrics: Codable, Hashable {
     var source: String? = nil
     /// Code ISO 639-1, quand le serveur reconnaît la langue.
     var language: String? = nil
+    /// Synchro devinée (sources moins précises) : le dire sous les paroles.
+    var approximate: Bool? = nil
 
     /// Nom de la source à afficher sous les paroles.
     var sourceName: String? {

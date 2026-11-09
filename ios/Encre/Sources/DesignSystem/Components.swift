@@ -22,6 +22,7 @@ struct TrackRow: View {
     @State private var showsCredits = false
     @State private var sharing = false
     @State private var showsQuality = false
+    @State private var showsDiagnostic = false
     @State private var editor: ExclusiveEditorRequest?
     @State private var confirmsDelete = false
 
@@ -73,6 +74,7 @@ struct TrackRow: View {
         .sheet(isPresented: $showsCredits) { CreditsView(track: track) }
         .sheet(isPresented: $sharing) { SonaShareSheet(target: .track(track)) }
         .sheet(isPresented: $showsQuality) { ExclusiveQualitySheet(track: track) }
+        .sheet(isPresented: $showsDiagnostic) { DiagnoseSheet(track: track) }
         .sheet(item: $editor) { request in ExclusiveEditorView(existing: request.existing) {} }
         .confirmationDialog("Supprimer « \(track.title) » ? Le fichier sera aussi effacé de Discord.", isPresented: $confirmsDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
@@ -136,6 +138,9 @@ struct TrackRow: View {
                         Label("Supprimer l'exclu", systemImage: "trash")
                     }
                 }
+            }
+            if !track.isExclusive, AuthManager.shared.account?.isAdmin == true {
+                Button { showsDiagnostic = true } label: { Label("Diagnostic de lecture", systemImage: "waveform.path.ecg") }
             }
             Button { showsCredits = true } label: { Label("Crédits du titre", systemImage: "list.bullet.rectangle") }
             Button { sharing = true } label: { Label("Partager…", systemImage: "link") }

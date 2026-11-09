@@ -1,6 +1,13 @@
+import AVFoundation
 import NaturalLanguage
 import SwiftUI
 import Translation
+
+/// Retard de la sortie audio (Bluetooth surtout) : les paroles s'allument un peu plus tôt pour
+/// tomber au moment où on entend le mot, pas quand il est décodé.
+enum LyricsTiming {
+    static var latency: Double { min(0.4, max(0, AVAudioSession.sharedInstance().outputLatency)) }
+}
 
 /// Paroles du morceau en cours (LRCLIB côté serveur). Synchronisées : la
 /// ligne chantée en blanc plein, les autres estompées et floutées d'autant
@@ -59,6 +66,7 @@ struct LyricsView: View {
         case loading, loaded(Lyrics), unavailable(String)
     }
     @State private var state: LoadState = .loading
+    @State private var freeScroll = false
     // Traduction en français (sur l'iPhone, hors ligne une fois la langue
     // téléchargée) des paroles dans une autre langue.
     @State private var translations: [String: String] = [:]
@@ -118,7 +126,7 @@ struct LyricsView: View {
         let offset = options.offset
         // Légère avance : la ligne s'allume quand elle est chantée, pas un
         // demi-temps après (le lecteur ne publie sa position que 2 fois/s).
-        let position = player.positionSeconds + 0.35 + offset
+        let position = player.positionSeconds + 0.25 + LyricsTiming.latency + offset
         let active = lines.lastIndex(where: { ($0.time ?? 0) <= position })
         return ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
@@ -162,6 +170,8 @@ struct LyricsView: View {
                             .font(.system(size: 28, weight: .bold))
                             .blur(radius: blur)
                             .scaleEffect(isActive ? 1 : 0.97, anchor: .leading)
+                            // Changement de ligne « en vague » : chaque ligne suit la précédente avec un léger retard.
+                            .animation(Motion.smooth.delay(Double(min(abs(index - (active ?? index)), 6)) * 0.035), value: active)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -180,13 +190,38 @@ struct LyricsView: View {
             }
             .padding(.horizontal, -Self.sideInset)
             .mask { EdgeFade() }
+            // Mode libre : un doigt qui fait défiler les paroles les laisse tranquilles, sans les
+            // ramener de force à la ligne en cours ; une pastille propose d'y revenir.
+            .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
+                if !freeScroll { freeScroll = true }
+            })
+            .overlay(alignment: .bottom) {
+                if freeScroll, let active {
+                    Button {
+                        freeScroll = false
+                        withAnimation(Motion.smooth) { proxy.scrollTo(active, anchor: UnitPoint(x: 0.5, y: 0.35)) }
+                    } label: {
+                        Label("Revenir à la ligne en cours", systemImage: "arrow.down.to.line")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(Capsule().fill(Color.white.opacity(0.18)))
+                    }
+                    .buttonStyle(.pressable)
+                    .padding(.bottom, 18)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .animation(Motion.snappy, value: freeScroll)
             .onAppear {
                 if let active { proxy.scrollTo(active, anchor: UnitPoint(x: 0.5, y: 0.35)) }
             }
             .onChange(of: active) { _, newValue in
-                guard let newValue else { return }
+                guard let newValue, !freeScroll else { return }
                 withAnimation(Motion.smooth) { proxy.scrollTo(newValue, anchor: UnitPoint(x: 0.5, y: 0.35)) }
             }
+            .onChange(of: player.current?.id) { _, _ in freeScroll = false }
         }
     }
 
@@ -225,7 +260,7 @@ struct LyricsView: View {
     private func footer(_ lyrics: Lyrics) -> some View {
         Group {
             if let name = lyrics.sourceName {
-                Text(Self.sourceLine(name, sync: lyrics.sync))
+                Text(Self.sourceLine(lyrics, name: name))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.4))
             }
@@ -240,6 +275,10 @@ struct LyricsView: View {
         case "line": "Paroles : \(name) · ligne par ligne"
         default: "Paroles : \(name)"
         }
+    }
+
+    static func sourceLine(_ lyrics: Lyrics, name: String) -> String {
+        sourceLine(name, sync: lyrics.sync) + (lyrics.approximate == true ? " · synchro approximative" : "")
     }
 
     /// Tout se fait tout seul : le serveur recherche de nouveau les paroles
@@ -729,7 +768,7 @@ struct KaraokeLine: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: !player.isPlaying)) { _ in
-            let now = player.exactPositionSeconds + 0.1 + offset
+            let now = player.exactPositionSeconds + 0.05 + LyricsTiming.latency + offset
             // Un mot = une vue : il peut monter, grossir et s'illuminer seul.
             WordFlowLayout {
                 ForEach(Array(words.enumerated()), id: \.offset) { _, word in
