@@ -741,6 +741,44 @@ function goBack() {
   go(stack.length > 1 ? stack[stack.length - 2] : `#/${nav.tab}`);
 }
 
+// ── Teinte de la page jusqu'à la barre de défilement ─────────────────────
+// La teinte de la pochette (.hero-glow) vit dans la page, qui s'arrête avant la
+// barre de défilement : une bande unie restait à droite. Sur grand écran, la
+// teinte est donc peinte sous tout le panneau (barre comprise) et suit le défilement.
+const cg = { el: null, img: null, seen: "" };
+
+function placeContentGlow() {
+  const c = $("#content");
+  if (!cg.el || !c) return;
+  const r = c.getBoundingClientRect();
+  Object.assign(cg.el.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: getComputedStyle(c).borderTopLeftRadius });
+}
+
+function syncContentGlow(content) {
+  const app = $(".app");
+  if (!app || isMobile()) { app?.classList.remove("has-cg"); return; }
+  if (!cg.el || !cg.el.isConnected) {
+    cg.el = document.createElement("div");
+    cg.el.className = "content-glow";
+    cg.el.setAttribute("aria-hidden", "true");
+    cg.el.innerHTML = `<div class="cg-layer"><img alt=""></div>`;
+    cg.img = $("img", cg.el);
+    app.prepend(cg.el);
+    new ResizeObserver(placeContentGlow).observe(content);
+    window.addEventListener("resize", placeContentGlow);
+    content.addEventListener("scroll", () => cg.el.style.setProperty("--sy", `${content.scrollTop}px`), { passive: true });
+  }
+  app.classList.add("has-cg");
+  const src = $(".hero-glow img", content)?.getAttribute("src") || "";
+  if (src !== cg.seen) {
+    cg.seen = src;
+    cg.el.classList.remove("on");
+    if (src) { cg.img.src = src; void cg.el.offsetWidth; cg.el.classList.add("on"); }
+  }
+  cg.el.style.setProperty("--sy", `${content.scrollTop}px`);
+  placeContentGlow();
+}
+
 async function route() {
   const hash = location.hash || "#/home";
   const parts = (hash.replace(/^#\//, "") || "home").split("/").map(decodeURIComponent);
@@ -793,6 +831,7 @@ async function route() {
     else if (pageEl && opened && !isMobile()) pageEl.classList.add(direction === "back" ? "enter-back" : "enter");
     bindPage(content);
     if (direction === "back" && nav.scroll[hash]) content.scrollTop = nav.scroll[hash];
+    syncContentGlow(content);
   } catch (e) {
     if (token_ !== route.seq) return;
     content.innerHTML = page(`<div class="empty"><div class="big">⚠︎</div><h3>Impossible d'afficher cette page</h3><p>${esc(e.message)}</p></div>`);
