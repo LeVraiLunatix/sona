@@ -261,6 +261,8 @@ struct RootTabView: View {
                             FriendProfileView(accountId: accountId, path: path)
                         case .smart(let id, let title):
                             SmartPlaylistView(id: id, title: title)
+                        case .exclusives:
+                            ExclusivesView(path: path)
                         }
                     }
                     .zoomDestination(route)

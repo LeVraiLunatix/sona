@@ -1936,6 +1936,14 @@ final class PlayerManager: ObservableObject {
         updateNowPlayingElapsedTime()
     }
 
+    /// Relance le titre en cours à la même seconde (changement de version d'un exclu, par exemple).
+    func restartCurrent() {
+        guard let track = current else { return }
+        let position = exactPositionSeconds
+        pendingSeekSeconds = position > 3 ? position : nil
+        start(track, context: context)
+    }
+
     func seek(toFraction fraction: Double) {
         if remoteSeek != nil {
             let duration = durationSeconds > 0 ? durationSeconds : (referenceDuration() ?? 0)

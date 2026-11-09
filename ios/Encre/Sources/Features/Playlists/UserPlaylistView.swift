@@ -149,7 +149,7 @@ struct UserPlaylistView: View {
                     isCurrent: player.current?.id == entry.track.id,
                     isPlaying: player.isPlaying,
                     onOpenArtist: entry.track.artistSourceId.map { id in
-                        { path.append(Route.artist(source: entry.track.source, id: id)) }
+                        { path.append(Route.artist(source: entry.track.artistRouteSource, id: id)) }
                     },
                     onOpenAlbum: entry.track.albumSourceId.map { id in
                         { path.append(Route.album(source: entry.track.source, id: id)) }
