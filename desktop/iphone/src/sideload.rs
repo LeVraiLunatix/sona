@@ -228,6 +228,8 @@ pub fn humanize(chain: &str) -> String {
         "Mot de passe Apple incorrect. Vérifie-le et réessaie."
     } else if has(&["additional authentication", "2fa", "two-factor", "trusted device", "sms"]) {
         "La vérification en deux étapes d’Apple n’a pas abouti. Réessaie et saisis le nouveau code."
+    } else if has(&["not provisioned", "-45061", "reprovision"]) {
+        "Le serveur de connexion Apple ne reconnaît plus ce PC. Réessaie : Sona le redéclare tout seul (sinon, Réinitialiser l’appareil Apple)."
     } else if has(&["anisette"]) {
         "Impossible de préparer la connexion à Apple. Vérifie ta connexion Internet, puis réessaie."
     } else if has(&["pairing file", "pair record", "invalidhostid", "passwordprotected", "not paired", "pairingdialog"]) {
@@ -374,7 +376,20 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
             duration_fr(left)
         ));
     }
-    let result = login_attempt(email.clone(), password).await;
+    // Les serveurs d'anisette sont publics et tombent de temps en temps (522, « not provisioned
+    // for this server (-45061) »…). Si celui par défaut échoue pour une raison d'anisette, on
+    // oublie l'identité gardée dans le coffre et on essaie le suivant, sans que l'utilisateur
+    // ait à intervenir. Les autres erreurs (mot de passe, 2FA, 429…) ne changent rien.
+    let mut result = Err(String::new());
+    for (i, server) in ANISETTE_SERVERS.iter().enumerate() {
+        result = login_attempt(email.clone(), password.clone(), server).await;
+        let Err(message) = &result else { break };
+        if !is_anisette_failure(message) || i + 1 == ANISETTE_SERVERS.len() {
+            break;
+        }
+        log_error(&format!("Anisette : {server} a échoué, identité oubliée, essai du serveur suivant"));
+        forget_anisette_identity();
+    }
     if result.is_ok() {
         emit("signed-in", json!({ "email": email }));
     }
@@ -389,6 +404,27 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
         }
     }
     result
+}
+
+/// Serveurs d'anisette (protocole v3) essayés dans l'ordre : ceux de SideStore et de la communauté.
+const ANISETTE_SERVERS: [&str; 4] = [
+    "https://ani.stikstore.app",
+    "https://ani.sidestore.io",
+    "https://ani.sidestore.zip",
+    "https://ani.846969.xyz",
+];
+
+fn is_anisette_failure(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    ["anisette", "not provisioned", "-45061", "reprovision"].iter().any(|n| lower.contains(n))
+}
+
+/// Oublie l'identité anisette gardée par isideload dans le coffre Windows (au mieux).
+fn forget_anisette_identity() {
+    match keyring::Entry::new("isideload", "anisette_state").and_then(|e| e.delete_credential()) {
+        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(e) => log_error(&format!("coffre : {e}")),
+    }
 }
 
 fn duration_fr(seconds: u64) -> String {
@@ -415,10 +451,14 @@ fn set_apple_cooldown(email: &str, seconds: u64) {
     log_error(&format!("Apple 429 : pause jusqu'à {until} ({seconds} s) → {written:?}"));
 }
 
-async fn login_attempt(email: String, password: String) -> Result<AppleAccount, String> {
+async fn login_attempt(email: String, password: String, anisette_server: &'static str) -> Result<AppleAccount, String> {
     on_own_thread(move || async move {
         let for_callback = email.clone();
+        let provider = isideload::anisette::remote_v3::RemoteV3AnisetteProvider::default()
+            .map_err(short_error)?
+            .set_url(anisette_server);
         isideload::auth::builder::AppleAccountBuilder::new(&email)
+            .anisette_provider(provider)
             .login(&password, move |params: TwoFactorCallbackParams| {
                 let email = for_callback.clone();
                 async move {
