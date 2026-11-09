@@ -106,6 +106,13 @@ def test_track_details_route_knows_exclusives(client):
     assert client.get("/tracks/exclusive/nope", headers=AUTH).status_code == 404
 
 
+def test_credits_of_an_exclusive_do_not_fail(client):
+    track = _add(client).json()
+    got = client.get(f"/tracks/exclusive/{track['source_id']}/credits", headers=AUTH)
+    assert got.status_code == 200
+    assert got.json()["artists"][0]["name"] == "Un Artiste" and got.json()["release_date"] == "2019"
+
+
 def test_cover_falls_back_to_a_neutral_svg(client):
     track = _add(client).json()
     cover = client.get(f"/exclusives/cover/{track['source_id']}")

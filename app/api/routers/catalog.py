@@ -47,6 +47,15 @@ async def get_track_credits(
     """Crédits d'un titre (artistes, label, compositeurs…). Contrairement à
     `/tracks/...`, ne touche pas à l'historique : l'app l'appelle à chaque
     changement de titre."""
+    if source == "exclusive":
+        row = await deps.repo.exclusive_get(source_id)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Exclu inconnu.")
+        return {
+            "artists": [{"name": row["artist"], "source_id": row["artist_source_id"], "role": "main"}],
+            "credits": [], "album": None, "label": None, "release_date": row["year"], "genres": [],
+            "isrc": None, "disc_number": None, "track_number": None, "duration_seconds": row["duration_seconds"],
+        }
     return await _handle(credits.build(deps, source, source_id, details))
 
 
