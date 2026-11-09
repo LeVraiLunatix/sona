@@ -350,18 +350,21 @@ async def local_file(deps: ApiDeps, source: str, source_id: str, quality: str) -
     return (path, local_library.media_type(row), row) if path else None
 
 
-async def exclusive_file(deps: ApiDeps, source_id: str) -> tuple[Path, str]:
-    """Fichier d'un exclu, rassemblé depuis Discord à la première lecture."""
+async def exclusive_file(deps: ApiDeps, source_id: str, quality: str = "best", version: str | None = None) -> tuple[Path, str]:
+    """Fichier d'un exclu, rassemblé depuis Discord à la première lecture. La version
+    est celle demandée, sinon choisie selon la qualité des réglages (lossless, meilleure, standard)."""
     row = await deps.repo.exclusive_get(source_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Exclu inconnu.")
     if deps.exclusive_storage is None or not deps.exclusive_storage.enabled:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Stockage des exclus non configuré.")
     try:
-        path = await exclusives.materialize(deps.exclusive_storage, deps.settings.exclusives_cache_dir, row)
+        chosen = exclusives.pick_version(
+            exclusives.versions_of(row, (await deps.repo.exclusive_versions(source_id)).get(source_id)), quality, version)
+        path = await exclusives.materialize(deps.exclusive_storage, deps.settings.exclusives_cache_dir, row, chosen)
     except exclusives.StorageError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Stockage Discord : {exc}") from exc
-    return path, row["mime"]
+    return path, chosen["mime"]
 
 
 def _check_params(quality: str, fmt: str) -> None:
@@ -457,6 +460,7 @@ async def prepare(
     source_id: str,
     quality: str = Query("best"),
     format: str = Query("auto"),
+    version: str | None = Query(None, description="Exclus : version précise à lire"),
     deps: ApiDeps = Depends(require_token),
 ) -> dict:
     """Télécharge et vérifie le morceau sans l'envoyer. L'app l'appelle avant
@@ -466,7 +470,7 @@ async def prepare(
     l'enchaînement est alors instantané."""
     _check_params(quality, format)
     if source == exclusives.SOURCE:
-        await exclusive_file(deps, source_id)
+        await exclusive_file(deps, source_id, quality, version)
         return {"ready": True}
     local = await local_file(deps, source, source_id, quality)
     if local is not None:
@@ -569,11 +573,12 @@ async def stream(
     quality: str = Query("best"),
     format: str = Query("auto"),
     live: bool = Query(True, description="Relayer le flux YouTube tant que le fichier n'est pas prêt"),
+    version: str | None = Query(None, description="Exclus : version précise à lire"),
     deps: ApiDeps = Depends(require_token),
 ):
     _check_params(quality, format)
     if source == exclusives.SOURCE:
-        path, content_type = await exclusive_file(deps, source_id)
+        path, content_type = await exclusive_file(deps, source_id, quality, version)
         return FileResponse(path, media_type=content_type, filename=path.name)
     local = await local_file(deps, source, source_id, quality)
     if local is not None:

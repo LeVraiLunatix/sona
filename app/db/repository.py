@@ -1627,7 +1627,8 @@ class Repository:
 
     async def exclusive_add(self, row: dict) -> None:
         cols = ("id", "title", "artist", "artist_source", "artist_source_id", "year", "kind", "duration_seconds",
-                "mime", "filename", "size", "chunks", "cover_chunks", "cover_mime")
+                "mime", "filename", "size", "chunks", "codec", "lossless", "bitrate", "sample_rate", "bit_depth",
+                "cover_chunks", "cover_mime")
         await self._db.conn.execute(
             f"INSERT INTO exclusives ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
             tuple(row.get(c) for c in cols),
@@ -1665,5 +1666,32 @@ class Repository:
         await self._db.conn.commit()
 
     async def exclusive_delete(self, exclusive_id: str) -> None:
+        await self._db.conn.execute("DELETE FROM exclusive_versions WHERE exclusive_id=?", (exclusive_id,))
         await self._db.conn.execute("DELETE FROM exclusives WHERE id=?", (exclusive_id,))
+        await self._db.conn.commit()
+
+    async def exclusive_versions(self, exclusive_id: str | None = None) -> dict[str, list[dict]]:
+        """Versions supplémentaires, rangées par exclu (toutes, ou celles d'un seul)."""
+        if exclusive_id:
+            cursor = await self._db.conn.execute(
+                "SELECT * FROM exclusive_versions WHERE exclusive_id=? ORDER BY created_at", (exclusive_id,))
+        else:
+            cursor = await self._db.conn.execute("SELECT * FROM exclusive_versions ORDER BY created_at")
+        grouped: dict[str, list[dict]] = {}
+        for r in await cursor.fetchall():
+            grouped.setdefault(r["exclusive_id"], []).append(dict(r))
+        return grouped
+
+    async def exclusive_version_add(self, row: dict) -> None:
+        cols = ("id", "exclusive_id", "codec", "lossless", "bitrate", "sample_rate", "bit_depth", "mime", "filename",
+                "size", "chunks")
+        await self._db.conn.execute(
+            f"INSERT INTO exclusive_versions ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+            tuple(row.get(c) for c in cols),
+        )
+        await self._db.conn.commit()
+
+    async def exclusive_version_delete(self, exclusive_id: str, version_id: str) -> None:
+        await self._db.conn.execute(
+            "DELETE FROM exclusive_versions WHERE id=? AND exclusive_id=?", (version_id, exclusive_id))
         await self._db.conn.commit()

@@ -158,3 +158,80 @@ def test_bad_inputs_are_refused(client):
 
 def test_only_admins_can_add(client):
     assert client.post("/exclusives", params={"title": "x", "artist": "y", "filename": "a.mp3"}, content=AUDIO).status_code in (401, 403)
+
+
+FLAC = b"fLaC" + bytes(range(200)) * 30
+
+
+@pytest.fixture
+def card_by_suffix(monkeypatch):
+    """Les faux fichiers n'ont pas de vrais tags : la « fiche » dépend de l'extension."""
+    from app.services import exclusives
+
+    def read_file(root, path):
+        if path.suffix == ".flac":
+            return {"codec": "FLAC", "lossless": 1, "bitrate": None, "sample_rate": 96000, "bit_depth": 24}
+        return {"codec": "MP3", "lossless": 0, "bitrate": 320000, "sample_rate": 44100, "bit_depth": None}
+
+    monkeypatch.setattr(exclusives.local_library, "read_file", read_file)
+
+
+def _add_flac(client, exclusive_id):
+    return client.post(f"/exclusives/{exclusive_id}/versions", params={"filename": "master.flac"}, content=FLAC,
+                       headers={**AUTH, "Content-Type": "audio/flac"})
+
+
+def test_quality_is_read_from_the_file(client, card_by_suffix):
+    track = _add(client).json()
+    assert track["quality"] == "MP3 320 kbps" and track["lossless"] is False and track["versions"] == 1
+
+
+def test_extra_lossless_version_is_picked_by_the_quality_setting(client, card_by_suffix):
+    track = _add(client).json()
+    sid = track["source_id"]
+    added = _add_flac(client, sid)
+    assert added.status_code == 201, added.text
+    assert added.json()["quality"] == "FLAC 24 bits / 96 kHz" and added.json()["lossless"] is True and added.json()["versions"] == 2
+
+    def get(**params):
+        return client.get(f"/stream/exclusive/{sid}", params=params, headers=AUTH).content
+
+    assert get() == FLAC  # meilleure disponible
+    assert get(quality="lossless") == FLAC
+    assert get(quality="standard") == AUDIO  # la plus légère
+    versions = client.get(f"/exclusives/{sid}/versions", headers=AUTH).json()["versions"]
+    assert [v["label"] for v in versions] == ["MP3 320 kbps", "FLAC 24 bits / 96 kHz"]
+    assert get(version="main") == AUDIO
+    assert get(version=versions[1]["id"]) == FLAC
+
+
+def test_lossless_setting_falls_back_to_the_only_version(client, card_by_suffix):
+    sid = _add(client).json()["source_id"]
+    assert client.get(f"/stream/exclusive/{sid}", params={"quality": "lossless"}, headers=AUTH).content == AUDIO
+
+
+def test_remove_a_version_and_the_original_stays(client, card_by_suffix):
+    sid = _add(client).json()["source_id"]
+    _add_flac(client, sid)
+    storage = client.app.state.deps.exclusive_storage
+    count = len(storage.files)
+    vid = client.get(f"/exclusives/{sid}/versions", headers=AUTH).json()["versions"][1]["id"]
+    done = client.delete(f"/exclusives/{sid}/versions/{vid}", headers=AUTH)
+    assert done.status_code == 200 and done.json()["versions"] == 1
+    assert len(storage.files) == count - 1
+    assert client.delete(f"/exclusives/{sid}/versions/main", headers=AUTH).status_code == 404
+    assert client.get(f"/stream/exclusive/{sid}", headers=AUTH).content == AUDIO
+
+
+def test_deleting_an_exclusive_removes_every_version_from_discord(client, card_by_suffix):
+    sid = _add(client).json()["source_id"]
+    _add_flac(client, sid)
+    assert client.delete(f"/exclusives/{sid}", headers=AUTH).status_code == 204
+    assert not client.app.state.deps.exclusive_storage.files
+
+
+def test_bad_version_files_are_refused(client):
+    sid = _add(client).json()["source_id"]
+    bad = client.post(f"/exclusives/{sid}/versions", params={"filename": "n.txt"}, content=b"x",
+                      headers={**AUTH, "Content-Type": "text/plain"})
+    assert bad.status_code == 415
