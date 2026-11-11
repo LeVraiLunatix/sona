@@ -2856,15 +2856,25 @@ function closeNowPlaying() {
 const livingBg = (() => {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   const bins = new Uint8Array(256);
-  let gl = null, canvas = null, loc = {}, texA = null, texB = null;
+  let gl = null, canvas = null, texA = null, texB = null;
   let raf = 0, lastFrame = 0, fadeStart = 0, key = "", energy = 0;
+  let hasColors = false, kickUntil = 0;
   const born = performance.now();
 
   const VERT = "attribute vec2 p; varying vec2 uv; void main() { uv = p * .5 + .5; gl_Position = vec4(p, 0., 1.); }";
-  const FRAG = `precision mediump float;
+  // Tout ce que partagent les fonds : la palette de la pochette (grille 4 × 4 de
+  // couleurs, deux textures en fondu d'un titre à l'autre), le temps, l'énergie des
+  // basses, la taille de l'image, et quelques fonctions de bruit.
+  const PRELUDE = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
     varying vec2 uv;
     uniform sampler2D a, b;
     uniform float t, energy, mixv;
+    uniform vec2 res;
     // Grille 4 × 4 lissée : interpolation douce entre cases (le filtrage
     // linéaire de la texture fait le reste).
     vec3 grid(sampler2D s, vec2 p) {
@@ -2874,17 +2884,163 @@ const livingBg = (() => {
       f = f * f * (3. - 2. * f);
       return texture2D(s, (i + f + .5) / 4.).rgb;
     }
-    void main() {
-      vec2 p = uv;
-      float k = .07 + .05 * energy;
-      p += k * vec2(sin(p.y * 3.1 + t * .23) + .5 * sin(p.x * 5.3 - t * .17),
-                    cos(p.x * 2.7 - t * .19) + .5 * cos(p.y * 4.1 + t * .29));
-      p.y = 1. - p.y;
-      vec3 c = mix(grid(b, p), grid(a, p), mixv) * (.94 + .16 * energy);
-      // Un grain imperceptible : pas de bandes dans les dégradés sombres.
+    // Couleur de la pochette à un endroit de la grille (en haut : y = 0).
+    vec3 pal(vec2 p) { return mix(grid(b, p), grid(a, p), mixv); }
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3. - 2. * f);
+      return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y);
+    }
+    float fbm(vec2 p) {
+      float v = 0., amp = .5;
+      for (int i = 0; i < 4; i++) { v += amp * noise(p); p = p * 2.03 + 11.7; amp *= .5; }
+      return v;
+    }
+    // Vignette douce et grain imperceptible (pas de bandes dans les dégradés sombres).
+    vec4 finish(vec3 c) {
+      float v = smoothstep(1.25, .35, length((uv - .5) * vec2(1.1, 1.)));
+      c *= .55 + .45 * v;
       float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-      gl_FragColor = vec4(c + (n - .5) / 128., 1.);
+      return vec4(c + (n - .5) / 128., 1.);
     }`;
+
+  // Les fonds au choix (menu « Style immersif »). `div` : on dessine à 1/div de la
+  // résolution de l'écran — les fonds flous n'ont pas besoin de plus, les étoiles si.
+  const SHADERS = {
+    // Maillage : le dégradé aux couleurs de la pochette, qui ondule (le fond historique).
+    mesh: { div: 3, src: `
+      void main() {
+        vec2 p = uv;
+        float k = .07 + .05 * energy;
+        p += k * vec2(sin(p.y * 3.1 + t * .23) + .5 * sin(p.x * 5.3 - t * .17),
+                      cos(p.x * 2.7 - t * .19) + .5 * cos(p.y * 4.1 + t * .29));
+        p.y = 1. - p.y;
+        gl_FragColor = finish(pal(p) * (.94 + .16 * energy));
+      }` },
+    // Aurore : des rideaux de lumière qui ondulent, striés à la verticale, qui s'embrasent sur les basses.
+    aurora: { div: 2, src: `
+      void main() {
+        vec2 p = uv;
+        float asp = res.x / res.y;
+        vec3 c = pal(vec2(.5, .95)) * (.30 - .18 * p.y);
+        for (int i = 0; i < 4; i++) {
+          float fi = float(i);
+          float x = p.x * asp;
+          float wave = sin(x * (1.5 + fi * .7) + t * (.17 + fi * .05) + fi * 2.1) * .10
+                     + sin(x * (3.3 + fi) - t * .11) * .04;
+          float d = p.y - (.64 - fi * .11 + wave + energy * .04);
+          float curtain = exp(-d * d * (38. + fi * 16.));
+          float rays = .6 + .4 * noise(vec2(x * 16. + fi * 7., t * .14));
+          vec3 col = pal(vec2(fract(.12 + fi * .24 + t * .004), .22 + fi * .12));
+          c += col * curtain * rays * (.6 + .6 * energy);
+        }
+        gl_FragColor = finish(c);
+      }` },
+    // Liquide : un bruit déformé sur lui-même, comme de l'encre dans l'eau.
+    liquid: { div: 3, src: `
+      void main() {
+        float asp = res.x / res.y;
+        vec2 q = vec2(uv.x * asp, uv.y) * 1.5;
+        float tt = t * .055 + energy * .15;
+        vec2 w = vec2(fbm(q + tt), fbm(q + vec2(5.2, 1.3) - tt));
+        vec2 r = vec2(fbm(q + 3. * w + vec2(1.7, 9.2) + tt * 1.5), fbm(q + 3. * w + vec2(8.3, 2.8) - tt * 1.2));
+        float f = fbm(q + 3. * r);
+        vec3 c = pal(vec2(f * 1.15, clamp(length(w) * .9, 0., 1.)));
+        c = mix(c, pal(vec2(.8, f)), smoothstep(.4, .9, length(r)) * .5);
+        c *= .30 + 1.25 * f * f + .22 * energy;
+        gl_FragColor = finish(pow(c, vec3(.88)) * 1.2);
+      }` },
+    // Orbes : de grosses gouttes de lumière fusionnent en dérivant ; elles gonflent sur les basses.
+    orbs: { div: 2, src: `
+      void main() {
+        float asp = res.x / res.y;
+        vec2 q = (uv - .5) * vec2(asp, 1.);
+        float field = 0.;
+        vec3 acc = vec3(0.);
+        for (int i = 0; i < 6; i++) {
+          float fi = float(i);
+          vec2 c0 = vec2(sin(t * (.13 + fi * .04) + fi * 1.7) * .52 * asp, cos(t * (.11 + fi * .05) + fi * 2.3) * .36);
+          float rad = .12 + .04 * sin(t * .3 + fi) + .07 * energy;
+          float d = length(q - c0);
+          float f = rad * rad / (d * d + .002);
+          field += f;
+          acc += f * pal(vec2(fi / 6. + .06, .25 + .5 * fract(fi * .37)));
+        }
+        vec3 blob = acc / max(field, .001) * 1.7;
+        float m = smoothstep(.5, 1.3, field);
+        vec3 bg = pal(vec2(.5, .95)) * .22;
+        vec3 c = mix(bg, blob, m) + acc * .07;
+        gl_FragColor = finish(c);
+      }` },
+    // Ondes : des cercles qui partent du centre, un battement à chaque basse, et une seconde source qui se promène.
+    ripples: { div: 2, src: `
+      void main() {
+        float asp = res.x / res.y;
+        vec2 q = (uv - .5) * vec2(asp, 1.);
+        float d = length(q);
+        vec2 s2 = vec2(.42 * sin(t * .2) * asp, .22 * cos(t * .17));
+        float d2 = length(q - s2);
+        float h = sin(d * 22. - t * 1.6 - energy * 5.) * exp(-d * 2.4)
+                + .8 * sin(d2 * 30. - t * 1.1) * .5 * exp(-d2 * 3.);
+        vec3 base = pal(vec2(uv.x, 1. - uv.y) + .04 * h);
+        vec3 c = base * 1.25 * (.45 + .9 * h * (.6 + energy)) + pal(vec2(.7, .3)) * pow(max(h, 0.), 2.) * 1.1;
+        gl_FragColor = finish(c);
+      }` },
+    // Étoiles : trois plans de poussière d'étoiles qui défilent et scintillent, plus vite sur les basses.
+    stars: { div: 1, src: `
+      void main() {
+        float asp = res.x / res.y;
+        vec2 p = vec2(uv.x * asp, uv.y);
+        vec3 c = pal(vec2(.5, .9 - .5 * uv.y)) * .32;
+        for (int l = 0; l < 3; l++) {
+          float fl = float(l);
+          float s = 16. + fl * 13.;
+          vec2 g = p * s + vec2(t * (.35 + .22 * fl) * (1. + energy * 1.5), fl * 7.3);
+          vec2 cell = floor(g);
+          vec2 f = fract(g) - .5;
+          float h = hash(cell + fl * 17.);
+          vec2 off = (vec2(hash(cell + 3.1), hash(cell + 7.7)) - .5) * .7;
+          float dd = length(f - off);
+          float tw = .55 + .45 * sin(t * (1. + h * 3.) + h * 40.);
+          float star = smoothstep(.10 + .04 * fl, .0, dd) * step(.62, h) * tw;
+          c += star * mix(vec3(1.), pal(vec2(h, .4 + h * .3)), .6) * (1.1 + energy);
+        }
+        gl_FragColor = finish(c);
+      }` },
+  };
+  const programs = {};
+  let current = "";
+  const npShaderKey = () => (typeof npShader === "function" ? npShader() : "mesh");
+
+  function compile(key) {
+    const shader = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    const prog = gl.createProgram();
+    gl.bindAttribLocation(prog, 0, "p");
+    gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, PRELUDE + SHADERS[key].src));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+    const loc = {};
+    for (const name of ["a", "b", "t", "energy", "mixv", "res"]) loc[name] = gl.getUniformLocation(prog, name);
+    return { prog, loc };
+  }
+
+  /** Active le fond choisi (compilé au premier usage). Un fond que la carte graphique refuse retombe sur le maillage. */
+  function useShader(key) {
+    if (!SHADERS[key]) key = "mesh";
+    if (!programs[key]) programs[key] = compile(key) || { failed: true };
+    if (programs[key].failed) {
+      if (key === "mesh") return false;
+      return useShader("mesh");
+    }
+    const entry = programs[key];
+    gl.useProgram(entry.prog);
+    gl.uniform1i(entry.loc.a, 0);
+    gl.uniform1i(entry.loc.b, 1);
+    current = key;
+    return true;
+  }
 
   function init() {
     canvas = document.createElement("canvas");
@@ -2892,21 +3048,11 @@ const livingBg = (() => {
     canvas.setAttribute("aria-hidden", "true");
     gl = canvas.getContext("webgl", { alpha: false, antialias: false, depth: false, powerPreference: "low-power" });
     if (!gl) return false;
-    const shader = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
-    const prog = gl.createProgram();
-    gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT));
-    gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FRAG));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { gl = null; return false; }
-    gl.useProgram(prog);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    const p = gl.getAttribLocation(prog, "p");
-    gl.enableVertexAttribArray(p);
-    gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 0, 0);
-    for (const name of ["a", "b", "t", "energy", "mixv"]) loc[name] = gl.getUniformLocation(prog, name);
-    gl.uniform1i(loc.a, 0);
-    gl.uniform1i(loc.b, 1);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    if (!useShader(npShaderKey())) { gl = null; return false; }
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     const texture = () => {
       const tex = gl.createTexture();
@@ -2916,7 +3062,11 @@ const livingBg = (() => {
     };
     texA = texture();
     texB = texture();
-    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); stop(); canvas.remove(); gl = null; canvas = null; key = ""; });
+    canvas.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault(); stop(); canvas.remove(); gl = null; canvas = null; key = ""; hasColors = false;
+      for (const k of Object.keys(programs)) delete programs[k];
+      current = "";
+    });
     return true;
   }
 
@@ -3000,14 +3150,17 @@ const livingBg = (() => {
   }
 
   function draw(now) {
-    const w = Math.max(64, Math.ceil(canvas.clientWidth / 3));
-    const h = Math.max(64, Math.ceil(canvas.clientHeight / 3));
+    const div = SHADERS[current]?.div || 3;
+    const w = Math.max(64, Math.ceil(canvas.clientWidth / div));
+    const h = Math.max(64, Math.ceil(canvas.clientHeight / div));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); }
     const still = reduce.matches;
     if (!still) measure();
+    const { loc } = programs[current];
     gl.uniform1f(loc.t, still ? 0 : (now - born) / 1000);
     gl.uniform1f(loc.energy, still ? 0 : energy);
     gl.uniform1f(loc.mixv, still ? 1 : Math.min(1, (now - fadeStart) / 1200));
+    gl.uniform2f(loc.res, w, h);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texA);
     gl.activeTexture(gl.TEXTURE1);
@@ -3016,7 +3169,7 @@ const livingBg = (() => {
   }
 
   const running = () => gl && canvas?.isConnected && state.npOpen && !document.hidden && !reduce.matches
-    && (!audio.paused || performance.now() - fadeStart < 1300);
+    && (!audio.paused || performance.now() - fadeStart < 1300 || performance.now() < kickUntil);
   function frame(now) {
     raf = 0;
     if (!running()) return;
@@ -3038,20 +3191,30 @@ const livingBg = (() => {
     if (!bg || !t || !state.npOpen) return stop();
     if (!gl && !init()) return;
     if (canvas.parentNode !== bg) bg.append(canvas);
+    // Le fond choisi dans le menu « Style immersif » ; « none » : la pochette floue seule.
+    const want = npShaderKey();
+    $("#np").dataset.shader = want;
+    if (want === "none") { canvas.classList.remove("on"); stop(); return; }
+    if (want !== current) {
+      if (!useShader(want)) return;
+      kickUntil = performance.now() + 1500;
+    }
+    if (hasColors) canvas.classList.add("on");
     const url = t.cover_url ? big(t.cover_url, 300) : "";
     if (url !== key) {
       key = url;
-      if (!url) { canvas.classList.remove("on"); return; }
+      if (!url) { hasColors = false; canvas.classList.remove("on"); return; }
       extract(url).then((colors) => {
         if (key !== url || !gl) return;
         setTint(colors);
-        if (!colors) { canvas.classList.remove("on"); return; }
+        if (!colors) { hasColors = false; canvas.classList.remove("on"); return; }
         const first = !canvas.classList.contains("on");
         [texA, texB] = [texB, texA];
         upload(texA, colors);
         if (first) upload(texB, colors);
         fadeStart = performance.now();
-        canvas.classList.add("on");
+        hasColors = true;
+        if (npShaderKey() !== "none") canvas.classList.add("on");
         kick();
       });
     }
@@ -3068,13 +3231,28 @@ const livingBg = (() => {
 // styles verrouillés et renvoie vers le téléchargement de l'app.
 const NP_STYLES = [
   ["classic", "Classique", "Pochette à gauche, paroles ou file à droite."],
-  ["sonoma", "Sonoma", "Pochette plein cadre à gauche, commandes en verre, file ou paroles à droite."],
-  ["solarium", "Solarium", "Une pochette ronde qui tourne dans son halo de lumière, paroles à droite."],
-  ["spectrum", "Spectrum Deck", "La pochette et le spectre du son qui danse en bas de l'écran."],
-  ["centered", "Paroles centrées", "Les paroles en grand au centre, les commandes en bas."],
+  ["sonoma", "Sonoma", "Pochette plein cadre à gauche, commandes en verre."],
+  ["solarium", "Solarium", "Une pochette ronde qui tourne dans son halo de lumière."],
+  ["vinyl", "Vinyle", "Un disque noir qui tourne, la pochette en étiquette."],
+  ["spectrum", "Spectrum Deck", "Le spectre du son qui danse en bas de l'écran."],
+  ["centered", "Paroles centrées", "Les paroles en grand au centre, commandes en bas."],
   ["un", "Un", "Une seule ligne à la fois, immense, au milieu de l'écran."],
-  ["oneclassic", "One Classic", "Pochette en vignette, paroles pleine largeur façon Apple Music."],
-  ["minimal", "Minimaliste", "La pochette, le titre et la barre de lecture. Rien d'autre."],
+  ["oneclassic", "One Classic", "Pochette en vignette, paroles pleine largeur."],
+  ["cinema", "Cinéma", "Pochette panoramique, titre géant en bas à gauche."],
+  ["poster", "Affiche", "Le titre en lettres géantes derrière la pochette."],
+  ["flow", "Cover Flow", "Les pochettes de ta file en 3D, celle qui joue au centre."],
+  ["ambient", "Ambiance", "Une grande horloge et ton fond animé. Écran de veille."],
+  ["minimal", "Minimaliste", "La pochette, le titre et la barre de lecture."],
+];
+// Fonds animés (shaders WebGL, voir livingBg) : tous aux couleurs de la pochette.
+const NP_SHADERS = [
+  ["mesh", "Maillage", "Le dégradé de la pochette qui ondule."],
+  ["aurora", "Aurore", "Des rideaux de lumière qui ondulent."],
+  ["liquid", "Liquide", "De l'encre qui se mélange, sans fin."],
+  ["orbs", "Orbes", "Des gouttes de lumière qui fusionnent."],
+  ["ripples", "Ondes", "Des cercles qui battent avec les basses."],
+  ["stars", "Étoiles", "De la poussière d'étoiles qui défile."],
+  ["none", "Aucun", "La pochette floue, sans animation."],
 ];
 const WINDOWS_PAGE = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
 const npStyle = () => {
@@ -3082,27 +3260,68 @@ const npStyle = () => {
   const saved = store.get("sona.npStyle");
   return NP_STYLES.some(([k]) => k === saved) ? saved : "classic";
 };
+function npShader() {
+  if (!desktop) return "mesh";
+  const saved = store.get("sona.npShader");
+  return NP_SHADERS.some(([k]) => k === saved) ? saved : "mesh";
+}
+const npCinemaOn = () => store.get("sona.npCinema") !== "0";
 
 function npStyleSheet() {
-  const current = npStyle();
   const locked = !desktop;
   const wrap = openSheet(`<h2 class="sheet-title">Style immersif</h2>
-    ${locked ? `<p class="np-style-pitch"><b>Disponible dans l'app Sona pour Windows.</b> Huit styles plein écran, avec le spectre du son qui danse, des paroles géantes et des commandes en verre.
+    ${locked ? `<p class="np-style-pitch"><b>Disponible dans l'app Sona pour Windows.</b> Treize dispositions plein écran et sept fonds animés en temps réel qui prennent les couleurs de ta pochette et battent avec la musique.
       <a class="btn" href="${WINDOWS_PAGE}" target="_blank" rel="noopener">${icons.download} Télécharger Sona</a></p>` : ""}
+    <h3 class="np-sec">Disposition <small>V pour changer</small></h3>
     <div class="np-styles ${locked ? "locked" : ""}">${NP_STYLES.map(([key, name, hint]) => `
-      <button class="np-style-opt ${key === current ? "on" : ""}" data-np-style="${key}">
+      <button class="np-style-opt ${key === npStyle() ? "on" : ""}" data-np-style="${key}">
         <span class="np-style-thumb np-style-thumb-${key}"><i></i><i></i><i></i></span>
         <span class="np-style-text"><b>${esc(name)}</b><small>${esc(hint)}</small></span>
         ${locked && key !== "classic" ? `<span class="np-style-lock">App Windows</span>` : ""}
-      </button>`).join("")}</div>`, { cls: "np-style-sheet" });
+      </button>`).join("")}</div>
+    <h3 class="np-sec">Fond animé <small>B pour changer</small></h3>
+    <div class="np-styles np-shaders ${locked ? "locked" : ""}">${NP_SHADERS.map(([key, name, hint]) => `
+      <button class="np-style-opt ${key === npShader() ? "on" : ""}" data-np-shader="${key}">
+        <span class="np-shader-thumb np-shader-thumb-${key}"><i></i><i></i><i></i></span>
+        <span class="np-style-text"><b>${esc(name)}</b><small>${esc(hint)}</small></span>
+        ${locked && key !== "mesh" ? `<span class="np-style-lock">App Windows</span>` : ""}
+      </button>`).join("")}</div>
+    ${locked ? "" : `<div class="set-group">
+      ${toggleRow("np-cinema", "Mode cinéma", "Les commandes s'effacent après quelques secondes sans bouger la souris.", npCinemaOn())}
+      ${toggleRow("np-reactive", "Fond qui bat au son", "Le fond animé suit les basses de la musique.", sound.reactiveBg)}
+    </div>`}`, { cls: "np-style-sheet" });
+  // La teinte de la pochette en cours colore les aperçus.
+  const tint = $("#np")?.style.getPropertyValue("--np-tint");
+  if (tint) wrap.style.setProperty("--np-tint", tint);
   wrap.addEventListener("click", (e) => {
-    const key = e.target.closest("[data-np-style]")?.dataset.npStyle;
-    if (!key) return;
-    if (locked) { if (key !== "classic") toast("Ce style est réservé à l'app Sona pour Windows"); return; }
-    store.set("sona.npStyle", key);
-    $$("[data-np-style]", wrap).forEach((b) => b.classList.toggle("on", b.dataset.npStyle === key));
+    const layout = e.target.closest("[data-np-style]")?.dataset.npStyle;
+    const shader = e.target.closest("[data-np-shader]")?.dataset.npShader;
+    if (!layout && !shader) return;
+    if (locked) { if ((layout && layout !== "classic") || (shader && shader !== "mesh")) toast("Réservé à l'app Sona pour Windows"); return; }
+    if (layout) {
+      store.set("sona.npStyle", layout);
+      $$("[data-np-style]", wrap).forEach((b) => b.classList.toggle("on", b.dataset.npStyle === layout));
+    } else {
+      store.set("sona.npShader", shader);
+      $$("[data-np-shader]", wrap).forEach((b) => b.classList.toggle("on", b.dataset.npShader === shader));
+    }
     renderNowPlaying();
   });
+  if (!locked) {
+    $('[data-setting="np-cinema"]', wrap).onchange = (e) => { store.set("sona.npCinema", e.target.checked ? null : "0"); npCinema.sync(); };
+    $('[data-setting="np-reactive"]', wrap).onchange = (e) => setReactiveBg(e.target.checked);
+  }
+}
+
+/** Cover Flow : les pochettes de la file autour de celle qui joue (touche une voisine : on y saute). */
+function npFlowHtml() {
+  const items = [];
+  for (let d = -3; d <= 3; d++) {
+    const q = state.queue[state.index + d];
+    if (!q) continue;
+    items.push(`<button class="flow-item" data-flow="${state.index + d}" style="--d:${d};--a:${Math.abs(d)}" aria-label="${esc(q.title)}"><img src="${esc(big(q.cover_url, 500))}" alt=""></button>`);
+  }
+  return `<div class="np-flow">${items.join("")}</div>`;
 }
 
 function toggleNpFullscreen() {
@@ -3120,6 +3339,24 @@ function cycleNpStyle() {
   toast(`Style : ${NP_STYLES.find(([k]) => k === next)[1]}`);
 }
 
+function cycleNpShader() {
+  const keys = NP_SHADERS.map(([k]) => k);
+  const next = keys[(keys.indexOf(npShader()) + 1) % keys.length];
+  store.set("sona.npShader", next);
+  renderNowPlaying();
+  toast(`Fond : ${NP_SHADERS.find(([k]) => k === next)[1]}`);
+}
+
+/** Horloge du style « Ambiance » : l'heure, à la minute près. */
+const npAmbient = (() => {
+  const paint = () => {
+    const el = $("#np-clock");
+    if (el) el.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  };
+  setInterval(() => { if (state.npOpen && npStyle() === "ambient") paint(); }, 1000);
+  return { sync: paint };
+})();
+
 /** Mode cinéma : quelques secondes sans bouger la souris et les commandes
  * s'effacent (le curseur aussi) ; le moindre mouvement les ramène. Seulement
  * dans les styles immersifs, et seulement pendant la lecture. */
@@ -3131,7 +3368,7 @@ const npCinema = (() => {
     const np = $("#np");
     if (!np) return;
     np.classList.remove("np-idle");
-    if (!state.npOpen || npStyle() === "classic" || audio.paused) return;
+    if (!state.npOpen || npStyle() === "classic" || audio.paused || !npCinemaOn()) return;
     timer = setTimeout(() => { if (state.npOpen && !audio.paused && !$(".sheet-wrap, .devices-pop")) np.classList.add("np-idle"); }, IDLE_MS);
   };
   ["mousemove", "mousedown", "keydown", "wheel", "touchstart"].forEach((ev) => document.addEventListener(ev, arm, { passive: true }));
@@ -3194,6 +3431,7 @@ function renderNowPlaying() {
   livingBg.sync();
   npSpectrum.sync();
   npCinema.sync();
+  npAmbient.sync();
 }
 
 function renderNowPlayingView() {
@@ -3211,6 +3449,8 @@ function renderNowPlayingView() {
   np.innerHTML = `
     <div class="np-bg"><img src="${esc(big(t.cover_url, 300))}" alt=""></div>
     <canvas class="np-spectrum" aria-hidden="true"></canvas>
+    ${style === "flow" ? npFlowHtml() : ""}
+    <div class="np-clock" id="np-clock"></div>
     <div class="np-top">
       <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>${grip()}
       <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "credits" ? "on" : ""}" data-np="credits">Crédits</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>${grip()}
@@ -3297,6 +3537,8 @@ function renderNowPlayingMobile(np, t) {
 
 function bindNowPlaying(np, t) {
   np.onclick = (e) => {
+    const flow = e.target.closest("[data-flow]");
+    if (flow) { playAt(+flow.dataset.flow); return; }
     const act = e.target.closest("[data-np]")?.dataset.np;
     if (!act) return;
     const mobile = isMobile();
@@ -7183,6 +7425,7 @@ document.addEventListener("keydown", (e) => {
   else if (e.key.toLowerCase() === "q" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("queue") : openNowPlaying("queue", true));
   else if (e.key.toLowerCase() === "c" && audio.src && !e.ctrlKey && !e.metaKey) (drawerMode() ? toggleDrawer("credits") : openNowPlaying("credits", true));
   else if (e.key.toLowerCase() === "v" && state.npOpen && desktop && !e.ctrlKey && !e.metaKey) cycleNpStyle();
+  else if (e.key.toLowerCase() === "b" && state.npOpen && desktop && !e.ctrlKey && !e.metaKey) cycleNpShader();
   else if (e.key.toLowerCase() === "f" && state.npOpen && !e.ctrlKey && !e.metaKey) toggleNpFullscreen();
   else if (e.key === "/") { e.preventDefault(); location.hash = "#/search"; setTimeout(() => $("#q")?.focus(), 150); }
   else if (e.key === "?") keyboardHelpSheet();
@@ -7193,7 +7436,7 @@ function keyboardHelpSheet() {
   if ($(".sheet-wrap")) return;
   const rows = [
     ["Espace", "Lecture / pause"], ["Ctrl + → / ←", "Titre suivant / précédent"], ["→ / ←", "Avancer / reculer de 10 s"],
-    ["L", "Paroles"], ["C", "Crédits"], ["Q", "À suivre"], ["V", "Changer de style immersif (app Windows)"], ["F", "Plein écran du lecteur"], ["/", "Rechercher"], ["Échap", "Fermer le lecteur"], ["?", "Cette aide"],
+    ["L", "Paroles"], ["C", "Crédits"], ["Q", "À suivre"], ["V", "Changer de style immersif (app Windows)"], ["B", "Changer de fond animé (app Windows)"], ["F", "Plein écran du lecteur"], ["/", "Rechercher"], ["Échap", "Fermer le lecteur"], ["?", "Cette aide"],
   ];
   openSheet(`<h2 class="sheet-title">Raccourcis clavier</h2><div class="shortcuts">${rows.map(([k, d]) => `<div class="sc"><kbd>${esc(k)}</kbd><span>${esc(d)}</span></div>`).join("")}</div>`);
 }
