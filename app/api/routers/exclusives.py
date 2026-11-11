@@ -142,7 +142,7 @@ async def add_exclusive(
     filename: str = Query("", max_length=300),
     persona: str | None = Query(None, max_length=100, description="Identité de l'artiste (page discographie)"),
     album: str | None = Query(None, max_length=200),
-    album_kind: str | None = Query(None, description="album ou single"),
+    album_kind: str | None = Query(None, description="album, ep ou single"),
     track_number: int | None = Query(None, ge=1, le=999),
     release_order: int | None = Query(None, ge=0, le=9999, description="Rang de la sortie dans la discographie"),
     deps: ApiDeps = Depends(require_admin),
