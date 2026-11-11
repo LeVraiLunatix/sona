@@ -2318,3 +2318,144 @@ mark { background: transparent; color: var(--accent); font-weight: inherit; bord
 .sk-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .sk-lines .sk-line { height: 11px; width: 55%; border-radius: 6px; }
 .sk-lines .sk-line.short { width: 32%; }
+
+/* ── Menu « Style immersif » : dispositions, fonds animés, réglages ─────────── */
+.np-style-sheet .sheet { width: min(800px, 94vw); }
+.np-style-sheet .np-sec { margin: 18px 2px 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); display: flex; align-items: baseline; gap: 10px; }
+.np-style-sheet .np-sec small { font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.np-style-sheet .np-styles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .np-style-sheet .np-styles { grid-template-columns: 1fr; } }
+.np-style-sheet .set-group { margin-top: 18px; }
+
+/* Aperçus des fonds : de petites animations CSS aux couleurs de la pochette en cours. */
+.np-shader-thumb { position: relative; flex: none; width: 76px; height: 48px; border-radius: 8px; overflow: hidden; background: #14141a; isolation: isolate; }
+.np-shader-thumb i { position: absolute; display: block; }
+.np-shader-thumb-mesh { background: radial-gradient(circle at 25% 30%, rgba(var(--np-tint, 255, 120, 90), .9), transparent 60%), radial-gradient(circle at 80% 75%, rgba(var(--np-tint, 255, 120, 90), .55), transparent 55%), #14141a; background-size: 160% 160%; animation: sw-drift 7s ease-in-out infinite alternate; }
+.np-shader-thumb-aurora { background: linear-gradient(180deg, #0c0c12, #14141a); }
+.np-shader-thumb-aurora i { left: -20%; right: -20%; height: 18px; border-radius: 50%; filter: blur(7px); background: linear-gradient(90deg, transparent, rgba(var(--np-tint, 255, 120, 90), .85), transparent); animation: sw-sway 5s ease-in-out infinite alternate; }
+.np-shader-thumb-aurora i:nth-child(1) { top: 6px; }
+.np-shader-thumb-aurora i:nth-child(2) { top: 17px; animation-delay: -1.7s; opacity: .7; }
+.np-shader-thumb-aurora i:nth-child(3) { top: 28px; animation-delay: -3.1s; opacity: .5; }
+.np-shader-thumb-liquid { background: conic-gradient(from 0deg at 50% 50%, rgba(var(--np-tint, 255, 120, 90), .9), #14141a, rgba(var(--np-tint, 255, 120, 90), .45), #14141a, rgba(var(--np-tint, 255, 120, 90), .9)); filter: blur(5px) saturate(1.2); transform: scale(1.3); animation: sw-spin 9s linear infinite; }
+.np-shader-thumb-orbs i { border-radius: 50%; filter: blur(5px); background: rgba(var(--np-tint, 255, 120, 90), .9); animation: sw-orb 6s ease-in-out infinite alternate; }
+.np-shader-thumb-orbs i:nth-child(1) { width: 24px; height: 24px; left: 6px; top: 8px; }
+.np-shader-thumb-orbs i:nth-child(2) { width: 18px; height: 18px; left: 32px; top: 22px; animation-delay: -2s; opacity: .8; }
+.np-shader-thumb-orbs i:nth-child(3) { width: 22px; height: 22px; left: 48px; top: 4px; animation-delay: -4s; opacity: .7; }
+.np-shader-thumb-ripples { background: repeating-radial-gradient(circle at 50% 50%, rgba(var(--np-tint, 255, 120, 90), .7) 0 2px, transparent 2px 9px), #14141a; background-size: 100% 100%; animation: sw-ripple 2.4s linear infinite; mask-image: radial-gradient(circle, #000 30%, transparent 85%); -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 85%); }
+.np-shader-thumb-stars { background: radial-gradient(circle, #fff 0 1px, transparent 1.6px) 0 0 / 14px 14px, radial-gradient(circle, rgba(var(--np-tint, 255, 120, 90), .9) 0 1px, transparent 1.6px) 7px 7px / 14px 14px, #0c0c12; animation: sw-stars 3s linear infinite; }
+.np-shader-thumb-none { background: #232328; }
+.np-shader-thumb-none::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.12), transparent); }
+@keyframes sw-drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+@keyframes sw-sway { from { transform: translateX(-12%) skewY(-4deg); } to { transform: translateX(12%) skewY(5deg); } }
+@keyframes sw-spin { to { transform: scale(1.3) rotate(360deg); } }
+@keyframes sw-orb { from { transform: translate(0, 0) scale(1); } to { transform: translate(10px, 8px) scale(1.25); } }
+@keyframes sw-ripple { from { background-size: 100% 100%; } to { background-size: 128% 128%; } }
+@keyframes sw-stars { to { background-position: -14px 0, -7px 7px, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .np-shader-thumb, .np-shader-thumb * { animation: none !important; } }
+
+/* Aperçus des nouvelles dispositions */
+.np-style-thumb-vinyl i:nth-child(1) { left: 6px; top: 6px; width: 36px; height: 36px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.85) 0 28%, #0c0c0e 30% 100%); box-shadow: 0 0 0 2px #333; }
+.np-style-thumb-vinyl i:nth-child(2) { right: 8px; top: 14px; width: 24px; height: 3px; }
+.np-style-thumb-vinyl i:nth-child(3) { right: 8px; top: 24px; width: 18px; height: 3px; opacity: .5; }
+.np-style-thumb-cinema i:nth-child(1) { right: 0; top: 0; width: 44px; height: 48px; border-radius: 0; opacity: .7; }
+.np-style-thumb-cinema i:nth-child(2) { left: 6px; bottom: 14px; width: 30px; height: 6px; }
+.np-style-thumb-cinema i:nth-child(3) { left: 6px; bottom: 6px; width: 18px; height: 3px; opacity: .5; }
+.np-style-thumb-poster i:nth-child(1) { left: 6px; right: 6px; top: 13px; height: 14px; opacity: .35; }
+.np-style-thumb-poster i:nth-child(2) { left: 25px; top: 6px; width: 26px; height: 26px; border-radius: 3px; background: rgba(255,255,255,.85); }
+.np-style-thumb-poster i:nth-child(3) { left: 14px; right: 14px; bottom: 6px; height: 3px; opacity: .5; }
+.np-style-thumb-flow i:nth-child(1) { left: 4px; top: 12px; width: 16px; height: 22px; opacity: .4; transform: skewY(8deg); }
+.np-style-thumb-flow i:nth-child(2) { left: 26px; top: 8px; width: 24px; height: 28px; border-radius: 3px; background: rgba(255,255,255,.85); }
+.np-style-thumb-flow i:nth-child(3) { right: 4px; top: 12px; width: 16px; height: 22px; opacity: .4; transform: skewY(-8deg); }
+.np-style-thumb-ambient i:nth-child(1) { left: 16px; top: 10px; width: 44px; height: 14px; opacity: .85; }
+.np-style-thumb-ambient i:nth-child(2) { left: 26px; top: 30px; width: 24px; height: 3px; opacity: .5; }
+.np-style-thumb-ambient i:nth-child(3) { display: none; }
+
+/* Fond « Aucun » : pas de canevas, la pochette floue reste */
+.np[data-shader="none"] .np-gl { display: none; }
+
+/* ── Vinyle : un disque noir sillonné qui tourne, la pochette en étiquette ──── */
+.np.np-s-vinyl:not(.mobile) .np-left { align-items: center; }
+.np.np-s-vinyl:not(.mobile) .np-art {
+  border-radius: 50%; aspect-ratio: 1; width: min(40%, 29vh); margin: 11vmin 0 4vmin; animation: np-spin 14s linear infinite;
+  box-shadow: 0 0 0 2.6vmin #0b0b0d, 0 0 0 calc(2.6vmin + 1px) #2b2b31, 0 0 0 3.8vmin #0f0f12, 0 0 0 calc(3.8vmin + 1px) #26262b,
+    0 0 0 5vmin #0b0b0d, 0 0 0 calc(5vmin + 1px) #2d2d33, 0 0 0 6.3vmin #0e0e10, 0 0 0 calc(6.3vmin + 1px) #26262b,
+    0 0 0 7.6vmin #09090b, 0 40px 90px 7.6vmin rgba(0,0,0,.55);
+}
+.np.np-s-vinyl.paused:not(.mobile) .np-art { animation-play-state: paused; transform: none; }
+@media (prefers-reduced-motion: reduce) { .np.np-s-vinyl:not(.mobile) .np-art { animation: none; } }
+
+/* ── Cinéma : pochette panoramique, titre géant en bas à gauche ────────────── */
+.np.np-s-cinema:not(.mobile) .np-body { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; position: relative; }
+.np.np-s-cinema:not(.mobile) .np-left { display: contents; }
+.np.np-s-cinema:not(.mobile) .np-art {
+  position: absolute; right: 0; top: 0; width: 64%; height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; transform: none;
+  -webkit-mask-image: linear-gradient(to left, #000 50%, transparent); mask-image: linear-gradient(to left, #000 50%, transparent);
+}
+.np.np-s-cinema.paused:not(.mobile) .np-art { transform: none; }
+.np.np-s-cinema:not(.mobile) .np-meta { position: absolute; left: 4vw; bottom: 24vh; width: 56%; z-index: 2; align-items: flex-end; }
+.np.np-s-cinema:not(.mobile) .np-meta .t { font-size: clamp(44px, 6.4vw, 124px); font-weight: 800; letter-spacing: -.045em; line-height: 1; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-shadow: 0 6px 40px rgba(0,0,0,.45); }
+.np.np-s-cinema:not(.mobile) .np-meta .a { font-size: clamp(16px, 1.7vw, 26px); margin-top: 8px; }
+.np.np-s-cinema:not(.mobile) .np-progress { position: absolute; left: 4vw; width: 46%; bottom: 15vh; z-index: 2; }
+.np.np-s-cinema:not(.mobile) .np-transport { position: absolute; left: 4vw; bottom: 4vh; z-index: 2; justify-content: flex-start; gap: 18px; }
+.np.np-s-cinema:not(.mobile) .np-dock { position: absolute; right: 4vw; bottom: 4vh; z-index: 2; width: min(260px, 30vw); }
+.np.np-s-cinema:not(.mobile) .np-right, .np.np-s-cinema:not(.mobile) .np-tabs { display: none; }
+
+/* ── Affiche : le titre en lettres géantes derrière la pochette ────────────── */
+.np.np-s-poster:not(.mobile) .np-body { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; position: relative; }
+.np.np-s-poster:not(.mobile) .np-left { display: contents; }
+.np.np-s-poster:not(.mobile) .np-art { position: absolute; left: 50%; top: 47%; width: auto; height: 50vh; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 2; box-shadow: 0 40px 120px rgba(0,0,0,.6); }
+.np.np-s-poster.paused:not(.mobile) .np-art { transform: translate(-50%, -50%) scale(.94); }
+.np.np-s-poster:not(.mobile) .np-meta { position: absolute; left: 2vw; right: 2vw; top: 47%; transform: translateY(-50%); z-index: 3; pointer-events: none; justify-content: center; text-align: center; }
+.np.np-s-poster:not(.mobile) .np-meta .t { font-size: clamp(70px, 15vw, 270px); font-weight: 900; letter-spacing: -.06em; line-height: .85; text-transform: uppercase; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: clip; color: rgba(255,255,255,.08); -webkit-text-stroke: 2px rgba(255,255,255,.92); text-shadow: 0 0 80px rgba(var(--np-tint), .5); }
+.np.np-s-poster:not(.mobile) .np-meta .a { position: absolute; left: 0; right: 0; top: calc(100% + 4px); font-size: 0; }
+.np.np-s-poster:not(.mobile) .np-meta .tbtn { display: none; }
+.np.np-s-poster:not(.mobile) .np-progress { position: absolute; left: 16vw; right: 16vw; bottom: 13vh; z-index: 3; }
+.np.np-s-poster:not(.mobile) .np-transport { position: absolute; left: 0; right: 0; bottom: 3.5vh; z-index: 3; gap: 22px; }
+.np.np-s-poster:not(.mobile) .np-dock { display: none; }
+.np.np-s-poster:not(.mobile) .np-right { position: absolute; left: 10vw; right: 10vw; bottom: 20vh; height: 12vh; z-index: 3; }
+.np.np-s-poster:not(.mobile) .np-right .lyrics { padding: 4vh 0; text-align: center; }
+.np.np-s-poster:not(.mobile) .np-right .lyrics p { font-size: clamp(20px, 2.4vw, 38px); opacity: 0; pointer-events: none; transform-origin: center; }
+.np.np-s-poster:not(.mobile) .np-right .lyrics p.on { opacity: 1; transform: scale(1); }
+.np.np-s-poster:not(.mobile) .np-tabs { display: none; }
+
+/* ── Cover Flow : les pochettes de la file en 3D ───────────────────────────── */
+.np-flow { display: none; }
+.np.np-s-flow:not(.mobile) .np-flow { display: block; position: absolute; left: 0; right: 0; top: 11vh; height: 44vh; perspective: 1400px; z-index: 2; pointer-events: none; }
+.flow-item {
+  position: absolute; top: 0; left: calc(50% - 22vh); width: 44vh; height: 44vh; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
+  transform: translateX(calc(var(--d) * 19vw)) translateZ(calc(var(--a) * -140px)) rotateY(calc(var(--d) * -44deg)) scale(calc(1 - var(--a) * .06));
+  z-index: calc(10 - var(--a)); opacity: calc(1 - var(--a) * .2); transition: transform .7s cubic-bezier(.2, 1.2, .3, 1), opacity .5s;
+}
+.flow-item img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; box-shadow: 0 30px 70px rgba(0,0,0,.55); -webkit-box-reflect: below 6px linear-gradient(transparent 65%, rgba(255,255,255,.18)); }
+.np.np-s-flow:not(.mobile) .np-body { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; position: relative; }
+.np.np-s-flow:not(.mobile) .np-left { display: contents; }
+.np.np-s-flow:not(.mobile) .np-art { display: none; }
+.np.np-s-flow:not(.mobile) .np-meta { position: absolute; left: 0; right: 0; top: 64vh; z-index: 3; justify-content: center; text-align: center; }
+.np.np-s-flow:not(.mobile) .np-meta > div { text-align: center; }
+.np.np-s-flow:not(.mobile) .np-meta .tbtn { display: none; }
+.np.np-s-flow:not(.mobile) .np-meta .t { font-size: clamp(22px, 2.4vw, 38px); }
+.np.np-s-flow:not(.mobile) .np-progress { position: absolute; left: 22vw; right: 22vw; bottom: 12vh; z-index: 3; }
+.np.np-s-flow:not(.mobile) .np-transport { position: absolute; left: 0; right: 0; bottom: 3.5vh; z-index: 3; gap: 22px; }
+.np.np-s-flow:not(.mobile) .np-dock { display: none; }
+.np.np-s-flow:not(.mobile) .np-right { position: absolute; left: 14vw; right: 14vw; bottom: 22vh; height: 9vh; z-index: 3; }
+.np.np-s-flow:not(.mobile) .np-right .lyrics { padding: 3vh 0; text-align: center; }
+.np.np-s-flow:not(.mobile) .np-right .lyrics p { font-size: clamp(16px, 1.7vw, 26px); opacity: 0; pointer-events: none; transform-origin: center; }
+.np.np-s-flow:not(.mobile) .np-right .lyrics p.on { opacity: 1; transform: scale(1); }
+.np.np-s-flow:not(.mobile) .np-tabs { display: none; }
+@media (prefers-reduced-motion: reduce) { .flow-item { transition: none; } }
+
+/* ── Ambiance : une grande horloge sur le fond animé ───────────────────────── */
+.np-clock { display: none; }
+.np.np-s-ambient:not(.mobile) .np-clock {
+  display: block; position: absolute; left: 0; right: 0; top: 24vh; z-index: 2; text-align: center; pointer-events: none;
+  font-size: clamp(90px, 21vw, 380px); font-weight: 200; letter-spacing: -.05em; line-height: 1; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 120px rgba(var(--np-tint), .55);
+}
+.np.np-s-ambient:not(.mobile) .np-body { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; position: relative; }
+.np.np-s-ambient:not(.mobile) .np-left { display: contents; }
+.np.np-s-ambient:not(.mobile) .np-art, .np.np-s-ambient:not(.mobile) .np-right, .np.np-s-ambient:not(.mobile) .np-tabs, .np.np-s-ambient:not(.mobile) .np-dock { display: none; }
+.np.np-s-ambient:not(.mobile) .np-meta { position: absolute; left: 0; right: 0; bottom: 17vh; z-index: 2; justify-content: center; text-align: center; }
+.np.np-s-ambient:not(.mobile) .np-meta > div { text-align: center; }
+.np.np-s-ambient:not(.mobile) .np-meta .tbtn { display: none; }
+.np.np-s-ambient:not(.mobile) .np-progress { position: absolute; left: 25vw; right: 25vw; bottom: 12vh; z-index: 2; }
+.np.np-s-ambient:not(.mobile) .np-transport { position: absolute; left: 0; right: 0; bottom: 3.5vh; z-index: 2; gap: 22px; }
