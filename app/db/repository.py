@@ -746,6 +746,59 @@ class Repository:
         await self._db.conn.commit()
         return paths
 
+    # -- Coffre audio Drivecord (services/audio_vault.py) ---------------
+
+    async def vault_get(self, source: str, source_id: str, fmt: str, quality: str) -> dict | None:
+        cursor = await self._db.conn.execute(
+            """SELECT filename, size, chunks, content_type FROM audio_vault
+               WHERE source=? AND source_id=? AND format=? AND quality=?""",
+            (source, source_id, fmt, quality),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def vault_set(
+        self, source: str, source_id: str, fmt: str, quality: str, filename: str, size: int,
+        chunks: str, content_type: str,
+    ) -> None:
+        await self._db.conn.execute(
+            """INSERT INTO audio_vault (source, source_id, format, quality, filename, size, chunks, content_type, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(source, source_id, format, quality)
+               DO UPDATE SET filename=excluded.filename, size=excluded.size, chunks=excluded.chunks,
+                             content_type=excluded.content_type""",
+            (source, source_id, fmt, quality, filename, size, chunks, content_type, _now()),
+        )
+        await self._db.conn.commit()
+
+    async def vault_delete(self, source: str, source_id: str) -> list[dict]:
+        """Oublie les copies d'un titre (tous formats) ; renvoie leurs morceaux, à effacer de Discord."""
+        cursor = await self._db.conn.execute(
+            "SELECT chunks FROM audio_vault WHERE source=? AND source_id=?", (source, source_id)
+        )
+        rows = [dict(r) for r in await cursor.fetchall()]
+        await self._db.conn.execute("DELETE FROM audio_vault WHERE source=? AND source_id=?", (source, source_id))
+        await self._db.conn.commit()
+        return rows
+
+    async def vault_missing(self, limit: int) -> list[dict]:
+        """Titres du cache disque pas encore dans le coffre, les plus récents d'abord (rattrapage)."""
+        cursor = await self._db.conn.execute(
+            """SELECT s.source, s.source_id, s.format, s.quality, s.file_path, s.content_type
+               FROM stream_cache s
+               LEFT JOIN audio_vault v ON v.source=s.source AND v.source_id=s.source_id
+                                      AND v.format=s.format AND v.quality=s.quality
+               WHERE v.source IS NULL
+               ORDER BY s.created_at DESC LIMIT ?""",
+            (limit,),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def vault_stats(self) -> dict:
+        cursor = await self._db.conn.execute("SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS bytes FROM audio_vault")
+        row = await cursor.fetchone()
+        return {"files": row["n"], "bytes": row["bytes"]}
+
     async def stream_source_set(self, source: str, source_id: str, video_id: str) -> None:
         await self._db.conn.execute(
             """INSERT INTO stream_sources (source, source_id, video_id, updated_at) VALUES (?, ?, ?, ?)
