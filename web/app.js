@@ -829,6 +829,12 @@ const coverFlight = (() => {
     const dx = to.left - fl.from.left, dy = to.top - fl.from.top, k = to.width / fl.from.width;
     target.style.visibility = "hidden";
     target.style.animation = "none";
+    // Les coins suivent le trajet : carte arrondie → pochette carrée (page de FEMTOGO), sans saut à l'arrivée.
+    const px = (v) => parseFloat(v) || 0;
+    const rFrom = px(getComputedStyle(fl.clone.firstElementChild).borderTopLeftRadius);
+    const rTo = px(getComputedStyle(target).borderTopLeftRadius) / k;
+    fl.clone.firstElementChild.animate([{ borderRadius: `${rFrom}px` }, { borderRadius: `${rTo}px` }],
+      { duration: 640, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "forwards" });
     const anim = fl.clone.animate([
       { transform: "translate(0, 0) scale(1) rotate(0deg)", offset: 0 },
       { transform: `translate(${dx * 0.55}px, ${dy * 0.55 - 26}px) scale(${1 + (k - 1) * 0.6}) rotate(-2.2deg)`, offset: 0.38 },
