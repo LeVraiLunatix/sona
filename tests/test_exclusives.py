@@ -235,3 +235,94 @@ def test_bad_version_files_are_refused(client):
     bad = client.post(f"/exclusives/{sid}/versions", params={"filename": "n.txt"}, content=b"x",
                       headers={**AUTH, "Content-Type": "text/plain"})
     assert bad.status_code == 415
+
+
+# -- Identités et discographie (page d'un artiste « à identités ») -------------------
+
+def _release_track(client, title, persona, album, number, order, kind=None, ctype="audio/mpeg"):
+    params = {"title": title, "artist": persona, "artist_source": "deezer", "artist_source_id": "169773547",
+              "filename": f"{title}.mp3", "persona": persona, "album": album, "track_number": number,
+              "release_order": order}
+    if kind:
+        params["album_kind"] = kind
+    return client.post("/exclusives", params=params, content=AUDIO, headers={**AUTH, "Content-Type": ctype})
+
+
+def _set_personas(client, names):
+    return client.put("/artists/deezer/169773547/personas", json={"names": names}, headers=AUTH)
+
+
+def test_personas_are_set_in_order_without_duplicates(client):
+    assert client.get("/artists/deezer/169773547/personas", headers=AUTH).json() == {"personas": []}
+    got = _set_personas(client, ["FEMTOGO", " baby hayabusa ", "femtogo", "", "reggie petrucci"])
+    assert got.json() == {"personas": ["FEMTOGO", "baby hayabusa", "reggie petrucci"]}
+    assert client.get("/artists/deezer/169773547/personas", headers=AUTH).json()["personas"] == [
+        "FEMTOGO", "baby hayabusa", "reggie petrucci"]
+    assert _set_personas(client, []).json() == {"personas": []}
+
+
+def test_personas_can_only_be_set_by_an_admin(client):
+    assert client.put("/artists/deezer/1/personas", json={"names": ["x"]}).status_code == 401
+
+
+def test_a_title_exists_once_per_persona_and_album(client):
+    assert _release_track(client, "NEMBUTAL", "FEMTOGO", "NAMELESS BELLIGERENT", 1, 6).status_code == 201
+    again = _release_track(client, "nembutal", "femtogo", "nameless belligerent", 1, 6)
+    assert again.status_code == 409
+    # Même titre dans une autre sortie, ou pour une autre identité : autorisé.
+    assert _release_track(client, "NEMBUTAL", "FEMTOGO", "archives", 1, 8).status_code == 201
+    assert _release_track(client, "NEMBUTAL", "baby hayabusa", "NAMELESS BELLIGERENT", 1, 1).status_code == 201
+    assert len(client.get("/exclusives", headers=AUTH).json()["tracks"]) == 3
+
+
+def test_discography_groups_by_persona_then_release_with_tracks_in_order(client):
+    _set_personas(client, ["FEMTOGO", "baby hayabusa"])
+    # Envoyés dans le désordre : la page range par identité, par rang de sortie, par numéro de piste.
+    _release_track(client, "GEISER", "baby hayabusa", "Faded Flower Story", 2, 5)
+    _release_track(client, "Novitchok", "FEMTOGO", "Sely - Novitchok", 1, 2, kind="single")
+    _release_track(client, "SIEGFRIED", "FEMTOGO", "One Man Army", 1, 3)
+    _release_track(client, "BLACKHAWK", "FEMTOGO", "One Man Army", 2, 3)
+    _release_track(client, "SCOPOLAMINE", "FEMTOGO", "BRAVO-6", 3, 1)  # piste 3 puis piste 1 : tri par numéro
+    _release_track(client, "VENTABLACK", "FEMTOGO", "BRAVO-6", 1, 1)
+    # Un exclu sans identité (ancien format) n'est dans aucune sortie.
+    client.post("/exclusives", params={"title": "Perdu", "artist": "FEMTOGO", "artist_source": "deezer",
+                                       "artist_source_id": "169773547", "filename": "x.mp3"},
+                content=AUDIO, headers={**AUTH, "Content-Type": "audio/mpeg"})
+    got = client.get("/artists/deezer/169773547/discography", headers=AUTH).json()
+    assert got["personas"] == ["FEMTOGO", "baby hayabusa"]
+    assert [(r["persona"], r["album"], r["kind"], r["track_count"]) for r in got["releases"]] == [
+        ("FEMTOGO", "BRAVO-6", "album", 2),
+        ("FEMTOGO", "Sely - Novitchok", "single", 1),
+        ("FEMTOGO", "One Man Army", "album", 2),
+        ("baby hayabusa", "Faded Flower Story", "single", 1),
+    ]
+    bravo = got["releases"][0]
+    assert [t["title"] for t in bravo["tracks"]] == ["VENTABLACK", "SCOPOLAMINE"]
+    assert bravo["tracks"][0]["artist"] == "FEMTOGO" and bravo["tracks"][0]["album"] == "BRAVO-6"
+    assert bravo["tracks"][0]["artist_source_id"] == "169773547"
+
+
+def test_release_cover_is_the_first_real_cover(client):
+    from app.services import exclusives as ex
+
+    rows = [
+        {"id": "a", "persona": "P", "album": "A", "album_kind": None, "release_order": 1, "cover_chunks": None},
+        {"id": "b", "persona": "P", "album": "A", "album_kind": None, "release_order": 1, "cover_chunks": "[...]"},
+    ]
+    tracks = [
+        {"source_id": "a", "title": "Un", "track_number": 1, "cover_url": "/neutre", "year": None, "duration_seconds": 10},
+        {"source_id": "b", "title": "Deux", "track_number": 2, "cover_url": "/vraie", "year": None, "duration_seconds": 20},
+    ]
+    release = ex.build_releases(["P"], tracks, rows)[0]
+    assert release["cover_url"] == "/vraie" and release["duration_seconds"] == 30 and release["kind"] == "album"
+
+
+def test_patch_moves_an_existing_exclusive_into_a_release(client):
+    created = _add(client).json()
+    patched = client.patch(f"/exclusives/{created['source_id']}", headers=AUTH, json={
+        "persona": "reggie petrucci", "album": "CONFESSIONAL INTOXICATION", "track_number": 4, "release_order": 4,
+        "artist": "reggie petrucci"})
+    assert patched.status_code == 200
+    body = patched.json()
+    assert (body["persona"], body["album"], body["track_number"], body["artist"]) == (
+        "reggie petrucci", "CONFESSIONAL INTOXICATION", 4, "reggie petrucci")

@@ -399,6 +399,16 @@ CREATE TABLE IF NOT EXISTS exclusives (
 );
 CREATE INDEX IF NOT EXISTS idx_exclusives_artist ON exclusives (artist_source, artist_source_id);
 
+-- Identités d'un artiste dont la page se choisit (ex. FEMTOGO / baby hayabusa / reggie petrucci) :
+-- la page de cet artiste devient une discographie construite sur ses exclus, par identité et par album.
+CREATE TABLE IF NOT EXISTS artist_personas (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (source, source_id, name)
+);
+
 -- Versions supplémentaires d'un exclu (ex. FLAC en plus du MP3) : même
 -- stockage Discord, qualité propre. Le fichier d'origine reste dans `exclusives`.
 CREATE TABLE IF NOT EXISTS exclusive_versions (

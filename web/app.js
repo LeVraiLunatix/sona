@@ -786,7 +786,7 @@ function syncContentGlow(content) {
 // rejoint sa place sur la page en rebondissant un peu (ressort énergique).
 const coverFlight = (() => {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-  const ROUTES = /^#\/(album|dplaylist|playlist|artist|mix|smart)\//;
+  const ROUTES = /^#\/(album|dplaylist|playlist|artist|mix|smart|xrelease)\//;
   let flight = null;
 
   const drop = () => {
@@ -880,6 +880,7 @@ async function route() {
     home: viewHome, search: () => viewSearch(parts.slice(1).join("/") || ""),
     library: () => viewLibrary(parts[1] || "playlists"), playlists: () => viewLibrary("playlists"),
     album: () => viewAlbum(parts[1], parts[2]), artist: () => viewArtist(parts[1], parts[2]),
+    xrelease: () => viewXRelease(parts[1], parts[2], parts[3], parts[4]),
     playlist: () => viewUserPlaylist(parts[1]), dplaylist: () => viewAlbum(parts[1], parts[2], true),
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
@@ -1839,13 +1840,89 @@ async function viewAlbum(source, id, isPlaylist = false) {
     + `<div id="pl-tracks">${trackTable(tracks, album.title, tableOpts)}</div><div id="album-versions"></div>`);
 }
 
+const personaKey = (source, id) => `sona.persona.${source}:${id}`;
+const releaseHref = (source, id, r) => `#/xrelease/${encodeURIComponent(source)}/${encodeURIComponent(id)}/${encodeURIComponent(r.persona)}/${encodeURIComponent(r.album)}`;
+
+/** Page d'un artiste à identités : on choisit l'identité qu'on veut écouter (FEMTOGO, baby hayabusa,
+ * reggie petrucci…), puis ses albums et ses singles, comme une vraie page artiste. */
+async function viewPersonaArtist(source, id, artist, personas) {
+  const disco = await api(`/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}/discography`);
+  const key = personaKey(source, id);
+  let current = personas.includes(store.get(key)) ? store.get(key) : personas[0];
+  const releasesOf = (name) => disco.releases.filter((r) => r.persona === name);
+  const tracksOf = (name) => releasesOf(name).flatMap((r) => r.tracks);
+  const total = (name) => tracksOf(name).length;
+  const relCard = (r) => card({
+    href: releaseHref(source, id, r), cover: r.cover_url, title: r.album,
+    subtitle: [r.kind === "single" ? "Single" : "Album", plural(r.track_count, "titre")].join(" · "), play: register(r.tracks, r.album),
+  });
+  const section = (title, items) => (items.length ? `<section class="section"><div class="section-head"><h2>${esc(title)}</h2></div><div class="grid">${items.map(relCard).join("")}</div></section>` : "");
+  const switcher = () => `<div class="chips persona-switch" role="tablist" aria-label="Identité">${personas.map((name) =>
+    `<button class="chip ${name === current ? "on" : ""}" role="tab" aria-selected="${name === current}" data-persona="${esc(name)}">${esc(name)} <small>${total(name)}</small></button>`).join("")}</div>`;
+  const body = () => {
+    const releases = releasesOf(current);
+    if (!releases.length) return empty("♫", "Rien pour l'instant", `Aucune sortie de ${current} n'a encore été ajoutée.`);
+    return section("Albums", releases.filter((r) => r.kind !== "single")) + section("Singles", releases.filter((r) => r.kind === "single"));
+  };
+  const info = () => `${plural(releasesOf(current).length, "sortie")} · ${plural(total(current), "titre")}`;
+  setTimeout(() => {
+    const draw = () => {
+      store.set(key, current);
+      $("#persona-bar").innerHTML = switcher();
+      $("#persona-body").innerHTML = body();
+      const tracks = tracksOf(current);
+      const list = tracks.length ? register(tracks, current) : "";
+      $$(".hero [data-play]").forEach((b) => (b.dataset.play = list));
+      $$(".hero [data-shuffle]").forEach((b) => (b.dataset.shuffle = list));
+      const infoEl = $(".hero .info");
+      if (infoEl) infoEl.textContent = info();
+      bindPage($("#persona-body"));
+    };
+    $("#persona-bar").onclick = (e) => {
+      const name = e.target.closest("[data-persona]")?.dataset.persona;
+      if (!name || name === current) return;
+      current = name;
+      draw();
+    };
+    bindPage($("#persona-body"));
+  });
+  const first = tracksOf(current);
+  return page(hero({
+    cover: artist.picture_url, kind: "Artiste", title: artist.name, round: true, info: info(),
+    list: first.length ? register(first, current) : "",
+    extra: likeButton("artist", artist.source, artist.source_id, state.likedArtists),
+  }) + `<div id="persona-bar">${switcher()}</div><div id="persona-body">${body()}</div>`);
+}
+
+/** Un album ou un single d'un artiste à identités. */
+async function viewXRelease(source, id, persona, album) {
+  $("#content").innerHTML = skeleton("");
+  const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
+  const disco = await api(`${base}/discography`);
+  const rel = disco.releases.find((r) => r.persona === persona && r.album === album);
+  if (!rel) throw new Error("Cette sortie n'existe pas (ou plus).");
+  // La page de l'artiste s'ouvrira sur cette identité.
+  store.set(personaKey(source, id), persona);
+  const list = register(rel.tracks, rel.album);
+  setTimeout(() => $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(rel.tracks)));
+  return page(hero({
+    cover: rel.cover_url, kind: rel.kind === "single" ? "Single" : "Album", title: rel.album, by: persona,
+    byHref: `#/artist/${source}/${id}`,
+    info: [rel.year, plural(rel.track_count, "titre"), rel.duration_seconds ? minutesLabel(rel.duration_seconds / 60) : ""].filter(Boolean).join(" · "),
+    list, extra: `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`,
+  }) + trackTable(rel.tracks, rel.album, { showAlbum: false }));
+}
+
 async function viewArtist(source, id) {
   $("#content").innerHTML = skeleton("");
   const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
-  const [artist, top, albums, related] = await Promise.all([
+  const [artist, top, albums, related, pers] = await Promise.all([
     api(base), api(`${base}/top-tracks`).catch(() => []),
     api(`${base}/albums`).catch(() => ({ albums: [], singles: [] })), api(`${base}/related`).catch(() => []),
+    api(`${base}/personas`).catch(() => ({ personas: [] })),
   ]);
+  // Artiste à identités (ex. FEMTOGO) : sa page est sa discographie, bâtie sur ses fichiers.
+  if (pers.personas?.length) return viewPersonaArtist(source, id, artist, pers.personas);
   // Exclus de l'artiste (ajoutés à la main) : tout en haut de sa page, avec l'année et le tag.
   const exclusives = (await api(`${base}/exclusives?name=${encodeURIComponent(artist.name)}`).catch(() => ({ tracks: [] }))).tracks;
   const list = register(top, artist.name);

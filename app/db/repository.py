@@ -1681,7 +1681,7 @@ class Repository:
     async def exclusive_add(self, row: dict) -> None:
         cols = ("id", "title", "artist", "artist_source", "artist_source_id", "year", "kind", "duration_seconds",
                 "mime", "filename", "size", "chunks", "codec", "lossless", "bitrate", "sample_rate", "bit_depth",
-                "cover_chunks", "cover_mime")
+                "cover_chunks", "cover_mime", "persona", "album", "album_kind", "track_number", "release_order")
         await self._db.conn.execute(
             f"INSERT INTO exclusives ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
             tuple(row.get(c) for c in cols),
@@ -1707,8 +1707,24 @@ class Repository:
             cursor = await self._db.conn.execute("SELECT * FROM exclusives ORDER BY created_at DESC")
         return [dict(r) for r in await cursor.fetchall()]
 
+    async def persona_list(self, source: str, source_id: str) -> list[str]:
+        cursor = await self._db.conn.execute(
+            "SELECT name FROM artist_personas WHERE source=? AND source_id=? ORDER BY position, name", (source, source_id)
+        )
+        return [r["name"] for r in await cursor.fetchall()]
+
+    async def persona_set(self, source: str, source_id: str, names: list[str]) -> None:
+        """Remplace les identités d'un artiste (l'ordre donné est celui de la page)."""
+        await self._db.conn.execute("DELETE FROM artist_personas WHERE source=? AND source_id=?", (source, source_id))
+        await self._db.conn.executemany(
+            "INSERT INTO artist_personas (source, source_id, name, position) VALUES (?, ?, ?, ?)",
+            [(source, source_id, name, i) for i, name in enumerate(names)],
+        )
+        await self._db.conn.commit()
+
     async def exclusive_update(self, exclusive_id: str, fields: dict) -> None:
-        allowed = ("title", "artist", "artist_source", "artist_source_id", "year", "kind", "cover_chunks", "cover_mime")
+        allowed = ("title", "artist", "artist_source", "artist_source_id", "year", "kind", "cover_chunks", "cover_mime",
+                   "persona", "album", "album_kind", "track_number", "release_order")
         items = [(k, v) for k, v in fields.items() if k in allowed]
         if not items:
             return

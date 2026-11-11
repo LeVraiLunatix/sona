@@ -38,6 +38,21 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("exclusives", "bitrate", "INTEGER"),
     ("exclusives", "sample_rate", "INTEGER"),
     ("exclusives", "bit_depth", "INTEGER"),
+    # Identités d'un artiste (page « discographie ») : sous quel nom, dans quel album, quelle piste.
+    ("exclusives", "persona", "TEXT"),
+    ("exclusives", "album", "TEXT"),
+    ("exclusives", "album_kind", "TEXT"),
+    ("exclusives", "track_number", "INTEGER"),
+    ("exclusives", "release_order", "INTEGER"),
+)
+
+# Index qui reposent sur des colonnes ajoutées par les migrations : créés une fois
+# celles-ci faites (le schéma, lui, s'exécute avant).
+_POST_MIGRATION: tuple[str, ...] = (
+    # Un titre n'existe qu'une fois par identité et par album.
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_exclusives_release_unique
+       ON exclusives (artist_source_id, persona COLLATE NOCASE, album COLLATE NOCASE, title COLLATE NOCASE)
+       WHERE persona IS NOT NULL""",
 )
 
 
@@ -70,6 +85,8 @@ class Database:
             await self._conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
             )
+        for statement in _POST_MIGRATION:
+            await self._conn.execute(statement)
 
     async def close(self) -> None:
         if self._conn:
