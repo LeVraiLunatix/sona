@@ -164,7 +164,7 @@ async def add(storage: DiscordStorage, repo, path: Path, size: int, filename: st
             "chunks": json.dumps([c.to_json() for c in chunks]),
             "cover_chunks": cover_chunks, "cover_mime": cover_mime,
             "persona": persona or None, "album": album or None,
-            "album_kind": album_kind if album_kind in ("album", "single") else None,
+            "album_kind": album_kind if album_kind in ("album", "ep", "single") else None,
             "track_number": track_number, "release_order": release_order,
         }
         await repo.exclusive_add(row)

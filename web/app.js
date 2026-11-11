@@ -1840,6 +1840,7 @@ async function viewAlbum(source, id, isPlaylist = false) {
     + `<div id="pl-tracks">${trackTable(tracks, album.title, tableOpts)}</div><div id="album-versions"></div>`);
 }
 
+const KIND_LABEL = { album: "Album", ep: "EP", single: "Single" };
 const personaKey = (source, id) => `sona.persona.${source}:${id}`;
 const releaseHref = (source, id, r) => `#/xrelease/${encodeURIComponent(source)}/${encodeURIComponent(id)}/${encodeURIComponent(r.persona)}/${encodeURIComponent(r.album)}`;
 
@@ -1854,7 +1855,7 @@ async function viewPersonaArtist(source, id, artist, personas) {
   const total = (name) => tracksOf(name).length;
   const relCard = (r) => card({
     href: releaseHref(source, id, r), cover: r.cover_url, title: r.album,
-    subtitle: [r.kind === "single" ? "Single" : "Album", plural(r.track_count, "titre")].join(" · "), play: register(r.tracks, r.album),
+    subtitle: [KIND_LABEL[r.kind] || "Album", plural(r.track_count, "titre")].join(" · "), play: register(r.tracks, r.album),
   });
   const section = (title, items) => (items.length ? `<section class="section"><div class="section-head"><h2>${esc(title)}</h2></div><div class="grid">${items.map(relCard).join("")}</div></section>` : "");
   const switcher = () => `<div class="chips persona-switch" role="tablist" aria-label="Identité">${personas.map((name) =>
@@ -1862,7 +1863,9 @@ async function viewPersonaArtist(source, id, artist, personas) {
   const body = () => {
     const releases = releasesOf(current);
     if (!releases.length) return empty("♫", "Rien pour l'instant", `Aucune sortie de ${current} n'a encore été ajoutée.`);
-    return section("Albums", releases.filter((r) => r.kind !== "single")) + section("Singles", releases.filter((r) => r.kind === "single"));
+    return section("Albums", releases.filter((r) => r.kind === "album" || !KIND_LABEL[r.kind]))
+      + section("EP", releases.filter((r) => r.kind === "ep"))
+      + section("Singles", releases.filter((r) => r.kind === "single"));
   };
   const info = () => `${plural(releasesOf(current).length, "sortie")} · ${plural(total(current), "titre")}`;
   setTimeout(() => {
@@ -1906,7 +1909,7 @@ async function viewXRelease(source, id, persona, album) {
   const list = register(rel.tracks, rel.album);
   setTimeout(() => $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(rel.tracks)));
   return page(hero({
-    cover: rel.cover_url, kind: rel.kind === "single" ? "Single" : "Album", title: rel.album, by: persona,
+    cover: rel.cover_url, kind: KIND_LABEL[rel.kind] || "Album", title: rel.album, by: persona,
     byHref: `#/artist/${source}/${id}`,
     info: [rel.year, plural(rel.track_count, "titre"), rel.duration_seconds ? minutesLabel(rel.duration_seconds / 60) : ""].filter(Boolean).join(" · "),
     list, extra: `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`,

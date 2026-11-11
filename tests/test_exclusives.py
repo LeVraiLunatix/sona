@@ -326,3 +326,16 @@ def test_patch_moves_an_existing_exclusive_into_a_release(client):
     body = patched.json()
     assert (body["persona"], body["album"], body["track_number"], body["artist"]) == (
         "reggie petrucci", "CONFESSIONAL INTOXICATION", 4, "reggie petrucci")
+
+
+def test_ep_is_a_release_kind_of_its_own(client):
+    _set_personas(client, ["FEMTOGO"])
+    for n, title in enumerate(["ADATA", "Draga Daï"], 1):
+        assert _release_track(client, title, "FEMTOGO", "La Bête", n, 7, kind="ep").status_code == 201
+    assert _release_track(client, "MKII", "FEMTOGO", "MKII", 1, 4, kind="single").status_code == 201
+    assert _release_track(client, "ZAGA", "FEMTOGO", "archives", 1, 8, kind="album").status_code == 201
+    kinds = {r["album"]: r["kind"] for r in client.get("/artists/deezer/169773547/discography", headers=AUTH).json()["releases"]}
+    assert kinds == {"La Bête": "ep", "MKII": "single", "archives": "album"}
+    # Un type inconnu retombe sur la valeur par défaut : un titre = single, plusieurs = album.
+    assert _release_track(client, "X", "FEMTOGO", "Autre", 1, 9, kind="mixtape").status_code == 201
+    assert {r["album"]: r["kind"] for r in client.get("/artists/deezer/169773547/discography", headers=AUTH).json()["releases"]}["Autre"] == "single"
