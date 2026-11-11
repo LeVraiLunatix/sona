@@ -892,7 +892,7 @@ async function route() {
     playlist: () => viewUserPlaylist(parts[1]), dplaylist: () => viewAlbum(parts[1], parts[2], true),
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
     friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
-    stats: viewStats, recent: viewRecent, radios: viewRadios, exclusives: viewExclusives, party: () => viewParty(parts[1]),
+    stats: viewStats, recent: viewRecent, radios: viewRadios, exclusives: () => viewExclusives(parts[1]), party: () => viewParty(parts[1]),
     settings: viewSettings, appearance: viewAppearance, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
@@ -1270,58 +1270,109 @@ async function viewRadios() {
 
 // ── Exclus ───────────────────────────────────────────────────────────────
 
-async function viewExclusives() {
-  $("#content").innerHTML = skeleton("Exclus");
-  const [{ tracks }, status] = await Promise.all([api("/exclusives"), api("/exclusives/status").catch(() => ({}))]);
-  setTimeout(() => $("[data-excl-add]")?.addEventListener("click", () => exclusiveSheet()));
-  const playAll = tracks.length ? register(tracks, "Exclus") : "";
-  // Rangés par rappeur : chacun avec ses exclus, triés (identité, album, numéro), le tout filtrable.
+/** Les exclus rangés par artiste. Un artiste à identités (FEMTOGO…) s'affiche « FEMTO (archives) » avec le sceau SPK. */
+function exclusiveGroups(tracks) {
   const groups = new Map();
   for (const t of tracks) {
     const key = t.artist_source_id ? `${t.artist_source}:${t.artist_source_id}` : `n:${fold(t.artist)}`;
-    if (!groups.has(key)) groups.set(key, { name: t.artist, source: t.artist_source, id: t.artist_source_id, tracks: [] });
-    groups.get(key).tracks.push(t);
+    if (!groups.has(key)) groups.set(key, { key, source: t.artist_source, id: t.artist_source_id, names: new Map(), tracks: [] });
+    const g = groups.get(key);
+    g.tracks.push(t);
+    g.names.set(t.artist, (g.names.get(t.artist) || 0) + 1);
   }
-  const rappers = [...groups.values()].map((g) => ({
-    ...g, tracks: g.tracks.sort((a, b) => (a.persona || "").localeCompare(b.persona || "", "fr") || (a.album || "").localeCompare(b.album || "", "fr")
-      || (a.track_number || 0) - (b.track_number || 0) || a.title.localeCompare(b.title, "fr")),
-  }));
+  return [...groups.values()].map((g) => {
+    const archive = g.tracks.some((t) => t.persona);
+    // Le nom le plus fréquent : chez un artiste à identités, chaque titre porte le nom de son identité.
+    const name = [...g.names.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    return {
+      ...g, name, archive, label: archive ? "FEMTO" : name,
+      tracks: g.tracks.sort((a, b) => (a.persona || "").localeCompare(b.persona || "", "fr") || (a.album || "").localeCompare(b.album || "", "fr")
+        || (a.track_number || 0) - (b.track_number || 0) || a.title.localeCompare(b.title, "fr")),
+    };
+  });
+}
+const SPK_LOGO = "img/spk.png";
+
+async function viewExclusives(artistKey) {
+  $("#content").innerHTML = skeleton("Exclus");
+  const [{ tracks }, status] = await Promise.all([api("/exclusives"), api("/exclusives/status").catch(() => ({}))]);
+  const artists = exclusiveGroups(tracks);
+  const sel = artistKey ? artists.find((g) => g.key === artistKey) : null;
+  if (artistKey && sel) return viewExclusivesArtist(sel);
+  setTimeout(() => $("[data-excl-add]")?.addEventListener("click", () => exclusiveSheet()));
+  const playAll = tracks.length ? register(tracks, "Exclus") : "";
   const ui = { q: "", sort: "az" };
-  const rapperHtml = (g) => `<section class="xr">
-    <header class="xr-head">
-      <img src="${esc(g.tracks[0].cover_url)}" alt="" loading="lazy">
-      <div class="xr-id"><b>${esc(g.name)}</b><small>${plural(g.tracks.length, "exclu")}</small></div>
-      ${g.id ? `<a class="btn ghost small" href="#/artist/${esc(g.source)}/${esc(g.id)}">Voir la page</a>` : ""}
-      <button class="btn small" data-play="${register(g.tracks, g.name)}">${icons.play} Lire</button>
-    </header>${trackTable(g.tracks, g.name, { showAlbum: false, numbers: false })}</section>`;
-  const drawRappers = () => {
+  const cardHtml = (g) => `<a class="xa ${g.archive ? "xa-archive" : ""}" href="#/exclusives/${encodeURIComponent(g.key)}">
+      <div class="xa-pic"><img src="${esc(g.archive ? SPK_LOGO : g.tracks[0].cover_url)}" alt="" loading="lazy"></div>
+      <div class="xa-name">${esc(g.label)}${g.archive ? `<small>(archives)</small>` : ""}</div>
+      <div class="xa-count">${plural(g.tracks.length, "exclu")}</div></a>`;
+  const draw = () => {
     const q = fold(ui.q);
-    const shown = rappers.filter((g) => !q || fold(g.name).includes(q))
-      .sort(ui.sort === "count" ? (a, b) => b.tracks.length - a.tracks.length || a.name.localeCompare(b.name, "fr") : (a, b) => a.name.localeCompare(b.name, "fr"));
-    const host = $("#xr-list");
+    const shown = artists.filter((g) => !q || fold(g.name).includes(q) || fold(g.label).includes(q))
+      .sort(ui.sort === "count" ? (a, b) => b.tracks.length - a.tracks.length || a.label.localeCompare(b.label, "fr") : (a, b) => a.label.localeCompare(b.label, "fr"));
+    const host = $("#xa-list");
     if (!host) return;
-    host.innerHTML = shown.length ? shown.map(rapperHtml).join("") : empty("✦", "Aucun rappeur", "Aucun exclu ne correspond à cette recherche.");
-    $("#xr-count").textContent = `${plural(shown.length, "rappeur")} · ${plural(shown.reduce((n, g) => n + g.tracks.length, 0), "exclu")}`;
-    bindPage(host);
+    host.innerHTML = shown.length ? shown.map(cardHtml).join("") : empty("✦", "Aucun artiste", "Aucun artiste ne correspond à cette recherche.");
+    $("#xr-count").textContent = plural(shown.length, "artiste");
   };
   setTimeout(() => {
-    $("#xr-q")?.addEventListener("input", (e) => { ui.q = e.target.value; drawRappers(); });
+    $("#xr-q")?.addEventListener("input", (e) => { ui.q = e.target.value; draw(); });
     $$("[data-xr-sort]").forEach((b) => (b.onclick = () => {
       ui.sort = b.dataset.xrSort;
       $$("[data-xr-sort]").forEach((x) => x.classList.toggle("on", x === b));
-      drawRappers();
+      draw();
     }));
-    drawRappers();
+    draw();
   });
   return page(`<h1 class="page-title">Exclus</h1>
-    <p class="page-sub">Des titres inédits, introuvables ailleurs : ajoutés à la main, rangés par rappeur.</p>
+    <p class="page-sub">Des titres inédits, introuvables ailleurs : choisis un artiste pour voir ses exclus.</p>
     <div class="pill-row tight">${tracks.length ? `<button class="btn" data-play="${playAll}">${icons.play} Tout lire</button>` : ""}
       ${status.can_add ? `<button class="btn ghost" data-excl-add>${icons.plus} Ajouter un exclu</button>` : ""}</div>
-    ${tracks.length ? `<div class="xr-bar"><input class="field" id="xr-q" type="search" placeholder="Chercher un rappeur…" autocomplete="off">
+    ${tracks.length ? `<div class="xr-bar"><input class="field" id="xr-q" type="search" placeholder="Chercher un artiste…" autocomplete="off">
         <div class="xr-sort"><button class="on" data-xr-sort="az">A–Z</button><button data-xr-sort="count">Plus d'exclus</button></div><span class="muted" id="xr-count"></span></div>
-      <div id="xr-list"></div>`
+      <div class="xa-grid" id="xa-list"></div>`
       : empty("✦", "Aucun exclu pour le moment", status.can_add ? "Ajoute ton premier titre inédit avec le bouton ci-dessus." : "Les titres inédits ajoutés par l'admin apparaîtront ici.")}
     ${status.enabled === false ? `<p class="muted">Stockage non configuré : renseigne DISCORD_STORAGE_WEBHOOK sur le serveur.</p>` : ""}`);
+}
+
+/** Les exclus d'un artiste : triés (identité, album, numéro), avec une recherche. */
+function viewExclusivesArtist(g) {
+  const sections = (list) => {
+    const by = new Map();
+    for (const t of list) {
+      const k = `${t.persona || ""}\u0000${t.album || ""}`;
+      if (!by.has(k)) by.set(k, { persona: t.persona || "", album: t.album || "", tracks: [] });
+      by.get(k).tracks.push(t);
+    }
+    return [...by.values()];
+  };
+  const draw = (q) => {
+    const f = fold(q);
+    const list = f ? g.tracks.filter((t) => fold(`${t.title} ${t.album || ""} ${t.persona || ""} ${t.artist}`).includes(f)) : g.tracks;
+    const host = $("#xd-list");
+    if (!host) return;
+    $("#xd-count").textContent = `${plural(list.length, "exclu")}`;
+    host.innerHTML = list.length ? sections(list).map((s) => {
+      const title = [s.persona, splitFeat(s.album).title].filter(Boolean).join(" · ") || "Titres";
+      return `<section class="pa-sec"><div class="pa-sec-h"><b>${esc(title)}</b><span>${plural(s.tracks.length, "titre")}</span></div>${trackTable(s.tracks, g.label, { showAlbum: false, numbers: false })}</section>`;
+    }).join("") : `<p class="pa-empty">Aucun exclu ne correspond à « ${esc(q)} ».</p>`;
+    bindPage(host);
+  };
+  setTimeout(() => { $("#xd-q")?.addEventListener("input", (e) => draw(e.target.value)); draw(""); });
+  const all = register(g.tracks, g.label);
+  const actions = `<div class="pa-actions"><button class="btn" data-play="${all}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${all}">${icons.shuffle} Aléatoire</button>
+    ${g.id ? `<a class="btn ghost" href="#/artist/${esc(g.source)}/${esc(g.id)}">Voir la page</a>` : ""}</div>`;
+  const search = `<div class="xd-bar"><input class="field" id="xd-q" type="search" placeholder="Chercher un titre, un album…" autocomplete="off"><span class="pa-line" id="xd-count"></span></div>`;
+  if (g.archive) {
+    return page(`<div class="pa pa-release">
+      <div class="pa-crumb"><a href="#/exclusives">Exclus</a><i>/</i><b>${esc(g.label)}</b></div>
+      <header class="pa-box pa-rel-head"><img class="pa-logo" src="${SPK_LOGO}" alt="">
+        <div class="pa-rel-text"><div class="pa-label">Exclus · archives</div>
+          <h1 class="pa-name">${esc(g.label)}</h1><p class="pa-line">(archives) — ${plural(g.tracks.length, "exclu")}</p>${actions}</div></header>
+      ${search}<div id="xd-list"></div></div>`);
+  }
+  return page(`<p class="xd-back"><a href="#/exclusives">← Exclus</a></p><h1 class="page-title">${esc(g.label)}</h1>
+    <p class="page-sub">${plural(g.tracks.length, "exclu")}</p>${actions}${search}<div id="xd-list"></div>`);
 }
 
 /** Formulaire admin : ajoute un exclu (fichier, titre, artiste, année, type) ou modifie `existing`. */
