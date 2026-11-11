@@ -7,6 +7,8 @@ réservés aux administrateurs. Le fichier est servi par `/stream/exclusive/{id}
 
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
@@ -71,6 +73,40 @@ async def artist_exclusives(
     return {"tracks": await _tracks(request, deps, await deps.repo.exclusive_list(source, source_id, name))}
 
 
+@router.get("/artists/{source}/{source_id}/personas")
+async def artist_personas(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Les identités d'un artiste (vide : sa page est la page habituelle)."""
+    return {"personas": await deps.repo.persona_list(source, source_id)}
+
+
+class PersonasBody(BaseModel):
+    names: list[str]
+
+
+@router.put("/artists/{source}/{source_id}/personas")
+async def set_artist_personas(source: str, source_id: str, body: PersonasBody, deps: ApiDeps = Depends(require_admin)) -> dict:
+    """Fixe les identités d'un artiste, dans l'ordre de la page ; liste vide : retour à la page habituelle."""
+    names, seen = [], set()
+    for raw in body.names:
+        name = raw.strip()
+        if name and name.casefold() not in seen:
+            seen.add(name.casefold())
+            names.append(name[:100])
+    await deps.repo.persona_set(source, source_id, names)
+    return {"personas": names}
+
+
+@router.get("/artists/{source}/{source_id}/discography")
+async def artist_discography(
+    request: Request, source: str, source_id: str, deps: ApiDeps = Depends(require_token)
+) -> dict:
+    """La discographie d'un artiste à identités : ses sorties (albums et singles), par identité."""
+    personas = await deps.repo.persona_list(source, source_id)
+    rows = await deps.repo.exclusive_list(source, source_id, "")
+    tracks = await _tracks(request, deps, rows)
+    return {"personas": personas, "releases": exclusives.build_releases(personas, tracks, rows)}
+
+
 @router.get("/exclusives/cover/{exclusive_id}", name="exclusive_cover")
 async def exclusive_cover(exclusive_id: str, deps: ApiDeps = Depends(get_deps)) -> Response:
     """Pochette. Sans jeton (une balise <img> n'en envoie pas) ; l'identifiant
@@ -104,6 +140,11 @@ async def add_exclusive(
     year: str | None = Query(None, max_length=4),
     kind: str = Query("exclu"),
     filename: str = Query("", max_length=300),
+    persona: str | None = Query(None, max_length=100, description="Identité de l'artiste (page discographie)"),
+    album: str | None = Query(None, max_length=200),
+    album_kind: str | None = Query(None, description="album ou single"),
+    track_number: int | None = Query(None, ge=1, le=999),
+    release_order: int | None = Query(None, ge=0, le=9999, description="Rang de la sortie dans la discographie"),
     deps: ApiDeps = Depends(require_admin),
 ) -> dict:
     """Ajoute un exclu : le corps de la requête EST le fichier audio (envoyé
@@ -122,8 +163,12 @@ async def add_exclusive(
         row = await exclusives.add(
             storage, deps.repo, path, size, filename, request.headers.get("content-type"),
             title=title.strip(), artist=artist.strip(), artist_source=artist_source, artist_source_id=artist_source_id,
-            year=year, kind=kind,
+            year=year, kind=kind, persona=(persona or "").strip() or None, album=(album or "").strip() or None,
+            album_kind=album_kind, track_number=track_number, release_order=release_order,
         )
+    except sqlite3.IntegrityError as exc:
+        # Un titre n'existe qu'une fois par identité et par album : le fichier envoyé n'est pas gardé.
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ce titre existe déjà dans cette sortie.") from exc
     except StorageError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Stockage Discord : {exc}") from exc
     finally:
@@ -210,6 +255,11 @@ class ExclusivePatch(BaseModel):
     artist_source_id: str | None = None
     year: str | None = None
     kind: str | None = None
+    persona: str | None = None
+    album: str | None = None
+    album_kind: str | None = None
+    track_number: int | None = None
+    release_order: int | None = None
 
 
 @router.patch("/exclusives/{exclusive_id}")
@@ -226,8 +276,12 @@ async def edit_exclusive(
         if key in fields and not (fields[key] or "").strip():
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Titre et artiste ne peuvent pas être vides.")
     # Titre, artiste et type ne s'effacent pas ; la fiche artiste et l'année, si.
-    keep = {k: v for k, v in fields.items() if v is not None or k in ("artist_source", "artist_source_id", "year")}
-    await deps.repo.exclusive_update(exclusive_id, keep)
+    keep = {k: v for k, v in fields.items() if v is not None or k in (
+        "artist_source", "artist_source_id", "year", "persona", "album", "album_kind", "track_number", "release_order")}
+    try:
+        await deps.repo.exclusive_update(exclusive_id, keep)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ce titre existe déjà dans cette sortie.") from exc
     return await _track(request, deps, exclusive_id)
 
 

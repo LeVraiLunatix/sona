@@ -46,13 +46,15 @@ def track_dict(row: dict, cover_url: str, extras: list[dict] | None = None) -> d
         "source_id": row["id"],
         "title": row["title"],
         "artist": row["artist"],
-        "album": None,
+        "album": row.get("album"),
         "year": row["year"],
         "duration_seconds": row["duration_seconds"],
         "cover_url": cover_url,
         "artist_source": row["artist_source"],
         "artist_source_id": row["artist_source_id"],
         "tag": tag_label(row["kind"]),
+        "persona": row.get("persona"),
+        "track_number": row.get("track_number"),
         "exclusive": True,
         "artists": [],
         **_quality_fields(row, extras),
@@ -142,7 +144,8 @@ async def store_cover(storage: DiscordStorage, data: bytes, mime: str) -> tuple[
 
 async def add(storage: DiscordStorage, repo, path: Path, size: int, filename: str, content_type: str | None,
               *, title: str, artist: str, artist_source: str | None, artist_source_id: str | None,
-              year: str | None, kind: str) -> dict:
+              year: str | None, kind: str, persona: str | None = None, album: str | None = None,
+              album_kind: str | None = None, track_number: int | None = None, release_order: int | None = None) -> dict:
     """Range un fichier déjà reçu sur disque : Discord, puis la base."""
     suffix = audio_suffix(filename, content_type)
     info = await asyncio.to_thread(probe, path)
@@ -160,6 +163,9 @@ async def add(storage: DiscordStorage, repo, path: Path, size: int, filename: st
             "filename": f"{artist} - {title}{suffix}", "size": size,
             "chunks": json.dumps([c.to_json() for c in chunks]),
             "cover_chunks": cover_chunks, "cover_mime": cover_mime,
+            "persona": persona or None, "album": album or None,
+            "album_kind": album_kind if album_kind in ("album", "single") else None,
+            "track_number": track_number, "release_order": release_order,
         }
         await repo.exclusive_add(row)
     except Exception:
@@ -267,3 +273,51 @@ async def remove(storage: DiscordStorage, repo, cache_dir: Path, row: dict) -> N
 
 
 __all__ = ["StorageError"]
+
+
+# -- Discographie d'un artiste à identités -------------------------------------
+
+def _fold(text: str | None) -> str:
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", (text or "").casefold())
+    return "".join(ch for ch in decomposed if ch.isalnum() and not unicodedata.combining(ch))
+
+
+def build_releases(personas: list[str], tracks: list[dict], rows: list[dict]) -> list[dict]:
+    """Les sorties (albums et singles) d'un artiste à identités, dans l'ordre de la page :
+    identité par identité (dans l'ordre donné), puis dans l'ordre des dossiers, chaque piste
+    à sa place. Un titre n'apparaît qu'une fois par sortie. La pochette d'une sortie est la
+    première pochette réelle de ses pistes (sinon la vignette neutre de la première)."""
+    order = {_fold(name): i for i, name in enumerate(personas)}
+    has_cover = {r["id"]: bool(r.get("cover_chunks")) for r in rows}
+    by_id = {r["id"]: r for r in rows}
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for track in tracks:
+        row = by_id.get(track["source_id"])
+        persona = (row or {}).get("persona")
+        if not row or not persona or not row.get("album"):
+            continue  # un exclu sans identité ni album n'appartient à aucune sortie
+        groups.setdefault((persona, row["album"]), []).append(track)
+    releases = []
+    for (persona, album), items in groups.items():
+        items.sort(key=lambda t: (t.get("track_number") or 10_000, _fold(t["title"])))
+        seen: set[str] = set()
+        unique = []
+        for t in items:
+            key = _fold(t["title"])
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(t)
+        first = by_id[unique[0]["source_id"]]
+        cover = next((t["cover_url"] for t in unique if has_cover.get(t["source_id"])), unique[0]["cover_url"])
+        kind = first.get("album_kind") or ("single" if len(unique) == 1 else "album")
+        releases.append({
+            "persona": persona, "album": album, "kind": kind, "order": first.get("release_order") or 0,
+            "year": next((t["year"] for t in unique if t.get("year")), None),
+            "track_count": len(unique), "duration_seconds": sum(t.get("duration_seconds") or 0 for t in unique),
+            "cover_url": cover, "tracks": unique,
+        })
+    releases.sort(key=lambda r: (order.get(_fold(r["persona"]), 999), r["order"], _fold(r["album"])))
+    return releases

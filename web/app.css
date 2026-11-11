@@ -2459,3 +2459,8 @@ mark { background: transparent; color: var(--accent); font-weight: inherit; bord
 .np.np-s-ambient:not(.mobile) .np-meta .tbtn { display: none; }
 .np.np-s-ambient:not(.mobile) .np-progress { position: absolute; left: 25vw; right: 25vw; bottom: 12vh; z-index: 2; }
 .np.np-s-ambient:not(.mobile) .np-transport { position: absolute; left: 0; right: 0; bottom: 3.5vh; z-index: 2; gap: 22px; }
+
+/* ── Artiste à identités : le choix de l'identité à écouter ─────────────────── */
+.persona-switch { margin: 4px 0 22px; }
+.persona-switch .chip { font-size: 14.5px; padding: 9px 18px; }
+.persona-switch .chip small { opacity: .6; margin-left: 6px; font-size: 12px; }
