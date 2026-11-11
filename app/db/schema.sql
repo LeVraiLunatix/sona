@@ -62,6 +62,21 @@ CREATE TABLE IF NOT EXISTS stream_cache (
     PRIMARY KEY (source, source_id, format, quality)
 );
 
+-- Coffre audio Drivecord : copie des morceaux préparés, en morceaux dans un salon
+-- Discord (services/audio_vault.py). `chunks` : liste JSON des morceaux.
+CREATE TABLE IF NOT EXISTS audio_vault (
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    format TEXT NOT NULL,
+    quality TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    chunks TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id, format, quality)
+);
+
 CREATE TABLE IF NOT EXISTS allowed_users (
     user_id INTEGER PRIMARY KEY,
     display_name TEXT,

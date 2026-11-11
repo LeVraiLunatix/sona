@@ -22,7 +22,7 @@ from app.api.routers import (
 from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
 from app.config import load_settings
-from app.services import karaoke as karaoke_service, playlist_import, stream_health, youtube_session, ytdlp_updater
+from app.services import audio_vault, karaoke as karaoke_service, playlist_import, stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
 from app.services.discord_storage import DiscordStorage
 from app.services.lyrics import LyricsService
@@ -96,6 +96,7 @@ async def lifespan(app: FastAPI):
         musicbrainz=musicbrainz,
         lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch, genius),
         exclusive_storage=DiscordStorage(settings.exclusives_webhook),
+        vault_storage=DiscordStorage(settings.audio_vault_webhook or settings.exclusives_webhook),
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
@@ -103,6 +104,7 @@ async def lifespan(app: FastAPI):
     backups = None
     watcher = None
     syncer = None
+    vaulter = None
     if "PYTEST_CURRENT_TEST" not in os.environ:
         if not settings.bot_token:
             backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
@@ -111,11 +113,13 @@ async def lifespan(app: FastAPI):
         syncer = asyncio.create_task(playlist_import.auto_sync_loop(app.state.deps))
         # Karaoké : la nuit, séparation des titres les plus écoutés.
         karaoke_service.start_nightly(app.state.deps)
+        # Coffre Drivecord : met peu à peu de côté les titres déjà sur le disque.
+        vaulter = asyncio.create_task(audio_vault.backfill_loop(app.state.deps))
         asyncio.create_task(asyncio.to_thread(ytdlp_updater.ensure_cron))
     try:
         yield
     finally:
-        for task in (backups, watcher, syncer):
+        for task in (backups, watcher, syncer, vaulter):
             if task is not None:
                 task.cancel()
         karaoke_service.reset()
@@ -124,6 +128,7 @@ async def lifespan(app: FastAPI):
         await spotify.aclose()
         await lrclib.aclose()
         await app.state.deps.exclusive_storage.aclose()
+        await app.state.deps.vault_storage.aclose()
         for client in (netease, musixmatch, genius):
             if client is not None:
                 await client.aclose()

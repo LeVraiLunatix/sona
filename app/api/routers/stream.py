@@ -21,7 +21,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, exclusives, karaoke, live_stream, local_library, stream_health
+from app.services import audio_analysis, audio_vault, exclusives, karaoke, live_stream, local_library, stream_health
 from app.services.resolver import (
     Candidate, ResolutionError, iter_audio_sources, rejection_reason, score_candidate,
 )
@@ -392,7 +392,8 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
 
     key = _cache_key(source, source_id, fmt, quality)
     failure = _failures.get(key)
-    if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
+    # Une panne de YouTube ne concerne pas un titre qu'on a en réserve dans le coffre.
+    if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL and not await audio_vault.has(deps, source, source_id, fmt, quality):
         raise HTTPException(failure[1], failure[2])
 
     async with _locks[key]:
@@ -401,6 +402,19 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
         cached = await _cached_file(deps, source, source_id, fmt, quality)
         if cached is not None:
             return cached
+        # Effacé du disque mais gardé dans le coffre Drivecord : on le retrouve
+        # là (bien plus vite, et sans YouTube) avant de retourner le chercher.
+        restored = await audio_vault.restore(
+            deps, source, source_id, fmt, quality,
+            lambda suffix: _persistent_path(deps, source, source_id, fmt, quality, suffix),
+        )
+        if restored is not None:
+            path, content_type = restored
+            await deps.repo.stream_cache_set(source, source_id, fmt, quality, str(path), content_type)
+            prune_cache(deps.settings.stream_cache_dir, deps.settings.stream_cache_max_mb * 1024 * 1024, keep=path)
+            _failures.pop(key, None)
+            _spawn_analysis(deps, source, source_id, path)
+            return str(path), content_type
         failure = _failures.get(key)
         if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
             raise HTTPException(failure[1], failure[2])
@@ -414,6 +428,11 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
         _failures.pop(key, None)
         # Analyse pour l'AutoMix, en arrière-plan (priorité basse).
         _spawn_analysis(deps, source, source_id, dest)
+        # Copie de secours dans le coffre Drivecord, en arrière-plan aussi.
+        audio_vault.spawn_upload(
+            deps, source, source_id, fmt, quality, dest,
+            _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream"),
+        )
 
     return str(dest), _CONTENT_TYPES.get(dest.suffix.lower(), "application/octet-stream")
 
@@ -626,6 +645,8 @@ async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(req
     # écarter, mais le supprimer suffit souvent (le classement favorise
     # maintenant l'audio officiel).
     await deps.repo.analysis_delete(source, source_id)
+    # La copie du coffre est la mauvaise version, elle aussi.
+    await audio_vault.forget(deps, source, source_id)
     for path in await deps.repo.stream_cache_delete(source, source_id):
         try:
             Path(path).unlink(missing_ok=True)

@@ -34,6 +34,8 @@ class ApiDeps:
     lyrics: LyricsService | None = None
     # Stockage Discord des exclus (webhook) ; absent = section « Exclus » fermée.
     exclusive_storage: DiscordStorage | None = None
+    # Coffre audio Drivecord (copie de secours des titres préparés) ; absent = désactivé.
+    vault_storage: DiscordStorage | None = None
     # SoundCloud (import de playlists et de likes) ; sinon le client commun.
     soundcloud: SoundcloudClient | None = None
     account: Account | None = None
