@@ -2653,6 +2653,27 @@ async function offlineDownload(t) {
   }
 }
 
+/** App Windows : le titre en vrai fichier dans Musique\Sona (le fichier téléchargé, ou le complet s'il ne l'est pas encore). */
+async function saveToPc(t) {
+  if (!desktop?.saveTrack) return;
+  toast(`Enregistrement de « ${t.title} »…`);
+  try {
+    let blob = null;
+    try { const hit = await (await caches.open(OFFLINE_CACHE)).match(offlineKey(t)); if (hit) blob = await hit.blob(); } catch {}
+    if (!blob) {
+      const url = `${streamUrl(t)}&live=false`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(await explainPlaybackError(url));
+      blob = await res.blob();
+    }
+    if (blob.size < 20000) throw new Error("fichier audio incomplet");
+    await desktop.saveTrack(`${t.artist} - ${t.title}`, blob.type, await blob.arrayBuffer());
+    toast("Enregistré dans Musique\\Sona");
+  } catch (e) {
+    toast(`Enregistrement impossible : ${e.message}`);
+  }
+}
+
 async function offlineRemove(t) {
   try { await (await caches.open(OFFLINE_CACHE)).delete(offlineKey(t)); } catch {}
   offline.meta = offline.meta.filter((m) => !sameTrack(m, t));
@@ -6096,6 +6117,7 @@ function trackMenu(t, ctx = null, index = -1) {
     })),
     offline.supported && { icon: icons.download, label: offlineHas(t) ? "Supprimer le téléchargement" : "Télécharger pour l'écoute hors ligne",
       run: () => (offlineHas(t) ? offlineRemove(t).then(() => toast("Téléchargement supprimé")) : offlineDownload(t)) },
+    desktop?.saveTrack && { icon: icons.download, label: "Enregistrer sur le PC", sub: "Fichier dans Musique\\Sona", run: () => saveToPc(t) },
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
     { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
     { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
