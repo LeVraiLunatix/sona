@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from app.api.auth import require_token
 from app.api.schemas import Album, Artist, ResolvedLink, ResolveRequest, SearchResponse, Track
@@ -14,7 +17,7 @@ from app.providers.link_detect import resolve_link
 from app.services import query_cache
 from app.services.artist_search import rank_artists
 from app.services.resolver import search_artists_youtube
-from app.services.search import SearchError, search_tracks
+from app.services.search import SearchError, search_tracks, tidy_results
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["search"])
@@ -107,6 +110,8 @@ async def search(
     except SearchError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
+    # Pas de ré-ordonnancement d'une page suivante : l'ordre de la source fait foi.
+    tracks = tidy_results(cached.text, tracks) if offset == 0 else tidy_results("", tracks)
     await _add_feats(deps, tracks)
     return SearchResponse(
         query_id=query_id,
@@ -143,3 +148,67 @@ async def resolve(payload: ResolveRequest, deps: ApiDeps = Depends(require_token
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
     raise HTTPException(status.HTTP_400_BAD_REQUEST, "Lien non supporté.")
+
+
+# -- Suggestions pendant la frappe ------------------------------------------
+
+class Suggestion(BaseModel):
+    kind: Literal["artist", "track"]
+    text: str
+    subtitle: str | None = None
+    picture_url: str | None = None
+    source: str
+    source_id: str
+    artist_source_id: str | None = None
+
+
+SUGGEST_TTL = 60.0
+SUGGEST_BUDGET = 2.0
+_suggest_cache: dict[str, tuple[float, list[Suggestion]]] = {}
+
+
+@router.get("/search/suggest", response_model=list[Suggestion])
+async def suggest(
+    q: str = Query(..., description="Début de saisie"),
+    limit: int = Query(8, ge=1, le=12),
+    deps: ApiDeps = Depends(require_token),
+) -> list[Suggestion]:
+    """Quelques artistes puis quelques titres pour la saisie en cours (liste
+    sous la barre de recherche). Au mieux : lent ou en panne, la liste est
+    simplement vide — la recherche, elle, ne dépend pas de ça. Gardé 1 min."""
+    text = q.strip()
+    if len(text) < 2:
+        return []
+    key = text.casefold()
+    hit = _suggest_cache.get(key)
+    if hit and time.monotonic() - hit[0] < SUGGEST_TTL:
+        return hit[1][:limit]
+
+    async def artists():
+        return rank_artists(text, await deps.deezer.search_artists(text, limit=3))
+
+    async def titles():
+        found, _ = await deps.deezer.search_tracks(text, limit=6, order="RANKING")
+        return tidy_results(text, found)
+
+    try:
+        got = await asyncio.wait_for(asyncio.gather(artists(), titles(), return_exceptions=True), SUGGEST_BUDGET)
+    except asyncio.TimeoutError:
+        return []
+    found_artists = got[0] if isinstance(got[0], list) else []
+    found_tracks = got[1] if isinstance(got[1], list) else []
+    out = [
+        Suggestion(kind="artist", text=a.name, subtitle="Artiste", picture_url=a.picture_url, source=a.source, source_id=a.source_id)
+        for a in found_artists
+    ] + [
+        Suggestion(
+            kind="track", text=t.title, subtitle=t.artist, picture_url=t.cover_url, source=t.source,
+            source_id=t.source_id, artist_source_id=getattr(t, "artist_source_id", None),
+        )
+        for t in found_tracks
+    ]
+    if out:
+        if len(_suggest_cache) > 300:
+            _suggest_cache.clear()
+        _suggest_cache[key] = (time.monotonic(), out)
+    return out[:limit]

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 
 from app.bot.deps import Deps
 from app.providers.apple import AppleMusicError
@@ -138,3 +140,55 @@ async def search_tracks(
     if failures == len(order):
         raise SearchError("Aucune source de recherche disponible.")
     return [], 0
+
+
+# -- Résultats plus propres ---------------------------------------------------
+
+# Mentions qui font d'un titre une autre version (la recherche « Titre » ne
+# doit pas masquer son remix, ni l'inverse) — comme dans l'import de playlists.
+_VERSION_RE = re.compile(
+    r"\b(live|remix|rmx|acoustic|acoustique|unplugged|instrumental|karaoke|cover|sped\s*up|slowed|"
+    r"nightcore|extended|a\s*cappella|acapella|demo)\b",
+    re.IGNORECASE,
+)
+
+
+def _fold(text: str | None) -> str:
+    decomposed = unicodedata.normalize("NFKD", (text or "").casefold())
+    return "".join(ch for ch in decomposed if ch.isalnum() and not unicodedata.combining(ch))
+
+
+def _core_title(title: str) -> str:
+    """Le titre sans « (feat. X) », « [Remastered] » ni « - Radio Edit » : ce qui reste est le morceau."""
+    text = re.sub(r"[(\[].*?[)\]]", " ", title or "")
+    text = re.split(r"\s[-–—]\s", text, maxsplit=1)[0]
+    text = re.sub(r"\b(?:feat|ft)\.?\s.*$", " ", text, flags=re.IGNORECASE)
+    return _fold(text)
+
+
+def _versions(title: str) -> frozenset[str]:
+    return frozenset(re.sub(r"\s+", "", m.lower()) for m in _VERSION_RE.findall(title or ""))
+
+
+def tidy_results(query: str, tracks: list[TrackInfo]) -> list[TrackInfo]:
+    """Une recherche de titres plus lisible :
+
+    - la même chanson publiée sur l'album, le single et une compilation ne
+      sort qu'une fois (la première, donc la plus écoutée) ; un remix, un
+      live ou une version acoustique restent des résultats à part ;
+    - le titre qui porte exactement le nom cherché passe devant, à égalité
+      d'ordre pour le reste (l'ordre de popularité est conservé).
+    """
+    seen: set[tuple[str, str, frozenset[str]]] = set()
+    kept: list[TrackInfo] = []
+    for track in tracks:
+        key = (_core_title(track.title), _fold(track.artist.split(",")[0]), _versions(track.title))
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(track)
+    wanted = _fold(query)
+    if not wanted:
+        return kept
+    exact = [t for t in kept if _core_title(t.title) == wanted and not _versions(t.title)]
+    return exact + [t for t in kept if t not in exact]
