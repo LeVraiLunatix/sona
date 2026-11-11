@@ -771,6 +771,20 @@ ipcMain.handle("desktop:iphone-logs", async () => {
   if (file) shell.showItemInFolder(file);
   return !!file;
 });
+/** « Enregistrer sur le PC » : le titre devient un vrai fichier dans Musique\Sona, montré dans l'Explorateur. */
+const AUDIO_EXT = { "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/aac": "m4a", "audio/flac": "flac", "audio/x-flac": "flac", "audio/ogg": "ogg", "audio/opus": "opus", "audio/webm": "webm", "audio/wav": "wav", "audio/x-wav": "wav" };
+ipcMain.handle("desktop:save-track", async (_e, name, mime, bytes) => {
+  const fs = require("node:fs");
+  const ext = AUDIO_EXT[String(mime || "").split(";")[0].trim().toLowerCase()] || "m4a";
+  const base = String(name || "Sona").replace(/[<>:"/\\|?*\x00-\x1f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "Sona";
+  const dir = path.join(app.getPath("music"), "Sona");
+  fs.mkdirSync(dir, { recursive: true });
+  let file = path.join(dir, `${base}.${ext}`);
+  for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${base} (${i}).${ext}`);
+  fs.writeFileSync(file, Buffer.from(bytes));
+  shell.showItemInFolder(file);
+  return file;
+});
 ipcMain.handle("desktop:updates", async (_e, action, value) => {
   if (action === "check") await updater.check({ manual: true });
   else if (action === "install") await updater.install();
