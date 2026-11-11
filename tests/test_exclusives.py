@@ -339,3 +339,16 @@ def test_ep_is_a_release_kind_of_its_own(client):
     # Un type inconnu retombe sur la valeur par défaut : un titre = single, plusieurs = album.
     assert _release_track(client, "X", "FEMTOGO", "Autre", 1, 9, kind="mixtape").status_code == 201
     assert {r["album"]: r["kind"] for r in client.get("/artists/deezer/169773547/discography", headers=AUTH).json()["releases"]}["Autre"] == "single"
+
+
+def test_cover_url_changes_with_the_cover_so_caches_do_not_serve_the_old_one(client):
+    track = _add(client).json()
+    neutral = track["cover_url"]
+    assert neutral.endswith("?v=0")
+    first = b"\x89PNG\r\n\x1a\n" + b"1" * 64
+    second = b"\x89PNG\r\n\x1a\n" + b"2" * 64
+    done = client.post(f"/exclusives/{track['source_id']}/cover", content=first, headers={**AUTH, "Content-Type": "image/png"}).json()
+    again = client.post(f"/exclusives/{track['source_id']}/cover", content=second, headers={**AUTH, "Content-Type": "image/png"}).json()
+    assert done["cover_url"] != neutral and again["cover_url"] != done["cover_url"]
+    # L'adresse versionnée sert bien l'image (le paramètre est ignoré par la route).
+    assert client.get(again["cover_url"].replace("http://testserver", "")).content == second
