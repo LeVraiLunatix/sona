@@ -115,9 +115,12 @@ class NeteaseClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def _get(self, path: str, params: dict) -> dict:
+    async def _get(self, path: str, params: dict, *, post: bool = False) -> dict:
         try:
-            response = await self._client.get(path, params=params)
+            if post:
+                response = await self._client.post(path, data=params)
+            else:
+                response = await self._client.get(path, params=params)
         except httpx.HTTPError as exc:
             raise LyricsError(f"NetEase injoignable : {exc}") from exc
         if response.status_code != 200:
@@ -130,21 +133,42 @@ class NeteaseClient:
             raise LyricsError("Réponse NetEase inattendue")
         return data
 
-    async def search(self, title: str, artist: str) -> list[NeteaseSong]:
-        data = await self._get("/search/get", {"s": f"{artist} {title}", "type": 1, "limit": SEARCH_LIMIT})
+    @staticmethod
+    def _songs(data: dict) -> list[NeteaseSong]:
+        """Titres d'une réponse de recherche : `/cloudsearch/pc` (artistes
+        dans « ar », album dans « al », durée dans « dt ») ou l'ancien
+        `/search/get` (« artists », « album », « duration »)."""
         songs: list[NeteaseSong] = []
         for raw in ((data.get("result") or {}).get("songs") or []):
             try:
+                artists = raw.get("ar") or raw.get("artists") or []
+                album = raw.get("al") or raw.get("album") or {}
+                length = raw.get("dt") or raw.get("duration")
                 songs.append(NeteaseSong(
                     id=int(raw["id"]),
                     title=str(raw.get("name") or ""),
-                    artist=", ".join(str(a.get("name") or "") for a in raw.get("artists") or [] if a.get("name")),
-                    album=(raw.get("album") or {}).get("name") or None,
-                    duration=(raw["duration"] / 1000) if raw.get("duration") else None,
+                    artist=", ".join(str(a.get("name") or "") for a in artists if a.get("name")),
+                    album=album.get("name") or None,
+                    duration=(length / 1000) if length else None,
                 ))
-            except (KeyError, TypeError, ValueError):
+            except (AttributeError, KeyError, TypeError, ValueError):
                 continue
         return songs
+
+    async def search(self, title: str, artist: str) -> list[NeteaseSong]:
+        # `/cloudsearch/pc` rend les bons titres ; l'ancien `/search/get`,
+        # lui, renvoie souvent des chansons sans rapport (chinoises) pour un
+        # titre latin : il ne sert plus que si l'autre est en panne.
+        query = f"{title} {artist}"
+        try:
+            songs = self._songs(await self._get(
+                "/cloudsearch/pc", {"s": query, "type": 1, "limit": SEARCH_LIMIT, "offset": 0}, post=True,
+            ))
+        except LyricsError:
+            songs = []
+        if songs:
+            return songs
+        return self._songs(await self._get("/search/get", {"s": f"{artist} {title}", "type": 1, "limit": SEARCH_LIMIT}))
 
     async def lyrics(self, song_id: int) -> Lyrics | None:
         data = await self._get("/song/lyric/v1", {

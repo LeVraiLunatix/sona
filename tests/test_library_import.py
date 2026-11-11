@@ -17,7 +17,7 @@ from app.providers.base import ExternalPlaylist, TrackInfo
 from app.providers.link_detect import resolve_link
 from app.providers.soundcloud import SoundcloudClient, SoundcloudError, track_from_api
 from app.services import playlist_import
-from app.services.playlist_import import detect_playlist_link, is_same_track, match_quality, origin_key
+from app.services.playlist_import import ambiguity, detect_playlist_link, is_same_track, match_quality, origin_key
 
 AUTH = {"Authorization": "Bearer test-token"}
 
@@ -188,6 +188,24 @@ def test_match_quality():
     assert status == "uncertain" and "6 s" in reason
     status, reason = match_quality(_t("Grabba"), _t("Grabba Akimbo", source="deezer"))
     assert status == "uncertain" and "approchant" in reason
+
+
+def _d(album, duration, isrc=None):
+    t = _t("Grabba", duration=duration, source="deezer", isrc=isrc)
+    t.album = album
+    return t
+
+
+def test_ambiguity():
+    # Un seul candidat, ou l'ISRC, ou une durée qui tranche : aucun doute.
+    assert ambiguity(_t("Grabba"), [_d("Album", 180)]) is None
+    assert ambiguity(_t("Grabba", isrc="FR1"), [_d("A", 200, isrc="fr1"), _d("B", 150)]) is None
+    assert ambiguity(_t("Grabba", duration=180), [_d("A", 181), _d("B", 150)]) is None
+    # Sans rien pour trancher, deux albums aux durées différentes : à vérifier.
+    assert "Plusieurs versions" in ambiguity(_t("Grabba", duration=None), [_d("Album", 200), _d("Single", 150)])
+    # Même album, ou durées voisines : même enregistrement.
+    assert ambiguity(_t("Grabba", duration=None), [_d("Album", 200), _d("Album", 150)]) is None
+    assert ambiguity(_t("Grabba", duration=None), [_d("Album", 200), _d("Single", 201)]) is None
 
 
 def test_origin_key():

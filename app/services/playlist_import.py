@@ -224,11 +224,13 @@ async def _deezer_call(throttle: _Throttle, coro_factory):
             raise
 
 
-async def match_on_deezer(deezer, track: TrackInfo, throttle: _Throttle) -> TrackInfo | None:
+async def deezer_candidates(deezer, track: TrackInfo, throttle: _Throttle) -> list[TrackInfo]:
+    """Équivalents Deezer plausibles du titre, le meilleur d'abord (au plus
+    trois). Un ISRC identique est sans ambiguïté : il est seul."""
     if track.isrc:
         found = await _deezer_call(throttle, lambda: deezer.get_track_by_isrc(track.isrc))
         if found:
-            return found
+            return [found]
     title = re.sub(r"\s*[(\[].*?[)\]]", "", track.title).strip() or track.title
     artist = _first_artist(track.artist)
     queries = [
@@ -237,9 +239,34 @@ async def match_on_deezer(deezer, track: TrackInfo, throttle: _Throttle) -> Trac
     ]
     for query in queries:
         items, _ = await _deezer_call(throttle, lambda q=query: deezer.search_tracks(q, limit=10))
-        for candidate in items:
-            if is_same_track(track, candidate):
-                return candidate
+        accepted = [c for c in items if is_same_track(track, c)]
+        if accepted:
+            return accepted[:3]
+    return []
+
+
+async def match_on_deezer(deezer, track: TrackInfo, throttle: _Throttle) -> TrackInfo | None:
+    found = await deezer_candidates(deezer, track, throttle)
+    return found[0] if found else None
+
+
+def ambiguity(wanted: TrackInfo, candidates: list[TrackInfo]) -> str | None:
+    """Raison du doute quand plusieurs enregistrements différents conviennent
+    (même titre, albums et durées qui divergent : album, single, version
+    radio…) sans que l'ISRC ou la durée d'origine ne tranche. None : le
+    premier est le bon."""
+    if len(candidates) < 2:
+        return None
+    best = candidates[0]
+    if wanted.isrc and best.isrc and wanted.isrc.upper() == best.isrc.upper():
+        return None
+    if wanted.duration_seconds and best.duration_seconds and abs(wanted.duration_seconds - best.duration_seconds) <= SURE_DURATION_GAP:
+        return None
+    for other in candidates[1:]:
+        if other.album and best.album and _key(other.album) == _key(best.album):
+            continue
+        if other.duration_seconds and best.duration_seconds and abs(other.duration_seconds - best.duration_seconds) > SURE_DURATION_GAP:
+            return "Plusieurs versions du titre existent (durées différentes) : vérifie que c'est la bonne."
     return None
 
 
@@ -256,11 +283,17 @@ async def match_track(deps, track: TrackInfo, throttle: _Throttle) -> Match:
         return Match(track, "found")
     found = None
     try:
-        found = await match_on_deezer(deps.deezer, track, throttle)
+        options = await deezer_candidates(deps.deezer, track, throttle)
+        found = options[0] if options else None
     except DeezerError as exc:
+        options = []
         logger.info("Rapprochement Deezer impossible pour « %s » : %s", track.title, exc)
     if found:
         status, reason = match_quality(track, found)
+        if status == "found":
+            doubt = ambiguity(track, options)
+            if doubt:
+                status, reason = "uncertain", doubt
         return Match(found, status, reason)
     label = SOURCE_LABELS.get(track.source, track.source)
     if not track.source_id:

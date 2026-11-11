@@ -3,6 +3,7 @@ cookies renvoyés depuis l'app, mise à jour de yt-dlp avec retour arrière."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -382,7 +383,9 @@ def test_cookies_upload_from_the_app(client, tmp_path, monkeypatch):
     assert got.status_code == 200, got.text
     assert got.json()["cookies"] == 2 and got.json()["logged_in"] is True
     written = tmp_path / "secret" / "cookies.txt"
-    assert written.read_text() == COOKIES and oct(written.stat().st_mode & 0o777) == "0o600"
+    assert written.read_text() == COOKIES
+    if os.name != "nt":  # Windows ne gère pas les droits POSIX : le fichier y reste en 0o666
+        assert oct(written.stat().st_mode & 0o777) == "0o600"
     assert checked == [written]
     status = client.get("/admin/streaming", headers=AUTH).json()
     assert status["cookies"]["present"] and status["health"]["state"] == "ok" and status["ytdlp"]["version"]
