@@ -2660,3 +2660,23 @@ html.archive .xr-sort button { text-transform: uppercase; letter-spacing: .08em;
 html.archive .xr-sort button.on { color: var(--accent); background: var(--accent-soft); }
 html.archive .mp-inner, html.archive .sheet, html.archive .np-tabs { border: 1px solid var(--hairline); background: var(--glass); }
 html.archive, html.archive body, html.archive .content { transition: background-color .5s, color .5s; }
+
+/* Lecteur plein écran en mode archive : fond noir uni (plus de shader), pochette encadrée, texte mono. */
+html.archive .np { background: #0b0b0e !important; color: var(--text); font-family: var(--font); }
+html.archive .np .np-bg, html.archive .np .np-gl, html.archive .np .np-left::before, html.archive .np .np-left::after, html.archive .np .np-right::before, html.archive .np .np-right::after { display: none !important; }
+html.archive .np .np-art { border: 1px solid var(--hairline); -webkit-mask-image: none !important; mask-image: none !important; animation: none !important; width: min(100%, max(140px, calc(100vh - 520px))); }
+html.archive .np .np-tabs { background: transparent; border: 1px solid var(--hairline); padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.archive .np .np-tabs button { border-radius: 0; text-transform: uppercase; letter-spacing: .12em; font-size: 11.5px; font-weight: 500; color: var(--text-2); padding: 8px 18px; }
+html.archive .np .np-tabs button.on { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+html.archive .np .np-meta .t { font-family: "Space Mono", var(--font); text-transform: uppercase; letter-spacing: .06em; font-size: 22px; color: var(--accent) !important; }
+html.archive .np .np-meta .a { color: var(--text-2) !important; font-size: 13px; }
+html.archive .np .np-meta .tbtn, html.archive .np .np-top .tbtn, html.archive .np .np-transport .tbtn { color: var(--text) !important; }
+html.archive .np .np-transport .tbtn.on, html.archive .np .np-meta .tbtn.on { color: var(--accent) !important; }
+html.archive .np .np-transport .tbtn.big { background: var(--accent); color: #0b0b0e !important; }
+html.archive .np input[type="range"].slider, html.archive .np .np-volume .slider { background: linear-gradient(to right, var(--accent) var(--p, 0%), var(--hairline) var(--p, 0%)) !important; }
+html.archive .np .np-times, html.archive .np .np-sing-status, html.archive .np .np-sing-head { color: var(--text-3); }
+html.archive .np .lyrics p { font-family: var(--font); color: var(--text-3); text-shadow: none !important; }
+html.archive .np .lyrics p.on, html.archive .np .lyrics p.active, html.archive .np .lyrics p.cur { color: var(--accent); }
+html.archive .np .np-sing-presets button, html.archive .np .np-sing .tbtn.on { border: 1px solid var(--hairline); background: transparent; color: var(--text); }
+html.archive .np .np-sing-presets button.on, html.archive .np .np-sing .tbtn.on { background: var(--accent); color: #0b0b0e; border-color: var(--accent); }
+html.archive .np .tag-exclu { background: transparent; border: 1px solid var(--hairline); }
