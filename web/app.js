@@ -1275,11 +1275,51 @@ async function viewExclusives() {
   const [{ tracks }, status] = await Promise.all([api("/exclusives"), api("/exclusives/status").catch(() => ({}))]);
   setTimeout(() => $("[data-excl-add]")?.addEventListener("click", () => exclusiveSheet()));
   const playAll = tracks.length ? register(tracks, "Exclus") : "";
+  // Rangés par rappeur : chacun avec ses exclus, triés (identité, album, numéro), le tout filtrable.
+  const groups = new Map();
+  for (const t of tracks) {
+    const key = t.artist_source_id ? `${t.artist_source}:${t.artist_source_id}` : `n:${fold(t.artist)}`;
+    if (!groups.has(key)) groups.set(key, { name: t.artist, source: t.artist_source, id: t.artist_source_id, tracks: [] });
+    groups.get(key).tracks.push(t);
+  }
+  const rappers = [...groups.values()].map((g) => ({
+    ...g, tracks: g.tracks.sort((a, b) => (a.persona || "").localeCompare(b.persona || "", "fr") || (a.album || "").localeCompare(b.album || "", "fr")
+      || (a.track_number || 0) - (b.track_number || 0) || a.title.localeCompare(b.title, "fr")),
+  }));
+  const ui = { q: "", sort: "az" };
+  const rapperHtml = (g) => `<section class="xr">
+    <header class="xr-head">
+      <img src="${esc(g.tracks[0].cover_url)}" alt="" loading="lazy">
+      <div class="xr-id"><b>${esc(g.name)}</b><small>${plural(g.tracks.length, "exclu")}</small></div>
+      ${g.id ? `<a class="btn ghost small" href="#/artist/${esc(g.source)}/${esc(g.id)}">Voir la page</a>` : ""}
+      <button class="btn small" data-play="${register(g.tracks, g.name)}">${icons.play} Lire</button>
+    </header>${trackTable(g.tracks, g.name, { showAlbum: false, numbers: false })}</section>`;
+  const drawRappers = () => {
+    const q = fold(ui.q);
+    const shown = rappers.filter((g) => !q || fold(g.name).includes(q))
+      .sort(ui.sort === "count" ? (a, b) => b.tracks.length - a.tracks.length || a.name.localeCompare(b.name, "fr") : (a, b) => a.name.localeCompare(b.name, "fr"));
+    const host = $("#xr-list");
+    if (!host) return;
+    host.innerHTML = shown.length ? shown.map(rapperHtml).join("") : empty("✦", "Aucun rappeur", "Aucun exclu ne correspond à cette recherche.");
+    $("#xr-count").textContent = `${plural(shown.length, "rappeur")} · ${plural(shown.reduce((n, g) => n + g.tracks.length, 0), "exclu")}`;
+    bindPage(host);
+  };
+  setTimeout(() => {
+    $("#xr-q")?.addEventListener("input", (e) => { ui.q = e.target.value; drawRappers(); });
+    $$("[data-xr-sort]").forEach((b) => (b.onclick = () => {
+      ui.sort = b.dataset.xrSort;
+      $$("[data-xr-sort]").forEach((x) => x.classList.toggle("on", x === b));
+      drawRappers();
+    }));
+    drawRappers();
+  });
   return page(`<h1 class="page-title">Exclus</h1>
-    <p class="page-sub">Des titres inédits, introuvables ailleurs : ajoutés à la main, rangés sur la page de leur artiste.</p>
+    <p class="page-sub">Des titres inédits, introuvables ailleurs : ajoutés à la main, rangés par rappeur.</p>
     <div class="pill-row tight">${tracks.length ? `<button class="btn" data-play="${playAll}">${icons.play} Tout lire</button>` : ""}
       ${status.can_add ? `<button class="btn ghost" data-excl-add>${icons.plus} Ajouter un exclu</button>` : ""}</div>
-    ${tracks.length ? trackTable(tracks, "Exclus", { showAlbum: false, numbers: false })
+    ${tracks.length ? `<div class="xr-bar"><input class="field" id="xr-q" type="search" placeholder="Chercher un rappeur…" autocomplete="off">
+        <div class="xr-sort"><button class="on" data-xr-sort="az">A–Z</button><button data-xr-sort="count">Plus d'exclus</button></div><span class="muted" id="xr-count"></span></div>
+      <div id="xr-list"></div>`
       : empty("✦", "Aucun exclu pour le moment", status.can_add ? "Ajoute ton premier titre inédit avec le bouton ci-dessus." : "Les titres inédits ajoutés par l'admin apparaîtront ici.")}
     ${status.enabled === false ? `<p class="muted">Stockage non configuré : renseigne DISCORD_STORAGE_WEBHOOK sur le serveur.</p>` : ""}`);
 }
@@ -2882,6 +2922,8 @@ function renderMini() {
   const rnow = deviceNow(remote);
   const t = remote ? rnow.track : state.queue[state.index];
   document.body.classList.toggle("has-mini", !!t);
+  // Un titre d'un artiste à identités (FEMTOGO…) : tout Sona prend l'esprit « archive ».
+  document.documentElement.classList.toggle("archive", !!(t && t.persona));
   if (!t) { mp.innerHTML = ""; return; }
   const paused = remote ? rnow.paused : audio.paused;
   mp.innerHTML = `<div class="mp-inner" data-mp="open" style="--mp-cover:url('${esc(big(t.cover_url, 120))}')">

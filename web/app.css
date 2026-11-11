@@ -2612,3 +2612,51 @@ mark { background: transparent; color: var(--accent); font-weight: inherit; bord
   100% { transform: translate(5%, -6%) scale(.96); opacity: .8; }
 }
 @media (prefers-reduced-motion: reduce) { .np.np-s-sonoma:not(.mobile) .np-art, .np.np-s-sonoma:not(.mobile) .np-left::before { animation: none; } }
+
+/* ── Exclus : rangés par rappeur ─────────────────────────────────────────────────────────────── */
+.xr-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin: 18px 0 8px; }
+.xr-bar .field { flex: 1 1 260px; max-width: 420px; }
+.xr-sort { display: inline-flex; border: 1px solid var(--hairline); border-radius: 999px; overflow: hidden; }
+.xr-sort button { padding: 8px 14px; background: none; border: 0; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; }
+.xr-sort button.on { background: var(--fill-strong); color: var(--text); }
+.xr { margin-top: 26px; }
+.xr-head { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--hairline); }
+.xr-head img { width: 46px; height: 46px; border-radius: 10px; object-fit: cover; flex: none; }
+.xr-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.xr-id b { font-size: 18px; letter-spacing: -.01em; }
+.xr-id small { color: var(--text-3); font-size: 12.5px; }
+
+/* ── Mode « archive » : quand on écoute FEMTOGO, tout Sona prend la D.A. de trois.id ──────────────
+   Mono, filets fins, angles droits, noir et un seul accent doré. Les variables font le gros du travail. */
+html.archive {
+  --font: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --canvas: #0b0b0e; --bg: #0b0b0e; --bg-elevated: #0f0f13; --sidebar: transparent; --glass: rgba(15, 15, 19, .96);
+  --hairline: #24242e; --fill: rgba(255, 255, 255, .03); --fill-strong: rgba(255, 255, 255, .06);
+  --text: #d8d8d8; --text-2: #888894; --text-3: #5c5c68;
+  --accent: #c8b890; --accent-2: #c8b890; --accent-soft: rgba(200, 184, 144, .12); --on-accent: #0b0b0e;
+  --shadow-art: none; --shadow-pop: none;
+  --r-panel: 0; --r-card: 0; --r-art: 0; --r-ctl: 0; --radius-art: 0;
+}
+html.archive body { font-size: 13px; letter-spacing: 0; }
+html.archive *, html.archive *::before, html.archive *::after { border-radius: 0 !important; box-shadow: none !important; }
+html.archive .ambient, html.archive .hero-glow, html.archive .content-glow { display: none !important; }
+html.archive .content { border: 1px solid var(--hairline); }
+html.archive .page-title, html.archive h1 { font-family: "Space Mono", var(--font); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--accent); }
+html.archive h2, html.archive h3, html.archive .section-head h2 { font-size: 11px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--text); }
+html.archive .section-head { border-bottom: 1px solid var(--hairline); padding-bottom: 9px; }
+html.archive .sidebar a, html.archive .sidebar button, html.archive .nav-item { text-transform: uppercase; letter-spacing: .1em; font-size: 11.5px; }
+html.archive .btn { text-transform: uppercase; letter-spacing: .1em; font-size: 12px; font-weight: 500; border: 1px solid var(--accent); }
+html.archive .btn.ghost { background: transparent; border-color: var(--hairline); color: var(--text); }
+html.archive .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+html.archive .card .art-wrap img, html.archive .tr img, html.archive .mp-inner img { filter: grayscale(1) brightness(.92); transition: filter .35s; }
+html.archive .card:hover .art-wrap img, html.archive .tr:hover img, html.archive .mp-inner:hover img, html.archive .np img { filter: none; }
+html.archive .tr { border-bottom: 1px solid var(--hairline); }
+html.archive .tr:hover, html.archive .card:hover { background: var(--bg-elevated); }
+html.archive .tag, html.archive .tag-exclu, html.archive .tag-lossless { background: transparent; color: var(--text-2); border: 1px solid var(--hairline); }
+html.archive .field, html.archive input[type="search"], html.archive input[type="text"] { border: 1px solid var(--hairline); background: var(--bg-elevated); }
+html.archive .field:focus { border-color: var(--accent); outline: none; }
+html.archive .xr-sort { border-color: var(--hairline); }
+html.archive .xr-sort button { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+html.archive .xr-sort button.on { color: var(--accent); background: var(--accent-soft); }
+html.archive .mp-inner, html.archive .sheet, html.archive .np-tabs { border: 1px solid var(--hairline); background: var(--glass); }
+html.archive, html.archive body, html.archive .content { transition: background-color .5s, color .5s; }
