@@ -316,6 +316,8 @@ const icons = {
   install: ic("M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zm5 4a1 1 0 0 0-1 1v3H8a1 1 0 1 0 0 2h3v3a1 1 0 1 0 2 0v-3h3a1 1 0 1 0 0-2h-3V8a1 1 0 0 0-1-1z"),
   user: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm0 9c-2.4 0-4.5 1.1-5.7 2.8A8 8 0 0 0 12 20a8 8 0 0 0 5.7-2.2C16.5 16.1 14.4 15 12 15z"),
   expand: ic("M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"),
+  // Écran qui brille : le bouton « Style immersif » (le lecteur flottant garde miniPlayer).
+  immersive: ic("M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v9h16V6zM8 19h8a1 1 0 0 1 0 2H8a1 1 0 0 1 0-2zm4-12.1l1.15 2.45 2.45 1.15-2.45 1.15L12 14.1l-1.15-2.45L8.4 10.5l2.45-1.15z"),
   miniPlayer: ic("M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h16V6zm8 6h6a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z"),
   clock: ic("M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a1 1 0 0 1 1 1v4.6l3.2 1.9a1 1 0 1 1-1 1.7l-3.7-2.2A1 1 0 0 1 11 12V7a1 1 0 0 1 1-1z"),
   logo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 10v4M9.5 6.5v11M13.5 9v6M17.5 11v2" stroke="#fff" stroke-width="2.3" stroke-linecap="round" fill="none"/></svg>`,
@@ -653,7 +655,7 @@ function renderShell() {
   content.addEventListener("scroll", () => {
     const head = $("#mhead");
     if (!head) return;
-    const title = $(".page-title, .hero h1, .profile-head h1", content);
+    const title = $(".page-title, .hero h1, .profile-head h1, .pa-name", content);
     const limit = title ? title.offsetTop + title.offsetHeight - 50 : 30;
     head.classList.toggle("scrolled", content.scrollTop > Math.max(8, limit));
     head.classList.toggle("edge", content.scrollTop > 4);
@@ -906,7 +908,7 @@ async function route() {
     if (token_ !== route.seq) return;
     content.innerHTML = page(`<div class="empty"><div class="big">⚠︎</div><h3>Impossible d'afficher cette page</h3><p>${esc(e.message)}</p></div>`);
   }
-  const title = $(".page-title, .hero h1, .profile-head h1", content)?.textContent || "";
+  const title = $(".page-title, .hero h1, .profile-head h1, .pa-name", content)?.textContent || "";
   nav.titles[hash] = title;
   $("#mhead .mh-title")?.replaceChildren(document.createTextNode(title));
   content.dispatchEvent(new Event("scroll"));
@@ -982,12 +984,12 @@ function shelf(title, items, { kind = "", more = "" } = {}) {
     <div class="shelf ${kind}">${items.join("")}</div></section>`;
 }
 
-function card({ href, cover, covers, title, subtitle, round, play, hl = "" }) {
+function card({ href, cover, covers, title, subtitle, round, play, hl = "", badge = "" }) {
   const art = covers && covers.length >= 4
     ? `<div class="mosaic">${covers.slice(0, 4).map((c) => `<img src="${esc(big(c, 300))}" alt="" loading="lazy">`).join("")}</div>`
     : `<img src="${esc(big(cover, 500))}" alt="" loading="lazy">`;
   return `<a class="card ${round ? "round" : ""}" href="${esc(href)}">
-    <div class="art-wrap">${art}${play ? `<button class="play-fab" data-play="${play}" aria-label="Lecture">${icons.play}</button>` : ""}</div>
+    <div class="art-wrap">${art}${badge ? `<span class="card-badge">${esc(badge)}</span>` : ""}${play ? `<button class="play-fab" data-play="${play}" aria-label="Lecture">${icons.play}</button>` : ""}</div>
     <div class="t">${hl ? hlHtml(title, hl) : esc(title)}</div>${subtitle ? `<div class="s">${esc(subtitle)}</div>` : ""}</a>`;
 }
 
@@ -1014,11 +1016,12 @@ function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null
     const head = multi && (i === 0 || t.disc_number !== tracks[i - 1].disc_number)
       ? `<div class="disc-head">${icons.disc} Disque ${t.disc_number || 1}</div>` : "";
     const num = multi && t.track_number ? t.track_number : i + 1;
+    const sf = t.exclusive ? splitFeat(t.title) : { title: t.title, feat: "" };
     return `${head}<div class="tr ${on ? "current" : ""}" data-i="${i}" role="button" tabindex="0">
       <span class="n">${on ? bars() : `<span>${numbers ? num : ""}</span>`}${icons.play}</span>
       <img src="${esc(big(t.cover_url, 120))}" alt="" loading="lazy">
-      <span style="min-width:0"><div class="ti">${mark(t.title)}${tagHtml(t)}</div>
-        <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(artistSrc(t))}/${esc(t.artist_source_id)}">${mark(t.artist)}</span>` : mark(t.artist)}${featHtml(t, true)}</div></span>
+      <span style="min-width:0"><div class="ti">${mark(sf.title)}${tagHtml(t)}</div>
+        <div class="ar">${t.artist_source_id ? `<span class="link" data-artist="${esc(artistSrc(t))}/${esc(t.artist_source_id)}">${mark(t.artist)}</span>` : mark(t.artist)}${featHtml(t, true)}${sf.feat ? ` <span class="feat">(feat. ${esc(sf.feat)})</span>` : ""}</div></span>
       <span class="al">${t.exclusive ? esc(t.year || "") : showAlbum && t.album ? (t.album_source_id ? `<span class="link" data-album="${esc(t.source)}/${esc(t.album_source_id)}">${esc(t.album)}</span>` : esc(t.album)) : ""}</span>
       <span class="d">${offlineHas(t) ? `<span class="dl-mark" title="Disponible hors ligne">${icons.download}</span>` : ""}${t.duration_seconds ? fmt(t.duration_seconds) : ""}</span>
       <span class="acts">
@@ -1844,76 +1847,188 @@ const KIND_LABEL = { album: "Album", ep: "EP", single: "Single" };
 const personaKey = (source, id) => `sona.persona.${source}:${id}`;
 const releaseHref = (source, id, r) => `#/xrelease/${encodeURIComponent(source)}/${encodeURIComponent(id)}/${encodeURIComponent(r.persona)}/${encodeURIComponent(r.album)}`;
 
-/** Page d'un artiste à identités : on choisit l'identité qu'on veut écouter (FEMTOGO, baby hayabusa,
- * reggie petrucci…), puis ses albums et ses singles, comme une vraie page artiste. */
+// « Titre (feat. X) » : le feat se lit à part, sous le titre, comme sur une pochette.
+const FEAT_RE = /\s*[(\[]\s*(?:feat|ft)\.?\s+([^)\]]+)[)\]]/i;
+function splitFeat(title) {
+  const m = String(title || "").match(FEAT_RE);
+  return m ? { title: String(title).replace(FEAT_RE, "").trim(), feat: m[1].trim() } : { title: String(title || ""), feat: "" };
+}
+
+/** Couleur dominante d'une pochette (« r, g, b », éclaircie pour briller sur fond sombre) ; null si illisible. */
+const tintCache = new Map();
+function coverTint(url) {
+  if (!url) return Promise.resolve(null);
+  if (!tintCache.has(url)) {
+    tintCache.set(url, new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = c.height = 24;
+          const g = c.getContext("2d", { willReadFrequently: true });
+          g.drawImage(img, 0, 0, 24, 24);
+          const px = g.getImageData(0, 0, 24, 24).data;
+          let best = null, bestScore = -1;
+          for (let i = 0; i < px.length; i += 4) {
+            const [r, gg, b] = [px[i], px[i + 1], px[i + 2]];
+            const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+            const score = (mx - mn) * (0.4 + mx / 255) * (mx > 40 ? 1 : 0.2);
+            if (score > bestScore) { bestScore = score; best = [r, gg, b]; }
+          }
+          if (!best || bestScore < 12) return resolve(null); // pochette grise ou noire : on garde l'accent habituel
+          const k = 225 / Math.max(...best, 1);
+          resolve(best.map((v) => Math.min(255, Math.round(v * k))).join(", "));
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    }));
+  }
+  return tintCache.get(url);
+}
+
+/** Les titres qui existent chez plusieurs identités (par nom, sans le feat) : « Aussi chez … ». */
+function sharedIndex(disco) {
+  const map = new Map();
+  for (const r of disco.releases) for (const t of r.tracks) {
+    const key = fold(splitFeat(t.title).title);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push({ persona: r.persona, release: r, track: t });
+  }
+  return map;
+}
+const elsewhere = (index, track, persona) => (index.get(fold(splitFeat(track.title).title)) || []).filter((x) => x.persona !== persona);
+
+/** Page d'un artiste à identités : un masque par identité (FEMTOGO, baby hayabusa, reggie petrucci…), chacun avec ses
+ * couleurs, ses sorties et ses titres partagés. Seule la fiche de cet artiste est faite ainsi. */
 async function viewPersonaArtist(source, id, artist, personas) {
   const disco = await api(`/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}/discography`);
+  const shared = sharedIndex(disco);
   const key = personaKey(source, id);
   let current = personas.includes(store.get(key)) ? store.get(key) : personas[0];
   const releasesOf = (name) => disco.releases.filter((r) => r.persona === name);
   const tracksOf = (name) => releasesOf(name).flatMap((r) => r.tracks);
-  const total = (name) => tracksOf(name).length;
-  const relCard = (r) => card({
-    href: releaseHref(source, id, r), cover: r.cover_url, title: r.album,
-    subtitle: [KIND_LABEL[r.kind] || "Album", plural(r.track_count, "titre")].join(" · "), play: register(r.tracks, r.album),
-  });
-  const section = (title, items) => (items.length ? `<section class="section"><div class="section-head"><h2>${esc(title)}</h2></div><div class="grid">${items.map(relCard).join("")}</div></section>` : "");
-  const switcher = () => `<div class="chips persona-switch" role="tablist" aria-label="Identité">${personas.map((name) =>
-    `<button class="chip ${name === current ? "on" : ""}" role="tab" aria-selected="${name === current}" data-persona="${esc(name)}">${esc(name)} <small>${total(name)}</small></button>`).join("")}</div>`;
-  const body = () => {
-    const releases = releasesOf(current);
-    if (!releases.length) return empty("♫", "Rien pour l'instant", `Aucune sortie de ${current} n'a encore été ajoutée.`);
-    return section("Albums", releases.filter((r) => r.kind === "album" || !KIND_LABEL[r.kind]))
-      + section("EP", releases.filter((r) => r.kind === "ep"))
-      + section("Singles", releases.filter((r) => r.kind === "single"));
+  const seconds = (name) => tracksOf(name).reduce((s, t) => s + (t.duration_seconds || 0), 0);
+  const real = (r) => !String(r.cover_url).endsWith("?v=0");
+  const coversOf = (name, n) => { const rs = releasesOf(name); return [...rs.filter(real), ...rs.filter((r) => !real(r))].slice(0, n).map((r) => r.cover_url); };
+
+  const kicker = () => `${plural(personas.length, "identité")} · ${plural(disco.releases.length, "sortie")}`;
+  const subline = () => [plural(releasesOf(current).length, "sortie"), plural(tracksOf(current).length, "titre"), seconds(current) ? minutesLabel(seconds(current) / 60) : ""].filter(Boolean).join(" · ");
+  const wall = () => coversOf(current, 9).map((c, i) => `<img src="${esc(c)}" alt="" style="--i:${i}">`).join("");
+  const masks = () => personas.map((name, n) => {
+    const fan = coversOf(name, 3).map((c, i) => `<img src="${esc(c)}" alt="" style="--k:${i}">`).join("");
+    return `<button class="pa-mask ${name === current ? "on" : ""}" role="tab" aria-selected="${name === current}" data-persona="${esc(name)}" style="--n:${n}">
+      <span class="pa-fan">${fan}</span><span class="pa-mask-name">${esc(name)}</span>
+      <span class="pa-mask-meta">${plural(releasesOf(name).length, "sortie")} · ${plural(tracksOf(name).length, "titre")}</span></button>`;
+  }).join("");
+
+  const relCard = (r, n) => {
+    const { title, feat } = splitFeat(r.album);
+    return `<div class="pa-rel" style="--i:${n}">${card({
+      href: releaseHref(source, id, r), cover: r.cover_url, title, badge: KIND_LABEL[r.kind] || "Album",
+      subtitle: [plural(r.track_count, "titre"), feat ? `feat. ${feat}` : ""].filter(Boolean).join(" · "), play: register(r.tracks, r.album),
+    })}</div>`;
   };
-  const info = () => `${plural(releasesOf(current).length, "sortie")} · ${plural(total(current), "titre")}`;
+  const section = (title, rs, note = "") => (rs.length
+    ? `<section class="section pa-section"><div class="section-head"><h2><span class="pa-tick"></span>${esc(title)}</h2>${note ? `<span class="pa-note">${esc(note)}</span>` : ""}</div><div class="pa-grid">${rs.map(relCard).join("")}</div></section>` : "");
+  const sharedSection = () => {
+    const rows = tracksOf(current).map((t) => ({ t, others: elsewhere(shared, t, current) })).filter((x) => x.others.length);
+    if (!rows.length) return "";
+    return `<section class="section pa-section"><div class="section-head"><h2><span class="pa-tick"></span>Aussi chez les autres identités</h2><span class="pa-note">le même morceau, sous un autre nom</span></div>
+      <div class="pa-shared">${rows.map(({ t, others }) => {
+        const sf = splitFeat(t.title);
+        return `<div class="pa-shared-row"><img src="${esc(t.cover_url)}" alt=""><div class="pa-shared-text"><b>${esc(sf.title)}</b><small>${sf.feat ? `feat. ${esc(sf.feat)} · ` : ""}${esc(t.artist)}</small></div>
+          ${others.map((o) => `<button class="pa-jump" data-persona="${esc(o.persona)}">${esc(o.persona)} <span>${esc(splitFeat(o.release.album).title)}</span></button>`).join("")}</div>`;
+      }).join("")}</div></section>`;
+  };
+  const body = () => {
+    const rs = releasesOf(current);
+    if (!rs.length) return empty("♫", "Rien pour l'instant", `Aucune sortie de ${current} n'a encore été ajoutée.`);
+    return section("Albums", rs.filter((r) => r.kind === "album" || !KIND_LABEL[r.kind]))
+      + section("EP", rs.filter((r) => r.kind === "ep"))
+      + section("Singles", rs.filter((r) => r.kind === "single")) + sharedSection();
+  };
+
+  const setTint = async () => {
+    const root = $("#pa");
+    if (!root) return;
+    const tint = await coverTint(coversOf(current, 1)[0]);
+    if ($("#pa") === root) root.style.setProperty("--pa-tint", tint || "255, 255, 255");
+  };
   setTimeout(() => {
-    const draw = () => {
+    const root = $("#pa");
+    if (!root) return;
+    const draw = (animate) => {
       store.set(key, current);
-      $("#persona-bar").innerHTML = switcher();
-      $("#persona-body").innerHTML = body();
-      const tracks = tracksOf(current);
-      const list = tracks.length ? register(tracks, current) : "";
-      $$(".hero [data-play]").forEach((b) => (b.dataset.play = list));
-      $$(".hero [data-shuffle]").forEach((b) => (b.dataset.shuffle = list));
-      const infoEl = $(".hero .info");
-      if (infoEl) infoEl.textContent = info();
-      bindPage($("#persona-body"));
+      $("#pa-masks").innerHTML = masks();
+      $("#pa-wall").innerHTML = wall();
+      $("#pa-sub").textContent = subline();
+      $("#pa-who").textContent = current;
+      const bodyEl = $("#persona-body");
+      bodyEl.classList.remove("pa-in"); void bodyEl.offsetWidth;
+      bodyEl.innerHTML = body();
+      if (animate) bodyEl.classList.add("pa-in");
+      const list = tracksOf(current).length ? register(tracksOf(current), current) : "";
+      $$("[data-play], [data-shuffle]", $("#pa-actions")).forEach((b) => { if (b.dataset.play !== undefined) b.dataset.play = list; if (b.dataset.shuffle !== undefined) b.dataset.shuffle = list; });
+      bindPage(bodyEl);
+      setTint();
     };
-    $("#persona-bar").onclick = (e) => {
-      const name = e.target.closest("[data-persona]")?.dataset.persona;
-      if (!name || name === current) return;
-      current = name;
-      draw();
+    const choose = (name) => { if (name && name !== current && personas.includes(name)) { current = name; draw(true); $(`[data-persona="${CSS.escape(name)}"]`, $("#pa-masks"))?.focus(); } };
+    $("#pa-masks").onclick = (e) => choose(e.target.closest("[data-persona]")?.dataset.persona);
+    $("#pa-masks").onkeydown = (e) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      e.preventDefault();
+      choose(personas[(personas.indexOf(current) + (e.key === "ArrowRight" ? 1 : personas.length - 1)) % personas.length]);
     };
+    $("#persona-body").addEventListener("click", (e) => { const j = e.target.closest(".pa-jump"); if (j) { choose(j.dataset.persona); root.scrollIntoView({ behavior: "smooth", block: "start" }); } });
     bindPage($("#persona-body"));
+    setTint();
   });
+
   const first = tracksOf(current);
-  return page(hero({
-    cover: artist.picture_url, kind: "Artiste", title: artist.name, round: true, info: info(),
-    list: first.length ? register(first, current) : "",
-    extra: likeButton("artist", artist.source, artist.source_id, state.likedArtists),
-  }) + `<div id="persona-bar">${switcher()}</div><div id="persona-body">${body()}</div>`);
+  return page(`<div class="pa" id="pa">
+    <header class="pa-hero">
+      <div class="pa-wall" id="pa-wall" aria-hidden="true">${wall()}</div><div class="pa-shade"></div>
+      <div class="pa-head">
+        <div class="pa-kicker">Artiste · ${esc(kicker())}</div>
+        <h1 class="pa-name">${esc(artist.name)}</h1>
+        <p class="pa-who">Sous le nom de <b id="pa-who">${esc(current)}</b> · <span id="pa-sub">${esc(subline())}</span></p>
+        <div class="pa-actions" id="pa-actions">
+          ${first.length ? `<button class="btn" data-play="${register(first, current)}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${register(first, current)}">${icons.shuffle} Aléatoire</button>` : ""}
+          ${likeButton("artist", artist.source, artist.source_id, state.likedArtists)}
+        </div>
+      </div>
+    </header>
+    <nav class="pa-masks" id="pa-masks" role="tablist" aria-label="Identité à écouter">${masks()}</nav>
+    <div id="persona-body" class="pa-in">${body()}</div></div>`);
 }
 
-/** Un album ou un single d'un artiste à identités. */
+/** Un album, un EP ou un single d'un artiste à identités : feat lisible, et renvois vers les autres identités. */
 async function viewXRelease(source, id, persona, album) {
   $("#content").innerHTML = skeleton("");
   const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
   const disco = await api(`${base}/discography`);
   const rel = disco.releases.find((r) => r.persona === persona && r.album === album);
   if (!rel) throw new Error("Cette sortie n'existe pas (ou plus).");
-  // La page de l'artiste s'ouvrira sur cette identité.
-  store.set(personaKey(source, id), persona);
+  store.set(personaKey(source, id), persona); // la page de l'artiste s'ouvrira sur cette identité
+  const shared = sharedIndex(disco);
   const list = register(rel.tracks, rel.album);
-  setTimeout(() => $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(rel.tracks)));
-  return page(hero({
-    cover: rel.cover_url, kind: KIND_LABEL[rel.kind] || "Album", title: rel.album, by: persona,
-    byHref: `#/artist/${source}/${id}`,
-    info: [rel.year, plural(rel.track_count, "titre"), rel.duration_seconds ? minutesLabel(rel.duration_seconds / 60) : ""].filter(Boolean).join(" · "),
+  const { title, feat } = splitFeat(rel.album);
+  const alsoRows = rel.tracks.map((t) => ({ t, others: elsewhere(shared, t, persona) })).filter((x) => x.others.length);
+  setTimeout(() => {
+    $("[data-addall]")?.addEventListener("click", () => addToPlaylistSheet(rel.tracks));
+    const root = $("#pa-release");
+    coverTint(rel.cover_url).then((tint) => { if (root && $("#pa-release") === root && tint) root.style.setProperty("--pa-tint", tint); });
+  });
+  const also = alsoRows.length ? `<section class="section pa-section"><div class="section-head"><h2><span class="pa-tick"></span>Ce morceau existe aussi</h2></div><div class="pa-shared">
+    ${alsoRows.map(({ t, others }) => `<div class="pa-shared-row"><div class="pa-shared-text"><b>${esc(splitFeat(t.title).title)}</b><small>sous un autre nom</small></div>
+      ${others.map((o) => `<a class="pa-jump" href="${releaseHref(source, id, o.release)}">${esc(o.persona)} <span>${esc(splitFeat(o.release.album).title)}</span></a>`).join("")}</div>`).join("")}</div></section>` : "";
+  return page(`<div class="pa pa-release" id="pa-release">` + hero({
+    cover: rel.cover_url, kind: KIND_LABEL[rel.kind] || "Album", title, by: persona, byHref: `#/artist/${source}/${id}`,
+    info: [feat ? `feat. ${feat}` : "", rel.year, plural(rel.track_count, "titre"), rel.duration_seconds ? minutesLabel(rel.duration_seconds / 60) : ""].filter(Boolean).join(" · "),
     list, extra: `<button class="btn ghost icon-only" data-addall title="Ajouter à une playlist">${icons.plus}</button>`,
-  }) + trackTable(rel.tracks, rel.album, { showAlbum: false }));
+  }) + trackTable(rel.tracks, rel.album, { showAlbum: false }) + also + `</div>`);
 }
 
 async function viewArtist(source, id) {
@@ -3534,7 +3649,7 @@ function renderNowPlayingView() {
     <div class="np-top">
       <button class="tbtn" data-np="close" title="Fermer (Échap)">${icons.down}</button>${grip()}
       <div class="np-tabs"><button class="${state.npTab === "lyrics" ? "on" : ""}" data-np="lyrics">Paroles</button><button class="${state.npTab === "credits" ? "on" : ""}" data-np="credits">Crédits</button><button class="${state.npTab === "queue" ? "on" : ""}" data-np="queue">À suivre</button></div>${grip()}
-      <div class="np-top-right"><button class="tbtn" data-np="fullscreen" title="Plein écran (F)">${icons.expand}</button><button class="tbtn" data-np="style" title="Style immersif (V)">${icons.miniPlayer}</button><button class="tbtn" data-np="more" title="Plus d'options">${icons.more}</button><button class="tbtn" data-np="devices" title="Relais">${icons.devices}</button></div>
+      <div class="np-top-right"><button class="tbtn" data-np="fullscreen" title="Plein écran (F)">${icons.expand}</button><button class="tbtn" data-np="style" title="Style immersif (V)">${icons.immersive}</button><button class="tbtn" data-np="more" title="Plus d'options">${icons.more}</button><button class="tbtn" data-np="devices" title="Relais">${icons.devices}</button></div>
     </div>
     <div class="np-body">
       <div class="np-left">
