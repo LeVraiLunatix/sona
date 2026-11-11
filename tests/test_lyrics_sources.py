@@ -57,12 +57,13 @@ def test_netease_payload_variants():
 
 def test_netease_client_search_and_lyrics():
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/search/get":
-            assert request.url.params["s"] == "Daft Punk Get Lucky"
+        if request.url.path == "/api/cloudsearch/pc":
+            # La recherche fiable : POST, « titre artiste », champs « ar » / « al » / « dt ».
+            assert request.method == "POST" and b"Get+Lucky+Daft+Punk" in request.content
             return httpx.Response(200, json={"result": {"songs": [{
-                "id": 26349642, "name": "Get Lucky", "duration": 369684,
-                "artists": [{"name": "Daft Punk"}, {"name": "Pharrell Williams"}],
-                "album": {"name": "Random Access Memories"},
+                "id": 26349642, "name": "Get Lucky", "dt": 369684,
+                "ar": [{"name": "Daft Punk"}, {"name": "Pharrell Williams"}],
+                "al": {"name": "Random Access Memories"},
             }]}})
         assert request.url.path == "/api/song/lyric/v1"
         return httpx.Response(200, json={"lrc": {"lyric": "[00:31.42]Like"}, "yrc": {"lyric": YRC}})
@@ -75,6 +76,20 @@ def test_netease_client_search_and_lyrics():
     broken = NeteaseClient(httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(lambda r: httpx.Response(503))))
     with pytest.raises(LyricsError):
         run(broken.search("T", "A"))
+
+
+def test_netease_search_falls_back_to_the_old_endpoint():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/cloudsearch/pc":
+            return httpx.Response(200, json={"result": {}})
+        assert request.url.path == "/api/search/get" and request.url.params["s"] == "Daft Punk Get Lucky"
+        return httpx.Response(200, json={"result": {"songs": [{
+            "id": 1, "name": "Get Lucky", "duration": 369684,
+            "artists": [{"name": "Daft Punk"}], "album": {"name": "RAM"},
+        }]}})
+
+    client = NeteaseClient(httpx.AsyncClient(base_url="https://music.163.com/api", transport=httpx.MockTransport(handler)))
+    assert run(client.search("Get Lucky", "Daft Punk")) == [NeteaseSong(1, "Get Lucky", "Daft Punk", "RAM", 369.684)]
 
 
 # -- Musixmatch -----------------------------------------------------------------

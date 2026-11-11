@@ -606,13 +606,25 @@ class LyricsService:
             if verdict:
                 scored.append((verdict, song))
         scored.sort(key=lambda item: item[0][0], reverse=True)
-        # Les deux meilleurs : le premier n'a parfois pas de paroles (autre
-        # édition du même titre).
-        for (score, timing_ok), song in scored[:2]:
-            lyrics = await self._netease.lyrics(song.id)
-            if lyrics:
-                return _Candidate(_fit_timing(lyrics, timing_ok, song.duration, duration), "netease", score)
-        return None
+        # NetEase a souvent plusieurs éditions du même titre : l'une au mot
+        # près, l'autre à la ligne, une troisième sans paroles. On regarde
+        # les trois meilleures et on garde la plus précise.
+        async def fetch(song):
+            try:
+                return await self._netease.lyrics(song.id)
+            except LyricsError:
+                return None
+
+        top = scored[:3]
+        fetched = await asyncio.gather(*(fetch(song) for _, song in top))
+        best: _Candidate | None = None
+        for ((score, timing_ok), song), lyrics in zip(top, fetched):
+            if not lyrics:
+                continue
+            candidate = _Candidate(_fit_timing(lyrics, timing_ok, song.duration, duration), "netease", score)
+            if best is None or (_tier(candidate.lyrics), candidate.score) > (_tier(best.lyrics), best.score):
+                best = candidate
+        return best
 
     async def _from_genius(self, title, artist) -> _Candidate | None:
         # Texte brut seulement : n'emporte la mise que si personne n'a mieux.
