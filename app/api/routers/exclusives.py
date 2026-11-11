@@ -7,6 +7,7 @@ réservés aux administrateurs. Le fichier est servi par `/stream/exclusive/{id}
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -30,8 +31,18 @@ def _storage(deps: ApiDeps):
     return storage
 
 
+def cover_url(request: Request, row: dict) -> str:
+    """Adresse de la pochette, versionnée : l'image est mise en cache longtemps par l'app et le
+    navigateur ; sans `?v=`, une pochette remplacée n'apparaîtrait que le lendemain. La version
+    change avec la pochette (elle est tirée de ses morceaux sur Discord)."""
+    base = str(request.url_for("exclusive_cover", exclusive_id=row["id"]))
+    chunks = row.get("cover_chunks")
+    version = hashlib.sha1(chunks.encode()).hexdigest()[:8] if chunks else "0"
+    return f"{base}?v={version}"
+
+
 def track_for(request: Request, row: dict, extras: list[dict] | None = None) -> dict:
-    return exclusives.track_dict(row, str(request.url_for("exclusive_cover", exclusive_id=row["id"])), extras)
+    return exclusives.track_dict(row, cover_url(request, row), extras)
 
 
 async def _tracks(request: Request, deps: ApiDeps, rows: list[dict]) -> list[dict]:
