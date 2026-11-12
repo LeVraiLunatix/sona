@@ -198,6 +198,8 @@ function since(iso) {
 // d'ordinateur, qui expose `window.sonaDesktop` (télécommande du téléphone,
 // mini-lecteur, zone de notification…). Voir « Sona pour Windows » plus bas.
 const desktop = window.sonaDesktop || null;
+// Page de téléchargement de l'installateur Windows (version « Sona pour Windows » du dépôt).
+const WINDOWS_PAGE = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
 if (desktop) {
   document.documentElement.classList.add("desktop", `desktop-${desktop.platform}`);
   const link = document.createElement("link");
@@ -620,7 +622,9 @@ function renderShell() {
         <div class="side-section">Découvrir et jouer</div>
         ${SIDE_MORE.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
         ${desktop ? `<div class="side-section">Sur ce PC</div>
-        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}Sona sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>` : ""}
+        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}Sona sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>`
+        : `<div class="side-section">Sur ton PC</div>
+        <a class="side-link" href="${WINDOWS_PAGE}" target="_blank" rel="noopener">${icons.download}Installer Sona pour Windows</a>`}
         <div class="side-section">Faites pour toi</div>
         <div id="side-smart"></div>
         <div class="side-section">Playlists</div>
@@ -3532,7 +3536,6 @@ const NP_SHADERS = [
   ["stars", "Étoiles", "De la poussière d'étoiles qui défile."],
   ["none", "Aucun", "La pochette floue, sans animation."],
 ];
-const WINDOWS_PAGE = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
 const npStyle = () => {
   if (!desktop) return "classic";
   const saved = store.get("sona.npStyle");
@@ -7466,6 +7469,7 @@ async function viewSettings() {
     <h3 class="set-head">Mises à jour</h3><div class="set-group" id="desk-updates"><p class="set-row muted">Chargement…</p></div>` : ""}
 
     <h3 class="set-head">Appli</h3><div class="set-group">
+      ${desktop ? "" : `<a class="set-row" href="${WINDOWS_PAGE}" target="_blank" rel="noopener"><span class="mi-icon">${icons.download}</span><span class="set-text"><b>Installer Sona pour Windows</b><small>L'app d'ordinateur : styles immersifs, télécommande, raccourcis</small></span>${icons.right}</a>`}
       ${desktop ? "" : standalone ? `<div class="set-row"><span class="mi-icon">${icons.check}</span><span class="set-text"><b>Sona est installé</b><small>Ouvert depuis l'écran d'accueil</small></span></div>`
         : linkRow("data-install-app", icons.install, "Installer Sona sur l'écran d'accueil", isIOS ? "Partager → Sur l'écran d'accueil" : "Comme une vraie app, en plein écran")}
       ${soundAvailable ? linkRow("data-sound", icons.wave, "Son", "Égaliseur, volume égalisé, fondu entre les titres") : ""}
