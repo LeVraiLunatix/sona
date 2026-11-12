@@ -32,7 +32,7 @@ struct SearchView: View {
         let hasQuery = !viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty
         if viewModel.isSearching {
             if viewModel.suggestions.isEmpty {
-                ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 60)
+                SearchSkeleton()
             } else {
                 suggestionList
             }
@@ -181,7 +181,8 @@ struct SearchView: View {
                         isCurrent: player.current?.id == track.id,
                         isPlaying: player.isPlaying,
                         onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } },
-                        onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                        onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
+                        highlight: viewModel.query
                     ) {
                         // Un titre lancé d'une recherche joue seul ; la suite est ta file perso.
                         PersonalQueue.play(track, with: player)
@@ -208,7 +209,8 @@ struct SearchView: View {
                     isCurrent: player.current?.id == track.id,
                     isPlaying: player.isPlaying,
                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } },
-                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } }
+                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
+                    highlight: viewModel.query
                 ) {
                     player.play(track, context: tracks, name: name)
                 }

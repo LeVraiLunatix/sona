@@ -16,6 +16,8 @@ struct TrackRow: View {
     var onOpenArtist: (() -> Void)? = nil
     var onOpenAlbum: (() -> Void)? = nil
     var onRemove: (() -> Void)? = nil
+    /// Mots cherchés à surligner (écran de recherche) ; vide partout ailleurs.
+    var highlight = ""
     var action: () -> Void
     @Environment(\.addToPlaylist) private var addToPlaylist
     @ObservedObject private var downloads = DownloadManager.shared
@@ -51,13 +53,13 @@ struct TrackRow: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(track.title)
+                        HighlightedText(text: track.title, highlight: highlight)
                             .font(Typo.rowTitle)
                             .foregroundStyle(Tone.primary)
                             .lineLimit(1)
                         ExclusiveTag(track: track)
                     }
-                    Text(track.artistLine())
+                    HighlightedText(text: track.artistLine(), highlight: highlight)
                         .font(Typo.rowSubtitle)
                         .foregroundStyle(Tone.secondary)
                         .lineLimit(1)
