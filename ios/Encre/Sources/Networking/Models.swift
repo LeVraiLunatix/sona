@@ -74,10 +74,12 @@ struct Track: Codable, Identifiable, Hashable {
     var quality: String? = nil
     var lossless: Bool? = nil
     var versions: Int? = nil
+    /// Identité sous laquelle un exclu est sorti (artiste à identités, ex. FEMTOGO).
+    var persona: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case source, title, artist, album, year, bpm, artists
-        case tag, exclusive, quality, lossless, versions
+        case tag, exclusive, quality, lossless, versions, persona
         case artistSource = "artist_source"
         case discNumber = "disc_number"
         case trackNumber = "track_number"
@@ -161,6 +163,97 @@ struct DeviceLinkInfo: Codable {
 
 struct ExclusiveListDTO: Codable {
     var tracks: [Track]
+}
+
+/// Identités d'un artiste dont la page est une discographie (`/artists/{src}/{id}/personas`).
+struct ExclusivePersonasDTO: Codable {
+    var personas: [String]
+}
+
+/// Une sortie (album, EP ou single) d'un artiste à identités.
+struct ExclusiveRelease: Codable, Identifiable, Hashable {
+    var persona: String
+    var album: String
+    var kind: String
+    var order: Int
+    var year: String?
+    var trackCount: Int
+    var durationSeconds: Int
+    var coverURL: String?
+    var tracks: [Track]
+
+    enum CodingKeys: String, CodingKey {
+        case persona, album, kind, order, year, tracks
+        case trackCount = "track_count"
+        case durationSeconds = "duration_seconds"
+        case coverURL = "cover_url"
+    }
+
+    var id: String { "\(persona)\u{1F}\(album)" }
+    var kindLabel: String {
+        switch kind {
+        case "ep": return "EP"
+        case "single": return "Single"
+        default: return "Album"
+        }
+    }
+    /// Titre de la sortie sans son « (feat. X) », lu à part.
+    var title: String { FeatSplit.split(album).title }
+    var feat: String? { FeatSplit.split(album).feat }
+}
+
+/// `/artists/{src}/{id}/discography` : les identités dans l'ordre de la page, puis les sorties.
+struct ExclusiveDiscography: Codable {
+    var personas: [String]
+    var releases: [ExclusiveRelease]
+}
+
+/// « Titre (feat. X) » : le feat se lit à part, sous le titre, comme sur une pochette.
+enum FeatSplit {
+    private static let regex = try? NSRegularExpression(
+        pattern: #"\s*[(\[]\s*(?:feat|ft)\.?\s+([^)\]]+)[)\]]"#, options: [.caseInsensitive]
+    )
+
+    static func split(_ text: String) -> (title: String, feat: String?) {
+        let range = NSRange(text.startIndex..., in: text)
+        guard let regex, let match = regex.firstMatch(in: text, range: range),
+              let whole = Range(match.range, in: text), let guest = Range(match.range(at: 1), in: text)
+        else { return (text, nil) }
+        var title = text
+        title.removeSubrange(whole)
+        return (title.trimmingCharacters(in: .whitespaces), String(text[guest]).trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Clé de comparaison : sans feat, sans accents ni ponctuation.
+    static func key(_ text: String) -> String {
+        split(text).title.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .filter { $0.isLetter || $0.isNumber }
+    }
+}
+
+extension String {
+    /// Sans accents ni casse, pour comparer et chercher.
+    var folded: String { folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil) }
+}
+
+/// Suggestion pendant la frappe (`/search/suggest`) : un artiste ou un titre.
+struct SearchSuggestion: Codable, Identifiable, Hashable {
+    var kind: String
+    var text: String
+    var subtitle: String?
+    var pictureURL: String?
+    var source: String
+    var sourceId: String
+    var artistSourceId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case kind, text, subtitle, source
+        case pictureURL = "picture_url"
+        case sourceId = "source_id"
+        case artistSourceId = "artist_source_id"
+    }
+
+    var id: String { "\(kind):\(source):\(sourceId)" }
 }
 
 struct ExclusiveStatusDTO: Codable {

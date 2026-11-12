@@ -14,6 +14,7 @@ struct AlbumDetailView: View {
     @State private var libraryBounce = 0
     @State private var shareTarget: ShareTarget?
     @State private var versions: [Album] = []
+    @State private var find = ""
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.addToPlaylist) private var addToPlaylist
 
@@ -76,7 +77,15 @@ struct AlbumDetailView: View {
             }
         }
         .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
+        .searchable(text: $find, prompt: isPlaylist ? "Rechercher dans cette playlist" : "Rechercher dans cet album")
         .task { await load() }
+    }
+
+    /// Les titres qui correspondent à la recherche dans la page (tous quand le champ est vide).
+    private func visibleTracks(_ album: Album) -> [Track] {
+        let needle = find.trimmingCharacters(in: .whitespaces).folded
+        guard !needle.isEmpty else { return album.tracks }
+        return album.tracks.filter { "\($0.title) \($0.artist) \($0.album ?? "")".folded.contains(needle) }
     }
 
     /// Halo diffus aux couleurs de la pochette, fondu dans le noir.
@@ -141,10 +150,14 @@ struct AlbumDetailView: View {
     }
 
     private func tracks(_ album: Album) -> some View {
-        let showsDiscs = discCount(album) > 1
+        let showsDiscs = discCount(album) > 1 && find.isEmpty
+        let list = visibleTracks(album)
         return LazyVStack(spacing: 0) {
-            ForEach(Array(album.tracks.enumerated()), id: \.offset) { index, track in
-                if showsDiscs && (index == 0 || album.tracks[index - 1].discNumber != track.discNumber) {
+            if list.isEmpty && !find.isEmpty {
+                EmptyState(systemImage: "magnifyingglass", title: "Aucun titre", message: "Rien ici pour « \(find) ».")
+            }
+            ForEach(Array(list.enumerated()), id: \.offset) { index, track in
+                if showsDiscs && (index == 0 || list[index - 1].discNumber != track.discNumber) {
                     HStack(spacing: 8) {
                         Image(systemName: "opticaldisc")
                         Text("Disque \(track.discNumber ?? 1)")
@@ -163,10 +176,10 @@ struct AlbumDetailView: View {
                     isPlaying: player.isPlaying,
                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } }
                 ) {
-                    player.play(track, context: album.tracks, name: album.title)
+                    player.play(track, context: list, name: album.title)
                 }
                 .padding(.vertical, 4)
-                if index < album.tracks.count - 1 {
+                if index < list.count - 1 {
                     Divider().overlay(Tone.separator).padding(.leading, 40)
                 }
             }

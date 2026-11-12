@@ -21,4 +21,6 @@ enum Route: Hashable {
     case smart(id: String, title: String)
     /// Titres inédits ajoutés à la main.
     case exclusives
+    /// Sortie (album, EP, single) d'un artiste à identités.
+    case release(source: String, id: String, persona: String, album: String)
 }

@@ -253,7 +253,7 @@ struct RootTabView: View {
                         case .playlist(let source, let id):
                             AlbumDetailView(source: source, id: id, isPlaylist: true, path: path)
                         case .artist(let source, let id):
-                            ArtistDetailView(source: source, id: id, path: path)
+                            ArtistPage(source: source, id: id, path: path)
                         case .userPlaylist(let id):
                             UserPlaylistView(playlistId: id, path: path)
                         case .downloads:
@@ -266,6 +266,8 @@ struct RootTabView: View {
                             SmartPlaylistView(id: id, title: title)
                         case .exclusives:
                             ExclusivesView(path: path)
+                        case .release(let source, let id, let persona, let album):
+                            ExclusiveReleaseView(source: source, id: id, persona: persona, album: album, path: path)
                         }
                     }
                     .zoomDestination(route)
