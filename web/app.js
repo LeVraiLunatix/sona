@@ -2042,15 +2042,16 @@ async function viewPersonaArtist(source, id, artist, personas) {
   const first = tracksOf(current);
   return page(`<div class="pa" id="pa">
     <div class="pa-crumb"><span>Archive</span><i>/</i><b>${esc(artist.name)}</b></div>
-    <header class="pa-box">
+    <header class="pa-box pa-rel-head"><img class="pa-logo" src="${SPK_LOGO}" alt=""><div class="pa-rel-text">
       <div class="pa-label">${esc(label())}</div>
       <h1 class="pa-name">${esc(artist.name)}</h1>
+      <p class="pa-line">(archives)</p>
       <p class="pa-line">sous le nom de <b id="pa-who">${esc(current)}</b> — <span id="pa-sub">${esc(subline())}</span></p>
       <div class="pa-actions" id="pa-actions">
         ${first.length ? `<button class="btn" data-play="${register(first, current)}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${register(first, current)}">${icons.shuffle} Aléatoire</button>` : ""}
         ${likeButton("artist", artist.source, artist.source_id, state.likedArtists)}
       </div>
-    </header>
+    </div></header>
     <nav class="pa-tabs" id="pa-tabs" role="tablist" aria-label="Identité à écouter">${tabs()}</nav>
     <div id="persona-body">${body()}</div></div>`);
 }
@@ -2059,7 +2060,8 @@ async function viewPersonaArtist(source, id, artist, personas) {
 async function viewXRelease(source, id, persona, album) {
   $("#content").innerHTML = skeleton("");
   const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
-  const [artist, disco] = await Promise.all([api(base).catch(() => ({ name: "" })), api(`${base}/discography`)]);
+  const disco = await api(`${base}/discography`);
+  const artist = { name: "FEMTO" };
   const rel = disco.releases.find((r) => r.persona === persona && r.album === album);
   if (!rel) throw new Error("Cette sortie n'existe pas (ou plus).");
   store.set(personaKey(source, id), persona); // la page de l'artiste s'ouvrira sur cette identité
@@ -2091,13 +2093,14 @@ async function viewXRelease(source, id, persona, album) {
 async function viewArtist(source, id) {
   $("#content").innerHTML = skeleton("");
   const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
-  const [artist, top, albums, related, pers] = await Promise.all([
+  // Artiste à identités (ex. FEMTOGO) : une archive. Sa page est sa discographie, bâtie sur ses fichiers,
+  // sans rien demander à Deezer (ni photo, ni titres, ni albums, ni artistes proches).
+  const pers = await api(`${base}/personas`).catch(() => ({ personas: [] }));
+  if (pers.personas?.length) return viewPersonaArtist(source, id, { source, source_id: id, name: "FEMTO" }, pers.personas);
+  const [artist, top, albums, related] = await Promise.all([
     api(base), api(`${base}/top-tracks`).catch(() => []),
     api(`${base}/albums`).catch(() => ({ albums: [], singles: [] })), api(`${base}/related`).catch(() => []),
-    api(`${base}/personas`).catch(() => ({ personas: [] })),
   ]);
-  // Artiste à identités (ex. FEMTOGO) : sa page est sa discographie, bâtie sur ses fichiers.
-  if (pers.personas?.length) return viewPersonaArtist(source, id, artist, pers.personas);
   // Exclus de l'artiste (ajoutés à la main) : tout en haut de sa page, avec l'année et le tag.
   const exclusives = (await api(`${base}/exclusives?name=${encodeURIComponent(artist.name)}`).catch(() => ({ tracks: [] }))).tracks;
   const list = register(top, artist.name);

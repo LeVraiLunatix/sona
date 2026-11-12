@@ -1713,6 +1713,13 @@ class Repository:
         )
         return [r["name"] for r in await cursor.fetchall()]
 
+    async def archive_artists(self) -> tuple[set[tuple[str, str]], set[str]]:
+        """Les artistes à identités (archives) et tous leurs noms : leur fiche ne vient que des fichiers ajoutés,
+        jamais d'une source externe (Deezer…)."""
+        cursor = await self._db.conn.execute("SELECT source, source_id, name FROM artist_personas")
+        rows = await cursor.fetchall()
+        return {(r["source"], r["source_id"]) for r in rows}, {r["name"] for r in rows}
+
     async def persona_set(self, source: str, source_id: str, names: list[str]) -> None:
         """Remplace les identités d'un artiste (l'ordre donné est celui de la page)."""
         await self._db.conn.execute("DELETE FROM artist_personas WHERE source=? AND source_id=?", (source, source_id))

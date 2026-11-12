@@ -17,10 +17,24 @@ from app.providers.link_detect import resolve_link
 from app.services import query_cache
 from app.services.artist_search import rank_artists
 from app.services.resolver import search_artists_youtube
-from app.services.search import SearchError, search_tracks, tidy_results
+from app.services.search import SearchError, _fold as fold, search_tracks, tidy_results
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["search"])
+
+
+async def _without_archives(deps: ApiDeps, tracks: list) -> list:
+    """Les artistes à identités (FEMTOGO…) ne sont qu'une archive : rien de leur côté Deezer dans la recherche."""
+    ids, names = await deps.repo.archive_artists()
+    if not ids and not names:
+        return tracks
+    folded = {fold(n) for n in names}
+    return [
+        t for t in tracks
+        if t.source == "exclusive"
+        or not ((t.source, t.artist_source_id or "") in ids
+                or any(fold(part) in folded for part in (t.artist or "").split(",")))
+    ]
 
 
 def _require_text(q: str) -> str:
@@ -69,6 +83,9 @@ async def search_artists(
         artists = []
     if not artists:
         artists = await search_artists_youtube(text, limit=limit)
+    ids, names = await deps.repo.archive_artists()
+    folded = {fold(n) for n in names}
+    artists = [a for a in artists if (a.source, a.source_id) not in ids and fold(a.name) not in folded]
     return [Artist.from_info(a) for a in rank_artists(text, artists)]
 
 
@@ -112,6 +129,7 @@ async def search(
 
     # Pas de ré-ordonnancement d'une page suivante : l'ordre de la source fait foi.
     tracks = tidy_results(cached.text, tracks) if offset == 0 else tidy_results("", tracks)
+    tracks = await _without_archives(deps, tracks)
     await _add_feats(deps, tracks)
     return SearchResponse(
         query_id=query_id,
