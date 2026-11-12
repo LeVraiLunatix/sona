@@ -1371,8 +1371,11 @@ function viewExclusivesArtist(g) {
           <h1 class="pa-name">${esc(g.label)}</h1><p class="pa-line">(archives) — ${plural(g.tracks.length, "exclu")}</p>${actions}</div></header>
       ${search}<div id="xd-list"></div></div>`);
   }
-  return page(`<p class="xd-back"><a href="#/exclusives">← Exclus</a></p><h1 class="page-title">${esc(g.label)}</h1>
-    <p class="page-sub">${plural(g.tracks.length, "exclu")}</p>${actions}${search}<div id="xd-list"></div>`);
+  const minutes = g.tracks.reduce((s, t) => s + (t.duration_seconds || 0), 0) / 60;
+  return page(hero({
+    cover: g.tracks[0].cover_url, kind: "Artiste", title: g.label,
+    info: [plural(g.tracks.length, "titre"), minutesLabel(minutes)].join(" · "), list: all,
+  }) + search + `<div id="xd-list"></div>`);
 }
 
 /** Formulaire admin : ajoute un exclu (fichier, titre, artiste, année, type) ou modifie `existing`. */
@@ -2090,8 +2093,17 @@ async function viewXRelease(source, id, persona, album) {
     ${trackTable(rel.tracks, rel.album, { showAlbum: false })}${also}</div>`);
 }
 
+/** Profil d'un artiste qui n'existe que dans les exclus (source « exclusive ») : rien à demander à une plateforme. */
+async function viewExclusiveProfile(id) {
+  const { tracks } = await api("/exclusives");
+  const g = exclusiveGroups(tracks).find((x) => x.source === "exclusive" && x.id === id);
+  if (!g) throw new Error("Cet artiste n'a pas d'exclu (ou plus).");
+  return viewExclusivesArtist(g);
+}
+
 async function viewArtist(source, id) {
   $("#content").innerHTML = skeleton("");
+  if (source === "exclusive") return viewExclusiveProfile(id);
   const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
   // Artiste à identités (ex. FEMTOGO) : une archive. Sa page est sa discographie, bâtie sur ses fichiers,
   // sans rien demander à Deezer (ni photo, ni titres, ni albums, ni artistes proches).
