@@ -196,6 +196,14 @@ final class APIClient {
         ]))
     }
 
+    /// Quelques artistes puis titres pour la saisie en cours (au mieux : vide si la source est lente).
+    func searchSuggest(query: String, limit: Int = 8) async throws -> [SearchSuggestion] {
+        try await send(try request("/search/suggest", query: [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+        ]))
+    }
+
     func resolve(text: String) async throws -> ResolvedLink {
         struct Body: Encodable { let text: String }
         let data = try encode(Body(text: text))
@@ -997,6 +1005,16 @@ final class ExclusiveVersionChoice: @unchecked Sendable {
     }
 }
 
+/// Place d'un exclu dans une discographie (page d'artiste à identités).
+struct ExclusiveReleaseInfo: Equatable {
+    var persona = ""
+    var album = ""
+    /// `album`, `ep` ou `single`.
+    var albumKind = "album"
+    var trackNumber: Int?
+    var releaseOrder: Int?
+}
+
 extension APIClient {
     func exclusivesStatus() async throws -> ExclusiveStatusDTO {
         try await send(try request("/exclusives/status"))
@@ -1013,6 +1031,17 @@ extension APIClient {
             "/artists/\(source)/\(id)/exclusives", query: [URLQueryItem(name: "name", value: name)]
         ))
         return list.tracks
+    }
+
+    /// Les identités d'un artiste (vide : sa page est la page habituelle).
+    func artistPersonas(source: String, id: String) async throws -> [String] {
+        let result: ExclusivePersonasDTO = try await send(try request("/artists/\(source)/\(id)/personas"))
+        return result.personas
+    }
+
+    /// Sorties (albums, EP, singles) d'un artiste à identités, bâties sur ses fichiers.
+    func artistDiscography(source: String, id: String) async throws -> ExclusiveDiscography {
+        try await send(try request("/artists/\(source)/\(id)/discography"))
     }
 
     func exclusiveVersions(id: String) async throws -> [ExclusiveVersionDTO] {
@@ -1038,7 +1067,8 @@ extension APIClient {
     }
 
     func addExclusive(
-        file: URL, title: String, artist: String, artistSource: String?, artistSourceId: String?, year: String, kind: String
+        file: URL, title: String, artist: String, artistSource: String?, artistSourceId: String?, year: String, kind: String,
+        release: ExclusiveReleaseInfo = ExclusiveReleaseInfo()
     ) async throws -> Track {
         var query = [
             URLQueryItem(name: "title", value: title),
@@ -1051,6 +1081,13 @@ extension APIClient {
             query.append(URLQueryItem(name: "artist_source", value: artistSource))
             query.append(URLQueryItem(name: "artist_source_id", value: artistSourceId))
         }
+        if !release.persona.isEmpty { query.append(URLQueryItem(name: "persona", value: release.persona)) }
+        if !release.album.isEmpty { query.append(URLQueryItem(name: "album", value: release.album)) }
+        if !release.persona.isEmpty && !release.album.isEmpty {
+            query.append(URLQueryItem(name: "album_kind", value: release.albumKind))
+        }
+        if let number = release.trackNumber { query.append(URLQueryItem(name: "track_number", value: "\(number)")) }
+        if let order = release.releaseOrder { query.append(URLQueryItem(name: "release_order", value: "\(order)")) }
         return try await upload("/exclusives", query: query, file: file, mime: Self.audioMime(for: file))
     }
 
@@ -1069,20 +1106,47 @@ extension APIClient {
         try await sendNoContent(try request("/exclusives/\(id)", method: "DELETE"))
     }
 
+    /// `release` nil : la place de l'exclu dans une discographie ne bouge pas ; sinon elle est remplacée
+    /// (champs vides = le titre sort de sa sortie).
     func updateExclusive(
-        id: String, title: String, artist: String, artistSource: String?, artistSourceId: String?, year: String, kind: String
+        id: String, title: String, artist: String, artistSource: String?, artistSourceId: String?, year: String, kind: String,
+        release: ExclusiveReleaseInfo? = nil
     ) async throws {
         struct Body: Encodable {
             let title: String, artist: String, year: String, kind: String
             let artistSource: String?, artistSourceId: String?
+            let release: ExclusiveReleaseInfo?
             enum CodingKeys: String, CodingKey {
-                case title, artist, year, kind
+                case title, artist, year, kind, persona, album
                 case artistSource = "artist_source"
                 case artistSourceId = "artist_source_id"
+                case albumKind = "album_kind"
+                case trackNumber = "track_number"
+                case releaseOrder = "release_order"
+            }
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(title, forKey: .title)
+                try c.encode(artist, forKey: .artist)
+                try c.encode(year, forKey: .year)
+                try c.encode(kind, forKey: .kind)
+                // Absents quand l'éditeur n'a pas de fiche choisie : le lien existant reste.
+                try c.encodeIfPresent(artistSource, forKey: .artistSource)
+                try c.encodeIfPresent(artistSourceId, forKey: .artistSourceId)
+                guard let release else { return }
+                // Envoyés `null` compris : c'est ainsi qu'un titre quitte sa sortie.
+                let placed = !release.persona.isEmpty && !release.album.isEmpty
+                try c.encode(release.persona.isEmpty ? nil : release.persona, forKey: .persona)
+                try c.encode(release.album.isEmpty ? nil : release.album, forKey: .album)
+                try c.encode(placed ? release.albumKind : nil, forKey: .albumKind)
+                try c.encode(release.trackNumber, forKey: .trackNumber)
+                try c.encode(release.releaseOrder, forKey: .releaseOrder)
             }
         }
-        let data = try encode(Body(title: title, artist: artist, year: year, kind: kind,
-                                   artistSource: artistSource, artistSourceId: artistSourceId))
+        let data = try encode(Body(
+            title: title, artist: artist, year: year, kind: kind,
+            artistSource: artistSource, artistSourceId: artistSourceId, release: release
+        ))
         try await sendNoContent(try request("/exclusives/\(id)", method: "PATCH", bodyData: data))
     }
 

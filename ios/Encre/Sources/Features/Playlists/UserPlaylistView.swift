@@ -17,6 +17,19 @@ struct UserPlaylistView: View {
     @State private var confirmingDelete = false
     @State private var showsReport = false
     @State private var shareTarget: ShareTarget?
+    @State private var find = ""
+    @State private var showsAddSongs = false
+
+    /// Les titres qui correspondent à la recherche dans la playlist (avec leur place d'origine).
+    private var visibleEntries: [(offset: Int, element: PlaylistEntry)] {
+        let needle = find.trimmingCharacters(in: .whitespaces).folded
+        let all = Array(entries.enumerated())
+        guard !needle.isEmpty else { return all }
+        return all.filter {
+            let track = $0.element.track
+            return "\(track.title) \(track.artist) \(track.album ?? "")".folded.contains(needle)
+        }
+    }
 
     var body: some View {
         Group {
@@ -53,6 +66,11 @@ struct UserPlaylistView: View {
                             Label("Partager…", systemImage: "link")
                         }
                         .disabled(entries.isEmpty)
+                        if playlist.editable {
+                            Button { showsAddSongs = true } label: {
+                                Label("Ajouter des morceaux", systemImage: "plus")
+                            }
+                        }
                         if playlist.mine {
                             Divider()
                             Picker(selection: Binding(
@@ -103,6 +121,10 @@ struct UserPlaylistView: View {
             Button("Supprimer", role: .destructive) { Task { await delete() } }
         }
         .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
+        .sheet(isPresented: $showsAddSongs, onDismiss: { Task { await load() } }) {
+            AddSongsSheet(playlistId: playlistId, existing: entries.map(\.track))
+        }
+        .searchable(text: $find, prompt: "Rechercher dans cette playlist")
         .sheet(isPresented: $showsReport, onDismiss: { Task { await load() } }) {
             ImportReportView(playlistId: playlistId)
         }
@@ -143,7 +165,12 @@ struct UserPlaylistView: View {
                 .plainRow()
             }
 
-            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+            if !find.isEmpty && visibleEntries.isEmpty {
+                EmptyState(systemImage: "magnifyingglass", title: "Aucun titre", message: "Rien dans cette playlist pour « \(find) ».")
+                    .plainRow()
+            }
+
+            ForEach(visibleEntries, id: \.element.id) { index, entry in
                 TrackRow(
                     track: entry.track,
                     isCurrent: player.current?.id == entry.track.id,
@@ -168,7 +195,7 @@ struct UserPlaylistView: View {
                     }
                 }
             }
-            .onMove(perform: moveHandler(playlist))
+            .onMove(perform: find.isEmpty ? moveHandler(playlist) : nil)
 
             if !playlist.importFailed, !playlist.isImporting, let note = playlist.importError {
                 // Import terminé mais partiel : la raison, telle que le serveur l'a vue.

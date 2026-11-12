@@ -35,6 +35,46 @@ struct ExclusiveTag: View {
     }
 }
 
+// MARK: - Exclus rangés par artiste
+
+/// Les exclus d'un même artiste. Un artiste à identités (FEMTOGO…) s'affiche « FEMTO (archives) » avec le sceau SPK.
+struct ExclusiveArtistGroup: Identifiable, Hashable {
+    let id: String
+    let source: String?
+    let artistId: String?
+    let name: String
+    let isArchive: Bool
+    let tracks: [Track]
+
+    var label: String { isArchive ? archiveArtistName : name }
+
+    static func groups(from tracks: [Track]) -> [ExclusiveArtistGroup] {
+        var order: [String] = []
+        var buckets: [String: [Track]] = [:]
+        for track in tracks {
+            let key = track.artistSourceId.map { "\(track.artistRouteSource):\($0)" } ?? "n:\(track.artist.folded)"
+            if buckets[key] == nil { order.append(key) }
+            buckets[key, default: []].append(track)
+        }
+        return order.compactMap { key in
+            guard let list = buckets[key], let first = list.first else { return nil }
+            // Le nom le plus fréquent : chez un artiste à identités, chaque titre porte le nom de son identité.
+            var counts: [String: Int] = [:]
+            for track in list { counts[track.artist, default: 0] += 1 }
+            let name = counts.max { $0.value < $1.value }?.key ?? first.artist
+            let sorted = list.sorted {
+                let left = ($0.persona ?? "", $0.album ?? "", $0.trackNumber ?? 0, $0.title)
+                let right = ($1.persona ?? "", $1.album ?? "", $1.trackNumber ?? 0, $1.title)
+                return left < right
+            }
+            return ExclusiveArtistGroup(
+                id: key, source: first.artistSourceId == nil ? nil : first.artistRouteSource, artistId: first.artistSourceId,
+                name: name, isArchive: list.contains { $0.persona != nil }, tracks: sorted
+            )
+        }
+    }
+}
+
 // MARK: - Page Exclus
 
 struct ExclusivesView: View {
@@ -47,11 +87,24 @@ struct ExclusivesView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var editor: ExclusiveEditorRequest?
+    @State private var query = ""
+    @State private var sortByCount = false
+
+    private var artists: [ExclusiveArtistGroup] {
+        let needle = query.trimmingCharacters(in: .whitespaces).folded
+        let shown = ExclusiveArtistGroup.groups(from: tracks).filter {
+            needle.isEmpty || $0.name.folded.contains(needle) || $0.label.folded.contains(needle)
+        }
+        return shown.sorted {
+            if sortByCount, $0.tracks.count != $1.tracks.count { return $0.tracks.count > $1.tracks.count }
+            return $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending
+        }
+    }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
-                Text("Des titres inédits, introuvables ailleurs : ajoutés à la main, rangés sur la page de leur artiste.")
+                Text("Des titres inédits, introuvables ailleurs : choisis un artiste pour voir ses exclus.")
                     .font(Typo.rowSubtitle)
                     .foregroundStyle(Tone.secondary)
                     .padding(.horizontal, 20)
@@ -81,20 +134,35 @@ struct ExclusivesView: View {
                             : "Les titres inédits ajoutés par l'admin apparaîtront ici."
                     )
                     .padding(.top, 40)
-                } else {
-                    LazyVStack(spacing: 2) {
-                        ForEach(tracks) { track in
-                            TrackRow(
-                                track: track,
-                                isCurrent: player.current?.id == track.id,
-                                isPlaying: player.isPlaying,
-                                onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } }
-                            ) {
-                                player.play(track, context: tracks, name: "Exclus")
-                            }
+                } else if !tracks.isEmpty {
+                    HStack {
+                        Text("\(artists.count) artiste\(artists.count > 1 ? "s" : "")")
+                            .font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary)
+                        Spacer()
+                        Picker("Tri", selection: $sortByCount) {
+                            Text("A–Z").tag(false)
+                            Text("Plus d'exclus").tag(true)
                         }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 210)
                     }
                     .padding(.horizontal, 20)
+
+                    if artists.isEmpty {
+                        EmptyState(systemImage: "magnifyingglass", title: "Aucun artiste", message: "Aucun artiste ne correspond à cette recherche.")
+                    } else {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 20) {
+                            ForEach(artists) { group in
+                                NavigationLink {
+                                    ExclusiveArtistView(group: group, path: $path)
+                                } label: {
+                                    card(group)
+                                }
+                                .buttonStyle(.pressable)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
                 }
             }
             .padding(.top, 8)
@@ -104,12 +172,35 @@ struct ExclusivesView: View {
         .background(Tone.background)
         .navigationTitle("Exclus")
         .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $query, prompt: "Chercher un artiste")
         .overlay { if isLoading && tracks.isEmpty { ProgressView().tint(.white) } }
         .sheet(item: $editor) { request in
             ExclusiveEditorView(existing: request.existing) { Task { await load() } }
         }
         .task { await load() }
         .refreshable { await load() }
+    }
+
+    private func card(_ group: ExclusiveArtistGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                if group.isArchive {
+                    SPKSeal().aspectRatio(1, contentMode: .fit)
+                } else {
+                    Artwork(url: group.tracks.first?.coverURL, cornerRadius: 12, symbol: "person.fill")
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(group.label).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                if group.isArchive {
+                    Text("(archives)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                }
+                Text("\(group.tracks.count) exclu\(group.tracks.count > 1 ? "s" : "")")
+                    .font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary)
+            }
+        }
     }
 
     private func load() async {
@@ -124,6 +215,115 @@ struct ExclusivesView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Exclus d'un artiste
+
+/// Les exclus d'un artiste, triés (identité, album, numéro) et filtrables.
+struct ExclusiveArtistView: View {
+    let group: ExclusiveArtistGroup
+    @Binding var path: NavigationPath
+    @ObservedObject private var player = PlayerManager.shared
+    @State private var query = ""
+
+    private struct ReleaseSection: Identifiable {
+        let id: String
+        let title: String
+        let tracks: [Track]
+    }
+
+    private var filtered: [Track] {
+        let needle = query.trimmingCharacters(in: .whitespaces).folded
+        guard !needle.isEmpty else { return group.tracks }
+        return group.tracks.filter {
+            "\($0.title) \($0.album ?? "") \($0.persona ?? "") \($0.artist)".folded.contains(needle)
+        }
+    }
+
+    private var sections: [ReleaseSection] {
+        var order: [String] = []
+        var buckets: [String: [Track]] = [:]
+        for track in filtered {
+            let key = "\(track.persona ?? "")\u{1F}\(track.album ?? "")"
+            if buckets[key] == nil { order.append(key) }
+            buckets[key, default: []].append(track)
+        }
+        return order.map { key in
+            let list = buckets[key] ?? []
+            let title = [list.first?.persona, list.first?.album.map { FeatSplit.split($0).title }]
+                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            return ReleaseSection(id: key, title: title.isEmpty ? "Titres" : title, tracks: list)
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if group.isArchive {
+                        HStack(spacing: 16) {
+                            SPKSeal(size: 84)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("EXCLUS · ARCHIVES").font(Typo.caption).tracking(0.6).foregroundStyle(Tone.tertiary)
+                                Text(group.label).font(Typo.largeTitle).foregroundStyle(Tone.primary)
+                                Text("(archives)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                            }
+                        }
+                    }
+                    Text("\(group.tracks.count) exclu\(group.tracks.count > 1 ? "s" : "")")
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                    HStack(spacing: 12) {
+                        PillButton(title: "Lecture", systemImage: "play.fill") {
+                            if let first = group.tracks.first { player.play(first, context: group.tracks, name: group.label) }
+                        }
+                        PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
+                            player.playShuffled(group.tracks, name: group.label)
+                        }
+                    }
+                    if let source = group.source, let artistId = group.artistId {
+                        PillButton(title: "Voir la page", systemImage: "person.crop.circle", kind: .secondary) {
+                            path.append(Route.artist(source: source, id: artistId))
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+
+                if sections.isEmpty {
+                    Text("Aucun exclu ne correspond à « \(query) ».")
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).padding(.horizontal, 20)
+                }
+                ForEach(sections) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(section.title).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(1)
+                            Spacer()
+                            Text("\(section.tracks.count) titre\(section.tracks.count > 1 ? "s" : "")")
+                                .font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary)
+                        }
+                        LazyVStack(spacing: 2) {
+                            ForEach(section.tracks) { track in
+                                TrackRow(
+                                    track: track,
+                                    isCurrent: player.current?.id == track.id,
+                                    isPlaying: player.isPlaying
+                                ) {
+                                    player.play(track, context: group.tracks, name: group.label)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .background(Tone.background)
+        .navigationTitle(group.isArchive ? "" : group.label)
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $query, prompt: "Chercher un titre, un album…")
     }
 }
 
@@ -207,6 +407,13 @@ struct ExclusiveEditorView: View {
     @State private var artistSourceId: String?
     @State private var year = String(Calendar.current.component(.year, from: Date()))
     @State private var kind = "exclu"
+    @State private var persona = ""
+    @State private var album = ""
+    @State private var albumKind = "album"
+    @State private var trackNumber = ""
+    @State private var releaseOrder = ""
+    /// Place d'origine dans la discographie : on ne renvoie la sortie au serveur que si elle a changé.
+    @State private var initialRelease = ExclusiveReleaseInfo()
     @State private var audioFile: URL?
     @State private var coverItem: PhotosPickerItem?
     @State private var coverData: Data?
@@ -267,6 +474,21 @@ struct ExclusiveEditorView: View {
                     }
                     .onChange(of: coverItem) { _, item in loadCover(item) }
                 }
+                Section {
+                    TextField("Identité (ex. baby hayabusa)", text: $persona)
+                    TextField("Album, EP ou single", text: $album)
+                    Picker("Sortie", selection: $albumKind) {
+                        Text("Album").tag("album")
+                        Text("EP").tag("ep")
+                        Text("Single").tag("single")
+                    }
+                    TextField("Numéro de piste", text: $trackNumber).keyboardType(.numberPad)
+                    TextField("Rang de la sortie", text: $releaseOrder).keyboardType(.numberPad)
+                } header: {
+                    Text("Discographie (facultatif)")
+                } footer: {
+                    Text("Pour un artiste à identités : l'identité et l'album rangent le titre dans sa page d'artiste.")
+                }
                 if let existing {
                     Section {
                         ForEach(versions) { version in
@@ -322,7 +544,12 @@ struct ExclusiveEditorView: View {
                 artistSourceId = existing.artistSourceId
                 year = existing.year ?? year
                 kind = existing.tag == "Inédit" ? "inedit" : "exclu"
+                persona = existing.persona ?? ""
+                album = existing.persona == nil ? "" : (existing.album ?? "")
+                trackNumber = existing.trackNumber.map(String.init) ?? ""
+                initialRelease = currentRelease
                 await loadVersions(existing)
+                await loadReleaseDetails(existing)
             }
         }
         .interactiveDismissDisabled(isWorking)
@@ -352,6 +579,27 @@ struct ExclusiveEditorView: View {
         }
     }
 
+    private var currentRelease: ExclusiveReleaseInfo {
+        ExclusiveReleaseInfo(
+            persona: persona.trimmingCharacters(in: .whitespaces),
+            album: album.trimmingCharacters(in: .whitespaces),
+            albumKind: albumKind,
+            trackNumber: Int(trackNumber.trimmingCharacters(in: .whitespaces)),
+            releaseOrder: Int(releaseOrder.trimmingCharacters(in: .whitespaces))
+        )
+    }
+
+    /// Le type et le rang de la sortie ne figurent pas sur le titre : on les relit dans la discographie.
+    private func loadReleaseDetails(_ track: Track) async {
+        guard track.persona != nil, let id = track.artistSourceId,
+              let disco = try? await APIClient.shared.artistDiscography(source: track.artistRouteSource, id: id),
+              let release = disco.releases.first(where: { $0.persona == track.persona && $0.album == track.album })
+        else { return }
+        albumKind = release.kind
+        releaseOrder = release.order > 0 ? String(release.order) : ""
+        initialRelease = currentRelease
+    }
+
     private func loadVersions(_ track: Track) async {
         versions = (try? await APIClient.shared.exclusiveVersions(id: track.sourceId)) ?? []
     }
@@ -371,7 +619,8 @@ struct ExclusiveEditorView: View {
                     progressText = "Enregistrement…"
                     try await APIClient.shared.updateExclusive(
                         id: existing.sourceId, title: trimmedTitle, artist: trimmedArtist,
-                        artistSource: artistSource, artistSourceId: artistSourceId, year: year, kind: kind
+                        artistSource: artistSource, artistSourceId: artistSourceId, year: year, kind: kind,
+                        release: currentRelease == initialRelease ? nil : currentRelease
                     )
                 } else if let audioFile {
                     progressText = "Envoi vers Drivecord…"
@@ -379,7 +628,8 @@ struct ExclusiveEditorView: View {
                     defer { if scoped { audioFile.stopAccessingSecurityScopedResource() } }
                     let made = try await APIClient.shared.addExclusive(
                         file: audioFile, title: trimmedTitle, artist: trimmedArtist,
-                        artistSource: artistSource, artistSourceId: artistSourceId, year: year, kind: kind
+                        artistSource: artistSource, artistSourceId: artistSourceId, year: year, kind: kind,
+                        release: currentRelease
                     )
                     id = made.sourceId
                 }

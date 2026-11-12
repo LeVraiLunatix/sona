@@ -36,6 +36,18 @@ symboles qui rebondissent, retours haptiques.
   artistes (tolérant aux fautes : « eiak » → Ziak), albums, titres avec
   chargement de la suite au défilement, liens Deezer/Spotify/Apple
   Music/YouTube collés ; champ vide → radios thématiques par genre.
+- **Recherche** enrichie : suggestions pendant la frappe, filtres
+  (Tout / Titres / Artistes / Albums / Ta bibliothèque), titres et playlists
+  de ta bibliothèque, recherches récentes (effaçables). Un titre lancé depuis
+  une recherche joue seul, suivi de **Ta file perso** (titres aimés + morceaux
+  proches), pas des autres résultats.
+- **Exclus** rangés par artiste (liste, tri A–Z / plus d'exclus, recherche),
+  page par artiste filtrable. Les artistes à identités (FEMTO, archives, sceau
+  SPK) ont une vraie page de discographie : choix de l'identité, Albums / EP /
+  Singles, page de sortie, renvois « Aussi chez les autres identités ».
+  L'éditeur admin sait ranger un titre dans une sortie.
+- **Rechercher dans** un album ou une playlist, et « Ajouter des morceaux »
+  à une playlist modifiable.
 - **Fiches** album/playlist (halo de couleur, Lecture/Aléatoire, ajout à la
   bibliothèque) et artiste (photo étirable en parallaxe, populaires, radio,
   albums, singles, artistes similaires, suivre).
