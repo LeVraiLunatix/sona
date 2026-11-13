@@ -208,3 +208,16 @@ class FakeDeezer:
 
 
 
+
+
+def test_proposals_are_limited_and_recent_titles_are_refused(client):
+    code, host, (bob,) = _party_with_guests(client, "bob")
+    other = lambda i: {"source": "deezer", "source_id": f"x{i}", "title": f"T{i}", "artist": "Ziak"}
+    # Le titre qui joue (ou vient de passer) n'est pas reproposé.
+    client.post(f"/party/{code}/state", headers=host, json={"track": TRACK, "position": 0, "paused": False})
+    assert client.post(f"/party/{code}/queue", headers=bob, json={"track": TRACK}).status_code == 409
+    # Cinq propositions en attente par personne, pas plus.
+    for i in range(party.MAX_PER_USER):
+        assert client.post(f"/party/{code}/queue", headers=bob, json={"track": other(i)}).status_code == 200
+    assert client.post(f"/party/{code}/queue", headers=bob, json={"track": other(99)}).status_code == 429
+    assert client.get(f"/party/{code}", headers=bob).json()["per_user"] == party.MAX_PER_USER

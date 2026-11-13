@@ -7225,7 +7225,7 @@ function bindParty(root, s) {
   $("[data-skip]", root)?.addEventListener("click", () => { haptic(); post("/skip"); });
   $("[data-open]", root)?.addEventListener("change", (e) => post("/settings", { open_controls: e.target.checked }));
   $$("[data-ptab]", root).forEach((b) => (b.onclick = () => { party.tab = b.dataset.ptab; party.renderedVersion = null; renderParty(); }));
-  $("[data-party-add]", root)?.addEventListener("click", () => quickSearch(s.is_host ? "Ajouter un titre" : "Proposer un titre", partyPropose));
+  $("[data-party-add]", root)?.addEventListener("click", () => partyPicker());
   const form = $(".chat-form", root);
   if (form) form.onsubmit = async (e) => {
     e.preventDefault();
@@ -7281,23 +7281,98 @@ async function partyRestore() {
   catch { store.set("sona.party", null); }
 }
 
-/** Petite recherche dans une feuille : `pick(track)` au choix. */
-function quickSearch(title, pick) {
-  const wrap = openSheet(`<h2 class="sheet-title">${esc(title)}</h2>
-    <input class="field" id="qs" type="search" placeholder="Titre, artiste…" autocomplete="off"><div class="menu" id="qs-results"></div>`, { cls: "tall" });
-  const input = $("#qs", wrap);
-  setTimeout(() => input.focus(), 250);
-  let timer, results = [];
-  input.oninput = () => {
-    clearTimeout(timer);
-    timer = setTimeout(async () => {
-      const q = input.value.trim();
-      results = q ? (await api(`/search?q=${encodeURIComponent(q)}&limit=15`).catch(() => ({ tracks: [] }))).tracks : [];
-      $("#qs-results", wrap).innerHTML = results.map((t, i) => `<button class="menu-item" data-qs="${i}"><img class="mi-thumb" src="${esc(big(t.cover_url, 120))}" alt="">
-        <span class="mi-text"><span class="mi-label">${esc(t.title)}</span><span class="mi-sub">${esc(t.artist)}</span></span></button>`).join("");
-      $$("[data-qs]", wrap).forEach((b) => (b.onclick = () => { wrap.close(); pick(results[+b.dataset.qs]); }));
-    }, 300);
+/** Menu « Proposer un titre » de l'écoute ensemble : recherche (exclus compris) et, sans saisie, des idées à un
+ * toucher : suggestions proches du titre en cours, exclus, tes likes, écoutés récemment, playlists. La feuille reste
+ * ouverte : on peut proposer plusieurs titres d'affilée (✓ = déjà dans la file ou vient de passer). */
+function partyPicker() {
+  const host = party.state?.is_host;
+  const TABS = [["suggest", "Pour la session"], ["exclus", "Exclus"], ["likes", "Tes likes"], ["recent", "Récents"], ["playlists", "Playlists"]];
+  const wrap = openSheet(`<h2 class="sheet-title">${host ? "Ajouter un titre" : "Proposer un titre"}</h2>
+    <input class="field" id="pp-q" type="search" placeholder="Titre, artiste, exclu…" autocomplete="off">
+    <div class="pp-tabs" id="pp-tabs">${TABS.map(([k, l]) => `<button data-pp="${k}">${l}</button>`).join("")}</div>
+    <p class="muted pp-limit" id="pp-limit"></p><div class="menu pp-list" id="pp-list"></div>`, { cls: "tall pp" });
+  const input = $("#pp-q", wrap), list = $("#pp-list", wrap);
+  const ui = { tab: "suggest", rows: [], playlist: null };
+  const cache = {};
+  const load = (key, fn) => (cache[key] ||= fn().catch(() => []));
+  const exclusives = () => load("exclus", async () => (await api("/exclusives")).tracks);
+  const added = new Set();
+  const taken = (t) => added.has(trackKey(t)) || party.state?.queue.some((q) => sameTrack(q.track, t)) || (party.state?.history || []).slice(0, 5).some((h) => sameTrack(h, t));
+  const limit = () => {
+    const s = party.state;
+    if (!s || s.is_host) return "";
+    const mine = s.queue.filter((q) => q.mine).length;
+    return `${mine}/${s.per_user} propositions en attente`;
   };
+  const row = (t, i) => `<button class="menu-item pp-row ${taken(t) ? "done" : ""}" data-i="${i}"><img class="mi-thumb" src="${esc(big(t.cover_url, 120))}" alt="">
+    <span class="mi-text"><span class="mi-label">${esc(t.title)}${t.exclusive ? ` <span class="tag-exclu">Exclu</span>` : ""}</span><span class="mi-sub">${esc(t.artist)}</span></span>
+    <span class="pp-add">${taken(t) ? "✓" : icons.plus}</span></button>`;
+  const empty_ = (text) => `<p class="muted pp-empty">${esc(text)}</p>`;
+  const paint = (items, { heads = false, note = "" } = {}) => {
+    ui.rows = items;
+    $("#pp-limit", wrap).textContent = limit();
+    let last = "";
+    list.innerHTML = (items.length ? items.map((t, i) => {
+      const head = heads && t.artist !== last ? `<div class="pp-head">${esc(last = t.artist)}</div>` : "";
+      return head + row(t, i);
+    }).join("") : empty_(note || "Rien à proposer ici pour le moment.")) ;
+  };
+  const sortedExclusives = async () => [...await exclusives()].sort((a, b) => a.artist.localeCompare(b.artist, "fr") || a.title.localeCompare(b.title, "fr"));
+  const show = async () => {
+    $$("[data-pp]", wrap).forEach((b) => b.classList.toggle("on", !input.value.trim() && b.dataset.pp === ui.tab));
+    list.innerHTML = empty_("Chargement…");
+    const tab = ui.tab;
+    let items = [];
+    if (tab === "suggest") {
+      const cur = party.state?.track;
+      const [near, ex, likes] = await Promise.all([cur ? load(`near:${cur.source_id}`, () => djLoader(cur)()) : [], exclusives(),
+        load("likes", async () => (await api("/library/track?limit=200")).items || [])]);
+      const pick = (l, n) => shuffled(l.filter((t) => t?.source && !sameTrack(t, cur))).slice(0, n);
+      const seen = new Set();
+      items = [...pick(near, 10), ...pick(ex, 4), ...pick(likes, 6)].filter((t) => !seen.has(trackKey(t)) && seen.add(trackKey(t)));
+      paint(items, { note: "Lance un titre pour avoir des idées proches de lui." });
+    } else if (tab === "exclus") paint(await sortedExclusives(), { heads: true, note: "Aucun exclu pour le moment." });
+    else if (tab === "likes") paint(await load("likes", async () => (await api("/library/track?limit=200")).items || []), { note: "Tu n'as encore aimé aucun titre." });
+    else if (tab === "recent") paint(playsToTracks(await load("recent", () => api("/plays/recent?limit=80")), 40), { note: "Rien d'écouté récemment." });
+    else if (tab === "playlists") {
+      if (ui.playlist) {
+        const pl = await load(`pl:${ui.playlist.id}`, () => api(`/me/playlists/${ui.playlist.id}`));
+        paint((pl.entries || []).map((e) => e.track), { note: "Playlist vide." });
+        list.insertAdjacentHTML("afterbegin", `<button class="menu-item pp-back" data-back>← ${esc(ui.playlist.name)}</button>`);
+      } else {
+        const pls = await load("playlists", () => api("/me/playlists"));
+        ui.rows = [];
+        list.innerHTML = pls.length ? pls.map((p, i) => `<button class="menu-item" data-pl="${i}"><img class="mi-thumb" src="${esc(big(p.cover_url || p.covers?.[0], 120))}" alt="">
+          <span class="mi-text"><span class="mi-label">${esc(p.name)}</span><span class="mi-sub">${plural(p.track_count, "titre")}</span></span></button>`).join("") : empty_("Aucune playlist.");
+        $$("[data-pl]", list).forEach((b) => (b.onclick = () => { ui.playlist = pls[+b.dataset.pl]; show(); }));
+      }
+    }
+    $("[data-back]", list)?.addEventListener("click", () => { ui.playlist = null; show(); });
+  };
+  const search = async () => {
+    const q = input.value.trim();
+    if (q.length < 2) return show();
+    $$("[data-pp]", wrap).forEach((b) => b.classList.remove("on"));
+    const f = fold(q);
+    const [ex, found] = await Promise.all([exclusives(), api(`/search?q=${encodeURIComponent(q)}&limit=15`).then((r) => r.tracks).catch(() => [])]);
+    if (input.value.trim() !== q) return; // une saisie plus récente a pris le relais
+    const mine = ex.filter((t) => fold(`${t.title} ${t.artist} ${t.album || ""} ${t.persona || ""}`).includes(f)).slice(0, 8);
+    const seen = new Set(mine.map(trackKey));
+    paint([...mine, ...found.filter((t) => !seen.has(trackKey(t)))], { note: "Aucun résultat." });
+  };
+  let timer;
+  input.oninput = () => { clearTimeout(timer); timer = setTimeout(search, 250); };
+  $$("[data-pp]", wrap).forEach((b) => (b.onclick = () => { input.value = ""; ui.tab = b.dataset.pp; ui.playlist = null; show(); }));
+  list.onclick = async (e) => {
+    const b = e.target.closest("[data-i]");
+    const t = b && ui.rows[+b.dataset.i];
+    if (!t || taken(t)) return;
+    await partyPropose(t);
+    if (host) added.add(trackKey(t)); // l'hôte ajoute à sa propre file : pas de proposition à relire
+    if (b.isConnected) { b.classList.toggle("done", taken(t)); $(".pp-add", b).innerHTML = taken(t) ? "✓" : icons.plus; $("#pp-limit", wrap).textContent = limit(); }
+  };
+  setTimeout(() => input.focus(), 250);
+  show();
 }
 
 // ── TV et PS5 (appli YouTube de l'écran) ──────────────────────────────────

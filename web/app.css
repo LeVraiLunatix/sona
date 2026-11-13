@@ -2716,3 +2716,16 @@ html.archive .lyrics p, html.archive .drawer-body .lyrics p { font-family: var(-
 html.archive .lyrics p.on, html.archive .drawer-body .lyrics p.on { color: var(--accent); }
 html.archive .lyrics p.on .w { color: var(--accent); }
 html.archive .drawer .queue .tr, html.archive .drawer .mini { font-family: var(--font); }
+
+/* ── Écoute ensemble : menu « Proposer un titre » ───────────────────────────────────────────────── */
+.pp-tabs { display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 4px; padding-bottom: 4px; scrollbar-width: none; }
+.pp-tabs::-webkit-scrollbar { display: none; }
+.pp-tabs button { flex: none; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--fill); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pp-tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pp-limit { margin: 4px 2px 2px; font-size: 12px; }
+.pp-head { padding: 12px 4px 4px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+.pp-row .pp-add { margin-left: auto; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--fill-strong); color: var(--text); flex: none; font-weight: 700; }
+.pp-row.done { opacity: .55; }
+.pp-row.done .pp-add { background: var(--accent-soft); color: var(--accent); }
+.pp-empty { padding: 24px 4px; text-align: center; }
+.pp-back { color: var(--text-2); font-weight: 600; }

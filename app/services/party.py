@@ -30,6 +30,9 @@ MEMBER_TIMEOUT = 30
 HOST_TIMEOUT = 120
 REACTION_TTL = 12
 MAX_QUEUE = 100
+# Une personne ne remplit pas la file à elle seule ; un titre passé il y a peu n'est pas reproposé.
+MAX_PER_USER = 5
+RECENT_BLOCK = 5
 MAX_MESSAGES = 50
 MAX_MESSAGE_LENGTH = 300
 HISTORY_SIZE = 30
@@ -276,7 +279,11 @@ def propose(party: Party, user_id: int, track: dict) -> QueueItem:
         raise PartyError(400, "La file de la session est pleine.")
     if any(_track_key(q.track) == _track_key(track) for q in party.queue):
         raise PartyError(409, "Ce titre est déjà proposé : vote pour lui !")
-    item = QueueItem(party.take_id(), track, party.members[user_id].name, {user_id}, user_id)
+    if _track_key(track) in [_track_key(h) for h in party.history[:RECENT_BLOCK]]:
+        raise PartyError(409, "Ce titre vient de passer : propose-en un autre.")
+    if sum(1 for q in party.queue if q.by_user_id == user_id) >= MAX_PER_USER and user_id != party.host_user_id:
+        raise PartyError(429, f"Tu as déjà {MAX_PER_USER} propositions en attente : laisse-les passer ou retires-en une.")
+    item =QueueItem(party.take_id(), track, party.members[user_id].name, {user_id}, user_id)
     party.queue.append(item)
     party.bump()
     return item
@@ -433,6 +440,7 @@ def snapshot(party: Party, viewer_id: int) -> dict:
         ],
         "skip": {"votes": len(party.skip_votes), "needed": party.skip_needed(), "voted": viewer_id in party.skip_votes},
         "open_controls": party.open_controls,
+        "per_user": MAX_PER_USER,
         # Seul l'hôte exécute les commandes des invités.
         "commands": [{"id": c.id, "action": c.action, "by": c.by} for c in party.commands] if viewer_id == party.host_user_id else [],
         "history": party.history,
