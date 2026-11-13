@@ -101,7 +101,9 @@ async def search_albums(
     except DeezerError as exc:
         logger.warning("Recherche d'albums Deezer indisponible pour %r: %s", text, exc)
         albums = []
-    return [Album.from_info(a) for a in albums]
+    _, names = await deps.repo.archive_artists()
+    folded = {fold(n) for n in names}
+    return [Album.from_info(a) for a in albums if fold(a.artist) not in folded]
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -215,6 +217,10 @@ async def suggest(
         return []
     found_artists = got[0] if isinstance(got[0], list) else []
     found_tracks = got[1] if isinstance(got[1], list) else []
+    ids, names = await deps.repo.archive_artists()
+    folded = {fold(n) for n in names}
+    found_artists = [a for a in found_artists if (a.source, a.source_id) not in ids and fold(a.name) not in folded]
+    found_tracks = await _without_archives(deps, found_tracks)
     out = [
         Suggestion(kind="artist", text=a.name, subtitle="Artiste", picture_url=a.picture_url, source=a.source, source_id=a.source_id)
         for a in found_artists

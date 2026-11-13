@@ -119,3 +119,12 @@ def test_apple_url_round_trip_needs_the_album_id():
     # Sans album, Apple Music n'a pas d'URL de morceau : on préfère ne rien
     # proposer plutôt qu'un lien mort.
     assert track_url(_track("apple", "456")) is None
+
+
+def test_trapped_link_is_never_followed(monkeypatch):
+    # Un lien qui NE FAIT QUE citer link.deezer.com ne doit pas faire contacter son vrai site par le serveur.
+    def boom(*a, **k):
+        raise AssertionError("requête réseau inattendue")
+
+    monkeypatch.setattr("app.providers.link_detect.httpx.AsyncClient", boom)
+    assert run(resolve_link("http://127.0.0.1:9/x?a=link.deezer.com/z")) is None

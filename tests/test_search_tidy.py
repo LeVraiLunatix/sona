@@ -125,3 +125,19 @@ def test_main_search_applies_tidy_on_first_page_only(client):
     client.app_state.deps.deezer.search_tracks = tracks
     first = client.get("/search", params={"q": "joli"}, headers=AUTH).json()
     assert [x["source_id"] for x in first["tracks"]] == ["2", "1"]
+
+
+def test_archive_artists_are_hidden_from_search_results():
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.api.routers.search import _without_archives
+
+    class Repo:
+        async def archive_artists(self):
+            return {("deezer", "169773547")}, {"FEMTOGO", "baby hayabusa"}
+
+    deps = SimpleNamespace(repo=Repo())
+    tracks = [t("1", "A", "FEMTOGO"), t("2", "B", "Ziak"), t("3", "C", "Ziak, baby hayabusa")]
+    kept = asyncio.run(_without_archives(deps, tracks))
+    assert [x.source_id for x in kept] == ["2"]

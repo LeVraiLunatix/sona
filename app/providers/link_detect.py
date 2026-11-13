@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import httpx
 
@@ -9,11 +10,11 @@ from app.providers.base import TrackInfo
 
 URL_RE = re.compile(r"https?://\S+")
 
+# Seuls ces sites sont suivis : sinon un lien piégé ferait contacter n'importe quelle adresse par le serveur.
+_SHORT_HOSTS = {"deezer.page.link", "link.deezer.com", "on.soundcloud.com"}
+
 _DEEZER_RE = re.compile(
     r"deezer\.com/(?:[a-z]{2}/)?(track|album|artist|playlist)/(\d+)", re.IGNORECASE
-)
-_DEEZER_SHORT_RE = re.compile(
-    r"(?:deezer\.page\.link|link\.deezer\.com)/\S+", re.IGNORECASE
 )
 _SPOTIFY_RE = re.compile(
     r"open\.spotify\.com/(?:intl-[a-z]{2}/)?(track|album|artist|playlist)/([A-Za-z0-9]+)",
@@ -35,7 +36,6 @@ _SOUNDCLOUD_RE = re.compile(
     r"(?:www\.|m\.)?soundcloud\.com/([A-Za-z0-9_-]+)(?:/(sets)/([A-Za-z0-9_-]+)|/(likes)\b|/([A-Za-z0-9_-]+))?",
     re.IGNORECASE,
 )
-_SOUNDCLOUD_SHORT_RE = re.compile(r"on\.soundcloud\.com/\S+", re.IGNORECASE)
 # Pages du site, pas des comptes ; et pages d'un compte qui ne sont pas des titres.
 _SOUNDCLOUD_RESERVED = frozenset({
     "discover", "search", "you", "stream", "charts", "upload", "settings", "pages", "mobile", "jobs",
@@ -125,7 +125,7 @@ async def resolve_link(text: str) -> DetectedLink | None:
     if detected:
         return detected
 
-    if _DEEZER_SHORT_RE.search(url) or _SOUNDCLOUD_SHORT_RE.search(url):
+    if (urlparse(url).hostname or "").lower() in _SHORT_HOSTS:
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
                 resp = await client.head(url)

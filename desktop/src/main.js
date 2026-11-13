@@ -781,7 +781,7 @@ ipcMain.handle("desktop:save-track", async (_e, name, mime, bytes) => {
   fs.mkdirSync(dir, { recursive: true });
   let file = path.join(dir, `${base}.${ext}`);
   for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${base} (${i}).${ext}`);
-  fs.writeFileSync(file, Buffer.from(bytes));
+  await fs.promises.writeFile(file, Buffer.from(bytes));
   shell.showItemInFolder(file);
   return file;
 });

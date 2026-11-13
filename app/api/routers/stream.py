@@ -362,6 +362,8 @@ async def exclusive_file(deps: ApiDeps, source_id: str, quality: str = "best", v
         chosen = exclusives.pick_version(
             exclusives.versions_of(row, (await deps.repo.exclusive_versions(source_id)).get(source_id)), quality, version)
         path = await exclusives.materialize(deps.exclusive_storage, deps.settings.exclusives_cache_dir, row, chosen)
+        # Comme le cache des titres : les exclus les moins écoutés sont rassemblés de nouveau au besoin.
+        prune_cache(deps.settings.exclusives_cache_dir, deps.settings.stream_cache_max_mb * 1024 * 1024, keep=path)
     except exclusives.StorageError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Stockage Discord : {exc}") from exc
     return path, chosen["mime"]

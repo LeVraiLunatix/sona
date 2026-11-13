@@ -352,3 +352,9 @@ def test_cover_url_changes_with_the_cover_so_caches_do_not_serve_the_old_one(cli
     assert done["cover_url"] != neutral and again["cover_url"] != done["cover_url"]
     # L'adresse versionnée sert bien l'image (le paramètre est ignoré par la route).
     assert client.get(again["cover_url"].replace("http://testserver", "")).content == second
+
+
+def test_same_title_twice_is_refused_for_an_artist_without_identity(client):
+    first = _add(client, title="Karaté", artist="Zecki", artist_source="exclusive", artist_source_id="zecki")
+    again = _add(client, title="karaté", artist="Zecki", artist_source="exclusive", artist_source_id="zecki")
+    assert first.status_code == 201 and again.status_code == 409
