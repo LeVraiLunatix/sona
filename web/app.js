@@ -1299,7 +1299,7 @@ const SPK_LOGO = "img/spk.png";
 // shortcut: tout artiste à identités s'appelle « FEMTO » et prend le sceau SPK (un seul existe) ; donner un nom et une image par artiste dès qu'un deuxième arrive.
 const ARCHIVE_NAME = "FEMTO";
 // shortcut: image de profil posée dans web/img, pas de champ serveur ; en ajouter un si d'autres artistes en veulent une.
-const ARTIST_IMAGE = { "exclusive:zecki": "img/zecki.jpg" };
+const ARTIST_IMAGE = { "exclusive:zecki": "img/zecki.jpg", "deezer:252768072": "img/saif.jpg", "deezer:270946182": "img/pato.jpg", "deezer:348116081": "img/chems.jpg", "exclusive:strano": "img/strano.jpg" };
 const artistImage = (g) => ARTIST_IMAGE[g.key] || g.tracks[0].cover_url;
 
 async function viewExclusives(artistKey) {
@@ -1311,7 +1311,9 @@ async function viewExclusives(artistKey) {
   setTimeout(() => $("[data-excl-add]")?.addEventListener("click", () => exclusiveSheet()));
   const playAll = tracks.length ? register(tracks, "Exclus") : "";
   const ui = { q: "", sort: "az" };
-  const cardHtml = (g) => `<a class="xa ${g.archive ? "xa-archive" : ""}" href="#/exclusives/${encodeURIComponent(g.key)}">
+  // Artiste d'une plateforme (Saïf, Pato, Chems…) : sa vraie page, où ses exclus sont en haut ; les autres ont leur fiche d'exclus.
+  const hrefOf = (g) => (g.source === "deezer" && !g.archive ? `#/artist/deezer/${g.id}` : `#/exclusives/${encodeURIComponent(g.key)}`);
+  const cardHtml = (g) => `<a class="xa ${g.archive ? "xa-archive" : ""}" href="${hrefOf(g)}">
       <div class="xa-pic"><img src="${esc(g.archive ? SPK_LOGO : artistImage(g))}" alt="" loading="lazy"></div>
       <div class="xa-name">${esc(g.label)}${g.archive ? `<small>(archives)</small>` : ""}</div>
       <div class="xa-count">${plural(g.tracks.length, "exclu")}</div></a>`;
