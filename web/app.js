@@ -1296,6 +1296,9 @@ function exclusiveGroups(tracks) {
   });
 }
 const SPK_LOGO = "img/spk.png";
+// shortcut: image de profil posée dans web/img, pas de champ serveur ; en ajouter un si d'autres artistes en veulent une.
+const ARTIST_IMAGE = { "exclusive:zecki": "img/zecki.jpg" };
+const artistImage = (g) => ARTIST_IMAGE[g.key] || g.tracks[0].cover_url;
 
 async function viewExclusives(artistKey) {
   $("#content").innerHTML = skeleton("Exclus");
@@ -1307,7 +1310,7 @@ async function viewExclusives(artistKey) {
   const playAll = tracks.length ? register(tracks, "Exclus") : "";
   const ui = { q: "", sort: "az" };
   const cardHtml = (g) => `<a class="xa ${g.archive ? "xa-archive" : ""}" href="#/exclusives/${encodeURIComponent(g.key)}">
-      <div class="xa-pic"><img src="${esc(g.archive ? SPK_LOGO : g.tracks[0].cover_url)}" alt="" loading="lazy"></div>
+      <div class="xa-pic"><img src="${esc(g.archive ? SPK_LOGO : artistImage(g))}" alt="" loading="lazy"></div>
       <div class="xa-name">${esc(g.label)}${g.archive ? `<small>(archives)</small>` : ""}</div>
       <div class="xa-count">${plural(g.tracks.length, "exclu")}</div></a>`;
   const draw = () => {
@@ -1377,7 +1380,7 @@ function viewExclusivesArtist(g) {
   }
   const minutes = g.tracks.reduce((s, t) => s + (t.duration_seconds || 0), 0) / 60;
   return page(hero({
-    cover: g.tracks[0].cover_url, kind: "Artiste", title: g.label,
+    cover: artistImage(g), kind: "Artiste", title: g.label,
     info: [plural(g.tracks.length, "titre"), minutesLabel(minutes)].join(" · "), list: all,
   }) + search + `<div id="xd-list"></div>`);
 }
