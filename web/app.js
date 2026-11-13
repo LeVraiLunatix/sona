@@ -1299,7 +1299,7 @@ const SPK_LOGO = "img/spk.png";
 // shortcut: tout artiste à identités s'appelle « FEMTO » et prend le sceau SPK (un seul existe) ; donner un nom et une image par artiste dès qu'un deuxième arrive.
 const ARCHIVE_NAME = "FEMTO";
 // shortcut: image de profil posée dans web/img, pas de champ serveur ; en ajouter un si d'autres artistes en veulent une.
-const ARTIST_IMAGE = { "exclusive:zecki": "img/zecki.jpg", "deezer:252768072": "img/saif.jpg", "deezer:270946182": "img/pato.jpg", "deezer:348116081": "img/chems.jpg" };
+const ARTIST_IMAGE = { "exclusive:zecki": "img/zecki.jpg", "deezer:252768072": "img/saif.jpg", "deezer:270946182": "img/pato.jpg", "deezer:348116081": "img/chems.jpg", "exclusive:strano": "img/strano.jpg" };
 const artistImage = (g) => ARTIST_IMAGE[g.key] || g.tracks[0].cover_url;
 
 async function viewExclusives(artistKey) {
