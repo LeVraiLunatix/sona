@@ -98,7 +98,7 @@ async function install() {
     }
     await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())));
     const digest = hash.digest("hex");
-    if (latest.setup.sha256 && digest.toLowerCase() !== String(latest.setup.sha256).toLowerCase()) {
+    if (!latest.setup.sha256 || digest.toLowerCase() !== String(latest.setup.sha256).toLowerCase()) {
       fs.rmSync(dest, { force: true });
       throw new Error("Le fichier téléchargé ne correspond pas à la version publiée : mise à jour annulée.");
     }

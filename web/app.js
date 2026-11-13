@@ -1289,13 +1289,15 @@ function exclusiveGroups(tracks) {
     // Le nom le plus fréquent : chez un artiste à identités, chaque titre porte le nom de son identité.
     const name = [...g.names.entries()].sort((a, b) => b[1] - a[1])[0][0];
     return {
-      ...g, name, archive, label: archive ? "FEMTO" : name,
+      ...g, name, archive, label: archive ? ARCHIVE_NAME : name,
       tracks: g.tracks.sort((a, b) => (a.persona || "").localeCompare(b.persona || "", "fr") || (a.album || "").localeCompare(b.album || "", "fr")
         || (a.track_number || 0) - (b.track_number || 0) || a.title.localeCompare(b.title, "fr")),
     };
   });
 }
 const SPK_LOGO = "img/spk.png";
+// shortcut: tout artiste à identités s'appelle « FEMTO » et prend le sceau SPK (un seul existe) ; donner un nom et une image par artiste dès qu'un deuxième arrive.
+const ARCHIVE_NAME = "FEMTO";
 // shortcut: image de profil posée dans web/img, pas de champ serveur ; en ajouter un si d'autres artistes en veulent une.
 const ARTIST_IMAGE = { "exclusive:zecki": "img/zecki.jpg" };
 const artistImage = (g) => ARTIST_IMAGE[g.key] || g.tracks[0].cover_url;
@@ -2071,7 +2073,7 @@ async function viewXRelease(source, id, persona, album) {
   $("#content").innerHTML = skeleton("");
   const base = `/artists/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
   const disco = await api(`${base}/discography`);
-  const artist = { name: "FEMTO" };
+  const artist = { name: ARCHIVE_NAME };
   const rel = disco.releases.find((r) => r.persona === persona && r.album === album);
   if (!rel) throw new Error("Cette sortie n'existe pas (ou plus).");
   store.set(personaKey(source, id), persona); // la page de l'artiste s'ouvrira sur cette identité
@@ -2115,7 +2117,7 @@ async function viewArtist(source, id) {
   // Artiste à identités (ex. FEMTOGO) : une archive. Sa page est sa discographie, bâtie sur ses fichiers,
   // sans rien demander à Deezer (ni photo, ni titres, ni albums, ni artistes proches).
   const pers = await api(`${base}/personas`).catch(() => ({ personas: [] }));
-  if (pers.personas?.length) return viewPersonaArtist(source, id, { source, source_id: id, name: "FEMTO" }, pers.personas);
+  if (pers.personas?.length) return viewPersonaArtist(source, id, { source, source_id: id, name: ARCHIVE_NAME }, pers.personas);
   const [artist, top, albums, related] = await Promise.all([
     api(base), api(`${base}/top-tracks`).catch(() => []),
     api(`${base}/albums`).catch(() => ({ albums: [], singles: [] })), api(`${base}/related`).catch(() => []),

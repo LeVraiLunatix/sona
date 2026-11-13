@@ -53,6 +53,10 @@ _POST_MIGRATION: tuple[str, ...] = (
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_exclusives_release_unique
        ON exclusives (artist_source_id, persona COLLATE NOCASE, album COLLATE NOCASE, title COLLATE NOCASE)
        WHERE persona IS NOT NULL""",
+    # Pareil pour les artistes sans identité (Strano, Zecki…) : un même fichier envoyé deux fois est refusé.
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_exclusives_plain_unique
+       ON exclusives (COALESCE(artist_source_id, ''), artist COLLATE NOCASE, COALESCE(album, '') COLLATE NOCASE, title COLLATE NOCASE)
+       WHERE persona IS NULL""",
 )
 
 
