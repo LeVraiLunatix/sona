@@ -266,3 +266,37 @@ final class PulseFollower {
         return smoothed
     }
 }
+
+/// Image « vivante » façon Musique : zoom et dérive lents et continus (le
+/// zoom ne descend jamais sous 1,05, la dérive ne découvre donc jamais un
+/// bord). `energy` ajoute un gonflement sur les temps forts. Figée quand
+/// `running` est faux ou l'app en arrière-plan ; immobile avec « Réduire les
+/// animations ».
+struct LivingImage: ViewModifier {
+    var running = true
+    var energy: ((Double) -> Double)? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content.scaleEffect(1.05)
+        } else {
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: !running || scenePhase != .active)) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                let bump = energy?(t) ?? 0
+                content
+                    .scaleEffect(1.08 + 0.03 * sin(t * 0.23) + 0.04 * bump)
+                    .offset(x: 8 * sin(t * 0.17), y: 6 * cos(t * 0.21))
+            }
+        }
+    }
+}
+
+extension View {
+    func livingImage(running: Bool = true, energy: ((Double) -> Double)? = nil) -> some View {
+        modifier(LivingImage(running: running, energy: energy))
+    }
+}

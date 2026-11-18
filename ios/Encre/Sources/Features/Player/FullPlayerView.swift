@@ -70,7 +70,7 @@ struct FullPlayerView: View {
             // d'état, et se fond dans le fond vivant (comme Musique).
             ZStack {
                 if immersive, panel == .artwork, let track = player.current {
-                    ImmersiveArtwork(url: track.coverURL, playing: player.isPlaying)
+                    ImmersiveArtwork(url: track.coverURL, playing: player.isPlaying, tempo: track.bpm)
                         .id(track.id)
                         .transition(.opacity)
                 }
@@ -804,22 +804,24 @@ struct EdgeFade: View {
 
 /// Pochette immersive : pleine largeur (légèrement plus haute que large),
 /// sous la barre d'état, fondue vers le bas dans le fond vivant. Elle respire
-/// lentement pendant la lecture et revient à sa taille en pause ; immobile
-/// avec « Réduire les animations ».
+/// et dérive en continu pendant la lecture (`livingImage`), bat avec les
+/// basses, se fige en pause.
 private struct ImmersiveArtwork: View {
     let url: String?
     let playing: Bool
+    var tempo: Double? = nil
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var zoomed = false
+    @State private var pulse = PulseFollower()
 
     var body: some View {
+        // Avec les basses mesurées (ou le tempo), la pochette bat avec le son.
+        let beats = playing && !ProcessInfo.processInfo.isLowPowerModeEnabled
         GeometryReader { proxy in
             let width = proxy.size.width
             let height = width * 1.15
             Artwork(url: url, cornerRadius: 0)
                 .frame(width: width, height: height)
-                .scaleEffect(zoomed ? 1.08 : 1)
+                .livingImage(running: playing, energy: beats ? { pulse.energy(at: $0, tempo: tempo) } : nil)
                 .frame(width: width, height: height)
                 .clipped()
                 .mask {
@@ -840,13 +842,6 @@ private struct ImmersiveArtwork: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .ignoresSafeArea(edges: .top)
-        .task(id: playing) {
-            if playing && !reduceMotion {
-                withAnimation(.easeInOut(duration: 18).repeatForever(autoreverses: true)) { zoomed = true }
-            } else {
-                withAnimation(.easeOut(duration: 0.8)) { zoomed = false }
-            }
-        }
     }
 }
 

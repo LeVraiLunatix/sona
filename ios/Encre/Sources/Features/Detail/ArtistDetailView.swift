@@ -72,6 +72,8 @@ struct ArtistDetailView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            // Pas de flou iOS 26 en haut : il masquait le haut de la photo.
+            .scrollEdgeEffectHidden(true, for: .top)
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, new in
                 scrollY = new
             }
@@ -118,6 +120,9 @@ struct ArtistDetailView: View {
             ZStack(alignment: .bottom) {
                 Artwork(url: artist.pictureURL, cornerRadius: 0, symbol: "person.fill")
                     .frame(width: proxy.size.width, height: headerHeight + stretch)
+                    .livingImage()
+                    .frame(width: proxy.size.width, height: headerHeight + stretch)
+                    .clipped()
                     .mask {
                         LinearGradient(
                             stops: [
