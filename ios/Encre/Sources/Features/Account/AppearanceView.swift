@@ -34,6 +34,7 @@ enum LookAccent: String, CaseIterable, Identifiable {
 enum Look {
     static let accentKey = "sona.look.accent"
     static let tintKey = "sona.look.tint"
+    static let immersiveKey = "sona.look.immersive"
 
     static var tintEnabled: Bool {
         UserDefaults.standard.object(forKey: tintKey) as? Bool ?? true
@@ -43,13 +44,19 @@ enum Look {
 struct AppearanceView: View {
     @AppStorage(Look.accentKey) private var accent = LookAccent.neutre.rawValue
     @AppStorage(Look.tintKey) private var tint = true
+    @AppStorage(Look.immersiveKey) private var immersive = true
 
     var body: some View {
         Form {
             Section {
                 Toggle("Teinte de la pochette", isOn: $tint)
             } footer: {
-                Text("Les pages d'album et le lecteur plein écran prennent la couleur de la pochette. Désactivée : fond noir uni.")
+                Text("Les pages d'album, d'artiste et le lecteur plein écran prennent la couleur de la pochette. Désactivée : fond noir uni.")
+            }
+            Section {
+                Toggle("Lecteur immersif", isOn: $immersive)
+            } footer: {
+                Text("La pochette occupe toute la largeur du lecteur, sous la barre d'état. Désactivé : pochette centrée.")
             }
             Section {
                 ForEach(LookAccent.allCases) { option in
