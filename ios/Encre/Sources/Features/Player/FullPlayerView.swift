@@ -31,6 +31,7 @@ struct FullPlayerView: View {
     @State private var editingExclusive: ExclusiveEditorRequest?
     @State private var momentRequest: MomentRequest?
     @State private var moments: [TrackMoment] = []
+    @State private var motionURL: URL?
     @ObservedObject private var gestures = HeadGestures.shared
     /// Paroles : commandes du bas masquées après quelques secondes sans
     /// toucher l'écran (comme Musique) ; un tap les ramène.
@@ -70,7 +71,7 @@ struct FullPlayerView: View {
             // d'état, et se fond dans le fond vivant (comme Musique).
             ZStack {
                 if immersive, panel == .artwork, let track = player.current {
-                    ImmersiveArtwork(url: track.coverURL, playing: player.isPlaying, tempo: track.bpm)
+                    ImmersiveArtwork(url: track.coverURL, playing: player.isPlaying, tempo: track.bpm, videoURL: motionURL)
                         .id(track.id)
                         .transition(.opacity)
                 }
@@ -118,6 +119,11 @@ struct FullPlayerView: View {
         }
         .task(id: player.current?.id) { await refreshLikeState() }
         .task(id: player.current?.id) { await loadMoments() }
+        // Pochette animée Apple Music de l'album (si elle existe).
+        .task(id: player.current?.albumSourceId) {
+            motionURL = nil
+            if let track = player.current { motionURL = await MotionStore.albumURL(for: track) }
+        }
         // Visualiseur : le traitement du son mesure les niveaux seulement
         // quand il est affiché ; branché sur le titre en cours au besoin.
         .onAppear { syncVisualizer() }
@@ -810,6 +816,9 @@ private struct ImmersiveArtwork: View {
     let url: String?
     let playing: Bool
     var tempo: Double? = nil
+    /// Pochette animée Apple Music, quand l'album en a une : elle apparaît en
+    /// fondu par-dessus la pochette fixe.
+    var videoURL: URL? = nil
 
     @State private var pulse = PulseFollower()
 
@@ -819,11 +828,17 @@ private struct ImmersiveArtwork: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let height = width * 1.15
-            Artwork(url: url, cornerRadius: 0)
-                .frame(width: width, height: height)
-                .livingImage(running: playing, energy: beats ? { pulse.energy(at: $0, tempo: tempo) } : nil)
-                .frame(width: width, height: height)
-                .clipped()
+            ZStack {
+                Artwork(url: url, cornerRadius: 0)
+                    .frame(width: width, height: height)
+                    .livingImage(running: playing, energy: beats ? { pulse.energy(at: $0, tempo: tempo) } : nil)
+                if let videoURL {
+                    MotionOverlay(url: videoURL, playing: playing)
+                        .frame(width: width, height: height)
+                }
+            }
+            .frame(width: width, height: height)
+            .clipped()
                 .mask {
                     LinearGradient(
                         stops: [

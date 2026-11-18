@@ -24,6 +24,7 @@ struct ArtistDetailView: View {
     /// fiche artiste de Musique.
     @State private var tint: Color = .black
     @State private var scrollY: CGFloat = 0
+    @State private var motionURL: URL?
     @EnvironmentObject private var player: PlayerManager
 
     private let headerHeight: CGFloat = 500
@@ -118,9 +119,16 @@ struct ArtistDetailView: View {
             let minY = proxy.frame(in: .scrollView).minY
             let stretch = max(0, minY)
             ZStack(alignment: .bottom) {
-                Artwork(url: artist.pictureURL, cornerRadius: 0, symbol: "person.fill")
-                    .frame(width: proxy.size.width, height: headerHeight + stretch)
-                    .livingImage()
+                ZStack {
+                    Artwork(url: artist.pictureURL, cornerRadius: 0, symbol: "person.fill")
+                        .frame(width: proxy.size.width, height: headerHeight + stretch)
+                        .livingImage()
+                    // Portrait animé d'Apple Music, par-dessus la photo fixe.
+                    if let motionURL {
+                        MotionOverlay(url: motionURL)
+                            .frame(width: proxy.size.width, height: headerHeight + stretch)
+                    }
+                }
                     .frame(width: proxy.size.width, height: headerHeight + stretch)
                     .clipped()
                     .mask {
@@ -347,6 +355,7 @@ struct ArtistDetailView: View {
             errorMessage = error.localizedDescription
             return
         }
+        Task { motionURL = await MotionStore.artistURL(source: source, id: id) }
         let similar = (try? await APIClient.shared.relatedArtists(source: source, id: id)) ?? []
         withAnimation(Motion.smooth) { related = similar }
         if let found = try? await APIClient.shared.artistBio(source: source, id: id) {
