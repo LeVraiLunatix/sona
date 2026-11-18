@@ -9,12 +9,16 @@ panne rien n'est mémorisé."""
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import hashlib
+import io
 import json
 import logging
 import re
 import time
 import unicodedata
+from pathlib import Path
 
 import httpx
 
@@ -27,6 +31,8 @@ MEDIA_API = "https://amp-api.music.apple.com"
 STOREFRONT = "fr"
 CACHE_TTL = 24 * 3600
 TOKEN_MAX_AGE = 12 * 3600
+# Luminance (0-1) sous laquelle un logo se perd sur le fond noir (le rouge pur, 0,21, passe).
+DARK_LOGO = 0.08
 # Le jeton du lecteur web (JWT) : trois sont embarqués, celui du lecteur a
 # `iss = AMPWebPlay`. L'en-tête encodé commence par « eyJ » (pas « eyJh »).
 _TOKEN_RE = re.compile(r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}")
@@ -115,30 +121,52 @@ def _video(video: dict | None) -> str | None:
     return url if isinstance(url, str) and url.startswith("https://") else None
 
 
-def logo_parts(artwork: dict | None) -> tuple[str, str] | None:
-    """`(url, couleur)` du logo de l'artiste, s'il en a un : PNG transparent,
-    et sa couleur de marque en hexadécimal (`ff0000`). Un logo sombre est écarté
-    : il disparaîtrait sur le fond noir."""
+def logo_url(artwork: dict | None) -> str | None:
+    """URL du logo de l'artiste (PNG transparent), s'il en a un."""
     art = (artwork or {}).get("musicContentColorLogoTrimmed") or {}
-    url, width, height, color = art.get("url"), art.get("width"), art.get("height"), art.get("bgColor")
+    url, width, height = art.get("url"), art.get("width"), art.get("height")
     if not (isinstance(url, str) and url.startswith("https://") and isinstance(width, int) and isinstance(height, int)):
         return None
-    if width <= 0 or height <= 0 or not isinstance(color, str):
-        return None
-    try:
-        red, green, blue = (int(color[i:i + 2], 16) / 255 for i in (0, 2, 4))
-    except ValueError:
-        return None
-    if len(color) != 6 or 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.2:
+    if width <= 0 or height <= 0:
         return None
     wide = 1200
     url = url.replace("{w}", str(wide)).replace("{h}", str(max(1, round(wide * height / width)))).replace("{f}", "png")
-    return re.sub(r"\.jpe?g$", ".png", url), color.lower()
+    return re.sub(r"\.jpe?g$", ".png", url)
 
 
-def logo_url(artwork: dict | None) -> str | None:
-    parts = logo_parts(artwork)
-    return parts[0] if parts else None
+def average_color(png: bytes) -> str | None:
+    """Couleur moyenne (hexadécimale) des pixels opaques d'un PNG : celle du
+    logo. `bgColor` d'Apple n'est pas fiable (Favé : fond noir, logo blanc)."""
+    from PIL import Image
+
+    image = Image.open(io.BytesIO(png)).convert("RGBA")
+    image.thumbnail((200, 200))
+    data = image.tobytes()
+    opaque = [data[i:i + 3] for i in range(0, len(data), 4) if data[i + 3] > 200]
+    if not opaque:
+        return None
+    red, green, blue = (sum(p[c] for p in opaque) // len(opaque) for c in range(3))
+    return f"{red:02x}{green:02x}{blue:02x}"
+
+
+def luminance(color: str) -> float:
+    red, green, blue = (int(color[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+async def _logo_look(url: str) -> tuple[str, bool]:
+    """`(couleur d'accent, logo sombre)`. Un logo sombre disparaîtrait sur le
+    fond noir : l'app le dessine en blanc et garde un accent blanc. Mesure
+    impossible (réseau, Pillow absent) : logo blanc, accent blanc."""
+    try:
+        resp = await _http().get(url)
+        resp.raise_for_status()
+        color = await asyncio.to_thread(average_color, resp.content)
+    except (httpx.HTTPError, ImportError, OSError, ValueError):
+        return "ffffff", False
+    if color is None:
+        return "ffffff", False
+    return ("ffffff", True) if luminance(color) < DARK_LOGO else (color, False)
 
 
 def pick_artist(results: list[dict], name: str) -> str | None:
@@ -174,8 +202,9 @@ async def _cached(key: str, fetch) -> dict | None:
 
 
 async def artist_motion(name: str) -> dict | None:
-    """`{"square", "wide", "logo", "accent"}` (chacun peut manquer) : portrait
-    animé, logo et couleur de marque de l'artiste (celle du logo)."""
+    """`{"square", "wide", "logo", "accent", "dark_logo"}` (chacun peut manquer) :
+    portrait animé, logo de l'artiste, sa couleur (accent des boutons) et si le
+    logo est trop sombre pour le fond noir."""
 
     async def fetch() -> dict | None:
         search = await _get("search", {"term": name, "types": "artists", "limit": 5})
@@ -186,8 +215,10 @@ async def artist_motion(name: str) -> dict | None:
         attrs = data.get("attributes") or {}
         video = attrs.get("editorialVideo") or {}
         square, wide = _video(video.get("motionArtistSquare1x1")), _video(video.get("motionArtistWide16x9"))
-        logo, accent = logo_parts(attrs.get("editorialArtwork")) or (None, None)
-        return {"square": square, "wide": wide, "logo": logo, "accent": accent} if square or wide or logo else None
+        logo = logo_url(attrs.get("editorialArtwork"))
+        accent, dark = await _logo_look(logo) if logo else (None, False)
+        found = {"square": square, "wide": wide, "logo": logo, "accent": accent, "dark_logo": dark}
+        return found if square or wide or logo else None
 
     return await _cached(f"artist:{_key(name)}", fetch)
 
@@ -206,3 +237,73 @@ async def album_motion(title: str, artist: str) -> dict | None:
         return {"tall": tall, "square": square} if tall or square else None
 
     return await _cached(f"album:{_album_key(title)}:{_key(artist)}", fetch)
+
+
+# ── Fichier MP4 pour l'écran verrouillé ─────────────────────────────────────
+# iOS 26 n'accepte pour l'artwork animé de l'écran verrouillé qu'un fichier
+# vidéo local (ni HLS ni flux) : le serveur recopie la boucle HLS en MP4, sans
+# réencoder (`-c copy`), et la garde sur disque.
+MP4_MIN_WIDTH = 600  # assez net pour l'écran verrouillé, sans prendre la plus lourde
+MP4_KEEP = 60  # fichiers gardés
+MP4_TIMEOUT = 90
+_STREAM_RE = re.compile(r"#EXT-X-STREAM-INF:([^\n]*)\n(\S+)")
+_conversion = asyncio.Semaphore(2)
+
+
+def pick_variant(master: str, base: str) -> str | None:
+    """Variante H.264 (lue partout) d'une liste HLS : la plus légère d'au moins
+    `MP4_MIN_WIDTH` de large, à défaut la plus large."""
+    found: list[tuple[int, str]] = []
+    for attributes, uri in _STREAM_RE.findall(master):
+        size = re.search(r"RESOLUTION=(\d+)x\d+", attributes)
+        if size and 'CODECS="avc1' in attributes:
+            found.append((int(size.group(1)), uri if uri.startswith("http") else base.rsplit("/", 1)[0] + "/" + uri))
+    if not found:
+        return None
+    wide_enough = sorted(item for item in found if item[0] >= MP4_MIN_WIDTH)
+    return (wide_enough[0] if wide_enough else max(found))[1]
+
+
+async def mp4_for(video_url: str, folder: Path, ffmpeg_path: str) -> Path | None:
+    """Le MP4 de la boucle HLS `video_url` (venue de l'API d'Apple), converti
+    la première fois ; `None` si la conversion échoue."""
+    if not video_url.startswith("https://") or ".apple.com/" not in video_url:
+        return None
+    folder.mkdir(parents=True, exist_ok=True)
+    dest = folder / f"{hashlib.sha1(video_url.encode()).hexdigest()[:20]}.mp4"
+    if dest.is_file():
+        return dest
+    async with _conversion:
+        if dest.is_file():
+            return dest
+        try:
+            master = await _http().get(video_url, headers=BROWSER_HEADERS)
+            master.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.info("Liste HLS Apple illisible : %s", exc)
+            return None
+        source = pick_variant(master.text, video_url) or video_url
+        part = dest.with_suffix(".part")
+        process = await asyncio.create_subprocess_exec(
+            ffmpeg_path, "-nostdin", "-v", "error", "-y", "-protocol_whitelist", "https,tls,tcp,crypto,http",
+            "-i", source, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", str(part),
+            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, error = await asyncio.wait_for(process.communicate(), MP4_TIMEOUT)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            part.unlink(missing_ok=True)
+            logger.warning("Conversion de la boucle Apple trop longue : abandon")
+            return None
+        if process.returncode != 0 or not part.is_file() or part.stat().st_size == 0:
+            logger.warning("Conversion de la boucle Apple impossible : %s", (error or b"").decode(errors="replace")[-300:])
+            part.unlink(missing_ok=True)
+            return None
+        part.replace(dest)
+    # Garde les plus récents seulement.
+    files = sorted(folder.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
+    for old in files[MP4_KEEP:]:
+        old.unlink(missing_ok=True)
+    return dest

@@ -678,6 +678,8 @@ final class PlayerManager: ObservableObject {
     /// L'écoute en cours a déjà été enregistrée (dès la moitié du titre).
     private var scrobbled = false
     private var nowPlayingArtwork: MPMediaItemArtwork?
+    private var animatedArtwork: (key: String, entries: [String: Any])?
+    private var animatedTask: Task<Void, Never>?
     /// Avancée vers le seuil où l'écoute compte (moitié du titre ou 4 min),
     /// de 0 à 1, et écoute déjà comptée : affichées en direct dans Stats.
     @Published private(set) var scrobbleProgress: Double = 0
@@ -2019,7 +2021,38 @@ final class PlayerManager: ObservableObject {
         if let album = track.album { info[MPMediaItemPropertyAlbumTitle] = album }
         if let duration = track.durationSeconds { info[MPMediaItemPropertyPlaybackDuration] = Double(duration) }
         if let nowPlayingArtwork { info[MPMediaItemPropertyArtwork] = nowPlayingArtwork }
+        if let animatedArtwork, animatedArtwork.key == animatedKey(track) {
+            info.merge(animatedArtwork.entries) { _, animated in animated }
+        }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    /// Clé de l'album d'un titre pour la pochette animée (jamais pour un exclu).
+    private func animatedKey(_ track: Track) -> String? {
+        track.source == "exclusive" ? nil : track.albumSourceId.map { "\(track.source):\($0)" }
+    }
+
+    /// Pochette animée d'Apple Music sur l'écran verrouillé (iOS 26) : gardée
+    /// pour tout l'album, retirée quand on change d'album. Cosmétique : sans
+    /// vidéo ou sans réseau, la pochette fixe reste.
+    private func fetchAnimatedArtwork(for track: Track) {
+        guard let key = animatedKey(track) else {
+            animatedArtwork = nil
+            return
+        }
+        if animatedArtwork?.key == key { return }
+        animatedArtwork = nil
+        animatedTask?.cancel()
+        animatedTask = Task { [weak self] in
+            let entries = await LockScreenArtwork.entries(for: track)
+            guard !entries.isEmpty, !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, let current = self.current, self.animatedKey(current) == key else { return }
+                self.animatedArtwork = (key, entries)
+                self.updateNowPlayingInfo(for: current)
+                self.updateNowPlayingElapsedTime()
+            }
+        }
     }
 
     private func updateNowPlayingElapsedTime() {
@@ -2034,6 +2067,7 @@ final class PlayerManager: ObservableObject {
     /// échec (pas de réseau, pas de pochette) laisse juste l'info sans
     /// artwork plutôt que de bloquer l'affichage des contrôles.
     private func fetchArtwork(for track: Track) {
+        fetchAnimatedArtwork(for: track)
         nowPlayingArtwork = nil
         guard let urlString = track.coverURL, let url = URL(string: urlString) else { return }
         coverTask = Task { [weak self] in

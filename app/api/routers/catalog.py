@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse
 
 from app.api.auth import require_token
 from app.api.schemas import Album, Artist, Track
@@ -74,6 +77,22 @@ async def get_album_motion(source: str, source_id: str, deps: ApiDeps = Depends(
     if motion is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de pochette animée pour cet album.")
     return motion
+
+
+@router.get("/albums/{source}/{source_id}/motion/{kind}.mp4")
+async def get_album_motion_file(
+    source: str, source_id: str, kind: Literal["tall", "square"], deps: ApiDeps = Depends(require_token)
+) -> FileResponse:
+    """La pochette animée en MP4 (3:4 ou 1:1), pour l'écran verrouillé d'iOS 26."""
+    album = await _handle(lookup.get_album(deps, source, source_id))
+    motion = await apple_motion.album_motion(album.title, album.artist)
+    video = (motion or {}).get(kind)
+    if not video:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de pochette animée pour cet album.")
+    path = await apple_motion.mp4_for(video, deps.settings.downloads_dir.parent / "motion", deps.settings.ffmpeg_path)
+    if path is None:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Conversion de la pochette animée impossible.")
+    return FileResponse(path, media_type="video/mp4")
 
 
 @router.get("/playlists/{source}/{source_id}", response_model=Album)

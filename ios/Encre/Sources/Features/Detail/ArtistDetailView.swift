@@ -192,7 +192,10 @@ struct ArtistDetailView: View {
         if let logoURL {
             AsyncImage(url: logoURL, transaction: Transaction(animation: .easeOut(duration: 0.4))) { phase in
                 if case .success(let image) = phase {
-                    image.resizable().scaledToFit()
+                    // Logo sombre (Favé…) : sa forme en blanc, sinon il se perd sur le fond noir.
+                    image.renderingMode(motion?.darkLogo == true ? .template : .original)
+                        .resizable().scaledToFit()
+                        .foregroundStyle(Color.white)
                         .frame(maxWidth: 300, maxHeight: 110)
                         .shadow(color: .black.opacity(0.35), radius: 14)
                         .accessibilityLabel(artist.name)
