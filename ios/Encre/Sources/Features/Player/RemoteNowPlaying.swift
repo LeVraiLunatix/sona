@@ -141,10 +141,9 @@ final class RemoteNowPlaying {
     private func loadArtwork(_ urlString: String?) {
         artworkURL = urlString
         artwork = nil
-        guard let urlString, let url = URL(string: urlString) else { return }
+        guard let urlString else { return }
         Task {
-            guard let loaded = try? await URLSession.shared.data(from: url), let image = UIImage(data: loaded.0),
-                  artworkURL == urlString else { return }
+            guard let image = await SharpArtwork.image(urlString), artworkURL == urlString else { return }
             artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             update()
         }

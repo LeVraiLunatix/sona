@@ -45,6 +45,45 @@ struct Artwork: View {
     }
 }
 
+/// Pochette en haute définition. Les CDN (Deezer, Apple, YouTube Music)
+/// encodent la taille dans l'adresse : une pochette arrivée en 250 px d'une
+/// liste est redemandée en 1000 px pour l'écran verrouillé et les pages plein
+/// cadre. Si la grande taille n'existe pas, l'adresse d'origine sert.
+enum SharpArtwork {
+    private static let patterns: [(regex: String, template: String)] = [
+        (#"/\d+x\d+(-[0-9a-f]{6}-\d+-\d+-\d+\.(?:jpg|png))$"#, "/%dx%d$1"),  // Deezer
+        (#"/\d+x\d+bb\."#, "/%dx%dbb."),  // Apple
+        (#"=w\d+-h\d+"#, "=w%d-h%d"),  // YouTube Music
+    ]
+
+    static func url(_ string: String, size: Int = 1000) -> String {
+        for (regex, template) in patterns {
+            guard let expression = try? NSRegularExpression(pattern: regex),
+                  let match = expression.firstMatch(in: string, range: NSRange(string.startIndex..., in: string)),
+                  let range = Range(match.range, in: string) else { continue }
+            let replacement = expression.replacementString(
+                for: match, in: string, offset: 0,
+                template: String(format: template, size, size)
+            )
+            return string.replacingCharacters(in: range, with: replacement)
+        }
+        return string
+    }
+
+    /// L'image en grande taille, à défaut telle que donnée par le serveur.
+    static func image(_ string: String?) async -> UIImage? {
+        guard let string else { return nil }
+        for candidate in [url(string), string] {
+            guard let link = URL(string: candidate),
+                  let (data, response) = try? await URLSession.shared.data(from: link),
+                  (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
+                  let image = UIImage(data: data) else { continue }
+            return image
+        }
+        return nil
+    }
+}
+
 /// Couleurs d'une pochette, pour teinter le lecteur plein écran et les
 /// fiches : quatre moyennes par quart d'image (les coins d'un dégradé
 /// maillé) plutôt qu'une seule moyenne grisâtre. Assombries et saturées

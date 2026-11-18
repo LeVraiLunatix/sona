@@ -243,7 +243,7 @@ async def album_motion(title: str, artist: str) -> dict | None:
 # iOS 26 n'accepte pour l'artwork animé de l'écran verrouillé qu'un fichier
 # vidéo local (ni HLS ni flux) : le serveur recopie la boucle HLS en MP4, sans
 # réencoder (`-c copy`), et la garde sur disque.
-MP4_MIN_WIDTH = 600  # assez net pour l'écran verrouillé, sans prendre la plus lourde
+MP4_MIN_WIDTH = 1000  # l'écran verrouillé l'affiche pleine largeur (~1200 px) : la 664 px y était floue
 MP4_KEEP = 60  # fichiers gardés
 MP4_TIMEOUT = 90
 _STREAM_RE = re.compile(r"#EXT-X-STREAM-INF:([^\n]*)\n(\S+)")
@@ -270,7 +270,8 @@ async def mp4_for(video_url: str, folder: Path, ffmpeg_path: str) -> Path | None
     if not video_url.startswith("https://") or ".apple.com/" not in video_url:
         return None
     folder.mkdir(parents=True, exist_ok=True)
-    dest = folder / f"{hashlib.sha1(video_url.encode()).hexdigest()[:20]}.mp4"
+    # La largeur choisie entre dans le nom : les anciens MP4 (basse définition) ne sont plus servis.
+    dest = folder / f"{hashlib.sha1(f'{video_url}|{MP4_MIN_WIDTH}'.encode()).hexdigest()[:20]}.mp4"
     if dest.is_file():
         return dest
     async with _conversion:

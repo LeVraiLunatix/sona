@@ -2069,10 +2069,10 @@ final class PlayerManager: ObservableObject {
     private func fetchArtwork(for track: Track) {
         fetchAnimatedArtwork(for: track)
         nowPlayingArtwork = nil
-        guard let urlString = track.coverURL, let url = URL(string: urlString) else { return }
+        guard let urlString = track.coverURL else { return }
         coverTask = Task { [weak self] in
-            guard let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) else { return }
-            guard !Task.isCancelled else { return }
+            // Grande taille (1000 px) : l'écran verrouillé l'affiche pleine largeur.
+            guard let image = await SharpArtwork.image(urlString), !Task.isCancelled else { return }
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             await MainActor.run {
                 guard let self, self.current?.id == track.id else { return }
