@@ -112,7 +112,7 @@ async def get_artist_motion(source: str, source_id: str, deps: ApiDeps = Depends
     artist = await _handle(lookup.get_artist(deps, source, source_id))
     motion = await apple_motion.artist_motion(artist.name)
     if motion is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de vidéo pour cet artiste.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ni vidéo ni logo pour cet artiste.")
     return motion
 
 

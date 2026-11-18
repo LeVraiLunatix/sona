@@ -24,8 +24,11 @@ struct ArtistDetailView: View {
     /// fiche artiste de Musique.
     @State private var tint: Color = .black
     @State private var scrollY: CGFloat = 0
-    @State private var motionURL: URL?
+    @State private var motion: MotionVideo?
     @EnvironmentObject private var player: PlayerManager
+
+    private var motionURL: URL? { (motion?.square ?? motion?.wide).flatMap(URL.init(string:)) }
+    private var logoURL: URL? { motion?.logo.flatMap(URL.init(string:)) }
 
     private let headerHeight: CGFloat = 500
 
@@ -143,13 +146,7 @@ struct ArtistDetailView: View {
                     }
                     .offset(y: minY > 0 ? -minY : -minY * 0.4)
                 VStack(spacing: 4) {
-                    Text(artist.name)
-                        .font(.system(size: 44, weight: .heavy))
-                        .foregroundStyle(Tone.primary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .shadow(color: .black.opacity(0.35), radius: 14)
+                    nameView(artist)
                     if let fans = artist.fans, fans > 0 {
                         Text("\(fans.formatted(.number.notation(.compactName))) fans")
                             .font(Typo.rowSubtitle)
@@ -163,6 +160,34 @@ struct ArtistDetailView: View {
             .clipped()
         }
         .frame(height: headerHeight)
+    }
+
+    /// Le nom en gros, ou le logo de l'artiste quand Apple Music en a un (le
+    /// nom reste affiché le temps qu'il se charge).
+    @ViewBuilder
+    private func nameView(_ artist: Artist) -> some View {
+        let name = Text(artist.name)
+            .font(.system(size: 44, weight: .heavy))
+            .foregroundStyle(Tone.primary)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
+            .shadow(color: .black.opacity(0.35), radius: 14)
+        if let logoURL {
+            AsyncImage(url: logoURL, transaction: Transaction(animation: .easeOut(duration: 0.4))) { phase in
+                if case .success(let image) = phase {
+                    image.resizable().scaledToFit()
+                        .frame(maxWidth: 300, maxHeight: 110)
+                        .shadow(color: .black.opacity(0.35), radius: 14)
+                        .accessibilityLabel(artist.name)
+                        .transition(.opacity)
+                } else {
+                    name
+                }
+            }
+        } else {
+            name
+        }
     }
 
     /// i (à propos) · lecture · étoile (bibliothèque), centrés sous le nom.
@@ -355,7 +380,7 @@ struct ArtistDetailView: View {
             errorMessage = error.localizedDescription
             return
         }
-        Task { motionURL = await MotionStore.artistURL(source: source, id: id) }
+        Task { motion = await MotionStore.artist(source: source, id: id) }
         let similar = (try? await APIClient.shared.relatedArtists(source: source, id: id)) ?? []
         withAnimation(Motion.smooth) { related = similar }
         if let found = try? await APIClient.shared.artistBio(source: source, id: id) {

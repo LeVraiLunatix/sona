@@ -101,3 +101,14 @@ def test_no_video_is_cached_as_nothing():
 
     apple_motion._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     assert asyncio.run(apple_motion.artist_motion("Inconnu")) is None
+
+
+def test_logo_url_builds_a_png_and_skips_dark_logos():
+    art = {"musicContentColorLogoTrimmed": {
+        "url": "https://is1-ssl.mzstatic.com/image/thumb/abc/{w}x{h}bb.jpg", "width": 2400, "height": 600, "bgColor": "ffffff",
+    }}
+    assert apple_motion.logo_url(art) == "https://is1-ssl.mzstatic.com/image/thumb/abc/1200x300bb.png"
+    dark = {"musicContentColorLogoTrimmed": {**art["musicContentColorLogoTrimmed"], "bgColor": "101010"}}
+    assert apple_motion.logo_url(dark) is None
+    assert apple_motion.logo_url({}) is None
+    assert apple_motion.logo_url(None) is None

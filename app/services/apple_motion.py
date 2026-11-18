@@ -115,6 +115,26 @@ def _video(video: dict | None) -> str | None:
     return url if isinstance(url, str) and url.startswith("https://") else None
 
 
+def logo_url(artwork: dict | None) -> str | None:
+    """Logo de l'artiste (PNG transparent, dans la couleur de la marque), s'il
+    en a un. Un logo sombre est écarté : il disparaîtrait sur le fond noir."""
+    art = (artwork or {}).get("musicContentColorLogoTrimmed") or {}
+    url, width, height = art.get("url"), art.get("width"), art.get("height")
+    if not (isinstance(url, str) and url.startswith("https://") and isinstance(width, int) and isinstance(height, int)):
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    try:
+        red, green, blue = (int(art.get("bgColor", "")[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    except ValueError:
+        return None
+    if 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.2:
+        return None
+    wide = 1200
+    url = url.replace("{w}", str(wide)).replace("{h}", str(max(1, round(wide * height / width)))).replace("{f}", "png")
+    return re.sub(r"\.jpe?g$", ".png", url)
+
+
 def pick_artist(results: list[dict], name: str) -> str | None:
     """Identifiant du résultat dont le nom est celui de l'artiste (jamais un
     homonyme approximatif : mieux vaut pas de vidéo que celle d'un autre)."""
@@ -148,17 +168,20 @@ async def _cached(key: str, fetch) -> dict | None:
 
 
 async def artist_motion(name: str) -> dict | None:
-    """`{"square": url|None, "wide": url|None}` : portrait animé de l'artiste."""
+    """`{"square", "wide", "logo"}` (chacun peut manquer) : portrait animé et
+    logo de l'artiste."""
 
     async def fetch() -> dict | None:
         search = await _get("search", {"term": name, "types": "artists", "limit": 5})
         artist_id = pick_artist(((search.get("results") or {}).get("artists") or {}).get("data") or [], name)
         if not artist_id:
             return None
-        data = (await _get(f"artists/{artist_id}", {"extend": "editorialVideo"}))["data"][0]
-        video = (data.get("attributes") or {}).get("editorialVideo") or {}
+        data = (await _get(f"artists/{artist_id}", {"extend": "editorialVideo,editorialArtwork"}))["data"][0]
+        attrs = data.get("attributes") or {}
+        video = attrs.get("editorialVideo") or {}
         square, wide = _video(video.get("motionArtistSquare1x1")), _video(video.get("motionArtistWide16x9"))
-        return {"square": square, "wide": wide} if square or wide else None
+        logo = logo_url(attrs.get("editorialArtwork"))
+        return {"square": square, "wide": wide, "logo": logo} if square or wide or logo else None
 
     return await _cached(f"artist:{_key(name)}", fetch)
 

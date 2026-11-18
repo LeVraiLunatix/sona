@@ -94,18 +94,28 @@ enum MotionStore {
     /// Pochette animée de l'album du titre (format 3:4 d'abord).
     static func albumURL(for track: Track) async -> URL? {
         guard track.source != "exclusive", let id = track.albumSourceId else { return nil }
-        let video = await fetch("album:\(track.source):\(id)") {
-            try await APIClient.shared.albumMotion(source: track.source, id: id)
-        }
+        let video = await albumVideo(source: track.source, id: id)
         return (video?.tall ?? video?.square).flatMap(URL.init(string:))
     }
 
-    /// Portrait animé de l'artiste (carré).
-    static func artistURL(source: String, id: String) async -> URL? {
-        let video = await fetch("artist:\(source):\(id)") {
+    /// Pochette animée d'une page d'album (carré d'abord).
+    static func albumSquareURL(source: String, id: String) async -> URL? {
+        guard source != "exclusive" else { return nil }
+        let video = await albumVideo(source: source, id: id)
+        return (video?.square ?? video?.tall).flatMap(URL.init(string:))
+    }
+
+    private static func albumVideo(source: String, id: String) async -> MotionVideo? {
+        await fetch("album:\(source):\(id)") {
+            try await APIClient.shared.albumMotion(source: source, id: id)
+        }
+    }
+
+    /// Portrait animé (carré) et logo de l'artiste.
+    static func artist(source: String, id: String) async -> MotionVideo? {
+        await fetch("artist:\(source):\(id)") {
             try await APIClient.shared.artistMotion(source: source, id: id)
         }
-        return (video?.square ?? video?.wide).flatMap(URL.init(string:))
     }
 
     private static func fetch(_ key: String, _ load: () async throws -> MotionVideo) async -> MotionVideo? {
