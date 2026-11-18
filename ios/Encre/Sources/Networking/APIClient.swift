@@ -1171,6 +1171,25 @@ extension APIClient {
         try await send(try request("/albums/\(source)/\(id)/motion"))
     }
 
+    /// Boucle d'un album en MP4 (`tall` 3:4 ou `square` 1:1, convertie par le
+    /// serveur), gardée dans les caches : l'écran verrouillé n'accepte qu'un fichier local.
+    func albumMotionFile(source: String, id: String, kind: String) async throws -> URL {
+        let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("AnimatedArtwork", isDirectory: true)
+        let name = "\(source)-\(id)-\(kind)".replacingOccurrences(of: "/", with: "_")
+        let file = folder.appendingPathComponent("\(name).mp4")
+        if FileManager.default.fileExists(atPath: file.path) { return file }
+        var req = try request("/albums/\(source)/\(id)/motion/\(kind).mp4")
+        req.timeoutInterval = 120
+        let (data, response) = try await perform(req)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw APIError.invalidResponse
+        }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try data.write(to: file, options: .atomic)
+        return file
+    }
+
     /// Portrait animé Apple Music d'un artiste ; 404 quand il n'y en a pas.
     func artistMotion(source: String, id: String) async throws -> MotionVideo {
         try await send(try request("/artists/\(source)/\(id)/motion"))

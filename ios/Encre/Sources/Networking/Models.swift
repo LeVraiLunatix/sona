@@ -113,6 +113,13 @@ struct MotionVideo: Codable {
     var logo: String?
     /// Couleur de marque de l'artiste (celle de son logo), en hexadécimal.
     var accent: String?
+    /// Logo trop sombre pour le fond noir : on le dessine en blanc.
+    var darkLogo: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case square, tall, wide, logo, accent
+        case darkLogo = "dark_logo"
+    }
 }
 
 struct ArtistBio: Codable {

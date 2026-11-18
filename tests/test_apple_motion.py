@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import json
 
 import httpx
@@ -103,19 +104,68 @@ def test_no_video_is_cached_as_nothing():
     assert asyncio.run(apple_motion.artist_motion("Inconnu")) is None
 
 
-def test_logo_url_builds_a_png_and_skips_dark_logos():
+def test_logo_url_builds_a_png():
     art = {"musicContentColorLogoTrimmed": {
-        "url": "https://is1-ssl.mzstatic.com/image/thumb/abc/{w}x{h}bb.jpg", "width": 2400, "height": 600, "bgColor": "ffffff",
+        "url": "https://is1-ssl.mzstatic.com/image/thumb/abc/{w}x{h}bb.jpg", "width": 2400, "height": 600, "bgColor": "000000",
     }}
     assert apple_motion.logo_url(art) == "https://is1-ssl.mzstatic.com/image/thumb/abc/1200x300bb.png"
-    dark = {"musicContentColorLogoTrimmed": {**art["musicContentColorLogoTrimmed"], "bgColor": "101010"}}
-    assert apple_motion.logo_url(dark) is None
     assert apple_motion.logo_url({}) is None
     assert apple_motion.logo_url(None) is None
 
 
-def test_logo_parts_gives_the_brand_colour():
-    art = {"musicContentColorLogoTrimmed": {
-        "url": "https://x/{w}x{h}bb.jpg", "width": 1000, "height": 100, "bgColor": "FF0000",
-    }}
-    assert apple_motion.logo_parts(art) == ("https://x/1200x120bb.png", "ff0000")
+def png(color: tuple[int, int, int, int]) -> bytes:
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGBA", (40, 10), color).save(out, "PNG")
+    return out.getvalue()
+
+
+def test_average_color_reads_the_logo_pixels_not_the_background():
+    pytest.importorskip("PIL")
+    assert apple_motion.average_color(png((255, 0, 0, 255))) == "ff0000"
+    assert apple_motion.average_color(png((255, 0, 0, 0))) is None  # transparent
+
+
+def test_logo_look_keeps_colour_whitens_dark_logos_and_survives_failures():
+    pytest.importorskip("PIL")
+    images = {"red": png((255, 0, 0, 255)), "black": png((10, 10, 10, 255)), "bad": b"nope"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.strip("/")
+        return httpx.Response(404 if name == "gone" else 200, content=images.get(name, b""))
+
+    apple_motion._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    async def look(name: str):
+        return await apple_motion._logo_look(f"https://x/{name}")
+
+    assert asyncio.run(look("red")) == ("ff0000", False)
+    assert asyncio.run(look("black")) == ("ffffff", True)
+    assert asyncio.run(look("bad")) == ("ffffff", False)
+    assert asyncio.run(look("gone")) == ("ffffff", False)
+
+
+MASTER = """#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="avc1.64001f",RESOLUTION=310x414
+low.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2,CODECS="hvc1.2.20000000.L123.B0",RESOLUTION=664x886
+hevc.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=3,CODECS="avc1.64001f",RESOLUTION=664x886
+https://mvod.itunes.apple.com/mid.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=4,CODECS="avc1.640028",RESOLUTION=1078x1438
+big.m3u8
+"""
+
+
+def test_pick_variant_takes_the_lightest_h264_that_is_sharp_enough():
+    base = "https://mvod.itunes.apple.com/a/b/master.m3u8"
+    assert apple_motion.pick_variant(MASTER, base) == "https://mvod.itunes.apple.com/mid.m3u8"
+    small = '#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="avc1.64001f",RESOLUTION=310x414\nlow.m3u8\n'
+    assert apple_motion.pick_variant(small, base) == "https://mvod.itunes.apple.com/a/b/low.m3u8"
+    assert apple_motion.pick_variant("#EXTM3U\n", base) is None
+
+
+def test_mp4_for_refuses_foreign_urls(tmp_path):
+    assert asyncio.run(apple_motion.mp4_for("https://exemple.org/x.m3u8", tmp_path, "ffmpeg")) is None
+    assert asyncio.run(apple_motion.mp4_for("http://mvod.itunes.apple.com/x.m3u8", tmp_path, "ffmpeg")) is None
