@@ -24,8 +24,19 @@ struct ArtistDetailView: View {
     /// fiche artiste de Musique.
     @State private var tint: Color = .black
     @State private var scrollY: CGFloat = 0
-    @State private var motionURL: URL?
+    @State private var motion: MotionVideo?
     @EnvironmentObject private var player: PlayerManager
+
+    private var motionURL: URL? { (motion?.square ?? motion?.wide).flatMap(URL.init(string:)) }
+    private var logoURL: URL? { motion?.logo.flatMap(URL.init(string:)) }
+
+    /// Couleur de marque de l'artiste (celle de son logo) : les gros boutons la
+    /// prennent, comme sur Musique. Blanc tant qu'on ne la connaît pas.
+    private var accent: (color: Color, isLight: Bool) {
+        guard let hex = motion?.accent, hex.count == 6, let value = UInt32(hex, radix: 16) else { return (.white, true) }
+        let red = Double((value >> 16) & 0xFF) / 255, green = Double((value >> 8) & 0xFF) / 255, blue = Double(value & 0xFF) / 255
+        return (Color(hex: value), 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.6)
+    }
 
     private let headerHeight: CGFloat = 500
 
@@ -118,6 +129,12 @@ struct ArtistDetailView: View {
         GeometryReader { proxy in
             let minY = proxy.frame(in: .scrollView).minY
             let stretch = max(0, minY)
+            // La parallaxe décale l'image vers le bas : le fondu doit finir sur
+            // le bord bas du cadre (sinon la photo est coupée net) et non sur
+            // celui de l'image.
+            let shift = minY > 0 ? 0 : -minY * 0.4
+            let mediaHeight = headerHeight + stretch
+            let fadeEnd = max(0.2, (mediaHeight - shift) / mediaHeight)
             ZStack(alignment: .bottom) {
                 ZStack {
                     Artwork(url: artist.pictureURL, cornerRadius: 0, symbol: "person.fill")
@@ -135,21 +152,17 @@ struct ArtistDetailView: View {
                         LinearGradient(
                             stops: [
                                 .init(color: .black, location: 0),
-                                .init(color: .black, location: 0.55),
-                                .init(color: .clear, location: 1),
+                                .init(color: .black, location: 0.55 * fadeEnd),
+                                .init(color: .clear, location: fadeEnd),
                             ],
                             startPoint: .top, endPoint: .bottom
                         )
                     }
-                    .offset(y: minY > 0 ? -minY : -minY * 0.4)
+                    // La photo s'éteint doucement en remontant (immersif, sans bord).
+                    .opacity(max(0.3, 1 - Double(-minY / (headerHeight * 0.9))))
+                    .offset(y: minY > 0 ? -minY : shift)
                 VStack(spacing: 4) {
-                    Text(artist.name)
-                        .font(.system(size: 44, weight: .heavy))
-                        .foregroundStyle(Tone.primary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .shadow(color: .black.opacity(0.35), radius: 14)
+                    nameView(artist)
                     if let fans = artist.fans, fans > 0 {
                         Text("\(fans.formatted(.number.notation(.compactName))) fans")
                             .font(Typo.rowSubtitle)
@@ -163,6 +176,34 @@ struct ArtistDetailView: View {
             .clipped()
         }
         .frame(height: headerHeight)
+    }
+
+    /// Le nom en gros, ou le logo de l'artiste quand Apple Music en a un (le
+    /// nom reste affiché le temps qu'il se charge).
+    @ViewBuilder
+    private func nameView(_ artist: Artist) -> some View {
+        let name = Text(artist.name)
+            .font(.system(size: 44, weight: .heavy))
+            .foregroundStyle(Tone.primary)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
+            .shadow(color: .black.opacity(0.35), radius: 14)
+        if let logoURL {
+            AsyncImage(url: logoURL, transaction: Transaction(animation: .easeOut(duration: 0.4))) { phase in
+                if case .success(let image) = phase {
+                    image.resizable().scaledToFit()
+                        .frame(maxWidth: 300, maxHeight: 110)
+                        .shadow(color: .black.opacity(0.35), radius: 14)
+                        .accessibilityLabel(artist.name)
+                        .transition(.opacity)
+                } else {
+                    name
+                }
+            }
+        } else {
+            name
+        }
     }
 
     /// i (à propos) · lecture · étoile (bibliothèque), centrés sous le nom.
@@ -198,11 +239,12 @@ struct ArtistDetailView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.38, weight: .semibold))
-                .foregroundStyle(filled ? Color.black : Tone.primary)
+                .foregroundStyle(filled ? (accent.isLight ? Color.black : Color.white) : Tone.primary)
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, value: bounce)
                 .frame(width: size, height: size)
-                .background(Circle().fill(filled ? Color.white : Color.white.opacity(0.14)))
+                .background(Circle().fill(filled ? accent.color : accent.color.opacity(0.22)))
+                .animation(.easeInOut(duration: 0.6), value: motion?.accent)
         }
         .buttonStyle(.pressable(scale: 0.88))
         .accessibilityLabel(label)
@@ -355,7 +397,7 @@ struct ArtistDetailView: View {
             errorMessage = error.localizedDescription
             return
         }
-        Task { motionURL = await MotionStore.artistURL(source: source, id: id) }
+        Task { motion = await MotionStore.artist(source: source, id: id) }
         let similar = (try? await APIClient.shared.relatedArtists(source: source, id: id)) ?? []
         withAnimation(Motion.smooth) { related = similar }
         if let found = try? await APIClient.shared.artistBio(source: source, id: id) {

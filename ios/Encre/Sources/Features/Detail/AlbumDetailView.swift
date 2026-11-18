@@ -15,6 +15,7 @@ struct AlbumDetailView: View {
     @State private var shareTarget: ShareTarget?
     @State private var versions: [Album] = []
     @State private var find = ""
+    @State private var motionURL: URL?
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.addToPlaylist) private var addToPlaylist
 
@@ -102,6 +103,13 @@ struct AlbumDetailView: View {
         VStack(spacing: 18) {
             Artwork(url: album.coverURL, cornerRadius: 12, symbol: "square.stack")
                 .frame(width: 250, height: 250)
+                // Pochette animée d'Apple Music, par-dessus la fixe, quand l'album en a une.
+                .overlay {
+                    if let motionURL {
+                        MotionOverlay(url: motionURL)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
                 .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
                 .padding(.top, 12)
 
@@ -234,6 +242,7 @@ struct AlbumDetailView: View {
             withAnimation(Motion.smooth) { album = loaded }
             palette = await ArtworkPalette.colors(for: loaded.coverURL)
             if !isPlaylist {
+                Task { motionURL = await MotionStore.albumSquareURL(source: source, id: id) }
                 versions = (try? await APIClient.shared.albumVersions(source: source, id: id)) ?? []
             }
             if !isPlaylist, let page = try? await APIClient.shared.library(kind: "album", limit: 200) {
