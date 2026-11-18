@@ -160,7 +160,9 @@ big.m3u8
 
 def test_pick_variant_takes_the_lightest_h264_that_is_sharp_enough():
     base = "https://mvod.itunes.apple.com/a/b/master.m3u8"
-    assert apple_motion.pick_variant(MASTER, base) == "https://mvod.itunes.apple.com/mid.m3u8"
+    assert apple_motion.pick_variant(MASTER, base) == "https://mvod.itunes.apple.com/a/b/big.m3u8"
+    no_big = "\n".join(MASTER.splitlines()[:-2]) + "\n"
+    assert apple_motion.pick_variant(no_big, base) == "https://mvod.itunes.apple.com/mid.m3u8"  # à défaut, la plus large
     small = '#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="avc1.64001f",RESOLUTION=310x414\nlow.m3u8\n'
     assert apple_motion.pick_variant(small, base) == "https://mvod.itunes.apple.com/a/b/low.m3u8"
     assert apple_motion.pick_variant("#EXTM3U\n", base) is None

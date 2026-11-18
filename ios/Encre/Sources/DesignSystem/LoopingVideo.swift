@@ -106,16 +106,15 @@ enum MotionStore {
 
     /// Pochette animée de l'album du titre (format 3:4 d'abord).
     static func albumURL(for track: Track) async -> URL? {
-        guard track.source != "exclusive", let id = track.albumSourceId else { return nil }
-        let video = await albumMotion(source: track.source, id: id)
-        return (video?.tall ?? video?.square).flatMap(URL.init(string:))
+        guard let id = track.albumSourceId else { return nil }
+        return await albumURL(source: track.source, id: id)
     }
 
-    /// Pochette animée d'une page d'album (carré d'abord).
-    static func albumSquareURL(source: String, id: String) async -> URL? {
+    /// Pochette animée d'un album (3:4 d'abord : le cadre immersif est plus haut que large).
+    static func albumURL(source: String, id: String) async -> URL? {
         guard source != "exclusive" else { return nil }
         let video = await albumMotion(source: source, id: id)
-        return (video?.square ?? video?.tall).flatMap(URL.init(string:))
+        return (video?.tall ?? video?.square).flatMap(URL.init(string:))
     }
 
     static func albumMotion(source: String, id: String) async -> MotionVideo? {

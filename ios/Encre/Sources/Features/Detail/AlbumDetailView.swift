@@ -16,8 +16,15 @@ struct AlbumDetailView: View {
     @State private var versions: [Album] = []
     @State private var find = ""
     @State private var motionURL: URL?
+    @State private var scrollY: CGFloat = 0
+    @State private var coverHeight: CGFloat = 420
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.addToPlaylist) private var addToPlaylist
+
+    /// Le titre passe dans la barre de navigation quand il quitte la pochette.
+    private var titleOpacity: Double {
+        min(1, max(0, Double((scrollY - (coverHeight - 150)) / 60)))
+    }
 
     var body: some View {
         ScrollView {
@@ -37,10 +44,24 @@ struct AlbumDetailView: View {
             }
         }
         .scrollIndicators(.hidden)
+        // Pas de flou iOS 26 en haut : il masquait le haut de la pochette.
+        .scrollEdgeEffectHidden(true, for: .top)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, new in
+            scrollY = new
+        }
+        .ignoresSafeArea(edges: .top)
         .background(alignment: .top) { glow }
         .background(Tone.background)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(album?.title ?? "")
+                    .font(Typo.headline)
+                    .foregroundStyle(Tone.primary)
+                    .lineLimit(1)
+                    .opacity(titleOpacity)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if let album, !album.tracks.isEmpty {
                     Menu {
@@ -79,6 +100,8 @@ struct AlbumDetailView: View {
         }
         .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
         .searchable(text: $find, prompt: isPlaylist ? "Rechercher dans cette playlist" : "Rechercher dans cet album")
+        // Un bouton dans la barre plutôt qu'un champ au-dessus de la pochette.
+        .searchToolbarBehavior(.minimize)
         .task { await load() }
     }
 
@@ -99,57 +122,111 @@ struct AlbumDetailView: View {
             .animation(.easeInOut(duration: 0.8), value: palette)
     }
 
+    /// Pochette plein cadre sous la barre d'état, comme le lecteur et la fiche
+    /// artiste : elle s'étire quand on tire vers le bas, défile plus lentement
+    /// que le contenu (parallaxe), se fond dans la teinte de l'album, respire
+    /// (`livingImage`) et laisse place à la boucle Apple Music quand il y en a
+    /// une. Le titre est posé en bas, sur le fondu.
     private func header(_ album: Album) -> some View {
         VStack(spacing: 18) {
-            Artwork(url: album.coverURL, cornerRadius: 12, symbol: "square.stack")
-                .frame(width: 250, height: 250)
-                // Pochette animée d'Apple Music, par-dessus la fixe, quand l'album en a une.
-                .overlay {
-                    if let motionURL {
-                        MotionOverlay(url: motionURL)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                }
-                .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
-                .padding(.top, 12)
-
-            VStack(spacing: 6) {
-                Text(album.title)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(Tone.primary)
-                    .multilineTextAlignment(.center)
-                Button {
-                    if let artistId = album.artistSourceId {
-                        path.append(Route.artist(source: album.source, id: artistId))
-                    }
-                } label: {
-                    Text(album.artist)
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(Tone.primary.opacity(0.85))
-                }
-                .buttonStyle(.pressable)
-                .disabled(album.artistSourceId == nil)
-                if let meta = metaLine(album) {
-                    Text(meta).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
-                }
-                DownloadStatusLine(tracks: album.tracks)
-            }
-            .padding(.horizontal, 24)
-            .reveal(0)
-
-            HStack(spacing: 12) {
-                PillButton(title: "Lecture", systemImage: "play.fill") {
-                    if let first = album.tracks.first { player.play(first, context: album.tracks, name: album.title) }
-                }
-                PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                    player.playShuffled(album.tracks, name: album.title)
-                }
-            }
-            .padding(.horizontal, 20)
-            .disabled(album.tracks.isEmpty)
-            .reveal(1)
+            Color.clear
+                .aspectRatio(1 / 1.12, contentMode: .fit)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { coverHeight = $0 }
+                .overlay { immersiveCover(album) }
+            actionRow(album)
         }
         .padding(.bottom, 20)
+    }
+
+    private func immersiveCover(_ album: Album) -> some View {
+        GeometryReader { proxy in
+            let minY = proxy.frame(in: .scrollView).minY
+            let stretch = max(0, minY)
+            let shift = minY > 0 ? 0 : -minY * 0.4
+            let mediaHeight = proxy.size.height + stretch
+            // Le fondu doit finir sur le bord bas du cadre malgré la parallaxe.
+            let fadeEnd = max(0.2, (mediaHeight - shift) / mediaHeight)
+            ZStack(alignment: .bottom) {
+                ZStack {
+                    Artwork(url: album.coverURL, cornerRadius: 0, symbol: "square.stack")
+                        .frame(width: proxy.size.width, height: mediaHeight)
+                        .livingImage()
+                    // Pochette animée d'Apple Music, par-dessus la fixe, quand l'album en a une.
+                    if let motionURL {
+                        MotionOverlay(url: motionURL)
+                            .frame(width: proxy.size.width, height: mediaHeight)
+                    }
+                }
+                .frame(width: proxy.size.width, height: mediaHeight)
+                .clipped()
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.6 * fadeEnd),
+                            .init(color: .clear, location: fadeEnd),
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .overlay(alignment: .top) {
+                    // Les boutons du haut restent lisibles sur une pochette claire.
+                    LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 150)
+                }
+                // La pochette s'éteint doucement en remontant.
+                .opacity(max(0.3, 1 - Double(-minY / (proxy.size.height * 0.9))))
+                .offset(y: minY > 0 ? -minY : shift)
+
+                titleBlock(album)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+                    .reveal(0)
+            }
+            .clipped()
+        }
+    }
+
+    private func titleBlock(_ album: Album) -> some View {
+        VStack(spacing: 6) {
+            Text(album.title)
+                .font(.system(size: 28, weight: .heavy))
+                .foregroundStyle(Tone.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .minimumScaleFactor(0.7)
+                .shadow(color: .black.opacity(0.35), radius: 14)
+            Button {
+                if let artistId = album.artistSourceId {
+                    path.append(Route.artist(source: album.source, id: artistId))
+                }
+            } label: {
+                Text(album.artist)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(Tone.primary.opacity(0.85))
+                    .shadow(color: .black.opacity(0.35), radius: 10)
+            }
+            .buttonStyle(.pressable)
+            .disabled(album.artistSourceId == nil)
+            if let meta = metaLine(album) {
+                Text(meta).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+            }
+            DownloadStatusLine(tracks: album.tracks)
+        }
+    }
+
+    private func actionRow(_ album: Album) -> some View {
+        HStack(spacing: 12) {
+            PillButton(title: "Lecture", systemImage: "play.fill") {
+                if let first = album.tracks.first { player.play(first, context: album.tracks, name: album.title) }
+            }
+            PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
+                player.playShuffled(album.tracks, name: album.title)
+            }
+        }
+        .padding(.horizontal, 20)
+        .disabled(album.tracks.isEmpty)
+        .reveal(1)
     }
 
     /// Album en plusieurs disques : « Disque 1 », « Disque 2 »…
@@ -242,7 +319,7 @@ struct AlbumDetailView: View {
             withAnimation(Motion.smooth) { album = loaded }
             palette = await ArtworkPalette.colors(for: loaded.coverURL)
             if !isPlaylist {
-                Task { motionURL = await MotionStore.albumSquareURL(source: source, id: id) }
+                Task { motionURL = await MotionStore.albumURL(source: source, id: id) }
                 versions = (try? await APIClient.shared.albumVersions(source: source, id: id)) ?? []
             }
             if !isPlaylist, let page = try? await APIClient.shared.library(kind: "album", limit: 200) {
