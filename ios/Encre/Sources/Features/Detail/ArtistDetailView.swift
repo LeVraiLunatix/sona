@@ -30,6 +30,14 @@ struct ArtistDetailView: View {
     private var motionURL: URL? { (motion?.square ?? motion?.wide).flatMap(URL.init(string:)) }
     private var logoURL: URL? { motion?.logo.flatMap(URL.init(string:)) }
 
+    /// Couleur de marque de l'artiste (celle de son logo) : les gros boutons la
+    /// prennent, comme sur Musique. Blanc tant qu'on ne la connaît pas.
+    private var accent: (color: Color, isLight: Bool) {
+        guard let hex = motion?.accent, hex.count == 6, let value = UInt32(hex, radix: 16) else { return (.white, true) }
+        let red = Double((value >> 16) & 0xFF) / 255, green = Double((value >> 8) & 0xFF) / 255, blue = Double(value & 0xFF) / 255
+        return (Color(hex: value), 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.6)
+    }
+
     private let headerHeight: CGFloat = 500
 
     /// Le nom passe dans la barre de navigation quand il quitte la photo.
@@ -121,6 +129,12 @@ struct ArtistDetailView: View {
         GeometryReader { proxy in
             let minY = proxy.frame(in: .scrollView).minY
             let stretch = max(0, minY)
+            // La parallaxe décale l'image vers le bas : le fondu doit finir sur
+            // le bord bas du cadre (sinon la photo est coupée net) et non sur
+            // celui de l'image.
+            let shift = minY > 0 ? 0 : -minY * 0.4
+            let mediaHeight = headerHeight + stretch
+            let fadeEnd = max(0.2, (mediaHeight - shift) / mediaHeight)
             ZStack(alignment: .bottom) {
                 ZStack {
                     Artwork(url: artist.pictureURL, cornerRadius: 0, symbol: "person.fill")
@@ -138,13 +152,15 @@ struct ArtistDetailView: View {
                         LinearGradient(
                             stops: [
                                 .init(color: .black, location: 0),
-                                .init(color: .black, location: 0.55),
-                                .init(color: .clear, location: 1),
+                                .init(color: .black, location: 0.55 * fadeEnd),
+                                .init(color: .clear, location: fadeEnd),
                             ],
                             startPoint: .top, endPoint: .bottom
                         )
                     }
-                    .offset(y: minY > 0 ? -minY : -minY * 0.4)
+                    // La photo s'éteint doucement en remontant (immersif, sans bord).
+                    .opacity(max(0.3, 1 - Double(-minY / (headerHeight * 0.9))))
+                    .offset(y: minY > 0 ? -minY : shift)
                 VStack(spacing: 4) {
                     nameView(artist)
                     if let fans = artist.fans, fans > 0 {
@@ -223,11 +239,12 @@ struct ArtistDetailView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.38, weight: .semibold))
-                .foregroundStyle(filled ? Color.black : Tone.primary)
+                .foregroundStyle(filled ? (accent.isLight ? Color.black : Color.white) : Tone.primary)
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, value: bounce)
                 .frame(width: size, height: size)
-                .background(Circle().fill(filled ? Color.white : Color.white.opacity(0.14)))
+                .background(Circle().fill(filled ? accent.color : accent.color.opacity(0.22)))
+                .animation(.easeInOut(duration: 0.6), value: motion?.accent)
         }
         .buttonStyle(.pressable(scale: 0.88))
         .accessibilityLabel(label)

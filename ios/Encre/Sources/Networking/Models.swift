@@ -111,6 +111,8 @@ struct MotionVideo: Codable {
     var tall: String?
     var wide: String?
     var logo: String?
+    /// Couleur de marque de l'artiste (celle de son logo), en hexadécimal.
+    var accent: String?
 }
 
 struct ArtistBio: Codable {

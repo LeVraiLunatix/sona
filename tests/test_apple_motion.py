@@ -112,3 +112,10 @@ def test_logo_url_builds_a_png_and_skips_dark_logos():
     assert apple_motion.logo_url(dark) is None
     assert apple_motion.logo_url({}) is None
     assert apple_motion.logo_url(None) is None
+
+
+def test_logo_parts_gives_the_brand_colour():
+    art = {"musicContentColorLogoTrimmed": {
+        "url": "https://x/{w}x{h}bb.jpg", "width": 1000, "height": 100, "bgColor": "FF0000",
+    }}
+    assert apple_motion.logo_parts(art) == ("https://x/1200x120bb.png", "ff0000")

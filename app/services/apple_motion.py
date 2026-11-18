@@ -115,24 +115,30 @@ def _video(video: dict | None) -> str | None:
     return url if isinstance(url, str) and url.startswith("https://") else None
 
 
-def logo_url(artwork: dict | None) -> str | None:
-    """Logo de l'artiste (PNG transparent, dans la couleur de la marque), s'il
-    en a un. Un logo sombre est écarté : il disparaîtrait sur le fond noir."""
+def logo_parts(artwork: dict | None) -> tuple[str, str] | None:
+    """`(url, couleur)` du logo de l'artiste, s'il en a un : PNG transparent,
+    et sa couleur de marque en hexadécimal (`ff0000`). Un logo sombre est écarté
+    : il disparaîtrait sur le fond noir."""
     art = (artwork or {}).get("musicContentColorLogoTrimmed") or {}
-    url, width, height = art.get("url"), art.get("width"), art.get("height")
+    url, width, height, color = art.get("url"), art.get("width"), art.get("height"), art.get("bgColor")
     if not (isinstance(url, str) and url.startswith("https://") and isinstance(width, int) and isinstance(height, int)):
         return None
-    if width <= 0 or height <= 0:
+    if width <= 0 or height <= 0 or not isinstance(color, str):
         return None
     try:
-        red, green, blue = (int(art.get("bgColor", "")[i:i + 2], 16) / 255 for i in (0, 2, 4))
+        red, green, blue = (int(color[i:i + 2], 16) / 255 for i in (0, 2, 4))
     except ValueError:
         return None
-    if 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.2:
+    if len(color) != 6 or 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.2:
         return None
     wide = 1200
     url = url.replace("{w}", str(wide)).replace("{h}", str(max(1, round(wide * height / width)))).replace("{f}", "png")
-    return re.sub(r"\.jpe?g$", ".png", url)
+    return re.sub(r"\.jpe?g$", ".png", url), color.lower()
+
+
+def logo_url(artwork: dict | None) -> str | None:
+    parts = logo_parts(artwork)
+    return parts[0] if parts else None
 
 
 def pick_artist(results: list[dict], name: str) -> str | None:
@@ -168,8 +174,8 @@ async def _cached(key: str, fetch) -> dict | None:
 
 
 async def artist_motion(name: str) -> dict | None:
-    """`{"square", "wide", "logo"}` (chacun peut manquer) : portrait animé et
-    logo de l'artiste."""
+    """`{"square", "wide", "logo", "accent"}` (chacun peut manquer) : portrait
+    animé, logo et couleur de marque de l'artiste (celle du logo)."""
 
     async def fetch() -> dict | None:
         search = await _get("search", {"term": name, "types": "artists", "limit": 5})
@@ -180,8 +186,8 @@ async def artist_motion(name: str) -> dict | None:
         attrs = data.get("attributes") or {}
         video = attrs.get("editorialVideo") or {}
         square, wide = _video(video.get("motionArtistSquare1x1")), _video(video.get("motionArtistWide16x9"))
-        logo = logo_url(attrs.get("editorialArtwork"))
-        return {"square": square, "wide": wide, "logo": logo} if square or wide or logo else None
+        logo, accent = logo_parts(attrs.get("editorialArtwork")) or (None, None)
+        return {"square": square, "wide": wide, "logo": logo, "accent": accent} if square or wide or logo else None
 
     return await _cached(f"artist:{_key(name)}", fetch)
 

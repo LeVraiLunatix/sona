@@ -28,6 +28,7 @@ final class LoopingVideoView: UIView {
     private var queue: AVQueuePlayer?
     private var looper: AVPlayerLooper?
     private var loaded: URL?
+    private var wantsPlaying = true
     private var readyObservation: NSKeyValueObservation?
 
     private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
@@ -51,7 +52,19 @@ final class LoopingVideoView: UIView {
     }
 
     func setPlaying(_ playing: Bool) {
-        if playing { queue?.play() } else { queue?.pause() }
+        wantsPlaying = playing
+        refreshPlayback()
+    }
+
+    /// Retour sur la page (après un album, par exemple) : la vue est remise à
+    /// l'écran sans qu'SwiftUI la mette à jour, la lecture repart d'ici.
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        refreshPlayback()
+    }
+
+    private func refreshPlayback() {
+        if wantsPlaying && window != nil { queue?.play() } else { queue?.pause() }
     }
 
     func stop() {
