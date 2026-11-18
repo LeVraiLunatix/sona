@@ -1166,6 +1166,16 @@ extension APIClient {
         try await send(try request("/artists/\(source)/\(id)/bio"))
     }
 
+    /// Pochette animée Apple Music d'un album ; 404 quand il n'y en a pas.
+    func albumMotion(source: String, id: String) async throws -> MotionVideo {
+        try await send(try request("/albums/\(source)/\(id)/motion"))
+    }
+
+    /// Portrait animé Apple Music d'un artiste ; 404 quand il n'y en a pas.
+    func artistMotion(source: String, id: String) async throws -> MotionVideo {
+        try await send(try request("/artists/\(source)/\(id)/motion"))
+    }
+
     func diagnose(source: String, id: String) async throws -> DiagnoseReport {
         var req = try request("/admin/diagnose/\(source)/\(id)", method: "POST")
         req.timeoutInterval = 150

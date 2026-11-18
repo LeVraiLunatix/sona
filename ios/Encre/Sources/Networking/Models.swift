@@ -104,6 +104,14 @@ struct Track: Codable, Identifiable, Hashable {
 
 // MARK: - Biographie, diagnostic de lecture, connexion d'appareil
 
+/// Boucles vidéo Apple Music (flux HLS) : selon l'album ou l'artiste, un
+/// format ou l'autre peut manquer.
+struct MotionVideo: Codable {
+    var square: String?
+    var tall: String?
+    var wide: String?
+}
+
 struct ArtistBio: Codable {
     var text: String
     var url: String?

@@ -8,7 +8,7 @@ from app.api.routers.exclusives import track_for as exclusive_track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import album_versions, artist_bio, credits, djradio
+from app.services import album_versions, apple_motion, artist_bio, credits, djradio
 
 router = APIRouter(tags=["catalog"])
 
@@ -66,6 +66,16 @@ async def get_album(source: str, source_id: str, deps: ApiDeps = Depends(require
     return Album.from_info(album)
 
 
+@router.get("/albums/{source}/{source_id}/motion")
+async def get_album_motion(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Pochette animée d'Apple Music (flux HLS muet) ; 404 s'il n'y en a pas."""
+    album = await _handle(lookup.get_album(deps, source, source_id))
+    motion = await apple_motion.album_motion(album.title, album.artist)
+    if motion is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de pochette animée pour cet album.")
+    return motion
+
+
 @router.get("/playlists/{source}/{source_id}", response_model=Album)
 async def get_playlist(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> Album:
     playlist = await _handle(lookup.get_playlist(deps, source, source_id))
@@ -94,6 +104,16 @@ async def get_artist_bio(source: str, source_id: str, deps: ApiDeps = Depends(re
     if bio is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de biographie pour cet artiste.")
     return bio
+
+
+@router.get("/artists/{source}/{source_id}/motion")
+async def get_artist_motion(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    """Portrait animé d'Apple Music (flux HLS muet) ; 404 s'il n'y en a pas."""
+    artist = await _handle(lookup.get_artist(deps, source, source_id))
+    motion = await apple_motion.artist_motion(artist.name)
+    if motion is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de vidéo pour cet artiste.")
+    return motion
 
 
 @router.get("/artists/{source}/{source_id}/related", response_model=list[Artist])
