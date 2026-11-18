@@ -38,6 +38,7 @@ struct FullPlayerView: View {
     @State private var activity = 0
     @State private var scrubbing = false
     @AppStorage("encre.visualizer") private var visualizer = false
+    @AppStorage(Look.immersiveKey) private var immersive = true
     /// Musique sur un autre appareil (PC…) : le lecteur devient sa télécommande.
     @ObservedObject private var remote = RemoteFlag.shared
     @ObservedObject private var cast = CastManager.shared
@@ -64,6 +65,18 @@ struct FullPlayerView: View {
             LivingBackground(colors: palette, animated: player.isPlaying, reactive: true, tempo: player.current?.bpm)
                 .id(palette)
                 .transition(.opacity)
+
+            // Mode immersif : la pochette prend toute la largeur, sous la barre
+            // d'état, et se fond dans le fond vivant (comme Musique).
+            ZStack {
+                if immersive, panel == .artwork, let track = player.current {
+                    ImmersiveArtwork(url: track.coverURL, playing: player.isPlaying)
+                        .id(track.id)
+                        .transition(.opacity)
+                }
+            }
+            .animation(Motion.smooth, value: player.current?.id)
+            .allowsHitTesting(false)
 
             if let track = player.current {
                 VStack(spacing: 0) {
@@ -269,6 +282,26 @@ struct FullPlayerView: View {
     // MARK: - Panneaux
 
     private func artworkPanel(_ track: Track) -> some View {
+        VStack(spacing: 0) {
+            if immersive {
+                // La pochette est derrière (voir `ImmersiveArtwork`) : on ne
+                // garde que le titre, calé en bas.
+                Spacer(minLength: 0)
+                if visualizer {
+                    VisualizerBars(isPlaying: player.isPlaying)
+                        .frame(height: 44)
+                        .padding(.bottom, 16)
+                        .transition(.opacity)
+                }
+                titleRow(track, compact: false)
+                    .padding(.bottom, 18)
+            } else {
+                classicArtwork(track)
+            }
+        }
+    }
+
+    private func classicArtwork(_ track: Track) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 16)
             GeometryReader { proxy in
@@ -766,6 +799,54 @@ struct EdgeFade: View {
             ],
             startPoint: .top, endPoint: .bottom
         )
+    }
+}
+
+/// Pochette immersive : pleine largeur (légèrement plus haute que large),
+/// sous la barre d'état, fondue vers le bas dans le fond vivant. Elle respire
+/// lentement pendant la lecture et revient à sa taille en pause ; immobile
+/// avec « Réduire les animations ».
+private struct ImmersiveArtwork: View {
+    let url: String?
+    let playing: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var zoomed = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = width * 1.15
+            Artwork(url: url, cornerRadius: 0)
+                .frame(width: width, height: height)
+                .scaleEffect(zoomed ? 1.08 : 1)
+                .frame(width: width, height: height)
+                .clipped()
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.6),
+                            .init(color: .clear, location: 1),
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .overlay(alignment: .top) {
+                    // Les boutons du haut restent lisibles sur une pochette claire.
+                    LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 150)
+                }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea(edges: .top)
+        .task(id: playing) {
+            if playing && !reduceMotion {
+                withAnimation(.easeInOut(duration: 18).repeatForever(autoreverses: true)) { zoomed = true }
+            } else {
+                withAnimation(.easeOut(duration: 0.8)) { zoomed = false }
+            }
+        }
     }
 }
 

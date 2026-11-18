@@ -20,55 +20,86 @@ struct ArtistDetailView: View {
     @State private var radioError: String?
     @State private var inLibrary = false
     @State private var libraryBounce = 0
+    /// Teinte tirée de la photo : le haut de la page y est plongé, comme la
+    /// fiche artiste de Musique.
+    @State private var tint: Color = .black
+    @State private var scrollY: CGFloat = 0
     @EnvironmentObject private var player: PlayerManager
 
-    private let headerHeight: CGFloat = 400
+    private let headerHeight: CGFloat = 500
+
+    /// Le nom passe dans la barre de navigation quand il quitte la photo.
+    private var titleOpacity: Double {
+        min(1, max(0, Double((scrollY - (headerHeight - 150)) / 60)))
+    }
 
     var body: some View {
-        ScrollView {
-            if let artist {
-                VStack(alignment: .leading, spacing: 0) {
-                    header(artist)
-                    VStack(alignment: .leading, spacing: 34) {
-                        actions.reveal(0)
-                        if !exclusives.isEmpty { exclusivesSection.reveal(1) }
-                        if !topTracks.isEmpty { popular.reveal(1) }
-                        if !albums.isEmpty {
-                            carousel("Albums", albums).reveal(2)
+        ScrollViewReader { proxy in
+            ScrollView {
+                if let artist {
+                    VStack(alignment: .leading, spacing: 0) {
+                        header(artist)
+                        VStack(alignment: .leading, spacing: 34) {
+                            actions(scrollToBio: { withAnimation(Motion.smooth) { proxy.scrollTo("bio", anchor: .top) } })
+                                .reveal(0)
+                            if let latest = latestRelease { latestCard(latest).reveal(1) }
+                            if !exclusives.isEmpty { exclusivesSection.reveal(1) }
+                            if !topTracks.isEmpty { popular.reveal(1) }
+                            if !albums.isEmpty {
+                                carousel("Albums", albums).reveal(2)
+                            }
+                            if !singles.isEmpty {
+                                carousel("Singles et EP", singles).reveal(3)
+                            }
+                            if !otherVersions.isEmpty {
+                                carousel("Autres versions", otherVersions).reveal(3)
+                            }
+                            if !related.isEmpty { relatedSection.reveal(4) }
+                            if let bio { bioSection(bio).id("bio").reveal(4) }
                         }
-                        if !singles.isEmpty {
-                            carousel("Singles et EP", singles).reveal(3)
-                        }
-                        if !otherVersions.isEmpty {
-                            carousel("Autres versions", otherVersions).reveal(3)
-                        }
-                        if !related.isEmpty { relatedSection.reveal(4) }
-                        if let bio { bioSection(bio).reveal(4) }
+                        .padding(.top, 20)
                     }
-                    .padding(.top, 20)
+                    .background(alignment: .top) {
+                        LinearGradient(colors: [tint, Tone.background], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 1100)
+                    }
+                    .padding(.bottom, 24)
+                } else if let errorMessage {
+                    EmptyState(systemImage: "exclamationmark.triangle", title: "Artiste indisponible", message: errorMessage)
+                        .padding(.top, 140)
+                } else {
+                    ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 200)
                 }
-                .padding(.bottom, 24)
-            } else if let errorMessage {
-                EmptyState(systemImage: "exclamationmark.triangle", title: "Artiste indisponible", message: errorMessage)
-                    .padding(.top, 140)
-            } else {
-                ProgressView().tint(.white).frame(maxWidth: .infinity).padding(.top, 200)
+            }
+            .scrollIndicators(.hidden)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, new in
+                scrollY = new
             }
         }
-        .scrollIndicators(.hidden)
         .ignoresSafeArea(edges: .top)
         .background(Tone.background)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(artist?.name ?? "")
+                    .font(Typo.headline)
+                    .foregroundStyle(Tone.primary)
+                    .opacity(titleOpacity)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if artist != nil {
-                    Button { Task { await toggleLibrary() } } label: {
-                        Image(systemName: inLibrary ? "checkmark" : "plus")
-                            .contentTransition(.symbolEffect(.replace))
-                            .symbolEffect(.bounce, value: libraryBounce)
+                    Menu {
+                        Button { startRadio() } label: {
+                            Label("Radio de l'artiste", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        Button { shuffleTopTracks() } label: {
+                            Label("Lecture aléatoire", systemImage: "shuffle")
+                        }
+                        .disabled(topTracks.isEmpty)
+                    } label: {
+                        Image(systemName: "ellipsis")
                     }
-                    .sensoryFeedback(.success, trigger: libraryBounce)
                 }
             }
         }
@@ -77,32 +108,35 @@ struct ArtistDetailView: View {
 
     // MARK: - En-tête
 
-    /// Photo pleine largeur : s'étire quand on tire vers le bas, défile plus
-    /// lentement que le contenu en remontant (parallaxe).
+    /// Photo plein cadre sous la barre d'état : elle se fond dans la teinte de
+    /// la page (masque, pas de voile noir), s'étire quand on tire vers le bas
+    /// et défile plus lentement que le contenu (parallaxe). Nom centré.
     private func header(_ artist: Artist) -> some View {
         GeometryReader { proxy in
             let minY = proxy.frame(in: .scrollView).minY
             let stretch = max(0, minY)
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .bottom) {
                 Artwork(url: artist.pictureURL, cornerRadius: 0, symbol: "person.fill")
                     .frame(width: proxy.size.width, height: headerHeight + stretch)
+                    .mask {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .black, location: 0),
+                                .init(color: .black, location: 0.55),
+                                .init(color: .clear, location: 1),
+                            ],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    }
                     .offset(y: minY > 0 ? -minY : -minY * 0.4)
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.35),
-                        .init(color: .black.opacity(0.6), location: 0.75),
-                        .init(color: .black, location: 1),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .frame(height: headerHeight + stretch)
-                .offset(y: -stretch)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(spacing: 4) {
                     Text(artist.name)
-                        .font(Typo.hero)
+                        .font(.system(size: 44, weight: .heavy))
                         .foregroundStyle(Tone.primary)
+                        .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .minimumScaleFactor(0.6)
+                        .shadow(color: .black.opacity(0.35), radius: 14)
                     if let fans = artist.fans, fans > 0 {
                         Text("\(fans.formatted(.number.notation(.compactName))) fans")
                             .font(Typo.rowSubtitle)
@@ -110,7 +144,7 @@ struct ArtistDetailView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 16)
+                .padding(.bottom, 12)
                 .reveal(0)
             }
             .clipped()
@@ -118,23 +152,77 @@ struct ArtistDetailView: View {
         .frame(height: headerHeight)
     }
 
-    private var actions: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                PillButton(title: "Lecture", systemImage: "play.fill") {
+    /// i (à propos) · lecture · étoile (bibliothèque), centrés sous le nom.
+    private func actions(scrollToBio: @escaping () -> Void) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 18) {
+                roundButton("info", size: 52, label: "À propos", action: scrollToBio)
+                    .disabled(bio == nil)
+                roundButton("play.fill", size: 76, filled: true, label: "Lecture") {
                     if let first = topTracks.first { player.play(first, context: topTracks, name: artist?.name) }
                 }
                 .disabled(topTracks.isEmpty)
-                // Station sans fin autour de l'artiste (le « mix » Deezer, ou
-                // ses titres populaires mélangés ailleurs).
-                PillButton(title: "Radio", systemImage: "dot.radiowaves.left.and.right", kind: .secondary, isLoading: isStartingRadio) {
-                    startRadio()
+                roundButton(
+                    inLibrary ? "star.fill" : "star", size: 52, bounce: libraryBounce,
+                    label: inLibrary ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque"
+                ) {
+                    Task { await toggleLibrary() }
                 }
+                .sensoryFeedback(.success, trigger: libraryBounce)
             }
             if let radioError {
                 Text(radioError).font(Typo.rowSubtitle).foregroundStyle(Tone.danger)
             }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+    }
+
+    private func roundButton(
+        _ symbol: String, size: CGFloat, filled: Bool = false, bounce: Int = 0, label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.38, weight: .semibold))
+                .foregroundStyle(filled ? Color.black : Tone.primary)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, value: bounce)
+                .frame(width: size, height: size)
+                .background(Circle().fill(filled ? Color.white : Color.white.opacity(0.14)))
+        }
+        .buttonStyle(.pressable(scale: 0.88))
+        .accessibilityLabel(label)
+    }
+
+    /// La sortie la plus récente (l'API ne donne que l'année).
+    private var latestRelease: Album? {
+        (albums + singles).filter { $0.year != nil }.max { ($0.year ?? "") < ($1.year ?? "") }
+    }
+
+    private func latestCard(_ album: Album) -> some View {
+        Button { path.append(Route.album(source: album.source, id: album.sourceId)) } label: {
+            HStack(spacing: 14) {
+                Artwork(url: album.coverURL, cornerRadius: 10, symbol: "square.stack")
+                    .frame(width: 76, height: 76)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(["Dernière sortie", album.year].compactMap { $0 }.joined(separator: " · "))
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                    Text(album.title).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(2)
+                    if let count = album.trackCount {
+                        Text(count == 1 ? "1 morceau" : "\(count) morceaux")
+                            .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Tone.tertiary)
+            }
+            .padding(12)
+            .glassRounded(24)
+        }
+        .buttonStyle(.pressable)
         .padding(.horizontal, 20)
     }
 
@@ -240,7 +328,10 @@ struct ArtistDetailView: View {
             // mieux qu'un écran d'erreur si l'un des deux ne répond pas.
             let top = (try? await topTask) ?? []
             let albumSet = try? await albumsTask
+            let colors = Look.tintEnabled ? await ArtworkPalette.colors(for: loaded.pictureURL) : []
             withAnimation(Motion.smooth) {
+                // Coin bas-gauche de la photo : la couleur où le nom se pose.
+                if colors.count > 2 { tint = colors[2] }
                 artist = loaded
                 topTracks = top
                 albums = albumSet?.albums ?? []
@@ -259,6 +350,11 @@ struct ArtistDetailView: View {
         if let page = try? await APIClient.shared.library(kind: "artist", limit: 200) {
             inLibrary = page.items.contains { $0.source == source && $0.sourceId == id }
         }
+    }
+
+    private func shuffleTopTracks() {
+        let shuffled = topTracks.shuffled()
+        if let first = shuffled.first { player.play(first, context: shuffled, name: artist?.name) }
     }
 
     private func startRadio() {

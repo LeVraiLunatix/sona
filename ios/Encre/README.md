@@ -51,7 +51,7 @@ symboles qui rebondissent, retours haptiques.
 - **Fiches** album/playlist (halo de couleur, Lecture/Aléatoire, ajout à la
   bibliothèque) et artiste (photo étirable en parallaxe, populaires, radio,
   albums, singles, artistes similaires, suivre).
-- **Lecteur plein écran** : fond maillé animé aux couleurs de la pochette,
+- **Lecteur plein écran** (mode immersif par défaut, réglable dans Apparence : pochette pleine largeur fondue dans le fond) : fond maillé animé aux couleurs de la pochette,
   pochette qui se rétracte en pause, barre de progression qui s'épaissit
   sous le doigt, paroles synchronisées (LRCLIB) floutées autour de la ligne
   chantée, file d'attente, menu (artiste, album, radio de l'artiste).
