@@ -71,6 +71,13 @@ struct LyricsView: View {
     // téléchargée) des paroles dans une autre langue.
     @State private var translations: [String: String] = [:]
     @State private var translationConfig: TranslationSession.Configuration?
+    // Changement de ligne « en vague », comme sur le site (voir `LyricsWave`).
+    @State private var wave = LyricsWave()
+    @State private var waveRunning = false
+    @State private var waveTask: Task<Void, Never>?
+    @State private var scrollPosition = ScrollPosition()
+    @State private var layout = LyricsLayout()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -120,6 +127,9 @@ struct LyricsView: View {
 
     /// Marge du lecteur plein écran (voir `FullPlayerView`).
     private static let sideInset: CGFloat = 26
+    /// Marge au-dessus de la première ligne et sous la dernière.
+    private static let verticalInset: CGFloat = 120
+    private static let rowSpacing: CGFloat = 22
 
     private func synced(_ lyrics: Lyrics) -> some View {
         let lines = lyrics.lines
@@ -130,70 +140,68 @@ struct LyricsView: View {
         let active = lines.lastIndex(where: { ($0.time ?? 0) <= position })
         return ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
-                    // Longue intro : les trois points d'attente avant la
-                    // première ligne.
-                    if active == nil, let first = lines.first?.time, first > 4 {
-                        InterludeDots(start: 0, end: first, offset: offset, player: player, active: true)
-                            .id(-1)
-                    }
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                        let isActive = index == active
-                        let next = lines.dropFirst(index + 1).first?.time
-                        // Avant la première ligne (intro, ou lecture pas
-                        // encore lancée) : tout net et estompé, rien de flou.
-                        let blur = active.map { isActive ? 0 : min(3.5, Double(abs(index - $0)) * 0.9) } ?? 0
-                        VStack(alignment: .leading, spacing: 0) {
-                            if line.text.isEmpty {
-                                // Pause instrumentale (ligne vide du LRC).
-                                InterludeDots(
-                                    start: line.time ?? 0, end: next ?? (line.time ?? 0) + 4,
-                                    offset: offset, player: player, active: isActive
-                                )
-                            } else if isActive {
-                                KaraokeLine(
-                                    words: KaraokeLine.timedWords(line, next: next),
-                                    player: player,
-                                    offset: offset
-                                )
-                            } else {
-                                Text(line.text)
-                                    .foregroundStyle(Color.white.opacity(index < (active ?? 0) ? 0.3 : 0.45))
-                            }
-                            if options.translating, let translated = translations[line.text], translated != line.text {
-                                Text(translated)
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(Color.white.opacity(isActive ? 0.75 : 0.35))
-                                    .padding(.top, 4)
-                            }
+                // L'horloge ne tourne que pendant la vague d'un changement de ligne.
+                TimelineView(.animation(paused: !waveRunning)) { context in
+                    VStack(alignment: .leading, spacing: Self.rowSpacing) {
+                        // Longue intro : les trois points d'attente avant la
+                        // première ligne.
+                        if active == nil, let first = lines.first?.time, first > 4 {
+                            InterludeDots(start: 0, end: first, offset: offset, player: player, active: true)
+                                .id(-1)
                         }
-                            .font(.system(size: 28, weight: .bold))
-                            .blur(radius: blur)
-                            .scaleEffect(isActive ? 1 : 0.97, anchor: .leading)
-                            // Changement de ligne « en vague » : chaque ligne suit la précédente avec un léger retard.
-                            .animation(Motion.smooth.delay(Double(min(abs(index - (active ?? index)), 6)) * 0.035), value: active)
+                        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                            let translated = options.translating
+                                ? translations[line.text].flatMap { (text: String) -> String? in text != line.text ? text : nil } : nil
+                            LyricRow(
+                                line: line,
+                                next: lines.dropFirst(index + 1).first?.time,
+                                // Avant la première ligne (intro, ou lecture pas
+                                // encore lancée) : tout net et estompé, rien de flou.
+                                distance: active.map { abs(index - $0) },
+                                offset: offset,
+                                isPlaying: player.isPlaying,
+                                translation: translated,
+                                player: player
+                            )
+                            .equatable()
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { layout.heights[index] = $0 }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 if let time = line.time { player.seek(toSeconds: max(0, time - offset)) }
                             }
                             .id(index)
+                            // En dernier : la vague décale la ligne sans rien animer d'autre.
+                            .offset(y: wave.offset(index, at: context.date))
+                        }
+                        footer(lyrics)
                     }
-                    footer(lyrics)
+                    .padding(.vertical, Self.verticalInset)
+                    // La marge est à l'intérieur de la zone qui défile : le flou
+                    // des lignes déborde dans la marge au lieu d'être coupé net
+                    // au bord (la zone s'étend jusqu'aux bords de l'écran).
+                    .padding(.horizontal, Self.sideInset)
                 }
-                .padding(.vertical, 120)
-                // La marge est à l'intérieur de la zone qui défile : le flou
-                // des lignes déborde dans la marge au lieu d'être coupé net
-                // au bord (la zone s'étend jusqu'aux bords de l'écran).
-                .padding(.horizontal, Self.sideInset)
-                .animation(Motion.smooth, value: active)
+            }
+            .scrollPosition($scrollPosition)
+            .onScrollGeometryChange(for: LyricsScrollMetrics.self) { geometry in
+                LyricsScrollMetrics(
+                    offset: geometry.contentOffset.y,
+                    viewport: geometry.containerSize.height,
+                    maxOffset: max(0, geometry.contentSize.height - geometry.containerSize.height)
+                )
+            } action: { _, new in
+                layout.metrics = new
             }
             .padding(.horizontal, -Self.sideInset)
             .mask { EdgeFade() }
             // Mode libre : un doigt qui fait défiler les paroles les laisse tranquilles, sans les
             // ramener de force à la ligne en cours ; une pastille propose d'y revenir.
             .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
-                if !freeScroll { freeScroll = true }
+                if !freeScroll {
+                    freeScroll = true
+                    stopWave()
+                }
             })
             .overlay(alignment: .bottom) {
                 if freeScroll, let active {
@@ -217,11 +225,78 @@ struct LyricsView: View {
             .onAppear {
                 if let active { proxy.scrollTo(active, anchor: UnitPoint(x: 0.5, y: 0.35)) }
             }
-            .onChange(of: active) { _, newValue in
-                guard let newValue, !freeScroll else { return }
-                withAnimation(Motion.smooth) { proxy.scrollTo(newValue, anchor: UnitPoint(x: 0.5, y: 0.35)) }
+            .onChange(of: active) { old, new in
+                guard let new, !freeScroll else { return }
+                follow(line: new, from: old, count: lines.count, proxy: proxy)
             }
-            .onChange(of: player.current?.id) { _, _ in freeScroll = false }
+            .onChange(of: player.current?.id) { _, _ in
+                freeScroll = false
+                stopWave()
+            }
+        }
+    }
+
+    // MARK: - Vague
+
+    /// Haut d'une ligne dans la zone qui défile (les lignes sont mesurées ; pas
+    /// de points d'intro quand une ligne est en cours).
+    private func top(of index: Int) -> CGFloat {
+        (0..<index).reduce(Self.verticalInset) { $0 + (layout.heights[$1] ?? 0) + Self.rowSpacing }
+    }
+
+    private func stopWave() {
+        waveTask?.cancel()
+        wave = LyricsWave()
+        waveRunning = false
+    }
+
+    /// Recentre sur la ligne `index` comme sur le site : le défilement se fait
+    /// d'un coup, puis chaque ligne visible revient à sa place en glissant, celles
+    /// du dessous un peu après celles du dessus (voir `LyricsWave`). Une vague déjà
+    /// en cours n'est pas coupée : chaque ligne repart d'où elle est.
+    private func follow(line index: Int, from previous: Int?, count: Int, proxy: ScrollViewProxy) {
+        let metrics = layout.metrics
+        let measured = (0..<count).allSatisfy { layout.heights[$0] != nil }
+        guard previous != nil, measured, metrics.viewport > 0 else {
+            // Pas encore mesuré (ou venue de l'intro) : défilement doux d'un bloc.
+            withAnimation(Motion.smooth) { proxy.scrollTo(index, anchor: UnitPoint(x: 0.5, y: 0.35)) }
+            return
+        }
+        // Une ligne très longue est alignée plus haut pour qu'elle tienne.
+        let anchor = (layout.heights[index] ?? 0) > metrics.viewport * 0.4 ? 0.16 : 0.36
+        let target = min(max(0, top(of: index) - metrics.viewport * anchor), metrics.maxOffset)
+        let delta = target - metrics.offset
+        guard abs(delta) >= 1 else { return }
+        guard !reduceMotion else {
+            scrollPosition.scrollTo(y: target)
+            return
+        }
+        guard abs(delta) <= metrics.viewport * 1.1 else {
+            // Grand saut (retour en arrière dans le titre) : glissement d'un bloc.
+            stopWave()
+            withAnimation(Motion.smooth) { scrollPosition.scrollTo(y: target) }
+            return
+        }
+        let now = Date()
+        var from: [Int: CGFloat] = [:]
+        var delay: [Int: Double] = [:]
+        for row in 0..<count {
+            let y = top(of: row) - metrics.offset
+            // Hors de l'écran : pas animée.
+            if y + (layout.heights[row] ?? 0) < -metrics.viewport * 0.35 || y > metrics.viewport * 1.35 { continue }
+            from[row] = wave.offset(row, at: now) + delta
+            delay[row] = row > index ? Double(min(row - index, 6)) * 0.034 : 0
+        }
+        wave = LyricsWave(start: now, from: from, delay: delay)
+        waveRunning = true
+        scrollPosition.scrollTo(y: target)
+        waveTask?.cancel()
+        let total = wave.total
+        waveTask = Task {
+            try? await Task.sleep(for: .seconds(total + 0.1))
+            guard !Task.isCancelled else { return }
+            wave = LyricsWave()
+            waveRunning = false
         }
     }
 
@@ -324,6 +399,8 @@ struct LyricsView: View {
     }
 
     private func show(_ lyrics: Lyrics) {
+        layout.heights = [:]
+        stopWave()
         translations = [:]
         options.translating = false
         translationConfig = nil
@@ -750,9 +827,119 @@ struct KaraokePanel: View {
     }
 }
 
-/// Ligne en cours, allumée mot par mot au rythme de la lecture. Les temps
+/// Une ligne de paroles. Toutes les lignes (chantée ou non) sont faites des
+/// mêmes boîtes posées par la même mise en page : quand la ligne s'allume,
+/// aucun mot ne bouge ni ne change de rang. Distance à la ligne chantée → flou
+/// et transparence, mêmes valeurs que le site (`data-d`).
+private struct LyricRow: View, Equatable {
+    let line: Lyrics.Line
+    let next: Double?
+    /// Écart avec la ligne chantée (0 = elle) ; `nil` avant la première ligne.
+    let distance: Int?
+    let offset: Double
+    let isPlaying: Bool
+    let translation: String?
+    let player: PlayerManager
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.line == b.line && a.next == b.next && a.distance == b.distance && a.offset == b.offset
+            && a.isPlaying == b.isPlaying && a.translation == b.translation
+    }
+
+    private var blur: Double {
+        switch distance {
+        case nil, 0: 0
+        case 1: 0.5
+        case 2: 1.1
+        case 3: 1.6
+        default: 2
+        }
+    }
+
+    private var dimming: Double {
+        switch distance {
+        case nil, 0: 1
+        case 1: 0.82
+        case 2: 0.62
+        case 3: 0.48
+        default: 0.38
+        }
+    }
+
+    var body: some View {
+        let isActive = distance == 0
+        VStack(alignment: .leading, spacing: 0) {
+            if line.text.isEmpty {
+                // Pause instrumentale (ligne vide du LRC).
+                InterludeDots(
+                    start: line.time ?? 0, end: next ?? (line.time ?? 0) + 4,
+                    offset: offset, player: player, active: isActive
+                )
+            } else {
+                KaraokeLine(
+                    words: KaraokeLine.timedWords(line, next: next),
+                    player: player, offset: offset, active: isActive, isPlaying: isPlaying
+                )
+            }
+            if let translation {
+                Text(translation)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(isActive ? 0.75 : 0.35))
+                    .padding(.top, 4)
+            }
+        }
+        .font(.system(size: 28, weight: .bold))
+        .blur(radius: blur)
+        .opacity(dimming)
+        // Les lignes inactives sont un peu plus petites (comme sur le site).
+        .scaleEffect(isActive ? 1 : 0.94, anchor: .leading)
+        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.8), value: distance.map { min($0, 4) })
+    }
+}
+
+/// Glissement des lignes au changement de ligne, sur le modèle du site
+/// (`lyricsWave`) : le défilement est fait d'un coup, puis chaque ligne
+/// visible revient à sa place — `from` : décalage de départ —, les lignes du
+/// dessous avec un léger retard, en 0,82 s sur la même courbe.
+private struct LyricsWave {
+    static let duration = 0.82
+    private static let curve = UnitCurve.bezier(
+        startControlPoint: UnitPoint(x: 0.22, y: 0.9), endControlPoint: UnitPoint(x: 0.26, y: 1)
+    )
+
+    var start = Date.distantPast
+    var from: [Int: CGFloat] = [:]
+    var delay: [Int: Double] = [:]
+
+    var total: Double { Self.duration + (delay.values.max() ?? 0) }
+
+    /// Décalage de la ligne à cet instant (0 hors vague).
+    func offset(_ index: Int, at date: Date) -> CGFloat {
+        guard let origin = from[index] else { return 0 }
+        let elapsed = date.timeIntervalSince(start) - (delay[index] ?? 0)
+        if elapsed >= Self.duration { return 0 }
+        if elapsed <= 0 { return origin }
+        return origin * (1 - CGFloat(Self.curve.value(at: elapsed / Self.duration)))
+    }
+}
+
+private struct LyricsScrollMetrics: Equatable {
+    var offset: CGFloat
+    var viewport: CGFloat
+    var maxOffset: CGFloat
+}
+
+/// Mesures gardées hors de l'état SwiftUI : les lire ou les mettre à jour ne
+/// redessine rien.
+private final class LyricsLayout {
+    var heights: [Int: CGFloat] = [:]
+    var metrics = LyricsScrollMetrics(offset: 0, viewport: 0, maxOffset: 0)
+}
+
+/// Ligne chantée : allumée mot par mot au rythme de la lecture. Les temps
 /// viennent de la source quand elle les donne (LRC enrichi), sinon chaque mot
-/// reçoit une part de la ligne proportionnelle à sa longueur.
+/// reçoit une part de la ligne proportionnelle à sa longueur. Hors `active`,
+/// les mêmes mots, éteints et immobiles.
 struct KaraokeLine: View {
     struct TimedWord: Hashable {
         var start: Double
@@ -761,14 +948,17 @@ struct KaraokeLine: View {
     }
 
     let words: [TimedWord]
-    @ObservedObject var player: PlayerManager
+    /// Pas observé : seule la ligne chantée lit sa position, à chaque image.
+    let player: PlayerManager
     /// Décalage réglé pour ce titre (voir `LyricsOptions.offset`).
     var offset: Double = 0
+    var active = true
+    var isPlaying = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 60, paused: !player.isPlaying)) { _ in
-            let now = player.exactPositionSeconds + 0.05 + LyricsTiming.latency + offset
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: !active || !isPlaying)) { _ in
+            let now: Double? = active ? player.exactPositionSeconds + 0.05 + LyricsTiming.latency + offset : nil
             // Un mot = une vue : il peut monter, grossir et s'illuminer seul.
             WordFlowLayout {
                 ForEach(Array(words.enumerated()), id: \.offset) { _, word in
@@ -812,50 +1002,57 @@ struct KaraokeLine: View {
     }
 }
 
-/// Un mot de la ligne chantée, façon Musique : il s'allume au fil de sa durée,
-/// monte d'un rien, et s'il est tenu longtemps il grossit et rayonne avant de
-/// retomber en douceur. Immobile avec « Réduire les animations ».
+/// Un mot de la ligne, façon Musique : il s'allume au fil de sa durée, monte
+/// d'un rien, et s'il est tenu longtemps il grossit et rayonne avant de
+/// retomber en douceur. `now == nil` : ligne à l'arrêt (mot éteint, mêmes
+/// dimensions). Immobile avec « Réduire les animations ».
 private struct KaraokeWord: View {
     let word: KaraokeLine.TimedWord
-    let now: Double
+    let now: Double?
     let still: Bool
 
+    /// Éteint : gris du site (0,5) ; chanté : de 0,4 à blanc plein.
+    private func level(_ progress: Double, lit: Bool) -> Double { lit ? 0.4 + 0.6 * progress : 0.5 }
+
     var body: some View {
+        let lit = now != nil
+        let time = now ?? word.start - 10
         let duration = max(0.05, word.end - word.start)
-        let progress = min(1, max(0, (now - word.start) / duration))
-        let rise = min(1, max(0, (now - word.start) / min(0.35, duration * 0.6)))
-        let fall = now > word.end ? min(1, max(0, 1 - (now - word.end) / 0.4)) : 1
+        let progress = min(1, max(0, (time - word.start) / duration))
+        let rise = min(1, max(0, (time - word.start) / min(0.35, duration * 0.6)))
+        let fall = time > word.end ? min(1, max(0, 1 - (time - word.end) / 0.4)) : 1
         let lift = rise * rise * (3 - 2 * rise) * fall
         // Seuls les mots tenus (≥ 0,6 s, plein effet à 1,6 s) grossissent.
         let held = lift * min(1, max(0, (duration - 0.5) / 0.6))
         let hasGap = word.text.last?.isWhitespace == true
         let body = word.text.trimmingCharacters(in: .whitespaces)
+        let isHeldNote = duration >= 0.9 && body.count >= 3
+        // La marge suit le grossissement : le mot pousse ses voisins au lieu de
+        // passer dessus (voir `WordFlowLayout`, qui ne s'en sert pas pour les
+        // retours à la ligne : un mot qui grossit ne fait sauter aucun mot).
+        let push: CGFloat = isHeldNote && !still ? 0.62 * Double(body.count) * held : 0
         Group {
-            if duration >= 0.9, body.count >= 3 {
+            if isHeldNote {
                 // Note tenue (« frontièèères ») : les lettres s'allument l'une
-                // après l'autre sur toute la note et se soulèvent en vague.
+                // après l'autre sur toute la note.
                 let letters = Array(body)
-                // Un seul balayage continu sur tout le mot : la lettre se
-                // remplit pendant que le front passe, la vague suit ce front.
                 let count = Double(letters.count)
                 HStack(spacing: 0) {
                     ForEach(Array(letters.enumerated()), id: \.offset) { index, letter in
                         let p = min(1, max(0, progress * count - Double(index)))
                         Text(String(letter))
-                            .foregroundStyle(Color.white.opacity(0.4 + 0.6 * p))
+                            .foregroundStyle(Color.white.opacity(level(p, lit: lit)))
                     }
                 }
-                // La marge suit le grossissement : le mot pousse ses voisins
-                // au lieu de passer dessus, et ne bouge pas au repos.
-                .padding(.horizontal, still ? 0 : 0.62 * count * held)
             } else {
                 Text(body)
-                    .foregroundStyle(Color.white.opacity(0.4 + 0.6 * progress))
+                    .foregroundStyle(Color.white.opacity(level(progress, lit: lit)))
             }
         }
-            .scaleEffect(still ? 1 : 1 + 0.08 * held, anchor: .center)
-            .shadow(color: .white.opacity(still ? 0 : 0.8 * held), radius: 10 * held)
-            .layoutValue(key: WordGapKey.self, value: hasGap)
+        .scaleEffect(still ? 1 : 1 + 0.08 * held, anchor: .center)
+        .shadow(color: .white.opacity(still ? 0 : 0.8 * held), radius: 10 * held)
+        .layoutValue(key: WordGapKey.self, value: hasGap)
+        .layoutValue(key: WordPushKey.self, value: push)
     }
 }
 
@@ -863,26 +1060,37 @@ private struct WordGapKey: LayoutValueKey {
     static let defaultValue = true
 }
 
+/// Place prise en plus de chaque côté par un mot qui grossit.
+private struct WordPushKey: LayoutValueKey {
+    static let defaultValue: CGFloat = 0
+}
+
 /// Mots posés l'un après l'autre, retour à la ligne à la largeur proposée.
 /// L'espace entre deux mots n'existe que si la source en met un (les
-/// syllabes d'un même mot se touchent).
+/// syllabes d'un même mot se touchent). Les retours à la ligne se décident sur
+/// les largeurs au repos : un mot qui grossit décale ses voisins de sa ligne
+/// sans en renvoyer aucun à la ligne suivante.
 private struct WordFlowLayout: Layout {
     private let space: CGFloat = 8
 
     private func rows(_ subviews: Subviews, width: CGFloat) -> (frames: [CGRect], size: CGSize) {
         var frames: [CGRect] = []
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        var x: CGFloat = 0, rest: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
         for sub in subviews {
             let size = sub.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > width {
+            let push = sub[WordPushKey.self]
+            if rest > 0, rest + size.width > width {
                 x = 0
+                rest = 0
                 y += rowHeight + 2
                 rowHeight = 0
             }
-            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
-            x += size.width + (sub[WordGapKey.self] ? space : 0)
+            frames.append(CGRect(origin: CGPoint(x: x + push, y: y), size: size))
+            let gap = sub[WordGapKey.self] ? space : 0
+            x += size.width + 2 * push + gap
+            rest += size.width + gap
             rowHeight = max(rowHeight, size.height)
-            maxX = max(maxX, x)
+            maxX = max(maxX, rest)
         }
         return (frames, CGSize(width: min(width, maxX), height: y + rowHeight))
     }
