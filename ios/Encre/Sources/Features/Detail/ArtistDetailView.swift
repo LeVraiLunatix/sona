@@ -148,6 +148,9 @@ struct ArtistDetailView: View {
                 }
                     .frame(width: proxy.size.width, height: headerHeight + stretch)
                     .clipped()
+                    // Photo fixe et vidéo ne forment qu'une image : sans ça, le fondu au
+                    // défilement les estompe chacune, et la photo transparaît sous la vidéo.
+                    .compositingGroup()
                     .mask {
                         LinearGradient(
                             stops: [

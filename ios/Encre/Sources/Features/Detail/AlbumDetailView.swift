@@ -159,6 +159,9 @@ struct AlbumDetailView: View {
                 }
                 .frame(width: proxy.size.width, height: mediaHeight)
                 .clipped()
+                // Pochette fixe et vidéo ne forment qu'une image : sans ça, le fondu au
+                // défilement les estompe chacune, et la pochette transparaît sous la vidéo.
+                .compositingGroup()
                 .mask {
                     LinearGradient(
                         stops: [
