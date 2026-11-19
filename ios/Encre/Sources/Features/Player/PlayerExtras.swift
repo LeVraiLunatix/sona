@@ -163,11 +163,18 @@ struct SoundSettingsSheet: View {
                     } label: {
                         Label("Fondu enchaîné", systemImage: "arrow.triangle.merge")
                     }
+                    Toggle(isOn: $player.mixEffects) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Effets d'enchaînement", systemImage: "waveform.path")
+                            Text("Échange des basses, filtre ou écho selon le tempo et la tonalité des deux titres.")
+                                .font(Typo.caption).foregroundStyle(Tone.secondary)
+                        }
+                    }
                 } header: {
                     Text("Enchaînement")
                 } footer: {
                     Text(player.crossfadeEnabled
-                         ? "AutoMix est activé : les titres s'enchaînent en fondu de la durée choisie."
+                         ? "AutoMix est activé : Sona mesure le tempo et la tonalité de chaque titre, cale les deux sur les mêmes temps et choisit la meilleure façon de les enchaîner."
                          : "Le fondu s'applique quand AutoMix est activé (bouton ⇄ du lecteur).")
                 }
 

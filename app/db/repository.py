@@ -1507,23 +1507,32 @@ class Repository:
 
     async def analysis_get(self, source: str, source_id: str) -> dict | None:
         cursor = await self._db.conn.execute(
-            """SELECT loudness, start, mix_out, end_time, duration FROM track_analysis
-               WHERE source=? AND source_id=?""",
+            """SELECT loudness, start, mix_out, end_time, duration, bpm, beat_offset, downbeat,
+                      key_camelot, key_name, key_confidence, tempo_confidence, version
+               FROM track_analysis WHERE source=? AND source_id=?""",
             (source, source_id),
         )
         row = await cursor.fetchone()
         return dict(row) if row else None
 
     async def analysis_set(
-        self, source: str, source_id: str, loudness: float, start: float, mix_out: float, end: float, duration: float
+        self, source: str, source_id: str, loudness: float, start: float, mix_out: float, end: float, duration: float,
+        *, bpm: float | None = None, beat_offset: float | None = None, downbeat: float | None = None,
+        key: str | None = None, key_name: str | None = None, key_confidence: float | None = None,
+        tempo_confidence: float | None = None, version: int = 1,
     ) -> None:
         await self._db.conn.execute(
-            """INSERT INTO track_analysis (source, source_id, loudness, start, mix_out, end_time, duration, analyzed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """INSERT INTO track_analysis (source, source_id, loudness, start, mix_out, end_time, duration, analyzed_at,
+                   bpm, beat_offset, downbeat, key_camelot, key_name, key_confidence, tempo_confidence, version)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(source, source_id) DO UPDATE SET loudness=excluded.loudness, start=excluded.start,
                mix_out=excluded.mix_out, end_time=excluded.end_time, duration=excluded.duration,
-               analyzed_at=excluded.analyzed_at""",
-            (source, source_id, loudness, start, mix_out, end, duration, _now()),
+               analyzed_at=excluded.analyzed_at, bpm=excluded.bpm, beat_offset=excluded.beat_offset,
+               downbeat=excluded.downbeat, key_camelot=excluded.key_camelot, key_name=excluded.key_name,
+               key_confidence=excluded.key_confidence, tempo_confidence=excluded.tempo_confidence,
+               version=excluded.version""",
+            (source, source_id, loudness, start, mix_out, end, duration, _now(),
+             bpm, beat_offset, downbeat, key, key_name, key_confidence, tempo_confidence, version),
         )
         await self._db.conn.commit()
 

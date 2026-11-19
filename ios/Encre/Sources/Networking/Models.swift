@@ -1460,10 +1460,24 @@ struct TrackAnalysis: Codable, Hashable {
     var mixOut: Double
     var end: Double
     var duration: Double
+    /// Tempo mesuré dans l'audio, un temps et un premier temps de mesure (secondes
+    /// depuis le début du fichier) : de quoi poser deux titres sur la même grille.
+    var bpm: Double? = nil
+    var beatOffset: Double? = nil
+    var downbeat: Double? = nil
+    /// Tonalité en code Camelot (« 8A ») et en toutes lettres (« A minor »).
+    var key: String? = nil
+    var keyName: String? = nil
+    var keyConfidence: Double? = nil
+    var tempoConfidence: Double? = nil
 
     enum CodingKeys: String, CodingKey {
-        case loudness, start, end, duration
+        case loudness, start, end, duration, bpm, downbeat, key
         case mixOut = "mix_out"
+        case beatOffset = "beat_offset"
+        case keyName = "key_name"
+        case keyConfidence = "key_confidence"
+        case tempoConfidence = "tempo_confidence"
     }
 }
 

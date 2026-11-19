@@ -208,11 +208,12 @@ struct FullPlayerView: View {
                 Capsule().fill(Color.white.opacity(0.35)).frame(width: 38, height: 5)
                 sleepBadge
                 if player.isMixing {
-                    // Enchaînement AutoMix en cours (tempo calé si différent).
+                    // Enchaînement AutoMix en cours : sa façon (harmonique, filtre, écho) et le
+                    // tempo calé s'il a fallu l'ajuster.
                     Label(
                         player.mixTempoRatio == 1
-                            ? "AutoMix"
-                            : String(format: "AutoMix · tempo %+.0f %%", (player.mixTempoRatio - 1) * 100),
+                            ? player.mixStyle.label
+                            : String(format: "\(player.mixStyle.label) · tempo %+.0f %%", (player.mixTempoRatio - 1) * 100),
                         systemImage: "arrow.triangle.merge"
                     )
                     .font(Typo.caption)

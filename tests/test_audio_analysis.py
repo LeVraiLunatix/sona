@@ -3,6 +3,7 @@ reconstituée (ffmpeg n'est pas nécessaire aux tests)."""
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -69,6 +70,16 @@ def test_analysis_endpoint(client):
     auth = {"Authorization": "Bearer test-token"}
     assert client.get("/analysis/deezer/1", headers=auth).status_code == 404
     client.portal.call(client.deps.repo.analysis_set, "deezer", "1", -9.0, 1.2, 150.0, 170.0, 175.0)
+    # Analyse d'avant le tempo et la tonalité : servie telle quelle, sans ces champs.
     assert client.get("/analysis/deezer/1", headers=auth).json() == {
         "loudness": -9.0, "start": 1.2, "mix_out": 150.0, "end": 170.0, "duration": 175.0,
+        "bpm": None, "beat_offset": None, "downbeat": None, "key": None, "key_name": None,
+        "key_confidence": None, "tempo_confidence": None,
     }
+    client.portal.call(partial(
+        client.deps.repo.analysis_set, "deezer", "1", -9.0, 1.2, 150.0, 170.0, 175.0,
+        bpm=128.0, beat_offset=0.25, downbeat=0.5, key="8B", key_name="C major",
+        key_confidence=0.8, tempo_confidence=0.9, version=2,
+    ))
+    found = client.get("/analysis/deezer/1", headers=auth).json()
+    assert (found["bpm"], found["downbeat"], found["key"], found["key_name"]) == (128.0, 0.5, "8B", "C major")
