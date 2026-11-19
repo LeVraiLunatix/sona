@@ -88,6 +88,7 @@ struct AppGate: View {
         .environmentObject(auth)
         .task {
             LyricsActivity.shared.bind(PlayerManager.shared)
+            ReleaseActivity.resume()
             await auth.refresh()
             // La qualité audio du compte (Réglages) : le serveur en dépend pour choisir le fichier.
             await PlaybackQuality.refresh()
@@ -98,6 +99,7 @@ struct AppGate: View {
             if phase == .active {
                 Task { await auth.refresh() }
                 SmartDownloads.shared.runIfDue()
+                ReleaseActivity.resume()
             }
             if phase == .background {
                 PlayerManager.shared.saveSession(force: true)

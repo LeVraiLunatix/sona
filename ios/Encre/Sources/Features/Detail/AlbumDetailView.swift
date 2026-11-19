@@ -18,6 +18,8 @@ struct AlbumDetailView: View {
     @State private var motionURL: URL?
     @State private var reminded = false
     @State private var remindDenied = false
+    @State private var showsLock = false
+    @State private var lockDenied = false
     @State private var scrollY: CGFloat = 0
     @State private var coverHeight: CGFloat = 420
     @EnvironmentObject private var player: PlayerManager
@@ -116,6 +118,11 @@ struct AlbumDetailView: View {
         } message: {
             Text("Autorise les notifications de Sona dans Réglages pour être prévenu à la sortie de l'album.")
         }
+        .alert("Activités en direct désactivées", isPresented: $lockDenied) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Autorise les activités en direct de Sona dans Réglages pour voir le compte à rebours sur l'écran verrouillé.")
+        }
         .searchable(text: $find, prompt: isPlaylist ? "Rechercher dans cette playlist" : "Rechercher dans cet album")
         // Un bouton dans la barre plutôt qu'un champ au-dessus de la pochette.
         .searchToolbarBehavior(.minimize)
@@ -150,7 +157,7 @@ struct AlbumDetailView: View {
                 .aspectRatio(1 / 1.12, contentMode: .fit)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { coverHeight = $0 }
                 .overlay { immersiveCover(album) }
-            if let moment = album.releaseMoment { upcomingBlock(moment) }
+            if let moment = album.releaseMoment { upcomingBlock(album, moment) }
             actionRow(album)
         }
         .padding(.bottom, 20)
@@ -238,7 +245,7 @@ struct AlbumDetailView: View {
 
     /// Album annoncé : le jour de sortie et le compte à rebours. À zéro, la page
     /// se recharge (les titres se dégrisent).
-    private func upcomingBlock(_ moment: Date) -> some View {
+    private func upcomingBlock(_ album: Album, _ moment: Date) -> some View {
         VStack(spacing: 14) {
             Label("Sortie le \(ReleaseClock.dayLabel(moment).lowercased())", systemImage: "calendar")
                 .font(.system(size: 15, weight: .semibold))
@@ -249,9 +256,46 @@ struct AlbumDetailView: View {
                     await load()
                 }
             }
+            lockScreenRow(album, moment)
         }
         .padding(.horizontal, 20)
         .reveal(1)
+    }
+
+    /// Compte à rebours sur l'écran verrouillé et la Dynamic Island. iOS limite ces
+    /// activités à 8 h : le bouton apparaît dans les 7 h 30 avant la sortie ; avant,
+    /// un rappel programmé le lance tout seul à l'ouverture de l'app.
+    @ViewBuilder
+    private func lockScreenRow(_ album: Album, _ moment: Date) -> some View {
+        if ReleaseActivity.canShow(moment) {
+            Button { toggleLockScreen(album) } label: {
+                Label(
+                    showsLock ? "Retirer de l'écran verrouillé" : "Afficher sur l'écran verrouillé",
+                    systemImage: showsLock ? "lock.slash" : "lock.iphone"
+                )
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Tone.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Capsule(style: .continuous).fill(Color.white.opacity(0.14)))
+            }
+            .buttonStyle(.pressable)
+        } else if reminded {
+            Text("Le compteur s'affichera sur l'écran verrouillé 7 h 30 avant la sortie.")
+                .font(Typo.rowSubtitle)
+                .foregroundStyle(Tone.tertiary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private func toggleLockScreen(_ album: Album) {
+        if showsLock {
+            ReleaseActivity.stop(album)
+            showsLock = false
+        } else {
+            showsLock = ReleaseActivity.start(album)
+            lockDenied = !showsLock
+        }
     }
 
     private func actionRow(_ album: Album) -> some View {
@@ -284,9 +328,11 @@ struct AlbumDetailView: View {
         if reminded {
             NotificationManager.shared.cancelReminder(for: album)
             reminded = false
+            showsLock = false
         } else {
             reminded = await NotificationManager.shared.remindRelease(of: album)
             remindDenied = !reminded
+            showsLock = ReleaseActivity.isShowing(album)
         }
     }
 
@@ -378,7 +424,10 @@ struct AlbumDetailView: View {
                 loaded = try await APIClient.shared.album(source: source, id: id)
             }
             withAnimation(Motion.smooth) { album = loaded }
-            if loaded.releaseMoment != nil { reminded = await NotificationManager.shared.hasReminder(for: loaded) }
+            if loaded.releaseMoment != nil {
+                reminded = await NotificationManager.shared.hasReminder(for: loaded)
+                showsLock = ReleaseActivity.isShowing(loaded)
+            }
             palette = await ArtworkPalette.colors(for: loaded.coverURL)
             if !isPlaylist {
                 Task { motionURL = await MotionStore.albumURL(source: source, id: id) }

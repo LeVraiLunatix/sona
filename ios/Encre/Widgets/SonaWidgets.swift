@@ -4,7 +4,8 @@ import SwiftUI
 import WidgetKit
 
 /// Widgets de Sona : raccourcis (écran d'accueil), accès rapide (écran
-/// verrouillé), Live Activities de l'écoute ensemble et des paroles.
+/// verrouillé), Live Activities de l'écoute ensemble, des paroles et du
+/// compte à rebours d'une sortie d'album.
 ///
 /// Les widgets n'affichent pas le titre en cours : il faudrait partager des
 /// données avec l'app (« App Group »), ce que l'installation sans compte
@@ -21,6 +22,7 @@ struct SonaWidgetBundle: WidgetBundle {
         RemoteNextControl()
         PartyLiveActivity()
         LyricsLiveActivity()
+        ReleaseLiveActivity()
     }
 }
 
@@ -470,6 +472,105 @@ private struct LyricsLockScreenView: View {
                     EmptyView()
                 }
                 .tint(.white)
+            }
+        }
+        .padding(16)
+    }
+}
+
+
+// MARK: - Live Activity : sortie d'un album
+
+private let releaseAccent = Color(red: 1, green: 0.62, blue: 0.35)
+
+private func releaseURL(_ attributes: ReleaseActivityAttributes) -> URL? {
+    URL(string: "encre://album?source=\(attributes.source)&id=\(attributes.albumID)")
+}
+
+/// Décompte dessiné par le système : il avance seul, app fermée.
+private struct ReleaseTimer: View {
+    let end: Date
+
+    var body: some View {
+        Text(timerInterval: Date.now...max(Date.now, end), countsDown: true, showsHours: true)
+            .monospacedDigit()
+    }
+}
+
+struct ReleaseLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: ReleaseActivityAttributes.self) { context in
+            ReleaseLockScreenView(attributes: context.attributes, released: context.isStale)
+                .activityBackgroundTint(Color(red: 0.16, green: 0.06, blue: 0.04))
+                .activitySystemActionForegroundColor(.white)
+                .widgetURL(releaseURL(context.attributes))
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    LogoShape().fill(releaseAccent).frame(width: 22, height: 22).padding(.leading, 4)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Image(systemName: context.isStale ? "flame.fill" : "clock.fill")
+                        .foregroundStyle(releaseAccent).padding(.trailing, 4)
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    Text("\(context.attributes.title) · \(context.attributes.artist)")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    Group {
+                        if context.isStale {
+                            Text("Il est sorti 🔥").font(.system(size: 22, weight: .heavy))
+                        } else {
+                            ReleaseTimer(end: context.attributes.releaseAt)
+                                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                }
+            } compactLeading: {
+                Image(systemName: context.isStale ? "flame.fill" : "clock.fill").foregroundStyle(releaseAccent)
+            } compactTrailing: {
+                if context.isStale {
+                    Text("Sorti").font(.system(size: 12, weight: .bold))
+                } else {
+                    ReleaseTimer(end: context.attributes.releaseAt)
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 56)
+                }
+            } minimal: {
+                Image(systemName: context.isStale ? "flame.fill" : "clock.fill").foregroundStyle(releaseAccent)
+            }
+            .widgetURL(releaseURL(context.attributes))
+        }
+    }
+}
+
+private struct ReleaseLockScreenView: View {
+    let attributes: ReleaseActivityAttributes
+    let released: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                LogoShape().fill(.white).frame(width: 18, height: 18)
+                Text(released ? "Vient de sortir" : "Sortie dans")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
+                Spacer()
+                Image(systemName: released ? "flame.fill" : "clock.fill").font(.system(size: 13)).foregroundStyle(releaseAccent)
+            }
+            if released {
+                Text("« \(attributes.title) » est sorti 🔥")
+                    .font(.system(size: 22, weight: .heavy)).foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.75)
+                Text("Touche pour l'écouter").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white.opacity(0.6))
+            } else {
+                ReleaseTimer(end: attributes.releaseAt)
+                    .font(.system(size: 44, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(attributes.title) · \(attributes.artist)")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
             }
         }
         .padding(16)
