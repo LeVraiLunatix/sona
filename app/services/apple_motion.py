@@ -179,12 +179,19 @@ def pick_artist(results: list[dict], name: str) -> str | None:
     return None
 
 
+# Compilation (bande originale…) : Apple l'attribue à un « artiste » générique,
+# alors que Deezer l'attribue à la franchise ; seul le titre peut alors servir.
+_VARIOUS = {_key(n) for n in ("Various Artists", "Multi-interprètes", "Artistes divers", "Varios artistas", "Verschiedene Interpreten")}
+
+
 def find_album(results: list[dict], title: str, artist: str) -> dict | None:
     """Résultat de recherche dont le titre (édition mise à part) et l'artiste sont les bons."""
     wanted_title, wanted_artist = _album_key(title), _key(artist)
     for item in results:
         attrs = item.get("attributes") or {}
-        if _album_key(attrs.get("name") or "") == wanted_title and wanted_artist in _key(attrs.get("artistName") or ""):
+        if _album_key(attrs.get("name") or "") == wanted_title and (
+            wanted_artist in _key(attrs.get("artistName") or "") or _key(attrs.get("artistName") or "") in _VARIOUS
+        ):
             return item
     return None
 

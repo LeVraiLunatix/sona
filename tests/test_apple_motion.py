@@ -171,3 +171,10 @@ def test_pick_variant_takes_the_lightest_h264_that_is_sharp_enough():
 def test_mp4_for_refuses_foreign_urls(tmp_path):
     assert asyncio.run(apple_motion.mp4_for("https://exemple.org/x.m3u8", tmp_path, "ffmpeg")) is None
     assert asyncio.run(apple_motion.mp4_for("http://mvod.itunes.apple.com/x.m3u8", tmp_path, "ffmpeg")) is None
+
+
+def test_pick_album_accepts_a_compilation_credited_to_various_artists():
+    """Bande originale : Deezer la crédite à la franchise, Apple à « Multi-interprètes »."""
+    results = [{"id": "5", "attributes": {"name": "Grand Theft Auto VI: The Album", "artistName": "Multi-interprètes"}}]
+    assert apple_motion.pick_album(results, "Grand Theft Auto VI: The Album", "Grand Theft Auto VI") == "5"
+    assert apple_motion.pick_album(results, "Un autre album", "Grand Theft Auto VI") is None

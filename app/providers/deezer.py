@@ -187,8 +187,15 @@ class DeezerClient:
 
     async def get_album(self, album_id: str) -> AlbumInfo:
         data = await self._get(f"/album/{album_id}")
+        embedded = (data.get("tracks") or {}).get("data", [])
+        # /album/<id> n'imbrique que 25 titres : au-delà, la liste complète est ailleurs.
+        if len(embedded) < (data.get("nb_tracks") or 0):
+            try:
+                embedded = (await self._get(f"/album/{album_id}/tracks", {"limit": 500})).get("data") or embedded
+            except DeezerError:
+                pass
         tracks = []
-        for t in (data.get("tracks") or {}).get("data", []):
+        for t in embedded:
             # Les morceaux imbriqués dans /album/<id> n'ont pas d'objet album complet.
             merged = dict(t)
             merged["album"] = {
