@@ -133,3 +133,38 @@ def test_split_upcoming_orders_soonest_first():
     ahead, released = upcoming.split_upcoming([far, past, near])
     assert [a.title for a in ahead] == ["Proche", "Loin"]
     assert [a.title for a in released] == ["Passé"]
+
+
+def test_upcoming_releases_of_favourite_artists_soonest_first(monkeypatch):
+    from app.services import releases
+
+    async def favourites(deps, user_id, count=15):
+        return [("A", "1"), ("B", "2")]
+
+    class FakeDeezer:
+        async def get_artist_albums(self, artist_id, name):
+            if artist_id == "1":
+                return [album("2999-12-05", title="Loin"), album("2020-01-01", title="Passé")], []
+            return [], [album("2998-01-01", title="Proche")]
+
+    async def preview(title, artist, with_tracks=False):
+        return {"cover_url": "https://apple/c.jpg", "release_date": None, "tracks": []}
+
+    class Deps:
+        deezer = FakeDeezer()
+
+    monkeypatch.setattr(releases, "favourite_artists", favourites)
+    monkeypatch.setattr(apple_motion, "album_preview", preview)
+    # `album()` donne le même identifiant aux trois : on les distingue.
+    original = FakeDeezer.get_artist_albums
+
+    async def distinct(self, artist_id, name):
+        albums, singles = await original(self, artist_id, name)
+        for index, a in enumerate(albums + singles):
+            a.source_id = f"{artist_id}-{index}"
+        return albums, singles
+
+    monkeypatch.setattr(FakeDeezer, "get_artist_albums", distinct)
+    found = asyncio.run(releases.upcoming_releases(Deps(), 1))
+    assert [a.title for a in found] == ["Proche", "Loin"]
+    assert all(a.cover_url == "https://apple/c.jpg" or a.cover_url for a in found)

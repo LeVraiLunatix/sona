@@ -267,6 +267,36 @@ struct AlbumTile: View {
     }
 }
 
+/// Album annoncé (accueil) : la pochette avec son compte à rebours posé dessus.
+struct UpcomingAlbumTile: View {
+    let album: Album
+    let moment: Date
+    var size: CGFloat = 150
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Artwork(url: album.coverURL, cornerRadius: 10, symbol: "square.stack")
+                    .frame(width: size, height: size)
+                    .overlay(alignment: .bottomLeading) {
+                        CountdownChip(target: moment)
+                            .background(Capsule().fill(.black.opacity(0.55)))
+                            .padding(8)
+                    }
+                    .zoomSource(.album(source: album.source, id: album.sourceId))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(album.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                    Text([album.artist, ReleaseClock.dayLabel(moment)].joined(separator: " · "))
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                }
+            }
+            .frame(width: size, alignment: .leading)
+        }
+        .buttonStyle(.pressable)
+    }
+}
+
 /// Portrait circulaire d'artiste.
 struct ArtistBubble: View {
     let name: String

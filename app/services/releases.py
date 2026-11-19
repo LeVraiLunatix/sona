@@ -8,8 +8,9 @@ import logging
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 
+from app.providers.base import AlbumInfo
 from app.providers.deezer import DeezerError
-from app.services import artist_photos
+from app.services import artist_photos, upcoming
 from app.services import stats as stats_service
 
 logger = logging.getLogger(__name__)
@@ -60,3 +61,29 @@ async def recent_releases(deps, user_id: int, today: date | None = None) -> list
     found = [r for group in await asyncio.gather(*(of(n, i) for n, i in artists)) for r in group]
     unique = {r["source_id"]: r for r in found}
     return sorted(unique.values(), key=lambda r: r["release_date"], reverse=True)
+
+
+UPCOMING_LIMIT = 12
+
+
+async def upcoming_releases(deps, user_id: int, limit: int = UPCOMING_LIMIT) -> list[AlbumInfo]:
+    """Sorties annoncées (pas encore parues) chez tes artistes les plus écoutés,
+    de la plus proche à la plus lointaine. Pochette manquante : Apple Music."""
+    artists = await favourite_artists(deps, user_id)
+    semaphore = asyncio.Semaphore(4)
+
+    async def of(name: str, artist_id: str) -> list[AlbumInfo]:
+        async with semaphore:
+            try:
+                albums, singles = await deps.deezer.get_artist_albums(artist_id, name)
+            except DeezerError as exc:
+                logger.info("Sorties annoncées de %s indisponibles : %s", name, exc)
+                return []
+        return [a for a in albums + singles if upcoming.is_upcoming(a.release_date)]
+
+    found = [a for group in await asyncio.gather(*(of(n, i) for n, i in artists)) for a in group]
+    unique = list({a.uid: a for a in found}.values())
+    ahead, _ = upcoming.split_upcoming(unique)
+    ahead = ahead[:limit]
+    await upcoming.enrich_albums(ahead)
+    return ahead
