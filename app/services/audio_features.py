@@ -192,9 +192,10 @@ def detect_key(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Key | Non
     usable = (freqs >= 80) & (freqs <= 1000)
     # Note (0 = do) de chaque case de fréquence.
     pitch = np.round(12 * np.log2(freqs[usable] / 440.0) + 9).astype(int) % 12
-    # Racine carrée : la compression logarithmique aplatit trop (les notes de
-    # l'accord ne ressortent plus de leurs harmoniques).
-    magnitude = np.sqrt(mag[:, usable])
+    # Magnitude brute : toute compression (racine, log) aplatit le profil et
+    # fait gagner le majeur à tort (mesuré sur 15 titres de référence : 11 bonnes
+    # tonalités contre 8 avec la racine carrée, et ce quelle que soit la bande).
+    magnitude = mag[:, usable]
     chroma = np.zeros((len(mag), 12))
     for note in range(12):
         chroma[:, note] = magnitude[:, pitch == note].sum(axis=1)
