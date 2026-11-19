@@ -159,15 +159,14 @@ async def get_artist_albums(
 ) -> dict[str, list[Album]]:
     """Albums et singles, du plus récent au plus ancien, une seule édition de
     chaque ; les éditions écartées (deluxe, remasterisé…) vont dans
-    `other_versions`. Les sorties annoncées (pas encore parues) sont à part,
-    dans `upcoming`, de la plus proche à la plus lointaine."""
+    `other_versions`. Les sorties annoncées (pas encore parues) restent dans ces
+    listes (une app plus ancienne ne connaît pas la clé `upcoming` : elle les
+    perdrait) et sont en plus rappelées dans `upcoming`, de la plus proche à la
+    plus lointaine — l'app récente les montre à part, avec leur compte à rebours."""
     albums, singles = await _handle(lookup.get_artist_albums(deps, source, source_id))
-    ahead, released = upcoming.split_upcoming(albums + singles)
-    keep = {id(a) for a in released}
-    albums = [a for a in albums if id(a) in keep]
-    singles = [a for a in singles if id(a) in keep]
+    ahead, _ = upcoming.split_upcoming(albums + singles)
     # Pochettes manquantes (annoncé, ou jamais fournie) : Apple Music en secours.
-    bare = [a for a in albums + singles if not a.cover_url]
+    bare = [a for a in albums + singles if not a.cover_url and all(a is not x for x in ahead)]
     await upcoming.enrich_albums(ahead + bare[:upcoming.MAX_COVER_LOOKUPS])
     main_albums, other_albums = album_versions.split_versions(albums)
     main_singles, other_singles = album_versions.split_versions(singles)

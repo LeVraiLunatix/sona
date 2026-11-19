@@ -433,10 +433,13 @@ struct ArtistDetailView: View {
                 if colors.count > 2 { tint = colors[2] }
                 artist = loaded
                 topTracks = top
+                // Les sorties annoncées sont aussi dans les listes (compatibilité) : on les
+                // montre dans « À venir » seulement.
                 upcoming = albumSet?.upcoming ?? []
-                albums = albumSet?.albums ?? []
-                singles = albumSet?.singles ?? []
-                otherVersions = albumSet?.otherVersions ?? []
+                let ahead = Set(upcoming.map(\.id))
+                albums = (albumSet?.albums ?? []).filter { !ahead.contains($0.id) }
+                singles = (albumSet?.singles ?? []).filter { !ahead.contains($0.id) }
+                otherVersions = (albumSet?.otherVersions ?? []).filter { !ahead.contains($0.id) }
             }
         } catch {
             errorMessage = error.localizedDescription
