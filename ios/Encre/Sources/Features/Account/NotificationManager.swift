@@ -141,6 +141,9 @@ final class NotificationManager: NSObject, ObservableObject {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
         do {
             try await center.add(UNNotificationRequest(identifier: reminderID(album), content: content, trigger: trigger))
+            // Gardé aussi pour le compte à rebours de l'écran verrouillé (7 h 30 avant la sortie).
+            ReleaseActivity.remember(album)
+            ReleaseActivity.resume()
             return true
         } catch {
             return false
@@ -149,6 +152,7 @@ final class NotificationManager: NSObject, ObservableObject {
 
     func cancelReminder(for album: Album) {
         center.removePendingNotificationRequests(withIdentifiers: [reminderID(album)])
+        ReleaseActivity.forget(album)
     }
 
     // MARK: Amis

@@ -162,3 +162,34 @@ def test_prune_cache_removes_least_recently_used(tmp_path):
     assert stream.prune_cache(tmp_path, max_bytes=200, keep=current) == 1
     assert not old.exists() and recent.exists() and current.exists()
     assert stream.prune_cache(tmp_path, max_bytes=1000) == 0
+
+
+def test_stream_asks_for_a_fresh_address_when_the_relay_url_expired(client, tmp_path, monkeypatch):
+    """Reprise après une longue pause : l'adresse du flux a expiré, on en prend
+    une neuve au lieu de lancer un téléchargement complet."""
+    downloads = []
+    addresses = iter(["https://rr1.googlevideo.test/old", "https://rr1.googlevideo.test/new"])
+
+    async def fake_download(deps, source, source_id, quality, fmt):
+        downloads.append(source_id)
+        raise HTTPException(404, "ne doit pas être appelé")
+
+    async def live(deps, source, source_id, key):
+        known, cached = stream._live.get(key)
+        if known:
+            return cached
+        found = LiveSource(url=next(addresses), headers={})
+        stream._live.put(key, found)
+        return found
+
+    def upstream(request):
+        if request.url.path.endswith("/old"):
+            return httpx.Response(403)
+        return httpx.Response(206, content=b"AUDI", headers={"Content-Range": "bytes 10-13/1000", "Content-Length": "4"})
+
+    monkeypatch.setattr(stream, "_resolve_and_download", fake_download)
+    monkeypatch.setattr(stream, "_live_source", live)
+    monkeypatch.setattr(stream, "_proxy_client", httpx.AsyncClient(transport=httpx.MockTransport(upstream)))
+
+    got = client.get("/stream/deezer/7", headers={**AUTH, "Range": "bytes=10-13"})
+    assert got.status_code == 206 and got.content == b"AUDI"

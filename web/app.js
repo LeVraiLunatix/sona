@@ -2772,6 +2772,8 @@ function playAt(index, { position = 0 } = {}) {
   const t = state.queue[index];
   if (!t) { audio.pause(); return; }
   state.index = index;
+  audioRetry.count = 0;
+  audioRetry.pausedAt = 0;
   Object.assign(state, { listened: 0, lastTick: 0, scrobbled: false, lyrics: null, lastLyric: -1, startedAt: new Date().toISOString() });
   state.connect.claim = true;
   const seekTo = () => {
@@ -2845,6 +2847,31 @@ function prev() {
   else playAt(state.index - 1);
 }
 
+/** Pause assez longue pour que la connexion au flux soit morte (le serveur a pu
+    renouveler l'adresse du titre entre-temps). */
+const STALE_PAUSE_MS = 3 * 60 * 1000;
+const audioRetry = { count: 0, pausedAt: 0 };
+
+/** Recharge le titre en cours au même endroit (nouvelle connexion au serveur). */
+function reloadAudio(position, play) {
+  const t = state.queue[state.index];
+  if (!t || !audio.src || isSilence() || audio.src.startsWith("blob:")) return false;
+  audio.addEventListener("loadedmetadata", () => { if (position > 1) audio.currentTime = position; }, { once: true });
+  audio.src = streamUrl(t);
+  if (play) audio.play().catch(() => {});
+  return true;
+}
+
+/** Lecture après une pause : si elle a duré, on repart d'une connexion neuve
+    plutôt que d'attendre l'erreur « titre introuvable » d'un flux périmé. */
+function resumePlayback() {
+  const stale = audioRetry.pausedAt && Date.now() - audioRetry.pausedAt > STALE_PAUSE_MS && audio.currentTime > 1;
+  if (stale && reloadAudio(audio.currentTime, true)) return;
+  audio.play().catch(() => {});
+}
+audio.addEventListener("pause", () => { audioRetry.pausedAt = Date.now(); });
+audio.addEventListener("playing", () => { audioRetry.count = 0; audioRetry.pausedAt = 0; });
+
 function toggle() {
   if (partyIntercept("toggle")) return;
   const remote = remoteDevice();
@@ -2852,7 +2879,7 @@ function toggle() {
   // rapprochés ne s'annulent pas.
   if (remote) return sendCommand(remote.id, deviceNow(remote).paused ? "play" : "pause");
   if (!audio.src) return state.connect.session ? resumeHere() : null;
-  if (audio.paused) { state.connect.claim = true; audio.play(); } else audio.pause();
+  if (audio.paused) { state.connect.claim = true; resumePlayback(); } else audio.pause();
 }
 
 async function toggleLike(t, button) {
@@ -5542,17 +5569,29 @@ function startConnect() {
 /** Lecture demandée à distance : le navigateur peut la bloquer tant que la
     page n'a pas été touchée — un clic n'importe où la lance alors. */
 function remotePlay() {
-  audio.play().catch(() => {
+  audio.play().catch((e) => {
+    // Seul le refus du navigateur (pas de geste sur la page) mérite ce message :
+    // un titre qui change pendant le démarrage (AbortError) ou un flux qui ne
+    // se charge pas (NotSupportedError, traité par l'événement « error ») ne
+    // demandent rien à l'utilisateur.
+    if (e?.name !== "NotAllowedError") return;
     toast(isMobile() ? "Touche l'écran pour lancer la lecture" : "Clique sur la page Sona pour autoriser la lecture à distance");
     document.addEventListener("click", () => audio.play().catch(() => {}), { once: true });
   });
 }
 
+/** Commande « lecture » d'un autre appareil : même reprise rafraîchie qu'un clic ici. */
+function remotePlayResume() {
+  const stale = audioRetry.pausedAt && Date.now() - audioRetry.pausedAt > STALE_PAUSE_MS && audio.currentTime > 1;
+  if (stale && reloadAudio(audio.currentTime, false)) return remotePlay();
+  remotePlay();
+}
+
 function runCommand(c) {
   switch (c.action) {
-    case "play": if (audio.src) remotePlay(); break;
+    case "play": if (audio.src) remotePlayResume(); break;
     case "pause": if (!audio.paused) { audio.pause(); if (c.from) toast(`Lecture passée sur ${c.from}`); } break;
-    case "toggle": if (audio.src) (audio.paused ? remotePlay() : audio.pause()); break;
+    case "toggle": if (audio.src) (audio.paused ? remotePlayResume() : audio.pause()); break;
     case "next": next(); break;
     case "previous": prev(); break;
     case "seek": if (c.position != null) audio.currentTime = c.position; break;
@@ -7743,6 +7782,18 @@ async function explainPlaybackError(src) {
 
 audio.addEventListener("error", async () => {
   if (!audio.src || isSilence()) return;
+  // Flux coupé (longue pause, adresse renouvelée, coupure passagère) : on recharge
+  // le titre au même endroit, deux fois au plus, avant d'afficher une erreur ou
+  // de passer au suivant.
+  const current = state.queue[state.index];
+  if (current && !partyGuest() && !audio.src.startsWith("blob:") && audioRetry.count < 2) {
+    audioRetry.count++;
+    const at = audio.currentTime, playing = !audio.paused;
+    await new Promise((r) => setTimeout(r, 600 * audioRetry.count));
+    if (state.queue[state.index] !== current) return; // le titre a changé entre-temps
+    reloadAudio(at, playing);
+    return;
+  }
   const reason = await explainPlaybackError(audio.src);
   if (partyGuest()) return toast(`${reason} — l'hôte continue`);
   toast(`${reason} — passage au suivant`);
@@ -7777,7 +7828,7 @@ audio.addEventListener("timeupdate", () => {
 
 if ("mediaSession" in navigator) {
   const handlers = {
-    play: () => (partyGuest() ? party.localPause && partyToggleLocal() : audio.play()),
+    play: () => (partyGuest() ? party.localPause && partyToggleLocal() : resumePlayback()),
     pause: () => (partyGuest() ? !party.localPause && partyToggleLocal() : audio.pause()),
     nexttrack: () => next(), previoustrack: () => prev(),
     seekto: (d) => { audio.currentTime = d.seekTime; },
