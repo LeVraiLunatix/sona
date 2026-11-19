@@ -252,3 +252,22 @@ def test_artist_bio_endpoint(client, monkeypatch):
     client.app_state.deps.deezer.get_artist = get_artist
     monkeypatch.setattr(artist_bio, "get_bio", get_bio)
     assert client.get("/artists/deezer/9/bio", headers=AUTH).json()["text"] == "Bio de Favé"
+
+
+def test_deezer_album_beyond_25_tracks_reads_the_full_list():
+    """/album/<id> n'imbrique que 25 titres : le reste vient de /album/<id>/tracks."""
+    full = [{"id": i, "title": f"T{i}", "artist": {"id": 3, "name": "Artiste"}} for i in range(1, 35)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/album/9":
+            return httpx.Response(200, json={
+                "id": 9, "title": "Long", "artist": {"id": 3, "name": "Artiste"}, "nb_tracks": 34,
+                "tracks": {"data": full[:25]},
+            })
+        if path == "/album/9/tracks":
+            return httpx.Response(200, json={"data": full, "total": 34})
+        return httpx.Response(200, json={"error": {"type": "DataException", "message": "no data", "code": 800}})
+
+    client = DeezerClient(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert len(asyncio.run(client.get_album("9")).tracks) == 34
