@@ -179,13 +179,27 @@ def pick_artist(results: list[dict], name: str) -> str | None:
     return None
 
 
-def pick_album(results: list[dict], title: str, artist: str) -> str | None:
+def find_album(results: list[dict], title: str, artist: str) -> dict | None:
+    """Résultat de recherche dont le titre (édition mise à part) et l'artiste sont les bons."""
     wanted_title, wanted_artist = _album_key(title), _key(artist)
     for item in results:
         attrs = item.get("attributes") or {}
         if _album_key(attrs.get("name") or "") == wanted_title and wanted_artist in _key(attrs.get("artistName") or ""):
-            return item.get("id")
+            return item
     return None
+
+
+def pick_album(results: list[dict], title: str, artist: str) -> str | None:
+    item = find_album(results, title, artist)
+    return item.get("id") if item else None
+
+
+def artwork_url(artwork: dict | None, size: int = 1000) -> str | None:
+    """Adresse de la pochette (`…/{w}x{h}bb.{f}`) en `size` px."""
+    url = (artwork or {}).get("url")
+    if not isinstance(url, str) or not url.startswith("https://"):
+        return None
+    return url.replace("{w}", str(size)).replace("{h}", str(size)).replace("{c}", "bb").replace("{f}", "jpg")
 
 
 async def _cached(key: str, fetch) -> dict | None:
@@ -237,6 +251,41 @@ async def album_motion(title: str, artist: str) -> dict | None:
         return {"tall": tall, "square": square} if tall or square else None
 
     return await _cached(f"album:{_album_key(title)}:{_key(artist)}", fetch)
+
+
+async def album_preview(title: str, artist: str, with_tracks: bool = False) -> dict | None:
+    """Fiche Apple Music d'un album, y compris annoncé (pas encore sorti) :
+    `{"cover_url", "release_date", "tracks": [...]}`. Sert de secours quand la
+    source de l'app n'a ni pochette ni liste de titres pour un album annoncé.
+    Chaque titre : `{"id", "title", "artist", "duration", "track", "disc", "release_date", "isrc"}`."""
+
+    async def fetch() -> dict | None:
+        search = await _get("search", {"term": f"{title} {artist}", "types": "albums", "limit": 5})
+        item = find_album(((search.get("results") or {}).get("albums") or {}).get("data") or [], title, artist)
+        if not item:
+            return None
+        attrs = item.get("attributes") or {}
+        found = {
+            "cover_url": artwork_url(attrs.get("artwork")),
+            "release_date": (attrs.get("releaseDate") or "")[:10] or None,
+            "tracks": [],
+        }
+        if with_tracks:
+            data = (await _get(f"albums/{item['id']}", {"include": "tracks"}))["data"][0]
+            for song in (((data.get("relationships") or {}).get("tracks") or {}).get("data") or []):
+                a = song.get("attributes") or {}
+                if song.get("type", "songs") != "songs" or not a.get("name") or not song.get("id"):
+                    continue
+                millis = a.get("durationInMillis")
+                found["tracks"].append({
+                    "id": str(song["id"]), "title": a["name"], "artist": a.get("artistName") or artist,
+                    "duration": millis // 1000 if isinstance(millis, int) and millis > 0 else None,
+                    "track": a.get("trackNumber"), "disc": a.get("discNumber"),
+                    "release_date": (a.get("releaseDate") or "")[:10] or None, "isrc": a.get("isrc"),
+                })
+        return found
+
+    return await _cached(f"preview:{_album_key(title)}:{_key(artist)}:{int(with_tracks)}", fetch)
 
 
 # ── Fichier MP4 pour l'écran verrouillé ─────────────────────────────────────

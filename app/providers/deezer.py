@@ -54,7 +54,10 @@ def _year_from_date(date_str: str | None) -> str | None:
 def _largest_image(d: dict, prefix: str) -> str | None:
     """Plus grande version disponible (`_xl` = 1000 px). La 250 px (`_medium`)
     était pixelisée une fois affichée en grand dans Telegram."""
-    return d.get(f"{prefix}_xl") or d.get(f"{prefix}_big") or d.get(f"{prefix}_medium")
+    url = d.get(f"{prefix}_xl") or d.get(f"{prefix}_big") or d.get(f"{prefix}_medium")
+    # Album annoncé sans pochette : Deezer donne une adresse au hash vide
+    # (`/images/cover//1000x1000…`), qui n'affiche rien.
+    return None if url and f"/{prefix}//" in url else url
 
 
 def _contributors(d: dict) -> list[dict]:
@@ -93,6 +96,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         disc_number=d.get("disk_number") or None,
         track_number=d.get("track_position") or None,
         artists=_contributors(d),
+        release_date=d.get("release_date") or album.get("release_date") or None,
     )
 
 
@@ -231,6 +235,8 @@ class DeezerClient:
             track.artists = full.artists
             track.isrc = track.isrc or full.isrc
             track.bpm = track.bpm or full.bpm
+            # Un titre sorti avant son album (single) garde sa propre date.
+            track.release_date = full.release_date or track.release_date
 
         try:
             await asyncio.wait_for(asyncio.gather(*(one(t) for t in tracks)), ALBUM_DETAIL_BUDGET)

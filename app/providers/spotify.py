@@ -108,6 +108,7 @@ def _album_from_json(d: dict, tracks: list[TrackInfo] | None = None) -> AlbumInf
         track_count=d.get("total_tracks"),
         duration_seconds=sum((t.duration_seconds or 0) for t in tracks) if tracks else None,
         tracks=tracks or [],
+        release_date=d.get("release_date") if len(d.get("release_date") or "") == 10 else None,
     )
 
 

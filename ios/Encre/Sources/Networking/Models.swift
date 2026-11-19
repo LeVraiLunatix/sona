@@ -76,10 +76,15 @@ struct Track: Codable, Identifiable, Hashable {
     var versions: Int? = nil
     /// Identité sous laquelle un exclu est sorti (artiste à identités, ex. FEMTOGO).
     var persona: String? = nil
+    /// Pas encore sorti (album annoncé) : grisé et impossible à lire. `releaseDate` :
+    /// le jour de sa sortie (AAAA-MM-JJ). Absents = sorti.
+    var released: Bool? = nil
+    var releaseDate: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case source, title, artist, album, year, bpm, artists
-        case tag, exclusive, quality, lossless, versions, persona
+        case tag, exclusive, quality, lossless, versions, persona, released
+        case releaseDate = "release_date"
         case artistSource = "artist_source"
         case discNumber = "disc_number"
         case trackNumber = "track_number"
@@ -95,6 +100,7 @@ struct Track: Codable, Identifiable, Hashable {
     /// Source de la fiche artiste : celle du titre, sauf pour un exclu.
     var artistRouteSource: String { artistSource ?? source }
     var isExclusive: Bool { exclusive == true || source == "exclusive" }
+    var isReleased: Bool { released ?? true }
 
     var durationLabel: String {
         guard let s = durationSeconds else { return "--:--" }
@@ -376,17 +382,30 @@ struct Album: Codable, Identifiable, Hashable {
     var trackCount: Int?
     var durationSeconds: Int?
     var tracks: [Track]
+    /// Album annoncé : `releaseAt` est l'instant de sortie (ISO 8601, minuit à Paris),
+    /// pour le compte à rebours.
+    var releaseDate: String? = nil
+    var upcoming: Bool? = nil
+    var releaseAt: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case source, title, artist, year, tracks
+        case source, title, artist, year, tracks, upcoming
         case sourceId = "source_id"
         case artistSourceId = "artist_source_id"
         case coverURL = "cover_url"
         case trackCount = "track_count"
         case durationSeconds = "duration_seconds"
+        case releaseDate = "release_date"
+        case releaseAt = "release_at"
     }
 
     var id: String { "\(source):\(sourceId)" }
+
+    /// Instant de sortie tant qu'il est à venir ; `nil` une fois l'album sorti.
+    var releaseMoment: Date? {
+        guard upcoming == true, let date = releaseAt.flatMap(ReleaseClock.parse), date > Date() else { return nil }
+        return date
+    }
 }
 
 struct Artist: Codable, Identifiable, Hashable {
@@ -491,13 +510,15 @@ struct ResolvedLink: Codable {
 }
 
 struct ArtistAlbums: Codable {
+    /// Sorties annoncées, de la plus proche à la plus lointaine.
+    var upcoming: [Album]? = nil
     var albums: [Album]
     var singles: [Album]
     /// Éditions écartées des deux listes (deluxe, remasterisé…).
     var otherVersions: [Album]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case albums, singles
+        case upcoming, albums, singles
         case otherVersions = "other_versions"
     }
 }

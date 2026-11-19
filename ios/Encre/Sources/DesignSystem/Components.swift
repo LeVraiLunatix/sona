@@ -66,13 +66,25 @@ struct TrackRow: View {
                 }
                 Spacer(minLength: 8)
                 downloadBadge
-                Text(track.durationLabel)
-                    .font(Typo.mono)
-                    .foregroundStyle(Tone.tertiary)
+                if track.isReleased {
+                    Text(track.durationLabel)
+                        .font(Typo.mono)
+                        .foregroundStyle(Tone.tertiary)
+                } else {
+                    // Titre pas encore sorti : grisé, avec son jour de sortie.
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock").font(.system(size: 11, weight: .semibold))
+                        Text(ReleaseClock.shortLabel(isoDay: track.releaseDate) ?? "Bientôt")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Tone.secondary)
+                }
             }
             .padding(.vertical, 6)
         }
         .buttonStyle(.pressable(scale: 0.98))
+        // Pas encore sorti : estompé et sans effet (ni lecture, ni menu).
+        .opacity(track.isReleased ? 1 : 0.4)
         .sheet(isPresented: $showsCredits) { CreditsView(track: track) }
         .sheet(isPresented: $sharing) { SonaShareSheet(target: .track(track)) }
         .sheet(isPresented: $showsQuality) { ExclusiveQualitySheet(track: track) }
@@ -156,6 +168,8 @@ struct TrackRow: View {
                 Button(role: .destructive, action: onRemove) { Label("Retirer de la bibliothèque", systemImage: "trash") }
             }
         }
+        // En dernier, pour couper aussi le menu contextuel d'un titre pas encore sorti.
+        .allowsHitTesting(track.isReleased)
     }
 }
 
