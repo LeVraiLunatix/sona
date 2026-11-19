@@ -16,6 +16,8 @@ struct AlbumDetailView: View {
     @State private var versions: [Album] = []
     @State private var find = ""
     @State private var motionURL: URL?
+    @State private var reminded = false
+    @State private var remindDenied = false
     @State private var scrollY: CGFloat = 0
     @State private var coverHeight: CGFloat = 420
     @EnvironmentObject private var player: PlayerManager
@@ -64,17 +66,27 @@ struct AlbumDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if let album, !album.tracks.isEmpty {
+                    // Les titres pas encore sortis ne se lisent ni ne se téléchargent.
+                    let ready = album.tracks.filter(\.isReleased)
                     Menu {
-                        DownloadMenuItems(tracks: album.tracks)
-                        Button { player.playNext(album.tracks) } label: {
-                            Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
+                        if album.releaseMoment != nil {
+                            Button { Task { await toggleReminder(album) } } label: {
+                                Label(reminded ? "Annuler le rappel" : "Me rappeler la sortie",
+                                      systemImage: reminded ? "bell.slash" : "bell")
+                            }
                         }
-                        Button { player.playLater(album.tracks) } label: {
-                            Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
-                        }
-                        if let addToPlaylist {
-                            Button { addToPlaylist(album.tracks) } label: {
-                                Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
+                        if !ready.isEmpty {
+                            DownloadMenuItems(tracks: ready)
+                            Button { player.playNext(ready) } label: {
+                                Label("Lire ensuite", systemImage: "text.line.first.and.arrowtriangle.forward")
+                            }
+                            Button { player.playLater(ready) } label: {
+                                Label("Lire après", systemImage: "text.line.last.and.arrowtriangle.forward")
+                            }
+                            if let addToPlaylist {
+                                Button { addToPlaylist(ready) } label: {
+                                    Label("Ajouter à une playlist…", systemImage: "text.badge.plus")
+                                }
                             }
                         }
                         if !isPlaylist {
@@ -99,6 +111,11 @@ struct AlbumDetailView: View {
             }
         }
         .sheet(item: $shareTarget) { target in SonaShareSheet(target: target) }
+        .alert("Notifications désactivées", isPresented: $remindDenied) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Autorise les notifications de Sona dans Réglages pour être prévenu à la sortie de l'album.")
+        }
         .searchable(text: $find, prompt: isPlaylist ? "Rechercher dans cette playlist" : "Rechercher dans cet album")
         // Un bouton dans la barre plutôt qu'un champ au-dessus de la pochette.
         .searchToolbarBehavior(.minimize)
@@ -133,6 +150,7 @@ struct AlbumDetailView: View {
                 .aspectRatio(1 / 1.12, contentMode: .fit)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { coverHeight = $0 }
                 .overlay { immersiveCover(album) }
+            if let moment = album.releaseMoment { upcomingBlock(moment) }
             actionRow(album)
         }
         .padding(.bottom, 20)
@@ -214,22 +232,62 @@ struct AlbumDetailView: View {
             if let meta = metaLine(album) {
                 Text(meta).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
             }
-            DownloadStatusLine(tracks: album.tracks)
+            DownloadStatusLine(tracks: album.tracks.filter(\.isReleased))
         }
     }
 
-    private func actionRow(_ album: Album) -> some View {
-        HStack(spacing: 12) {
-            PillButton(title: "Lecture", systemImage: "play.fill") {
-                if let first = album.tracks.first { player.play(first, context: album.tracks, name: album.title) }
-            }
-            PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
-                player.playShuffled(album.tracks, name: album.title)
+    /// Album annoncé : le jour de sortie et le compte à rebours. À zéro, la page
+    /// se recharge (les titres se dégrisent).
+    private func upcomingBlock(_ moment: Date) -> some View {
+        VStack(spacing: 14) {
+            Label("Sortie le \(ReleaseClock.dayLabel(moment).lowercased())", systemImage: "calendar")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Tone.primary)
+            CountdownTiles(target: moment) {
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    await load()
+                }
             }
         }
         .padding(.horizontal, 20)
-        .disabled(album.tracks.isEmpty)
         .reveal(1)
+    }
+
+    private func actionRow(_ album: Album) -> some View {
+        let playable = album.tracks.filter(\.isReleased)
+        let waiting = album.releaseMoment != nil
+        return HStack(spacing: 12) {
+            if playable.isEmpty && waiting {
+                // Rien n'est encore sorti : « Lecture » n'aurait rien à lire.
+                PillButton(
+                    title: reminded ? "Rappel activé" : "Me rappeler la sortie",
+                    systemImage: reminded ? "bell.fill" : "bell"
+                ) {
+                    Task { await toggleReminder(album) }
+                }
+            } else {
+                PillButton(title: "Lecture", systemImage: "play.fill") {
+                    if let first = playable.first { player.play(first, context: playable, name: album.title) }
+                }
+                PillButton(title: "Aléatoire", systemImage: "shuffle", kind: .secondary) {
+                    player.playShuffled(playable, name: album.title)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .disabled(playable.isEmpty && !waiting)
+        .reveal(1)
+    }
+
+    private func toggleReminder(_ album: Album) async {
+        if reminded {
+            NotificationManager.shared.cancelReminder(for: album)
+            reminded = false
+        } else {
+            reminded = await NotificationManager.shared.remindRelease(of: album)
+            remindDenied = !reminded
+        }
     }
 
     /// Album en plusieurs disques : « Disque 1 », « Disque 2 »…
@@ -264,7 +322,7 @@ struct AlbumDetailView: View {
                     isPlaying: player.isPlaying,
                     onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } }
                 ) {
-                    player.play(track, context: list, name: album.title)
+                    player.play(track, context: list.filter(\.isReleased), name: album.title)
                 }
                 .padding(.vertical, 4)
                 if index < list.count - 1 {
@@ -298,7 +356,7 @@ struct AlbumDetailView: View {
     private func metaLine(_ album: Album) -> String? {
         let isAlbum = album.tracks.count > 1 || (album.trackCount ?? 0) > 1
         let kind = isPlaylist ? "Playlist" : (isAlbum ? "Album" : "Single")
-        let parts = [kind, album.year].compactMap { $0 }
+        let parts = [kind, album.year, album.releaseMoment == nil ? nil : "À venir"].compactMap { $0 }
         return parts.joined(separator: " · ")
     }
 
@@ -320,6 +378,7 @@ struct AlbumDetailView: View {
                 loaded = try await APIClient.shared.album(source: source, id: id)
             }
             withAnimation(Motion.smooth) { album = loaded }
+            if loaded.releaseMoment != nil { reminded = await NotificationManager.shared.hasReminder(for: loaded) }
             palette = await ArtworkPalette.colors(for: loaded.coverURL)
             if !isPlaylist {
                 Task { motionURL = await MotionStore.albumURL(source: source, id: id) }

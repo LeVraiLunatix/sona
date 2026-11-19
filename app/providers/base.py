@@ -33,6 +33,9 @@ class TrackInfo:
     # (résultats de recherche Deezer, par exemple) — `artist` reste alors
     # le seul nom connu.
     artists: list[dict] = field(default_factory=list)
+    # Date de sortie du titre (AAAA-MM-JJ) : plus tard qu'aujourd'hui, le titre
+    # n'est pas encore sorti (album annoncé, ou sorti en plusieurs temps).
+    release_date: str | None = None
 
     @property
     def uid(self) -> str:

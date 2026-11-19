@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from pydantic import BaseModel, Field
 
 from app.db.repository import HistoryItem, ImportItem, LibraryItem, Playlist, PlaylistEntry, UserSettings
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo
+from app.services.upcoming import release_moment, track_released
 
 
 class Track(BaseModel):
@@ -23,6 +26,10 @@ class Track(BaseModel):
     disc_number: int | None = None
     track_number: int | None = None
     artists: list[dict] = []
+    # Pas encore sorti (album annoncé) : l'app le grise. `release_date` : le jour
+    # où il sort (AAAA-MM-JJ), quand on le sait.
+    released: bool = True
+    release_date: str | None = None
 
     @classmethod
     def from_info(cls, t: TrackInfo) -> "Track":
@@ -41,6 +48,7 @@ class Track(BaseModel):
             disc_number=t.disc_number,
             track_number=t.track_number,
             artists=t.artists,
+            release_date=t.release_date,
         )
 
     def to_info(self) -> TrackInfo:
@@ -58,6 +66,7 @@ class Track(BaseModel):
             disc_number=self.disc_number,
             track_number=self.track_number,
             artists=self.artists,
+            release_date=self.release_date,
         )
 
 
@@ -72,9 +81,21 @@ class Album(BaseModel):
     track_count: int | None
     duration_seconds: int | None
     tracks: list[Track] = []
+    release_date: str | None = None
+    # Album annoncé : `upcoming`, et `release_at` (instant de sortie, ISO 8601
+    # avec fuseau) pour le compte à rebours de l'app.
+    upcoming: bool = False
+    release_at: str | None = None
 
     @classmethod
     def from_info(cls, a: AlbumInfo) -> "Album":
+        now = datetime.now(timezone.utc)
+        moment = release_moment(a.release_date)
+        upcoming = moment is not None and moment > now
+        tracks = [Track.from_info(t) for t in a.tracks]
+        if upcoming:
+            for source, track in zip(a.tracks, tracks):
+                track.released = track_released(source, a.release_date, now)
         return cls(
             source=a.source,
             source_id=a.source_id,
@@ -85,7 +106,10 @@ class Album(BaseModel):
             cover_url=a.cover_url,
             track_count=a.track_count,
             duration_seconds=a.duration_seconds,
-            tracks=[Track.from_info(t) for t in a.tracks],
+            tracks=tracks,
+            release_date=a.release_date,
+            upcoming=upcoming,
+            release_at=moment.isoformat() if upcoming and moment else None,
         )
 
 

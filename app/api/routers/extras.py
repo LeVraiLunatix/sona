@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_token
-from app.api.schemas import Track
+from app.api.schemas import Album, Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
@@ -85,6 +85,12 @@ async def smart_playlist(kind: str, tz: str | None = Query(None), deps: ApiDeps 
 async def new_releases(deps: ApiDeps = Depends(require_token)) -> list[dict]:
     """Sorties des 3 dernières semaines chez tes artistes les plus écoutés."""
     return await releases.recent_releases(deps, deps.user_id)
+
+
+@router.get("/releases/upcoming", response_model=list[Album])
+async def upcoming_releases(deps: ApiDeps = Depends(require_token)) -> list[Album]:
+    """Sorties annoncées chez tes artistes les plus écoutés, la plus proche d'abord."""
+    return [Album.from_info(a) for a in await releases.upcoming_releases(deps, deps.user_id)]
 
 
 @router.get("/memories")

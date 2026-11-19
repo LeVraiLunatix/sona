@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var startingRadioId: String?
     @State private var radioError: String?
     @State private var releases: [Release] = []
+    @State private var soon: [Album] = []
     @State private var memories: [Memory] = []
     @State private var daily: DailyTrack?
     @State private var mood: MoodMix?
@@ -54,6 +55,18 @@ struct HomeView: View {
                         }
                     }
                     .reveal(1)
+                }
+
+                if !soon.isEmpty {
+                    section("Bientôt", index: 1) {
+                        Carousel(items: soon) { album in
+                            if let moment = album.releaseMoment {
+                                UpcomingAlbumTile(album: album, moment: moment) {
+                                    path.append(Route.album(source: album.source, id: album.sourceId))
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if !releases.isEmpty {
@@ -177,6 +190,7 @@ struct HomeView: View {
 
     private func loadExtras() async {
         async let fresh = try? APIClient.shared.releases()
+        async let ahead = try? APIClient.shared.upcomingReleases()
         async let past = try? APIClient.shared.memories()
         async let pick = try? APIClient.shared.dailyTrack()
         // Dernière position connue (carte) : la météo du mix, sans redemander.
@@ -184,6 +198,7 @@ struct HomeView: View {
         async let moment = try? APIClient.shared.mood(latitude: place?.0, longitude: place?.1)
         async let special = try? APIClient.shared.exclusives()
         releases = await fresh ?? releases
+        soon = await ahead ?? soon
         memories = await past ?? memories
         daily = await pick ?? daily
         mood = await moment ?? mood

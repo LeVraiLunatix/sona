@@ -66,13 +66,25 @@ struct TrackRow: View {
                 }
                 Spacer(minLength: 8)
                 downloadBadge
-                Text(track.durationLabel)
-                    .font(Typo.mono)
-                    .foregroundStyle(Tone.tertiary)
+                if track.isReleased {
+                    Text(track.durationLabel)
+                        .font(Typo.mono)
+                        .foregroundStyle(Tone.tertiary)
+                } else {
+                    // Titre pas encore sorti : grisé, avec son jour de sortie.
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock").font(.system(size: 11, weight: .semibold))
+                        Text(ReleaseClock.shortLabel(isoDay: track.releaseDate) ?? "Bientôt")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Tone.secondary)
+                }
             }
             .padding(.vertical, 6)
         }
         .buttonStyle(.pressable(scale: 0.98))
+        // Pas encore sorti : estompé et sans effet (ni lecture, ni menu).
+        .opacity(track.isReleased ? 1 : 0.4)
         .sheet(isPresented: $showsCredits) { CreditsView(track: track) }
         .sheet(isPresented: $sharing) { SonaShareSheet(target: .track(track)) }
         .sheet(isPresented: $showsQuality) { ExclusiveQualitySheet(track: track) }
@@ -156,6 +168,8 @@ struct TrackRow: View {
                 Button(role: .destructive, action: onRemove) { Label("Retirer de la bibliothèque", systemImage: "trash") }
             }
         }
+        // En dernier, pour couper aussi le menu contextuel d'un titre pas encore sorti.
+        .allowsHitTesting(track.isReleased)
     }
 }
 
@@ -244,6 +258,36 @@ struct AlbumTile: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(album.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
                     Text([album.artist, album.year].compactMap { $0 }.joined(separator: " · "))
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                }
+            }
+            .frame(width: size, alignment: .leading)
+        }
+        .buttonStyle(.pressable)
+    }
+}
+
+/// Album annoncé (accueil) : la pochette avec son compte à rebours posé dessus.
+struct UpcomingAlbumTile: View {
+    let album: Album
+    let moment: Date
+    var size: CGFloat = 150
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Artwork(url: album.coverURL, cornerRadius: 10, symbol: "square.stack")
+                    .frame(width: size, height: size)
+                    .overlay(alignment: .bottomLeading) {
+                        CountdownChip(target: moment)
+                            .background(Capsule().fill(.black.opacity(0.55)))
+                            .padding(8)
+                    }
+                    .zoomSource(.album(source: album.source, id: album.sourceId))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(album.title).font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
+                    Text([album.artist, ReleaseClock.dayLabel(moment)].joined(separator: " · "))
                         .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
                 }
             }

@@ -283,6 +283,7 @@ class AppleMusicClient:
                 track_count=collection.get("trackCount"),
                 duration_seconds=sum((t.duration_seconds or 0) for t in tracks) or None,
                 tracks=tracks,
+                release_date=(collection.get("releaseDate") or "")[:10] or None,
             )
         first = tracks[0]
         return AlbumInfo(
@@ -331,6 +332,7 @@ class AppleMusicClient:
                 cover_url=_upsize_artwork(r.get("artworkUrl100")),
                 track_count=r.get("trackCount"),
                 duration_seconds=None,
+                release_date=(r.get("releaseDate") or "")[:10] or None,
             )
             track_count = r.get("trackCount") or 0
             if (r.get("collectionType") or "").lower() == "album" and track_count > 3:

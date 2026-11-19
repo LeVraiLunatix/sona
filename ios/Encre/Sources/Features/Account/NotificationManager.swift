@@ -112,6 +112,45 @@ final class NotificationManager: NSObject, ObservableObject {
         center.add(UNNotificationRequest(identifier: id.rawValue, content: content, trigger: trigger))
     }
 
+    // MARK: Sorties annoncées
+
+    private func reminderID(_ album: Album) -> String { "sona.release.\(album.id)" }
+
+    /// Un rappel est-il déjà prévu pour la sortie de cet album ?
+    func hasReminder(for album: Album) async -> Bool {
+        await center.pendingNotificationRequests().contains { $0.identifier == reminderID(album) }
+    }
+
+    /// Une notification à l'heure de sortie de l'album, qui l'ouvre. Renvoie
+    /// `false` si les notifications sont refusées ou si l'album est déjà sorti.
+    func remindRelease(of album: Album) async -> Bool {
+        guard let moment = album.releaseMoment else { return false }
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        }
+        let status = await center.notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional || status == .ephemeral else { return false }
+        let content = UNMutableNotificationContent()
+        content.title = "\(album.artist) : « \(album.title) » est sorti 🔥"
+        content.body = "L'album est disponible. Écoute-le maintenant."
+        content.sound = .default
+        content.userInfo = ["url": "encre://album?source=\(album.source)&id=\(album.sourceId)"]
+        // Quelques secondes après minuit : le temps que la sortie soit en ligne.
+        let delay = max(1, moment.timeIntervalSinceNow + 30)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+        do {
+            try await center.add(UNNotificationRequest(identifier: reminderID(album), content: content, trigger: trigger))
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func cancelReminder(for album: Album) {
+        center.removePendingNotificationRequests(withIdentifiers: [reminderID(album)])
+    }
+
     // MARK: Amis
 
     private func startPolling() {

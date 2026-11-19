@@ -650,6 +650,11 @@ final class APIClient {
         try await send(try request("/releases"))
     }
 
+    /// Sorties annoncées chez tes artistes, la plus proche d'abord.
+    func upcomingReleases() async throws -> [Album] {
+        try await send(try request("/releases/upcoming"))
+    }
+
     func memories() async throws -> [Memory] {
         try await send(try request("/memories", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)]))
     }

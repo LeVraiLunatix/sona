@@ -11,7 +11,7 @@ from app.api.routers.exclusives import track_for as exclusive_track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import album_versions, apple_motion, artist_bio, credits, djradio
+from app.services import album_versions, apple_motion, artist_bio, credits, djradio, upcoming
 
 router = APIRouter(tags=["catalog"])
 
@@ -65,6 +65,8 @@ async def get_track_credits(
 @router.get("/albums/{source}/{source_id}", response_model=Album)
 async def get_album(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> Album:
     album = await _handle(lookup.get_album(deps, source, source_id))
+    # Pochette (et titres, pour un album annoncé) qui manquent : Apple Music.
+    await upcoming.enrich_albums([album])
     await deps.repo.history_add(deps.user_id, album)
     return Album.from_info(album)
 
@@ -157,11 +159,20 @@ async def get_artist_albums(
 ) -> dict[str, list[Album]]:
     """Albums et singles, du plus récent au plus ancien, une seule édition de
     chaque ; les éditions écartées (deluxe, remasterisé…) vont dans
-    `other_versions`."""
+    `other_versions`. Les sorties annoncées (pas encore parues) sont à part,
+    dans `upcoming`, de la plus proche à la plus lointaine."""
     albums, singles = await _handle(lookup.get_artist_albums(deps, source, source_id))
+    ahead, released = upcoming.split_upcoming(albums + singles)
+    keep = {id(a) for a in released}
+    albums = [a for a in albums if id(a) in keep]
+    singles = [a for a in singles if id(a) in keep]
+    # Pochettes manquantes (annoncé, ou jamais fournie) : Apple Music en secours.
+    bare = [a for a in albums + singles if not a.cover_url]
+    await upcoming.enrich_albums(ahead + bare[:upcoming.MAX_COVER_LOOKUPS])
     main_albums, other_albums = album_versions.split_versions(albums)
     main_singles, other_singles = album_versions.split_versions(singles)
     return {
+        "upcoming": [Album.from_info(a) for a in ahead],
         "albums": [Album.from_info(a) for a in main_albums],
         "singles": [Album.from_info(a) for a in main_singles],
         "other_versions": [Album.from_info(a) for a in album_versions.newest_first(other_albums + other_singles)],

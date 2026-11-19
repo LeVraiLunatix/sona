@@ -11,6 +11,7 @@ struct ArtistDetailView: View {
     @State private var bio: ArtistBio?
     @State private var bioExpanded = false
     @State private var albums: [Album] = []
+    @State private var upcoming: [Album] = []
     @State private var singles: [Album] = []
     @State private var otherVersions: [Album] = []
     @State private var related: [Artist] = []
@@ -54,6 +55,7 @@ struct ArtistDetailView: View {
                         VStack(alignment: .leading, spacing: 34) {
                             actions(scrollToBio: { withAnimation(Motion.smooth) { proxy.scrollTo("bio", anchor: .top) } })
                                 .reveal(0)
+                            if !upcoming.isEmpty { upcomingSection.reveal(1) }
                             if let latest = latestRelease { latestCard(latest).reveal(1) }
                             if !exclusives.isEmpty { exclusivesSection.reveal(1) }
                             if !topTracks.isEmpty { popular.reveal(1) }
@@ -287,6 +289,42 @@ struct ArtistDetailView: View {
         .padding(.horizontal, 20)
     }
 
+    /// Sorties annoncées : la pochette, le jour et un compte à rebours, de la plus
+    /// proche à la plus lointaine. Un tap ouvre l'album (titres grisés).
+    private var upcomingSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "À venir").padding(.horizontal, 20)
+            ForEach(upcoming) { album in
+                if let moment = album.releaseMoment {
+                    upcomingCard(album, moment)
+                }
+            }
+        }
+    }
+
+    private func upcomingCard(_ album: Album, _ moment: Date) -> some View {
+        Button { path.append(Route.album(source: album.source, id: album.sourceId)) } label: {
+            HStack(spacing: 14) {
+                Artwork(url: album.coverURL, cornerRadius: 10, symbol: "square.stack")
+                    .frame(width: 76, height: 76)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Sortie \(ReleaseClock.dayLabel(moment).lowercased())")
+                        .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                    Text(album.title).font(Typo.headline).foregroundStyle(Tone.primary).lineLimit(2)
+                    CountdownChip(target: moment)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Tone.tertiary)
+            }
+            .padding(12)
+            .glassRounded(24)
+        }
+        .buttonStyle(.pressable)
+        .padding(.horizontal, 20)
+    }
+
     private var popular: some View {
         let visible = showsAllTracks ? topTracks : Array(topTracks.prefix(5))
         return VStack(alignment: .leading, spacing: 10) {
@@ -395,6 +433,7 @@ struct ArtistDetailView: View {
                 if colors.count > 2 { tint = colors[2] }
                 artist = loaded
                 topTracks = top
+                upcoming = albumSet?.upcoming ?? []
                 albums = albumSet?.albums ?? []
                 singles = albumSet?.singles ?? []
                 otherVersions = albumSet?.otherVersions ?? []
