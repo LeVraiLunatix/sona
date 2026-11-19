@@ -619,15 +619,23 @@ async def stream(
     # quelques secondes), fichier vérifié préparé en parallèle.
     key = _cache_key(source, source_id, format, quality)
     if live and format != "mp3":
-        direct = await _live_source(deps, source, source_id, key)
-        if direct is not None:
+        # Deux essais : reprise après une longue pause, l'adresse du flux a
+        # expiré (403) — on en demande une neuve avant de renoncer, au lieu de
+        # relancer un téléchargement complet (long, et qui peut échouer).
+        for attempt in (1, 2):
+            direct = await _live_source(deps, source, source_id, key)
+            if direct is None:
+                break
             _warm(deps, source, source_id, quality, format)
             try:
                 response = await _proxy(request, direct)
                 stream_health.record(True)
                 return response
             except _LiveFailed as exc:
-                logger.info("Relais direct de %s:%s interrompu (%s), repli sur le téléchargement", source, source_id, exc)
+                logger.info(
+                    "Relais direct de %s:%s interrompu (%s), %s", source, source_id, exc,
+                    "nouvelle adresse demandée" if attempt == 1 else "repli sur le téléchargement",
+                )
                 _live.drop(key)
 
     file_path, content_type = await ensure_file(deps, source, source_id, quality, format)
