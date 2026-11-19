@@ -446,12 +446,16 @@ _analysis_slots = asyncio.Semaphore(1)
 def _spawn_analysis(deps: ApiDeps, source: str, source_id: str, path: Path) -> None:
     async def run() -> None:
         async with _analysis_slots:
-            if await deps.repo.analysis_get(source, source_id):
+            known = await deps.repo.analysis_get(source, source_id)
+            if known and (known.get("version") or 1) >= audio_analysis.VERSION:
                 return
             result = await asyncio.to_thread(audio_analysis.analyze, path, deps.settings.ffmpeg_path)
         if result is not None:
             await deps.repo.analysis_set(
-                source, source_id, result.loudness, result.start, result.mix_out, result.end, result.duration
+                source, source_id, result.loudness, result.start, result.mix_out, result.end, result.duration,
+                bpm=result.bpm, beat_offset=result.beat_offset, downbeat=result.downbeat, key=result.key,
+                key_name=result.key_name, key_confidence=result.key_confidence,
+                tempo_confidence=result.tempo_confidence, version=audio_analysis.VERSION,
             )
 
     task = asyncio.create_task(run())
@@ -461,17 +465,23 @@ def _spawn_analysis(deps: ApiDeps, source: str, source_id: str, path: Path) -> N
 
 @router.get("/analysis/{source}/{source_id}")
 async def track_analysis(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
-    """Analyse audio d'un titre pour l'AutoMix (sonie, début, outro, fin),
-    calculée à la mise en cache. 404 tant que le titre n'a pas été préparé."""
+    """Analyse audio d'un titre pour l'AutoMix (sonie, début, outro, fin, tempo,
+    grille de temps, tonalité), calculée à la mise en cache. 404 tant que le
+    titre n'a pas été préparé. Une analyse d'avant le tempo et la tonalité est
+    servie telle quelle, et refaite en arrière-plan."""
     found = await deps.repo.analysis_get(source, source_id)
-    if found is None:
+    if found is None or (found.get("version") or 1) < audio_analysis.VERSION:
         cached = await deps.repo.stream_cache_get(source, source_id, "auto", "best")
         if cached is not None and Path(cached[0]).is_file():
             _spawn_analysis(deps, source, source_id, Path(cached[0]))
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Analyse pas encore prête.")
+        if found is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Analyse pas encore prête.")
     return {
         "loudness": found["loudness"], "start": found["start"], "mix_out": found["mix_out"],
         "end": found["end_time"], "duration": found["duration"],
+        "bpm": found.get("bpm"), "beat_offset": found.get("beat_offset"), "downbeat": found.get("downbeat"),
+        "key": found.get("key_camelot"), "key_name": found.get("key_name"),
+        "key_confidence": found.get("key_confidence"), "tempo_confidence": found.get("tempo_confidence"),
     }
 
 

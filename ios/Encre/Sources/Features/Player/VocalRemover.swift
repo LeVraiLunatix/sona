@@ -83,10 +83,12 @@ enum AudioEffects {
         case normal = 0, stemInstrumental = 1, stemVocals = 2
     }
 
-    private static func makeTap(_ role: Role) -> MTAudioProcessingTap? {
+    private static func makeTap(_ role: Role, control: MixControl? = nil) -> MTAudioProcessingTap? {
+        // Remis au traitement à sa création (`tapInit`), qui libère cette référence.
+        let config = Unmanaged.passRetained(TapConfig(role: role, control: control))
         var callbacks = MTAudioProcessingTapCallbacks(
             version: kMTAudioProcessingTapCallbacksVersion_0,
-            clientInfo: UnsafeMutableRawPointer(bitPattern: role.rawValue),
+            clientInfo: config.toOpaque(),
             init: tapInit,
             finalize: tapFinalize,
             prepare: tapPrepare,
@@ -97,6 +99,7 @@ enum AudioEffects {
         let status = MTAudioProcessingTapCreate(
             kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap
         )
+        if status != noErr { config.release() }
         return status == noErr ? tap : nil
     }
 
@@ -113,10 +116,10 @@ enum AudioEffects {
     }
 
     /// Mixage à poser sur l'item (`item.audioMix`), ou nil si l'item n'a
-    /// pas encore de piste audio.
-    static func audioMix(for item: AVPlayerItem) async -> AVAudioMix? {
+    /// pas encore de piste audio. `control` : effets d'enchaînement AutoMix.
+    static func audioMix(for item: AVPlayerItem, control: MixControl? = nil) async -> AVAudioMix? {
         guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first,
-              let tap = makeTap(.normal) else { return nil }
+              let tap = makeTap(.normal, control: control) else { return nil }
         let parameters = AVMutableAudioMixInputParameters(track: track)
         parameters.audioTapProcessor = tap
         let mix = AVMutableAudioMix()
@@ -185,9 +188,24 @@ private struct Biquad {
     }
 }
 
+/// Ce qu'on donne à un tap à sa création : son rôle et, pour l'AutoMix, les
+/// réglages d'effets que le lecteur change pendant l'enchaînement.
+private final class TapConfig {
+    let role: AudioEffects.Role
+    let control: MixControl?
+
+    init(role: AudioEffects.Role, control: MixControl?) {
+        self.role = role
+        self.control = control
+    }
+}
+
 /// État propre à un tap (format, filtres, largeur stéréo, niveaux appliqués).
 private final class TapState {
     var role: AudioEffects.Role = .normal
+    // Effets d'enchaînement AutoMix (passe-haut / passe-bas, écho).
+    var control: MixControl?
+    var fx = MixFXState()
     var usable = false
     // Karaoké séparé : volume appliqué à la voix (suit `vocalGain`).
     var gain: Float = 0
@@ -225,7 +243,11 @@ private final class TapState {
 
 private let tapInit: MTAudioProcessingTapInitCallback = { _, clientInfo, storageOut in
     let state = TapState()
-    state.role = AudioEffects.Role(rawValue: Int(bitPattern: clientInfo)) ?? .normal
+    if let clientInfo {
+        let config = Unmanaged<TapConfig>.fromOpaque(clientInfo).takeRetainedValue()
+        state.role = config.role
+        state.control = config.control
+    }
     state.gain = AudioEffects.vocalGain
     storageOut.pointee = Unmanaged.passRetained(state).toOpaque()
 }
@@ -244,6 +266,10 @@ private let tapPrepare: MTAudioProcessingTapPrepareCallback = { tap, _, format i
     state.usable = isFloat && nonInterleaved && asbd.mBitsPerChannel == 32 && asbd.mChannelsPerFrame == 2
     state.sampleRate = Float(asbd.mSampleRate)
     state.eqVersion = -1
+    if let control = state.control {
+        state.fx.prepare(sampleRate: state.sampleRate)
+        control.isAttached = state.usable
+    }
 }
 
 private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, buffers, framesOut, flagsOut in
@@ -258,7 +284,9 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, 
     let target: Float = state.role == .normal ? AudioEffects.singAmount : 0
     let singing = target > 0 || state.applied > 0
     let measuring = AudioEffects.visualizerOn
-    guard isVocals || singing || state.eqOn || measuring else { return }
+    // Enchaînement AutoMix en cours sur ce titre : filtres et écho.
+    let mixing = state.control?.isActive == true
+    guard isVocals || singing || state.eqOn || measuring || mixing else { return }
 
     let list = UnsafeMutableAudioBufferListPointer(buffers)
     guard list.count >= 2,
@@ -333,6 +361,10 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, frames, _, 
                 state.memory[base + 2] = y1; state.memory[base + 3] = y2
             }
         }
+    }
+
+    if mixing, let control = state.control {
+        processMixFX(&state.fx, control: control, left: left, right: right, count: count, sampleRate: state.sampleRate)
     }
 
     if measuring { measureLevels(state, left: left, right: right, count: count) }

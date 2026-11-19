@@ -309,6 +309,7 @@ CREATE TABLE IF NOT EXISTS track_analysis (
     analyzed_at TEXT NOT NULL,
     PRIMARY KEY (source, source_id)
 );
+-- (tempo, grille de temps et tonalité : colonnes ajoutées par les migrations)
 
 -- Liens de partage d'un titre, d'un album ou d'une playlist Sona
 -- (routers/share.py) : une page publique en lecture seule — pochette, titres,

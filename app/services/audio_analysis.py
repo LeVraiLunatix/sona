@@ -1,5 +1,6 @@
 """Analyse d'un fichier audio pour l'AutoMix : sonie, début réel, moment où
-le titre retombe (outro / fondu de fin) et fin réelle.
+le titre retombe (outro / fondu de fin), fin réelle, et — voir `audio_features`
+— tempo, grille de temps et tonalité.
 
 Une seule passe ffmpeg avec le filtre `ebur128` (norme de sonie EBU R128) :
 il donne la sonie intégrée du titre (en LUFS) et, toutes les 100 ms, la
@@ -21,6 +22,11 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.services import audio_features
+
+# Version de l'analyse : les titres analysés avant sont refaits (tempo, tonalité).
+VERSION = 2
+
 logger = logging.getLogger(__name__)
 
 _FRAME_RE = re.compile(r"t:\s*([\d.]+).*?M:\s*(-?[\d.]+|-inf)\s+S:\s*(-?[\d.]+|-inf)")
@@ -39,6 +45,14 @@ class Analysis:
     mix_out: float
     end: float
     duration: float
+    # Tempo, grille de temps et tonalité (None quand le décodage a échoué).
+    bpm: float | None = None
+    beat_offset: float | None = None
+    downbeat: float | None = None
+    key: str | None = None  # code Camelot, « 8B »
+    key_name: str | None = None  # « C major »
+    key_confidence: float | None = None
+    tempo_confidence: float | None = None
 
 
 def _value(text: str) -> float:
@@ -82,4 +96,11 @@ def analyze(path: Path, ffmpeg_path: str) -> Analysis | None:
     analysis = parse_ebur128(result.stderr)
     if analysis is None:
         logger.info("Analyse audio illisible pour %s", path.name)
+        return None
+    tempo, key = audio_features.analyze_features(path, ffmpeg_path)
+    if tempo is not None:
+        analysis.bpm, analysis.beat_offset, analysis.downbeat = tempo.bpm, tempo.beat_offset, tempo.downbeat
+        analysis.tempo_confidence = tempo.confidence
+    if key is not None:
+        analysis.key, analysis.key_name, analysis.key_confidence = key.camelot, key.name, key.confidence
     return analysis

@@ -44,6 +44,16 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("exclusives", "album_kind", "TEXT"),
     ("exclusives", "track_number", "INTEGER"),
     ("exclusives", "release_order", "INTEGER"),
+    # Analyse audio : tempo, grille de temps (un temps, un premier temps de mesure),
+    # tonalité (code Camelot) et version de l'analyse (voir services/audio_analysis).
+    ("track_analysis", "bpm", "REAL"),
+    ("track_analysis", "beat_offset", "REAL"),
+    ("track_analysis", "downbeat", "REAL"),
+    ("track_analysis", "key_camelot", "TEXT"),
+    ("track_analysis", "key_name", "TEXT"),
+    ("track_analysis", "key_confidence", "REAL"),
+    ("track_analysis", "tempo_confidence", "REAL"),
+    ("track_analysis", "version", "INTEGER NOT NULL DEFAULT 1"),
 )
 
 # Index qui reposent sur des colonnes ajoutées par les migrations : créés une fois
