@@ -368,7 +368,7 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(Typo.title).foregroundStyle(Tone.primary)
+            Text(title).font(Typo.title).foregroundStyle(Tone.primary).gtaTitle(size: 22)
             Spacer()
             if let actionLabel, let action {
                 Button(action: action) {

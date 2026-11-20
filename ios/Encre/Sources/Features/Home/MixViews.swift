@@ -147,7 +147,7 @@ struct MixDetailView: View {
             }
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

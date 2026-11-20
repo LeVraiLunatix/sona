@@ -42,7 +42,7 @@ struct UserPlaylistView: View {
                 ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Tone.background)
+        .pageBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

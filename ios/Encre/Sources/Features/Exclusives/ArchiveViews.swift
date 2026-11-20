@@ -93,7 +93,7 @@ struct PersonaArtistView: View {
             .padding(.bottom, 28)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationBarTitleDisplayMode(.inline)
         .task {
             let saved = UserDefaults.standard.string(forKey: defaultsKey)
@@ -349,7 +349,7 @@ struct ExclusiveReleaseView: View {
             }
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }

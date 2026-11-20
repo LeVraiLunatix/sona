@@ -130,7 +130,7 @@ struct SmartPlaylistView: View {
             .padding(.vertical, 12)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.large)
         .task {

@@ -402,7 +402,7 @@ struct StoryShareSheet: View {
                 }
                 .padding(20)
             }
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Story")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }

@@ -281,7 +281,7 @@ struct BadgesView: View {
                 }
                 .padding(20)
             }
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Badges")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }

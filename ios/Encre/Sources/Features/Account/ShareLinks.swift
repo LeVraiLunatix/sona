@@ -119,7 +119,7 @@ struct SonaShareSheet: View {
                 .padding(20)
                 .animation(Motion.smooth, value: link)
             }
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Partager")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

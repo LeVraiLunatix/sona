@@ -65,7 +65,7 @@ struct DownloadsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Téléchargements")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

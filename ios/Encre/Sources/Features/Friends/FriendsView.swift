@@ -44,7 +44,7 @@ struct FriendsView: View {
             .animation(Motion.smooth, value: friends)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Amis")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

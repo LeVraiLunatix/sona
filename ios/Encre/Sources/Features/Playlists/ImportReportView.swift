@@ -89,7 +89,7 @@ struct ImportReportView: View {
                     ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Rapport d'import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -330,7 +330,7 @@ struct ImportFixSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Tone.background)
+            .pageBackground()
             .disabled(sending)
             .overlay { if sending { ProgressView().tint(.white) } }
             .navigationTitle("Corriger le titre")
