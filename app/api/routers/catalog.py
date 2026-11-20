@@ -10,8 +10,9 @@ from app.api.schemas import Album, Artist, Track
 from app.api.routers.exclusives import track_for as exclusive_track
 from app.api.state import ApiDeps
 from app.bot import lookup
-from app.providers.base import TrackInfo
-from app.services import album_versions, apple_motion, artist_bio, credits, djradio, upcoming
+from app.providers.base import AlbumInfo, TrackInfo
+from app.providers.deezer import DeezerError
+from app.services import album_versions, apple_motion, artist_bio, artist_search, credits, djradio, upcoming
 
 router = APIRouter(tags=["catalog"])
 
@@ -153,6 +154,23 @@ async def get_artist_radio(
     return [Track.from_info(t) for t in tracks]
 
 
+async def _discography(deps: ApiDeps, source: str, source_id: str) -> tuple[list[AlbumInfo], list[AlbumInfo]]:
+    """Albums et singles d'un artiste. YouTube Music n'en a pas d'exploitables :
+    sa fiche « Grand Theft Auto VI » restait vide alors que Deezer, sous le même
+    nom, a l'album. On y prend alors la discographie de l'homonyme exact."""
+    albums, singles = await lookup.get_artist_albums(deps, source, source_id)
+    if source != "youtube" or albums or singles:
+        return albums, singles
+    try:
+        name = (await lookup.get_artist(deps, source, source_id)).name
+        twin = artist_search.exact_homonym(name, await deps.deezer.search_artists(name, limit=5))
+        if twin is not None:
+            return await lookup.get_artist_albums(deps, twin.source, twin.source_id)
+    except (lookup.ProviderErrors, DeezerError):
+        pass
+    return albums, singles
+
+
 @router.get("/artists/{source}/{source_id}/albums")
 async def get_artist_albums(
     source: str, source_id: str, deps: ApiDeps = Depends(require_token)
@@ -163,7 +181,7 @@ async def get_artist_albums(
     listes (une app plus ancienne ne connaît pas la clé `upcoming` : elle les
     perdrait) et sont en plus rappelées dans `upcoming`, de la plus proche à la
     plus lointaine — l'app récente les montre à part, avec leur compte à rebours."""
-    albums, singles = await _handle(lookup.get_artist_albums(deps, source, source_id))
+    albums, singles = await _handle(_discography(deps, source, source_id))
     ahead, _ = upcoming.split_upcoming(albums + singles)
     # Pochettes manquantes (annoncé, ou jamais fournie) : Apple Music en secours.
     bare = [a for a in albums + singles if not a.cover_url and all(a is not x for x in ahead)]
