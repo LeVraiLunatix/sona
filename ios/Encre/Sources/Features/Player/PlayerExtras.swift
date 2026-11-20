@@ -165,8 +165,8 @@ struct SoundSettingsSheet: View {
                     }
                     Toggle(isOn: $player.mixEffects) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Label("Effets d'enchaînement", systemImage: "waveform.path")
-                            Text("Échange des basses, filtre ou écho selon le tempo et la tonalité des deux titres.")
+                            Label("Échange des basses", systemImage: "waveform.path")
+                            Text("Quand deux titres sont calés sur le même tempo et en harmonie, les basses de l'un cèdent la place à celles de l'autre pendant le fondu.")
                                 .font(Typo.caption).foregroundStyle(Tone.secondary)
                         }
                     }
@@ -174,7 +174,7 @@ struct SoundSettingsSheet: View {
                     Text("Enchaînement")
                 } footer: {
                     Text(player.crossfadeEnabled
-                         ? "AutoMix est activé : Sona mesure le tempo et la tonalité de chaque titre, cale les deux sur les mêmes temps et choisit la meilleure façon de les enchaîner."
+                         ? "AutoMix est activé : Sona mesure le tempo et les mesures de chaque titre, cale les deux sur les mêmes temps (le suivant est ajusté d'au plus 6 %) et les enchaîne en fondu continu, sans coupure."
                          : "Le fondu s'applique quand AutoMix est activé (bouton ⇄ du lecteur).")
                 }
 

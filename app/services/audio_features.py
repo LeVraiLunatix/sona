@@ -38,6 +38,14 @@ ONSET_FFT = 1024
 ONSET_HOP = 256
 MIN_BPM = 70.0
 MAX_BPM = 180.0
+# Le tempo est d'abord cherché par pas de 0,25 BPM, puis affiné par pas de 0,02 :
+# 0,12 BPM d'erreur (la moitié d'un pas) fait dériver la grille de 0,2 s sur trois
+# minutes, et deux titres calés sur ces tempos ne battent plus ensemble.
+BPM_STEP = 0.25
+BPM_FINE_STEP = 0.02
+BPM_FINE_SPAN = 0.4
+# Fenêtres où la grille est mesurée : début et fin du titre.
+GRID_WINDOW = 45.0
 # Tempo habituel : on préfère, à score voisin, celui qui s'en rapproche. Centré
 # sur 130 (rap, trap, pop et électro) et assez serré pour trancher l'octave :
 # mesuré sur 400 boucles étiquetées + des titres réels, 115 / 0,6 donnait 65 %
@@ -63,9 +71,17 @@ _MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3
 @dataclass(slots=True)
 class Tempo:
     bpm: float
-    beat_offset: float  # un temps (secondes depuis le début du fichier)
-    downbeat: float  # un premier temps de mesure (modulo 4 temps)
+    beat_offset: float  # un temps, mesuré sur le début du titre (secondes depuis le début du fichier)
+    downbeat: float  # un premier temps de mesure (modulo 4 temps), même repère
     confidence: float  # 0…1
+    # Mêmes grandeurs mesurées sur la fin du titre (là où se fait l'enchaînement), en
+    # heures absolues vers la fin : un tempo qui dérive de 0,1 % décale la grille de
+    # 0,2 s après trois minutes.
+    out_beat_offset: float | None = None
+    out_downbeat: float | None = None
+    # Fiabilité du premier temps de mesure (0…1) : les basses et les accords
+    # départagent mal certains titres (≈ 66 % de bons premiers temps mesurés).
+    downbeat_confidence: float | None = None
 
 
 @dataclass(slots=True)
@@ -116,6 +132,19 @@ def onset_curves(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> tuple[n
     return flux[:, :top].sum(axis=1), flux[:, 1:kick].sum(axis=1), sample_rate / ONSET_HOP
 
 
+def _beat_phase(curve: np.ndarray, bpm: float, fps: float, begin: float, end: float, centre: float) -> float:
+    """Place d'un temps (secondes depuis le début du fichier, dans [0, période[), d'après la
+    phase du tempo sur la fenêtre [begin, end] de la courbe d'attaques."""
+    period = 60.0 / bpm
+    lo = max(0, int(begin * fps))
+    hi = max(lo + 8, min(len(curve), int(end * fps)))
+    piece = curve[lo:hi]
+    component = _fourier(piece - piece.mean(), np.array([bpm / 60.0]), fps)[0]
+    # `_fourier` date la fenêtre depuis son premier point : on remet l'origine du fichier.
+    angle = np.angle(component) - 2 * math.pi * (bpm / 60.0) * (lo / fps)
+    return float(((-angle / (2 * math.pi)) % 1.0 * period + centre) % period)
+
+
 def _detrend(curve: np.ndarray, fps: float) -> np.ndarray:
     """Retire la moyenne locale (~0,5 s) : ne restent que les attaques."""
     width = max(3, int(fps * 0.5))
@@ -134,7 +163,9 @@ def _fourier(curve: np.ndarray, frequencies: np.ndarray, fps: float) -> np.ndarr
     return out
 
 
-def detect_tempo(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Tempo | None:
+def detect_tempo(samples: np.ndarray, sample_rate: int = SAMPLE_RATE, end: float | None = None) -> Tempo | None:
+    """`end` : fin réelle du son (secondes) quand on la connaît : la grille de la fin
+    se mesure juste avant, pas dans le silence final."""
     if len(samples) < sample_rate * MIN_SECONDS:
         return None
     full, kick, fps = onset_curves(samples, sample_rate)
@@ -150,7 +181,7 @@ def detect_tempo(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Tempo |
         window = slice(0, len(full))
     base = full[window] - full[window].mean()
 
-    bpms = np.arange(MIN_BPM, MAX_BPM + 0.01, 0.25)
+    bpms = np.arange(MIN_BPM, MAX_BPM + 0.01, BPM_STEP)
     freqs = bpms / 60.0
     # Le tempo ressort aussi à ses multiples (croches, doubles-croches) et à sa
     # moitié (la mesure en deux) : on additionne ces harmoniques. Sans elles, un
@@ -165,21 +196,31 @@ def detect_tempo(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Tempo |
     bpm = float(bpms[best])
     confidence = float(min(1.0, max(0.0, (ranked[best] - np.median(ranked)) / (ranked[best] + 1e-9))))
 
-    # Phase sur le titre entier (la grille doit tenir du début à la fin). Les
-    # basses (grosse caisse) tombent sur les temps, alors que les charleys
-    # tombent entre : sur la courbe de toute la bande, ils inverseraient la
-    # phase. On pondère donc les basses en priorité.
+    # Affinage : même score, pas de 0,02 BPM autour du meilleur pas (le vainqueur
+    # est déjà choisi, l'a priori ne joue plus).
+    fine = np.arange(bpm - BPM_FINE_SPAN, bpm + BPM_FINE_SPAN + 1e-9, BPM_FINE_STEP)
+    fine_score = sum(weight * np.abs(_fourier(base, fine / 60.0 * factor, fps)) for factor, weight in TEMPO_HARMONICS)
+    bpm = float(fine[int(np.argmax(fine_score))])
+
+    # Phase de la grille. Les basses (grosse caisse) tombent sur les temps, alors que
+    # les charleys tombent entre : sur la courbe de toute la bande, ils inverseraient
+    # la phase. On pondère donc les basses en priorité.
     period = 60.0 / bpm
     phase_curve = kick / max(kick.max(), 1e-9) * 2.0 + full / max(full.max(), 1e-9) * 0.5
-    component = _fourier(phase_curve - phase_curve.mean(), np.array([bpm / 60.0]), fps)[0]
+    phase_curve = phase_curve - phase_curve.mean()
     # Une image d'analyse date de son milieu, pas de son début.
     centre = ONSET_FFT / 2 / sample_rate
-    beat_offset = float(((-np.angle(component) / (2 * math.pi)) % 1.0 * period + centre) % period)
+    duration = len(samples) / sample_rate
+    # Début du titre (là où entre le titre qui arrive) et fin (là où il sort).
+    beat_offset = _beat_phase(phase_curve, bpm, fps, 0.0, GRID_WINDOW, centre)
+    out_end = min(duration, end) if end else duration
+    out_beat = _beat_phase(phase_curve, bpm, fps, max(0.0, out_end - GRID_WINDOW), out_end, centre)
+
     # Premier temps de mesure : le temps (sur 4) dont la grosse caisse est la plus
     # forte, en valeur médiane sur les mesures (une attaque tient en une ou deux
     # images : le pic compte, pas une moyenne qui la dilue ; la médiane ignore
     # les breaks et les roulements).
-    beats = np.arange(max(int((len(samples) / sample_rate - beat_offset) / period) - 1, 0))
+    beats = np.arange(max(int((duration - beat_offset) / period) - 1, 0))
     index = np.round((beat_offset + beats * period - centre) * fps).astype(int)
     valid = (index >= 2) & (index < len(kick) - 2)
     peaks = {int(k): kick[i - 2 : i + 3].max() for k, i in zip(beats[valid], index[valid])}
@@ -192,8 +233,24 @@ def detect_tempo(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Tempo |
     change = _harmonic_change(samples, sample_rate, beat_offset + kicked * period, period)
     novelty = np.array([change[kicked % 4 == slot].mean() if np.any(kicked % 4 == slot) else 0.0 for slot in range(4)])
     evidence = weights / max(weights.max(), 1e-9) + novelty / max(novelty.max(), 1e-9)
-    downbeat = float((beat_offset + int(np.argmax(evidence)) * period) % (4 * period))
-    return Tempo(bpm=round(bpm, 2), beat_offset=round(beat_offset, 3), downbeat=round(downbeat, 3), confidence=round(confidence, 2))
+    slot = int(np.argmax(evidence))
+    downbeat = float((beat_offset + slot * period) % (4 * period))
+    # Fiabilité : écart entre le meilleur temps et le suivant, rapporté au meilleur.
+    ordered = np.sort(evidence)
+    downbeat_confidence = float(min(1.0, max(0.0, (ordered[-1] - ordered[-2]) / max(ordered[-1], 1e-9) * 2.0)))
+    # Le premier temps de mesure de la fin : même place dans la mesure que celui du
+    # début (un titre ne change pas de mesure en route), sur la grille de la fin.
+    # Heures absolues, 10 s avant la fin : l'enchaînement s'y place, et une grille
+    # recalée juste à côté ne cumule pas l'erreur de tempo de tout le titre.
+    reference = max(0.0, out_end - 10.0)
+    out_beat = out_beat + math.floor((reference - out_beat) / period) * period
+    out_index = round((out_beat - beat_offset) / period)
+    out_downbeat = float(out_beat + ((slot - out_index) % 4) * period)
+    return Tempo(
+        bpm=round(bpm, 2), beat_offset=round(beat_offset, 3), downbeat=round(downbeat, 3),
+        confidence=round(confidence, 2), out_beat_offset=round(out_beat, 3), out_downbeat=round(out_downbeat, 3),
+        downbeat_confidence=round(downbeat_confidence, 2),
+    )
 
 
 def _harmonic_change(samples: np.ndarray, sample_rate: int, times: np.ndarray, period: float) -> np.ndarray:
@@ -292,12 +349,12 @@ def detect_key(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Key | Non
     )
 
 
-def analyze_features(path: Path, ffmpeg_path: str) -> tuple[Tempo | None, Key | None]:
+def analyze_features(path: Path, ffmpeg_path: str, end: float | None = None) -> tuple[Tempo | None, Key | None]:
     samples = decode_mono(path, ffmpeg_path)
     if samples is None:
         return None, None
     try:
-        return detect_tempo(samples), detect_key(samples)
+        return detect_tempo(samples, end=end), detect_key(samples)
     except (ValueError, FloatingPointError, MemoryError) as exc:
         logger.info("Tempo / tonalité illisibles pour %s : %s", path.name, exc)
         return None, None

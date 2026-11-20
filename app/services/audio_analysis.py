@@ -25,7 +25,7 @@ from pathlib import Path
 from app.services import audio_features
 
 # Version de l'analyse : les titres analysés avant sont refaits (tempo, tonalité).
-VERSION = 2
+VERSION = 3
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,10 @@ class Analysis:
     key_name: str | None = None  # « C major »
     key_confidence: float | None = None
     tempo_confidence: float | None = None
+    # Grille de la fin du titre (là où il sort) et fiabilité du premier temps de mesure.
+    out_beat_offset: float | None = None
+    out_downbeat: float | None = None
+    downbeat_confidence: float | None = None
 
 
 def _value(text: str) -> float:
@@ -97,10 +101,12 @@ def analyze(path: Path, ffmpeg_path: str) -> Analysis | None:
     if analysis is None:
         logger.info("Analyse audio illisible pour %s", path.name)
         return None
-    tempo, key = audio_features.analyze_features(path, ffmpeg_path)
+    tempo, key = audio_features.analyze_features(path, ffmpeg_path, end=analysis.end)
     if tempo is not None:
         analysis.bpm, analysis.beat_offset, analysis.downbeat = tempo.bpm, tempo.beat_offset, tempo.downbeat
         analysis.tempo_confidence = tempo.confidence
+        analysis.out_beat_offset, analysis.out_downbeat = tempo.out_beat_offset, tempo.out_downbeat
+        analysis.downbeat_confidence = tempo.downbeat_confidence
     if key is not None:
         analysis.key, analysis.key_name, analysis.key_confidence = key.camelot, key.name, key.confidence
     return analysis

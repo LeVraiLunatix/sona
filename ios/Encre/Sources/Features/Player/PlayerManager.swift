@@ -142,7 +142,7 @@ final class PlayerManager: ObservableObject {
 
     // MARK: AutoMix
 
-    /// Durée de l'enchaînement entre deux titres.
+    /// Durée de l'enchaînement sans analyse (secondes avant la fin du titre).
     private let mixLength: Double = 8
     private var mixIncoming: AVPlayer?
     private var mixIncomingTrack: Track?
@@ -150,18 +150,31 @@ final class PlayerManager: ObservableObject {
     private var mixRate: Float = 1
     private var isFadingIn = false
     private var bpmCache: [String: Double] = [:]
-    /// Enchaînement calculé pour le titre suivant (grille de temps, durée, effets).
+    /// Enchaînement calculé pour le titre suivant (grille de temps, durée, vitesse).
     private var mixPlan: MixPlan?
+    /// Quelles analyses existaient quand le plan a été fait : une qui arrive après coup
+    /// fait refaire le plan, tant qu'il reste du temps pour préparer le suivant.
+    private var mixPlanSignature = ""
+    /// Position où B est placé et mis en tampon (son entrée) ; `mixEntryReady` : c'est fait,
+    /// B peut démarrer à l'instant voulu sans rien attendre du réseau.
+    private var mixEntryStart: Double?
+    private var mixEntryReady = false
+    private var mixEntryTask: Task<Void, Never>?
+    /// Couple (A > B) dont l'enchaînement a échoué : pas de nouvel essai, A joue jusqu'au bout.
+    private var mixAbandoned: String?
     /// Réglages d'effets du titre en cours (qui sort) et du suivant (qui entre).
     private var mixControl: MixControl?
     private var mixIncomingControl: MixControl?
+    /// Le suivant est lancé ce nombre de secondes avant le début du fondu : le temps de
+    /// régler son départ à l'instant exact, mais sans rien de lourd à faire à ce moment-là.
+    private static let mixLead: Double = 2
     /// Un enchaînement est en cours (affiché dans le lecteur).
     @Published private(set) var isMixing = false
     /// Tempo de B calé sur A pendant l'enchaînement (1 = inchangé).
     @Published private(set) var mixTempoRatio: Double = 1
     /// Façon d'enchaîner en cours (affichée dans le lecteur).
     @Published private(set) var mixStyle: MixStyle = .plain
-    /// Effets d'enchaînement (échange des basses, filtre, écho) : réglage de l'AutoMix.
+    /// Échange des basses pendant les enchaînements calés : réglage de l'AutoMix.
     @Published var mixEffects: Bool = (UserDefaults.standard.object(forKey: "encre.mixEffects") as? Bool) ?? true {
         didSet { UserDefaults.standard.set(mixEffects, forKey: "encre.mixEffects") }
     }
@@ -169,7 +182,7 @@ final class PlayerManager: ObservableObject {
     /// Tempo : celui mesuré dans l'audio d'abord, sinon celui de la fiche Deezer.
     private func bpm(of track: Track) -> Double? { analysis(of: track)?.bpm ?? track.bpm ?? bpmCache[track.id] }
 
-    /// Analyses audio (serveur) : sonie, début, outro, fin.
+    /// Analyses audio (serveur) : sonie, début, outro, fin, tempo, grille, tonalité.
     private var analysisCache: [String: TrackAnalysis] = [:]
     private var analysisRequested: [String: Date] = [:]
     /// Sonie visée (LUFS) : les titres plus forts sont baissés d'autant,
@@ -183,8 +196,8 @@ final class PlayerManager: ObservableObject {
     /// Demandée au plus toutes les 30 s par titre (elle est calculée par le
     /// serveur une fois le fichier en cache).
     private func fetchAnalysis(_ track: Track) {
-        // Une analyse d'avant le tempo et la tonalité est redemandée : le serveur la refait.
-        guard analysisCache[track.id]?.bpm == nil else { return }
+        // Une analyse d'avant le tempo, la tonalité ou la grille de fin est redemandée : le serveur la refait.
+        if let known = analysisCache[track.id], known.bpm != nil, known.outBeatOffset != nil { return }
         if let last = analysisRequested[track.id], Date().timeIntervalSince(last) < 30 { return }
         analysisRequested[track.id] = Date()
         Task { [weak self] in
@@ -215,23 +228,30 @@ final class PlayerManager: ObservableObject {
         }
     }
 
-    /// Enchaînement de A vers B : mesures, tempo, tonalités, effets (voir `MixPlanner`).
-    private func makePlan(next: Track, position: Double, end: Double, baseStart: Double) -> MixPlan {
-        MixPlanner.plan(MixInputs(
+    /// Enchaînement de A vers B : mesures, tempo, tonalités (voir `MixPlanner`).
+    /// `forcePlain` : repli en simple fondu, quand le suivant n'était pas prêt à temps.
+    private func makePlan(next: Track, position: Double, end: Double, baseStart: Double, forcePlain: Bool = false) -> MixPlan {
+        // Rien ne lie les deux titres s'ils ne sont pas du même album : fondu plus long.
+        let sameAlbum = current?.album != nil && current?.album == next.album
+        return MixPlanner.plan(MixInputs(
             aEnd: end, aBase: baseStart, position: position,
             a: analysis(of: current), aBPM: current.flatMap { $0.bpm ?? bpmCache[$0.id] },
             b: analysis(of: next), bBPM: next.bpm ?? bpmCache[next.id],
             fixedLength: fadeSeconds > 0 ? fadeSeconds : nil,
-            effects: mixEffects && !singAlong
+            effects: mixEffects && !singAlong,
+            albumBreak: !sameAlbum,
+            forcePlain: forcePlain,
+            lead: forcePlain ? 1.6 : 3
         ))
     }
 
-    /// À chaque tic de lecture quand l'AutoMix est actif. Le suivant (B) est
-    /// chargé une trentaine de secondes avant, mis en tampon à son premier temps ;
-    /// le plan d'enchaînement est calculé dès que les analyses (tempo, tonalité,
-    /// mesures) sont là ; B part à l'instant exact où A atteint son premier temps
-    /// de mesure. Sans analyse, repli sur l'outro repérée par le serveur, sinon
-    /// `mixLength` secondes avant la fin. Sans suivant prêt, simple fondu de sortie.
+    /// À chaque tic de lecture quand l'AutoMix est actif. Le suivant (B) est chargé
+    /// une quarantaine de secondes avant, placé sur son entrée et mis en tampon ; le plan
+    /// d'enchaînement est calculé dès que les analyses sont là ; B part à l'instant exact
+    /// où A atteint son premier temps de mesure, et A ne baisse que si B joue vraiment.
+    /// Sans analyse, repli sur l'outro repérée par le serveur, sinon `mixLength` secondes
+    /// avant la fin. Si l'enchaînement ne peut pas partir, A joue jusqu'au bout à plein
+    /// volume : jamais de creux de silence.
     private func autoMixTick(position: Double, duration: Double) {
         let info = analysis(of: current)
         // Fin réelle (silence final ignoré) et moment où le titre retombe.
@@ -242,35 +262,56 @@ final class PlayerManager: ObservableObject {
             : info.map { max($0.mixOut, $0.end - 16, $0.start) } ?? (duration - mixLength)
         let canMix = !followsParty && repeatMode != .one && !sleepStopsAfterCurrent
         if canMix, let next = upNext.first, position < end {
+            let pair = "\(current?.id ?? "")>\(next.id)"
             if mixIncoming != nil, mixIncomingTrack?.id != next.id, mixTask == nil { cancelMix() }
-            if position < baseStart - 40, mixIncoming != nil, mixTask == nil {
+            if position < baseStart - 50, mixIncoming != nil, mixTask == nil {
                 cancelMix()  // retour en arrière dans A
-            } else if position >= baseStart - 35 {
+            } else if position >= baseStart - 45 {
                 fetchAnalysis(next)
                 if let current { fetchAnalysis(current) }
             }
-            if position >= baseStart - 30, mixTask == nil { prepareMix(next: next) }
+            if mixAbandoned != pair, position >= baseStart - 40, mixTask == nil { prepareMix(next: next) }
             if mixTask == nil, mixIncoming != nil {
-                // Analyses des deux titres (ou, faute de mieux, 4 s avant l'enchaînement).
-                if mixPlan == nil, position >= baseStart - 14,
-                   (analysis(of: next) != nil && analysis(of: current) != nil) || position >= baseStart - 4 {
-                    mixPlan = makePlan(next: next, position: position, end: end, baseStart: baseStart)
-                }
-                if let plan = mixPlan, position >= plan.aStart - 1.5, end - position > 0.5 {
-                    beginMix(plan: plan, end: end)
-                }
+                driveMix(next: next, position: position, end: end, baseStart: baseStart)
             }
         }
         guard mixTask == nil else { return }
         let remaining = end - position
         let base = gain(for: current)
-        if remaining > 0 && remaining < 4 {
-            // Le suivant est chargé et attend : on garde le volume (il prendra la main à la
-            // fin du titre) au lieu de laisser un creux de silence.
-            if mixIncoming == nil { player?.volume = base * Float(max(0.05, remaining / 4)) }
+        if remaining > 0 && remaining < 4 && upNext.isEmpty && repeatMode == .off {
+            // Dernier titre de la liste : il s'éteint doucement au lieu de s'arrêter net.
+            player?.volume = base * Float(max(0.05, remaining / 4))
         } else if remaining >= 4 && position > 2, let player, abs(player.volume - base) > 0.01, !isFadingIn {
-            player.volume = base  // retour en arrière après le début du fondu
+            player.volume = base  // retour en arrière après la fin du titre
         }
+    }
+
+    /// Fait et applique le plan quand il est temps, puis lance l'enchaînement.
+    private func driveMix(next: Track, position: Double, end: Double, baseStart: Double) {
+        let analysisA = analysis(of: current), analysisB = analysis(of: next)
+        let signature = "\(analysisA != nil)\(analysisB != nil)\(analysisA?.outDownbeat != nil)"
+        if let plan = mixPlan {
+            if signature != mixPlanSignature, position < plan.aStart - 6 {
+                installPlan(makePlan(next: next, position: position, end: end, baseStart: baseStart), signature: signature)
+            }
+        } else if (analysisA != nil && analysisB != nil) || position >= baseStart - 12 {
+            installPlan(makePlan(next: next, position: position, end: end, baseStart: baseStart), signature: signature)
+        }
+        guard let plan = mixPlan, isPlaying, end - position > 0.5, position >= plan.aStart - Self.mixLead else { return }
+        // Trop tard pour tenir le plan : simple fondu un peu plus loin, sans refaire l'entrée de B si elle est la même.
+        if position > plan.aStart - 0.4 {
+            installPlan(makePlan(next: next, position: position, end: end, baseStart: baseStart, forcePlain: true), signature: signature)
+            return
+        }
+        // B n'est pas encore en place : on attend (A joue à plein volume), le plan glisse si besoin.
+        guard mixEntryReady, let entry = mixEntryStart, abs(entry - plan.bStart) < 0.001 else { return }
+        beginMix(plan: plan, end: end)
+    }
+
+    private func installPlan(_ plan: MixPlan, signature: String) {
+        mixPlan = plan
+        mixPlanSignature = signature
+        prepareEntry(bStart: plan.bStart, rate: plan.rate)
     }
 
     private func prepareMix(next: Track) {
@@ -284,8 +325,9 @@ final class PlayerManager: ObservableObject {
             return
         }
         let item = AVPlayerItem(asset: asset)
-        // Changer la vitesse sans changer la hauteur (pas d'effet « chipmunk »).
-        item.audioTimePitchAlgorithm = .timeDomain
+        // Changer la vitesse sans changer la hauteur (pas d'effet « chipmunk ») : le mode
+        // « spectral » est celui qui garde la musique propre (le « temporel » est fait pour la voix).
+        item.audioTimePitchAlgorithm = .spectral
         let incoming = AVPlayer(playerItem: item)
         incoming.volume = 0
         // Départ à un instant précis (`setRate(_:time:atHostTime:)`) : pas d'attente « intelligente ».
@@ -293,21 +335,41 @@ final class PlayerManager: ObservableObject {
         mixIncoming = incoming
         mixIncomingTrack = next
         mixIncomingControl = prepareItem(item, mixControl: true)
-        // B se place sur le début réel du son et se met en tampon dès maintenant : son
-        // départ, à la mesure près, n'attend plus le réseau.
-        Task { [weak self, weak incoming] in
-            guard await Self.waitUntilReady(item, timeout: 40), let self, let incoming, self.mixIncoming === incoming else { return }
-            let start = self.analysis(of: next)?.start ?? 0
-            _ = await incoming.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-            guard self.mixIncoming === incoming, self.mixTask == nil else { return }
-            _ = await incoming.preroll(atRate: 1)
+        // B se place sur le début réel du son et se met en tampon dès maintenant ; le plan
+        // le replacera sur son premier temps de mesure, tout près, quelques secondes plus tard.
+        mixEntryStart = nil
+        prepareEntry(bStart: analysis(of: next)?.start ?? 0, rate: 1)
+    }
+
+    /// Place B sur `bStart` (placement exact) et le met en tampon à la vitesse voulue. Fait tôt,
+    /// bien avant le fondu : au moment du départ, ni déplacement ni attente du réseau, ce qui
+    /// décalait B (et laissait un trou) quand il fallait s'en occuper dans les dernières secondes.
+    private func prepareEntry(bStart: Double, rate: Float) {
+        guard let incoming = mixIncoming, let item = incoming.currentItem else { return }
+        if let known = mixEntryStart, abs(known - bStart) < 0.001 { return }
+        mixEntryStart = bStart
+        mixEntryReady = false
+        mixEntryTask?.cancel()
+        let target = CMTime(seconds: bStart, preferredTimescale: 600)
+        mixEntryTask = Task { [weak self, weak incoming] in
+            guard await Self.waitUntilReady(item, timeout: 40), let incoming else { return }
+            for _ in 0..<3 {
+                guard !Task.isCancelled else { return }
+                _ = await incoming.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
+                guard !Task.isCancelled else { return }
+                if await incoming.preroll(atRate: rate) { break }
+                try? await Task.sleep(for: .milliseconds(400))
+            }
+            guard !Task.isCancelled, let self, self.mixIncoming === incoming, self.mixEntryStart == bStart else { return }
+            self.mixEntryReady = true
         }
     }
 
-    /// A descend, B monte (puissance constante), B accéléré ou ralenti pour tomber
-    /// sur le tempo de A et placé sur son premier temps, avec les effets du plan
-    /// (échange des basses, filtre ou écho). Le volume suit l'horloge de A : ce qu'on
-    /// entend ne dérive pas si un des deux titres rame un instant.
+    /// A descend, B monte (puissance constante), B accéléré ou ralenti pour tomber sur le
+    /// tempo de A et lancé sur son premier temps à l'instant où A atteint le sien. La
+    /// progression du fondu suit le plus lent des deux titres : si B tarde ou rame, A reste
+    /// à plein volume — jamais de creux. Si B ne démarre pas du tout, l'enchaînement est
+    /// abandonné et A joue jusqu'au bout.
     private func beginMix(plan: MixPlan, end: Double) {
         guard let outgoing = player, let incoming = mixIncoming, let next = mixIncomingTrack, let current,
               incoming.currentItem?.status == .readyToPlay else { return }
@@ -315,30 +377,41 @@ final class PlayerManager: ObservableObject {
         let gainB = gain(for: next)
         let controlA = mixControl
         let controlB = mixIncomingControl
-        // Effets seulement si les deux titres passent par le traitement audio.
-        let fx = plan.style != .plain && controlA?.isAttached == true && controlB?.isAttached == true
+        // Échange des basses seulement si les deux titres passent par le traitement audio.
+        let fx = plan.bassSwap && controlA?.isAttached == true && controlB?.isAttached == true
+        let pair = "\(current.id)>\(next.id)"
         mixRate = plan.rate
         mixTempoRatio = Double(plan.rate)
-        mixStyle = fx ? plan.style : .plain
+        mixStyle = plan.style
         isMixing = true
         let bStart = CMTime(seconds: plan.bStart, preferredTimescale: 600)
         mixTask = Task { [weak self] in
-            // B se place sur son premier temps et se prépare à la vitesse voulue (le décodeur
-            // est amorcé là, pas à l'instant du départ).
-            _ = await incoming.seek(to: bStart, toleranceBefore: .zero, toleranceAfter: .zero)
-            _ = await incoming.preroll(atRate: plan.rate)
-            guard !Task.isCancelled else { return }
-            // B part exactement quand A atteint son premier temps de mesure.
-            let wait = (plan.aStart - outgoing.currentTime().seconds) / Double(max(0.1, outgoing.rate))
-            if wait > 0.03 {
+            // B part exactement quand A atteint son premier temps de mesure (B est déjà en place).
+            let now = outgoing.currentTime().seconds
+            let wait = (plan.aStart - now) / Double(max(0.1, outgoing.rate))
+            var aStart = plan.aStart
+            if wait > 0.05 {
                 let host = CMClockGetTime(CMClockGetHostTimeClock()) + CMTime(seconds: wait, preferredTimescale: 1_000_000_000)
                 incoming.setRate(plan.rate, time: bStart, atHostTime: host)
             } else {
+                aStart = now
                 incoming.playImmediately(atRate: plan.rate)
             }
             while !Task.isCancelled {
                 let position = outgoing.currentTime().seconds
-                let t = (position - plan.aStart) / plan.length
+                let bPosition = incoming.currentTime().seconds
+                // B joue-t-il vraiment ? (sa position a quitté son point d'entrée)
+                let bRunning = bPosition > plan.bStart + 0.02
+                if !bRunning && position > aStart + 1.5 {
+                    // B n'a pas démarré : A reste seul, on n'insiste pas.
+                    outgoing.volume = gainA
+                    self?.mixAbandoned = pair
+                    self?.cancelMix()
+                    return
+                }
+                let tA = (position - aStart) / plan.length
+                let tB = (bPosition - plan.bStart) / (plan.length * Double(plan.rate))
+                let t = bRunning ? max(0, min(tA, tB)) : 0
                 let frame = MixAutomation.frame(plan: plan, t: t, gainA: gainA, gainB: gainB, fx: fx)
                 outgoing.volume = frame.volumeA
                 incoming.volume = frame.volumeB
@@ -347,7 +420,7 @@ final class PlayerManager: ObservableObject {
                     controlB?.apply(frame.fxB)
                 }
                 if t >= 1 || position >= end { break }
-                try? await Task.sleep(for: .milliseconds(25))
+                try? await Task.sleep(for: .milliseconds(20))
             }
             guard !Task.isCancelled else { return }
             self?.promoteMix()
@@ -362,13 +435,17 @@ final class PlayerManager: ObservableObject {
         let promotedControl = mixIncomingControl
         mixTask?.cancel()
         mixTask = nil
+        mixEntryTask?.cancel()
+        mixEntryTask = nil
+        mixEntryReady = false
+        mixEntryStart = nil
         mixIncoming = nil
         mixIncomingTrack = nil
         mixIncomingControl = nil
         mixPlan = nil
         isMixing = false
         mixStyle = .plain
-        // Les effets n'ont plus lieu d'être sur B : son filtre est déjà ouvert.
+        // Le filtre n'a plus lieu d'être sur B : il est déjà ouvert.
         promotedControl?.reset()
         // Retour à l'attente normale des données (coupée pour le départ à l'heure précise).
         incoming.automaticallyWaitsToMinimizeStalling = true
@@ -388,12 +465,20 @@ final class PlayerManager: ObservableObject {
         fetchBPM(next)
         let rate = mixRate
         mixRate = 1
-        guard rate != 1 else { return }
+        guard rate != 1 else { mixTempoRatio = 1; return }
+        // B revient à sa vitesse en 10 s, par petits pas (0,1 % ou moins) et en douceur au début
+        // et à la fin : un saut de vitesse s'entendrait.
         Task { [weak self, weak incoming] in
-            for step in 1...20 {
-                try? await Task.sleep(for: .milliseconds(400))
-                guard let incoming, incoming.timeControlStatus == .playing else { return }
-                incoming.rate = rate + (1 - rate) * Float(step) / 20
+            let steps = 50
+            for step in 1...steps {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard let self, let incoming, self.player === incoming, incoming.timeControlStatus == .playing else {
+                    self?.mixTempoRatio = 1
+                    return
+                }
+                let progress = Float(step) / Float(steps)
+                let eased = progress * progress * (3 - 2 * progress)
+                incoming.rate = rate + (1 - rate) * eased
             }
             self?.mixTempoRatio = 1
         }
@@ -402,6 +487,10 @@ final class PlayerManager: ObservableObject {
     private func cancelMix() {
         mixTask?.cancel()
         mixTask = nil
+        mixEntryTask?.cancel()
+        mixEntryTask = nil
+        mixEntryReady = false
+        mixEntryStart = nil
         mixIncoming?.pause()
         mixIncoming = nil
         mixIncomingTrack = nil
@@ -424,18 +513,15 @@ final class PlayerManager: ObservableObject {
         guard !endHandled, player != nil else { return }
         endHandled = true
         stallTask?.cancel()
-        // AutoMix : le suivant est déjà chargé mais l'enchaînement n'a pas pu partir (pas
-        // prêt à temps) — on le prend tel quel plutôt que de tout recharger, ce qui
-        // laissait un silence avant qu'il reparte.
+        // AutoMix : le suivant est déjà chargé, en place et en tampon, mais l'enchaînement n'a
+        // pas pu partir — il démarre à l'instant, sans rechargement ni silence. Pas en place :
+        // on recharge normalement (démarrer au mauvais endroit serait pire).
         if crossfadeEnabled, let incoming = mixIncoming, let next = mixIncomingTrack, next.id == upNext.first?.id,
-           !followsParty, repeatMode != .one, !sleepStopsAfterCurrent {
+           !followsParty, repeatMode != .one, !sleepStopsAfterCurrent,
+           mixEntryReady, incoming.currentItem?.status == .readyToPlay {
             mixRate = 1
             incoming.volume = gain(for: next)
-            if incoming.currentItem?.status == .readyToPlay, let start = analysis(of: next)?.start, start > 0.3,
-               incoming.currentTime().seconds < start {
-                incoming.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-            }
-            incoming.play()
+            incoming.playImmediately(atRate: 1)
             promoteMix()
             return
         }
@@ -1370,8 +1456,10 @@ final class PlayerManager: ObservableObject {
             Task { await KaraokeStore.shared.prefetch(next) }
         }
         guard let next = upNext.first, !DownloadManager.shared.isDownloaded(next) else { return }
-        prefetchTask = Task {
+        prefetchTask = Task { [weak self] in
             try? await APIClient.shared.prepareStream(source: next.source, id: next.sourceId)
+            // Fichier prêt côté serveur : son analyse (tempo, grille) l'est aussi, ou le sera vite.
+            if let self, !Task.isCancelled, self.crossfadeEnabled { self.fetchAnalysis(next) }
         }
     }
 
@@ -2083,6 +2171,7 @@ final class PlayerManager: ObservableObject {
 
     private func teardown() {
         cancelMix()
+        mixAbandoned = nil
         mixControl = nil
         finishListening()
         stopObserving()

@@ -54,6 +54,10 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("track_analysis", "key_confidence", "REAL"),
     ("track_analysis", "tempo_confidence", "REAL"),
     ("track_analysis", "version", "INTEGER NOT NULL DEFAULT 1"),
+    # Grille de la fin du titre et fiabilité du premier temps de mesure (analyse v3).
+    ("track_analysis", "out_beat_offset", "REAL"),
+    ("track_analysis", "out_downbeat", "REAL"),
+    ("track_analysis", "downbeat_confidence", "REAL"),
 )
 
 # Index qui reposent sur des colonnes ajoutées par les migrations : créés une fois

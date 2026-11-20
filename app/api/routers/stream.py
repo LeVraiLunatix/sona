@@ -456,6 +456,8 @@ def _spawn_analysis(deps: ApiDeps, source: str, source_id: str, path: Path) -> N
                 bpm=result.bpm, beat_offset=result.beat_offset, downbeat=result.downbeat, key=result.key,
                 key_name=result.key_name, key_confidence=result.key_confidence,
                 tempo_confidence=result.tempo_confidence, version=audio_analysis.VERSION,
+                out_beat_offset=result.out_beat_offset, out_downbeat=result.out_downbeat,
+                downbeat_confidence=result.downbeat_confidence,
             )
 
     task = asyncio.create_task(run())
@@ -466,7 +468,7 @@ def _spawn_analysis(deps: ApiDeps, source: str, source_id: str, path: Path) -> N
 @router.get("/analysis/{source}/{source_id}")
 async def track_analysis(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
     """Analyse audio d'un titre pour l'AutoMix (sonie, début, outro, fin, tempo,
-    grille de temps, tonalité), calculée à la mise en cache. 404 tant que le
+    grille de temps au début et à la fin, tonalité), calculée à la mise en cache. 404 tant que le
     titre n'a pas été préparé. Une analyse d'avant le tempo et la tonalité est
     servie telle quelle, et refaite en arrière-plan."""
     found = await deps.repo.analysis_get(source, source_id)
@@ -482,6 +484,8 @@ async def track_analysis(source: str, source_id: str, deps: ApiDeps = Depends(re
         "bpm": found.get("bpm"), "beat_offset": found.get("beat_offset"), "downbeat": found.get("downbeat"),
         "key": found.get("key_camelot"), "key_name": found.get("key_name"),
         "key_confidence": found.get("key_confidence"), "tempo_confidence": found.get("tempo_confidence"),
+        "out_beat_offset": found.get("out_beat_offset"), "out_downbeat": found.get("out_downbeat"),
+        "downbeat_confidence": found.get("downbeat_confidence"),
     }
 
 

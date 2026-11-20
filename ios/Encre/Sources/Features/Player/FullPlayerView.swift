@@ -218,7 +218,7 @@ struct FullPlayerView: View {
                 Capsule().fill(Color.white.opacity(0.35)).frame(width: 38, height: 5)
                 sleepBadge
                 if player.isMixing {
-                    // Enchaînement AutoMix en cours : sa façon (harmonique, filtre, écho) et le
+                    // Enchaînement AutoMix en cours : sa façon (calé sur les temps ou simple fondu) et le
                     // tempo calé s'il a fallu l'ajuster.
                     Label(
                         player.mixTempoRatio == 1

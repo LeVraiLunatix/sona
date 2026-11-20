@@ -29,29 +29,36 @@ enum KeyMatch: Equatable {
     }
 }
 
-/// Façon d'enchaîner deux titres.
+/// Façon d'enchaîner deux titres. Dans tous les cas, un fondu enchaîné à puissance
+/// constante : jamais de filtre qui étouffe un titre ni d'écho qui répète, c'était
+/// ce qui faisait « couper » le son.
 enum MixStyle: Equatable {
-    /// Fondu à puissance constante, rien d'autre (analyse absente ou effets coupés).
+    /// Fondu simple : analyse absente, tempos trop éloignés ou grilles inconnues.
     case plain
-    /// Tempos calés et tonalités compatibles : les deux titres se superposent,
-    /// avec « échange des basses » (celles du suivant n'entrent qu'à mi-parcours,
-    /// celles du précédent sortent juste après) — la technique des DJ.
+    /// Tempos calés (le suivant est ralenti ou accéléré d'au plus 6 %) : les grosses
+    /// caisses des deux titres tombent ensemble, entrée sur un premier temps de mesure.
     case blend
-    /// Tempos calés mais tonalités qui s'entrechoquent : filtre qui se ferme sur le
-    /// premier titre pendant qu'il s'ouvre sur le suivant (masque l'harmonie).
-    case filter
-    /// Tempos trop éloignés : le premier titre s'efface dans un écho, le suivant
-    /// entre sur son premier temps.
-    case echo
 
     var label: String {
         switch self {
         case .plain: "AutoMix"
-        case .blend: "AutoMix · harmonique"
-        case .filter: "AutoMix · filtre"
-        case .echo: "AutoMix · écho"
+        case .blend: "AutoMix · calé"
         }
     }
+}
+
+/// Grille de temps d'un titre à l'endroit où elle sert (fin de A, début de B).
+struct BeatGrid: Equatable {
+    /// Tempo mesuré (battements par minute).
+    var bpm: Double
+    /// Un premier temps de mesure (secondes depuis le début du fichier).
+    var downbeat: Double
+    /// Fiabilité du premier temps de mesure (0…1) : les basses et les accords le
+    /// départagent mal sur certains titres. Les temps, eux, sont sûrs.
+    var barConfidence: Double
+
+    var period: Double { 60 / bpm }
+    var bar: Double { 4 * 60 / bpm }
 }
 
 /// Un enchaînement prêt à jouer : où il commence dans chaque titre, combien de
@@ -68,10 +75,13 @@ struct MixPlan: Equatable {
     var rate: Float
     var style: MixStyle
     var keyMatch: KeyMatch
-    /// Durée d'un temps de A, en secondes (0 si inconnue) : cale l'écho.
+    /// Durée d'un temps de A, en secondes (0 si inconnue).
     var beat: Double
     /// Les temps des deux titres tombent ensemble (tempos calés, grilles connues).
     var aligned: Bool
+    /// Échange des basses (passe-haut qui glisse de l'un à l'autre) : seulement quand les
+    /// temps sont calés et les tonalités compatibles.
+    var bassSwap: Bool
 }
 
 struct MixInputs {
@@ -82,111 +92,150 @@ struct MixInputs {
     /// Position actuelle de A.
     var position: Double
     var a: TrackAnalysis?
-    /// Tempo connu d'ailleurs (fiche Deezer) quand l'analyse n'en a pas.
+    /// Tempo connu d'ailleurs (fiche Deezer) quand l'analyse n'en a pas : sert seulement
+    /// à choisir une durée en mesures, jamais à caler.
     var aBPM: Double?
     var b: TrackAnalysis?
     var bBPM: Double?
     /// Durée imposée dans les réglages (0 / nil : automatique).
     var fixedLength: Double?
     var effects: Bool
+    /// Le suivant ne vient pas du même album : rien ne lie les deux titres, fondu plus long.
+    var albumBreak = false
+    /// Repli : pas de calage, simple fondu (le suivant n'était pas prêt à temps).
+    var forcePlain = false
+    /// Délai minimal avant le début de l'enchaînement (secondes).
+    var lead = 0.8
+}
+
+/// Calculs purs du calage (aucun accès au lecteur) : testés par `tests/automix_reference.py`,
+/// qui en est la copie fidèle en Python.
+enum MixMath {
+    /// Plus petit `origin + k × step` supérieur ou égal à `t` (k entier, positif ou non).
+    static func firstBoundary(atOrAfter t: Double, origin: Double, step: Double) -> Double {
+        origin + ceil((t - origin) / step - 1e-9) * step
+    }
+
+    /// Vitesse à donner à B (tempo `bpmB`) pour tomber sur A (`bpmA`) : d'un temps, du double
+    /// ou de la moitié (140 BPM se cale sur 70), dans l'écart toléré. `nil` : trop éloignés.
+    static func tempoRatio(bpmA: Double, bpmB: Double, tolerance: Double) -> Double? {
+        guard bpmA > 0, bpmB > 0 else { return nil }
+        let candidates = [bpmA / bpmB, bpmA / (bpmB * 2), (bpmA * 2) / bpmB]
+        guard let best = candidates.min(by: { abs($0 - 1) < abs($1 - 1) }), abs(best - 1) <= tolerance else { return nil }
+        return abs(best - 1) < 0.0005 ? 1 : best
+    }
+
+    /// Gains (A qui sort, B qui entre) à puissance constante : cos² + sin² = 1, le volume
+    /// perçu ne creuse ni ne gonfle au milieu du fondu.
+    static func equalPower(_ rawT: Double) -> (a: Double, b: Double) {
+        let t = min(1, max(0, rawT))
+        return (cos(t * .pi / 2), sin(t * .pi / 2))
+    }
 }
 
 enum MixPlanner {
     /// Le tempo ne se cale que dans cet écart : au-delà, le titre serait déformé.
-    static let tempoTolerance = 0.08
+    static let tempoTolerance = 0.06
     /// Sous cette confiance, la tonalité ou le tempo détecté ne sert pas.
     static let minConfidence = 0.3
+    /// Sous cette confiance, on ne se fie pas au premier temps de mesure : les temps sont
+    /// calés mais deux phrases musicales peuvent se contrarier, l'enchaînement reste court.
+    static let minBarConfidence = 0.25
+    /// Durée la plus courte d'un enchaînement calé sur des mesures.
+    static let minLength = 2.5
 
     static func plan(_ input: MixInputs) -> MixPlan {
+        let keyMatch = KeyMatch.between(confident(input.a), confident(input.b))
         let bpmA = input.a?.bpm ?? input.aBPM
-        let bpmB = input.b?.bpm ?? input.bBPM
-        let keyA = confident(input.a), keyB = confident(input.b)
-        let keyMatch = KeyMatch.between(keyA, keyB)
+        let gridA = outGrid(input.a)
+        let gridB = inGrid(input.b)
 
-        // Tempo : B est accéléré ou ralenti pour tomber sur A, d'un temps, du
-        // double ou de la moitié (140 BPM se cale sur 70).
+        // Tempo : B est accéléré ou ralenti pour tomber sur A. Seules des grilles mesurées
+        // permettent de caler (sans elles, on ne sait pas où tombent les temps).
         var rate = 1.0
-        var matched = false
-        if let bpmA, let bpmB, bpmA > 0, bpmB > 0 {
-            for ratio in [bpmA / bpmB, bpmA / (bpmB * 2), (bpmA * 2) / bpmB] where abs(ratio - 1) <= tempoTolerance {
-                rate = ratio
-                matched = true
-                break
+        var aligned = false
+        if !input.forcePlain, let gridA, let gridB,
+           let ratio = MixMath.tempoRatio(bpmA: gridA.bpm, bpmB: gridB.bpm, tolerance: tempoTolerance) {
+            rate = ratio
+            aligned = true
+        }
+        let barsTrusted = (gridA?.barConfidence ?? 0) >= minBarConfidence && (gridB?.barConfidence ?? 0) >= minBarConfidence
+
+        // Durée maximale d'après la façon d'enchaîner.
+        let maxLength: Double
+        if aligned {
+            switch keyMatch {
+            case .same, .relative, .adjacent: maxLength = barsTrusted ? 16 : 8
+            case .unknown: maxLength = 8
+            case .clash: maxLength = 6
             }
-        }
-        let tempoKnown = bpmA != nil && bpmB != nil
-
-        let style: MixStyle
-        if !input.effects {
-            style = .plain
-        } else if matched {
-            style = keyMatch == .clash ? .filter : .blend
-        } else if tempoKnown {
-            style = .echo
         } else {
-            style = keyMatch == .clash ? .filter : .plain
+            maxLength = input.albumBreak ? 12 : 8
         }
 
-        // Grille de A : ses premiers temps de mesure (analyse seulement — un tempo
-        // de la fiche Deezer ne dit pas où tombent les temps).
-        let gridA = grid(input.a)
-        let gridB = grid(input.b)
-        let beat = gridA.map { 60 / $0.bpm } ?? bpmA.map { 60 / $0 } ?? 0
-
-        var start = input.aBase
-        let available = max(2, input.aEnd - start)
-        var length: Double
+        let earliest = input.position + input.lead
+        var start = max(input.aBase, input.aEnd - maxLength)
+        var length = maxLength
         if let fixed = input.fixedLength, fixed > 0 {
-            length = max(1, min(fixed, available))
-        } else {
-            let maxLength: Double
-            switch style {
-            case .blend: maxLength = keyMatch.blends ? 16 : 12
-            case .filter: maxLength = 8
-            case .echo: maxLength = 5
-            case .plain: maxLength = 12
-            }
-            if let gridA {
-                // Mesures entières : 8, 4, 2 ou 1 (la plus longue qui tient).
-                let bar = 4 * 60 / gridA.bpm
-                let candidates = [8.0, 4, 2, 1].map { $0 * bar }.filter { $0 >= 2.5 && $0 <= maxLength }
-                length = candidates.first { $0 <= available + 0.5 } ?? min(maxLength, max(2.5, available))
-            } else {
-                var legacy = input.a != nil ? min(12, max(4, available)) : 8
-                if let bpmA, bpmA > 0 {
-                    let bar = 240 / bpmA
-                    legacy = min(16, max(bar * 2, (legacy / bar).rounded() * bar))
-                }
-                length = max(2, min(legacy, maxLength, available))
-            }
+            length = max(1, min(fixed, max(1, input.aEnd - earliest)))
+            start = max(input.aBase, input.aEnd - length)
         }
 
-        // Départ sur un premier temps de mesure de A, jamais plus tard que la fin.
-        let earliest = input.position + 0.6
-        if let gridA {
-            let bar = 4 * 60 / gridA.bpm
-            start = gridA.downbeat + (ceil((start - gridA.downbeat) / bar)) * bar
-            while start + length > input.aEnd + 0.4 && start - bar >= earliest { start -= bar }
-            if start < earliest { start = gridA.downbeat + ceil((earliest - gridA.downbeat) / bar) * bar }
-        } else if start < earliest {
-            start = earliest
+        if let gridA, !input.forcePlain {
+            // Départ sur un premier temps de mesure de A, durée en mesures entières (8, 4, 2
+            // ou 1 : la plus longue qui tient avant la fin du titre).
+            let lengths: [Double] = input.fixedLength.map { _ in [length] }
+                ?? [8, 4, 2, 1].map { $0 * gridA.bar }.filter { $0 >= minLength && $0 <= maxLength + 0.01 }
+            if let found = barPlacement(grid: gridA, lengths: lengths, aBase: input.aBase, aEnd: input.aEnd, earliest: earliest) {
+                start = found.start
+                length = found.length
+            } else {
+                start = MixMath.firstBoundary(atOrAfter: earliest - 0.05, origin: gridA.downbeat, step: gridA.bar)
+                length = max(1.5, min(length, input.aEnd - start))
+            }
+        } else {
+            // Sans grille : durée arrondie à des mesures entières si on connaît un tempo.
+            if input.fixedLength == nil, let bpmA, bpmA > 0 {
+                let bar = 240 / bpmA
+                let bars = max(1, (maxLength / bar).rounded())
+                length = min(maxLength + bar / 2, bars * bar)
+                length = max(minLength, length)
+            }
+            // Le fondu se termine à peu près avec A, sans commencer avant son outro ni avant `earliest`.
+            start = max(max(input.aBase, input.aEnd - length), earliest)
+            length = max(1.5, min(length, input.aEnd - start))
         }
-        length = max(1.5, min(length, max(1.5, input.aEnd - start)))
 
         // Entrée de B : son premier temps de mesure à partir de son début réel.
         let introEnd = input.b?.start ?? 0
         var bStart = introEnd
         if let gridB {
-            let bar = 4 * 60 / gridB.bpm
-            let first = max(0, gridB.downbeat + ceil((introEnd - 0.15 - gridB.downbeat) / bar) * bar)
+            let first = max(0, MixMath.firstBoundary(atOrAfter: introEnd - 0.15, origin: gridB.downbeat, step: gridB.bar))
             // Une grille trop loin du début du son n'est pas fiable : on garde le début.
             if first - introEnd <= 6 { bStart = first }
         }
 
         return MixPlan(
-            aStart: start, bStart: bStart, length: length, rate: Float(rate), style: style,
-            keyMatch: keyMatch, beat: beat, aligned: matched && gridA != nil && gridB != nil
+            aStart: start, bStart: bStart, length: length, rate: Float(rate),
+            style: aligned ? .blend : .plain, keyMatch: keyMatch,
+            beat: gridA?.period ?? bpmA.map { 60 / $0 } ?? 0, aligned: aligned,
+            bassSwap: aligned && input.effects && keyMatch.blends
         )
+    }
+
+    /// Première mesure de A (premier temps) où loger l'enchaînement : la plus longue des
+    /// `lengths` qui tient entre `earliest` et la fin de A, au plus près de `aBase` (début de
+    /// l'outro) mais jamais assez tard pour que le suivant dépasse la fin du titre.
+    static func barPlacement(
+        grid: BeatGrid, lengths: [Double], aBase: Double, aEnd: Double, earliest: Double
+    ) -> (start: Double, length: Double)? {
+        for length in lengths {
+            var start = MixMath.firstBoundary(atOrAfter: max(aBase, aEnd - length) - 0.05, origin: grid.downbeat, step: grid.bar)
+            let overrun = start + length - (aEnd + 0.4)
+            if overrun > 0 { start -= ceil(overrun / grid.bar) * grid.bar }
+            if start >= earliest - 0.05 { return (start, length) }
+        }
+        return nil
     }
 
     /// Tonalité utilisable (assez sûre) d'une analyse.
@@ -195,25 +244,28 @@ enum MixPlanner {
         return analysis.key
     }
 
-    /// Tempo et premier temps de mesure d'une analyse, quand la détection est assez sûre.
-    private static func grid(_ analysis: TrackAnalysis?) -> (bpm: Double, downbeat: Double)? {
+    /// Grille de la fin du titre (là où il sort) : mesurée sur sa fin quand le serveur la
+    /// donne (le tempo dérive un peu sur trois minutes), sinon celle du début.
+    static func outGrid(_ analysis: TrackAnalysis?) -> BeatGrid? {
+        guard let analysis, let bpm = analysis.bpm, bpm > 30, (analysis.tempoConfidence ?? 0) >= minConfidence,
+              let downbeat = analysis.outDownbeat ?? analysis.outBeatOffset ?? analysis.downbeat ?? analysis.beatOffset
+        else { return nil }
+        let measured = analysis.outDownbeat != nil
+        return BeatGrid(bpm: bpm, downbeat: downbeat, barConfidence: measured ? analysis.downbeatConfidence ?? 0.5 : 0)
+    }
+
+    /// Grille du début du titre (là où il entre).
+    static func inGrid(_ analysis: TrackAnalysis?) -> BeatGrid? {
         guard let analysis, let bpm = analysis.bpm, bpm > 30, (analysis.tempoConfidence ?? 0) >= minConfidence,
               let downbeat = analysis.downbeat ?? analysis.beatOffset else { return nil }
-        return (bpm, downbeat)
+        return BeatGrid(bpm: bpm, downbeat: downbeat, barConfidence: analysis.downbeatConfidence ?? 0.5)
     }
 }
 
-/// Réglage des effets d'un titre à un instant de l'enchaînement.
+/// Réglage des effets d'un titre à un instant de l'enchaînement : un seul passe-haut.
 struct MixFX: Equatable {
     /// Passe-haut (Hz) : 0 = coupé.
     var highpass: Float = 0
-    /// Passe-bas (Hz) : 0 = coupé.
-    var lowpass: Float = 0
-    /// Niveau de l'écho (0…1) et son retard (secondes).
-    var wet: Float = 0
-    var delay: Float = 0.4
-    /// Niveau du son direct (le titre qui s'efface dans son écho passe à 0).
-    var dry: Float = 1
 }
 
 /// Volumes et effets des deux titres à l'instant `t` (0…1) de l'enchaînement.
@@ -225,42 +277,16 @@ struct MixFrame {
 }
 
 enum MixAutomation {
-    /// `fx` faux : fondu à puissance constante seulement (effets coupés, ou
-    /// traitement du son indisponible sur l'un des titres).
+    /// Fondu à puissance constante ; `fx` vrai et plan à échange des basses : passe-haut qui
+    /// glisse (continu, jamais de coupure) — B n'entre avec ses basses qu'à mi-parcours, celles
+    /// de A sortent ensuite.
     static func frame(plan: MixPlan, t rawT: Double, gainA: Float, gainB: Float, fx: Bool) -> MixFrame {
         let t = min(1, max(0, rawT))
-        // Puissance constante, avec un léger décalage façon DJ : B s'installe
-        // avant que A ne s'efface vraiment.
-        let tA = max(0, min(1, (t - 0.15) / 0.85))
-        let tB = min(1, t / 0.85)
-        var frame = MixFrame(
-            volumeA: gainA * Float(cos(tA * .pi / 2)),
-            volumeB: gainB * Float(sin(tB * .pi / 2))
-        )
-        guard fx else { return frame }
-
-        switch plan.style {
-        case .plain:
-            break
-        case .blend:
-            // Échange des basses : celles de B n'entrent qu'à mi-parcours, celles de A sortent ensuite.
+        let gains = MixMath.equalPower(t)
+        var frame = MixFrame(volumeA: gainA * Float(gains.a), volumeB: gainB * Float(gains.b))
+        if fx && plan.bassSwap {
             frame.fxA.highpass = t < 0.4 ? 0 : logLerp(25, 320, (t - 0.4) / 0.5)
             frame.fxB.highpass = t < 0.5 ? 200 : (t < 0.72 ? logLerp(200, 25, (t - 0.5) / 0.22) : 0)
-        case .filter:
-            // Filtre qui se ferme sur A pendant qu'il s'ouvre sur B.
-            frame.fxA.lowpass = logLerp(19_000, 450, smooth(t))
-            frame.fxB.lowpass = t < 0.1 ? 450 : logLerp(450, 19_000, smooth((t - 0.1) / 0.8))
-        case .echo:
-            // A s'efface dans un écho (le volume du lecteur reste : seul le son direct baisse),
-            // B entre sur son premier temps, filtre qui s'ouvre.
-            let delay = plan.beat > 0 ? min(0.9, max(0.18, plan.beat * 0.75)) : 0.375
-            frame.fxA.delay = Float(delay)
-            frame.fxA.wet = Float(min(0.85, t / 0.35 * 0.85) * (1 - smooth((t - 0.7) / 0.3)))
-            frame.fxA.dry = Float(cos(min(1, t / 0.55) * .pi / 2))
-            frame.fxA.highpass = logLerp(25, 700, t)
-            frame.volumeA = gainA
-            frame.volumeB = gainB * Float(sin(min(1, max(0, (t - 0.15) / 0.5)) * .pi / 2))
-            frame.fxB.lowpass = logLerp(2_500, 19_000, smooth(min(1, t / 0.6)))
         }
         return frame
     }
@@ -269,10 +295,5 @@ enum MixAutomation {
     private static func logLerp(_ from: Double, _ to: Double, _ progress: Double) -> Float {
         let p = min(1, max(0, progress))
         return Float(from * pow(to / from, p))
-    }
-
-    private static func smooth(_ progress: Double) -> Double {
-        let p = min(1, max(0, progress))
-        return p * p * (3 - 2 * p)
     }
 }
