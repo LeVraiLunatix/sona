@@ -16,6 +16,12 @@ enum SearchFilter: String, CaseIterable, Identifiable {
     }
 }
 
+/// Le « Meilleur résultat » de « Tout » : un titre ou un artiste.
+enum SearchTop {
+    case track(Track)
+    case artist(Artist)
+}
+
 @MainActor
 final class SearchViewModel: ObservableObject {
     @Published var query = "" {
@@ -37,6 +43,34 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var radioGroups: [RadioGroup] = []
 
     var libraryCount: Int { libraryTracks.count + libraryPlaylists.count }
+
+    /// Sans accents, majuscules ni ponctuation : comparer un nom d'artiste et une saisie.
+    private static func fold(_ text: String) -> String {
+        let plain = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+        return String(plain.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map { Character($0) })
+    }
+
+    /// Meilleur résultat. Un titre cherché (« music sounds better with you ») ne doit pas laisser
+    /// la place à un petit artiste de même nom, ni « daft punk one more time » mener à la fiche de
+    /// Daft Punk : l'artiste passe devant seulement si la saisie est son nom (connu, ou celui du
+    /// premier titre trouvé), ou le début ou une faute de frappe de son nom quand le premier titre
+    /// est de lui. Sinon, le premier titre ; à défaut de titre, le premier artiste.
+    var top: SearchTop? {
+        let first = results.first
+        let wanted = Self.fold(query)
+        if let artist = artists.first {
+            let name = Self.fold(artist.name)
+            let ofFirstTrack = first.map { track in
+                Self.fold(track.artist.split(separator: ",").first.map(String.init) ?? track.artist) == name
+            } ?? false
+            let typedName = name == wanted && ((artist.fans ?? 0) >= 20_000 || ofFirstTrack)
+            let nearName = ofFirstTrack && wanted.count <= name.count
+            if typedName || nearName { return .artist(artist) }
+        }
+        if let first { return .track(first) }
+        if let artist = artists.first { return .artist(artist) }
+        return nil
+    }
     var hasResults: Bool { !results.isEmpty || !artists.isEmpty || !albums.isEmpty || libraryCount > 0 }
 
     /// Filtres qui ont de quoi s'afficher (« Tout » reste toujours).
