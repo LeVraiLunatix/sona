@@ -1825,7 +1825,14 @@ function drawResults(box) {
   const songOpts = { solo: true, hl: q };
   let body = "";
   if (f === "all") {
-    const top = artists[0] && songs[0] && artists[0].name.toLowerCase() === songs[0].artist.toLowerCase() ? artists[0] : null;
+    // L'artiste en grande carte seulement si la saisie est son nom (connu, ou celui du premier titre),
+    // ou le début / une faute de frappe de son nom quand le premier titre est de lui. Sinon, le premier
+    // titre : « music sounds better with you » ne mène plus à un petit artiste de même nom, ni
+    // « daft punk one more time » à la fiche de Daft Punk.
+    const fold = (x) => words(x).replace(/ /g, "");
+    const a0 = artists[0], nm = a0 ? fold(a0.name) : "", wanted = fold(q);
+    const ofFirst = !!(a0 && songs[0] && fold(songs[0].artist.split(",")[0]) === nm);
+    const top = a0 && ((nm === wanted && ((a0.fans || 0) >= 20000 || ofFirst)) || (ofFirst && wanted.length <= nm.length)) ? a0 : null;
     const topHtml = top
       ? `<a class="top-card" href="#/artist/${top.source}/${top.source_id}"><img class="round" src="${esc(top.picture_url || "")}" alt=""><div class="t">${hlHtml(top.name, q)}</div><div class="s">Artiste</div></a>`
       : songs[0] ? `<button class="top-card" data-top><img src="${esc(big(songs[0].cover_url, 300))}" alt=""><div class="t">${hlHtml(songs[0].title, q)}</div><div class="s">Titre · ${esc(songs[0].artist)}</div></button>` : "";
