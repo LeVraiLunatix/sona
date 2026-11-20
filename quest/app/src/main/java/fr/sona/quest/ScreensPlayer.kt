@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -95,6 +96,7 @@ fun PlayerScreen() {
                     SonaText("EN LECTURE", 11.sp, FontWeight.Bold, tone = 2)
                     if (queueName.isNotBlank()) SonaText(queueName, 14.sp, FontWeight.SemiBold, tone = 1, maxLines = 1)
                 }
+                IconButton(onClick = { Dj.start(track) }) { Icon(Icons.Filled.Radio, "Radio DJ", tint = look.secondary) }
                 IconButton(onClick = { sound = true }) { Icon(Icons.Filled.Tune, "Son", tint = look.secondary) }
                 IconButton(onClick = { sleep = true }) {
                     Icon(Icons.Filled.Bedtime, "Minuteur", tint = if (sleepEnd != null) look.accent else look.secondary)

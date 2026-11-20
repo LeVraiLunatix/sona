@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
@@ -295,7 +297,10 @@ fun HomeScreen() {
                             SonaText(t.artist, 16.sp, tone = 1, maxLines = 1)
                             if (d.reason.isNotBlank()) SonaText(d.reason, 13.sp, tone = 2, maxLines = 2)
                             Spacer(Modifier.height(8.dp))
-                            PillButton("Lecture", { Hub.playQueue(listOf(t), 0, "Titre du jour") }, icon = Icons.Filled.PlayArrow)
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                PillButton("Lecture", { Hub.playQueue(listOf(t), 0, "Titre du jour") }, icon = Icons.Filled.PlayArrow)
+                                PillButton("Radio DJ", { Dj.start(t) }, primary = false, icon = Icons.Filled.Radio)
+                            }
                         }
                     }
                 }
@@ -419,7 +424,7 @@ fun isCurrent(t: Track): Boolean {
 
 // ── Bibliothèque ─────────────────────────────────────────────────────────────────────────
 
-private enum class LibTab(val label: String) { Titres("Titres"), Albums("Albums"), Artistes("Artistes"), Playlists("Playlists") }
+private enum class LibTab(val label: String) { Titres("Titres"), Albums("Albums"), Artistes("Artistes"), Playlists("Playlists"), Telecharges("Téléchargés") }
 
 private fun LibraryItem.asTrack() = track ?: Track(
     source = source, sourceId = sourceId, title = title, artist = subtitle.orEmpty(), coverUrl = coverUrl,
@@ -475,6 +480,7 @@ fun LibraryScreen() {
                         }
                     }
                 }
+                LibTab.Telecharges -> DownloadsTab()
                 LibTab.Playlists -> {
                     val s by load("lib-playlists") { Hub.api.playlists() }
                     Loaded(s) { list ->
@@ -505,6 +511,7 @@ fun CollectionPage(title: String, sub: String?, cover: String?, tracks: List<Tra
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         PillButton("Lecture", { Hub.playQueue(tracks, 0, title) }, Modifier.width(180.dp), icon = Icons.Filled.PlayArrow)
                         PillButton("Aléatoire", { Hub.playQueue(tracks.shuffled(), 0, title) }, Modifier.width(180.dp), primary = false, icon = Icons.Filled.Shuffle)
+                        PillButton("Télécharger", { Downloads.download(tracks) }, primary = false, icon = Icons.Filled.Download)
                     }
                 }
             }

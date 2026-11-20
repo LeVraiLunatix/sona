@@ -101,6 +101,8 @@ object Hub {
         theme.value = ThemeId.fromKey(settings.theme)
         Sound.init(settings)
         Karaoke.init(settings)
+        Dj.init(settings)
+        Downloads.init()
     }
 
     fun currentPlayer(): ExoPlayer? = player
@@ -143,6 +145,7 @@ object Hub {
                 loadCoverColor()
                 Sound.onTrackChanged(current)
                 Karaoke.onTrackChanged()
+                Dj.onTrackChanged()
                 kick.trySend(Unit)
             }
 
@@ -194,6 +197,7 @@ object Hub {
         tickerJob?.cancel()
         Sound.release()
         Karaoke.release()
+        Dj.release()
         player?.release()
         player = null
         playing.value = false
@@ -244,7 +248,8 @@ object Hub {
     fun mediaItem(t: Track, stem: String? = null, quality: String? = null): MediaItem {
         fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
         val base = "${settings.server}/stream/${enc(t.source)}/${enc(t.sourceId)}"
-        val uri = if (stem != null) "$base/karaoke/$stem?quality=${quality ?: "fast"}" else "$base?quality=${settings.quality}"
+        val uri = if (stem != null) "$base/karaoke/$stem?quality=${quality ?: "fast"}"
+        else Downloads.uri(t) ?: "$base?quality=${settings.quality}"
         val id = if (stem != null) "${t.source}:${t.sourceId}:k:${quality ?: "fast"}" else "${t.source}:${t.sourceId}"
         val meta = MediaMetadata.Builder()
             .setTitle(t.title)
@@ -265,8 +270,11 @@ object Hub {
         name: String = "",
         positionSec: Double = 0.0,
         play: Boolean = true,
+        keepStation: Boolean = false,
     ) {
         if (tracks.isEmpty()) return
+        // Une autre lecture prend la place d'une radio DJ en cours : la station s'arrête.
+        if (!keepStation) Dj.stop()
         ensureService()
         val p = player()
         val list = tracks.take(MAX_QUEUE)
@@ -280,6 +288,17 @@ object Hub {
         if (play) claimNext = true
         loadLyrics()
         loadCoverColor()
+        kick.trySend(Unit)
+    }
+
+    /** Ajoute des titres à la fin de la file (la radio DJ se prolonge ainsi). */
+    fun appendToQueue(tracks: List<Track>) {
+        val p = player ?: return
+        val room = MAX_QUEUE - queue.value.size
+        val add = tracks.take(room.coerceAtLeast(0))
+        if (add.isEmpty()) return
+        queue.value = queue.value + add
+        p.addMediaItems(add.map { mediaItem(it) })
         kick.trySend(Unit)
     }
 

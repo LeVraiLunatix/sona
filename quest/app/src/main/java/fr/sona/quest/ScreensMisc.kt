@@ -266,6 +266,28 @@ fun SettingsScreen() {
         PillButton("Égaliseur, volume égalisé et fondu", { soundOpen = true }, primary = false)
         if (soundOpen) SoundDialog { soundOpen = false }
 
+        SectionHeader("Radio DJ")
+        val djVoice by Dj.voice.collectAsState()
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Switch(
+                checked = djVoice,
+                onCheckedChange = { Dj.setVoice(it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = look.accent, checkedThumbColor = look.onAccent),
+            )
+            Column {
+                SonaText("Voix du DJ", 17.sp, FontWeight.SemiBold)
+                SonaText("Le DJ annonce chaque titre de la radio, par-dessus le début.", 13.sp, tone = 1)
+            }
+        }
+
+        SectionHeader("Réveil musical")
+        AlarmSettings()
+
+        SectionHeader("Téléchargements")
+        val offline by Downloads.items.collectAsState()
+        SonaText("${offline.size} titre${if (offline.size > 1) "s" else ""} · ${formatBytes(offline.sumOf { it.bytes })} sur ce casque", 14.sp, tone = 1)
+        if (offline.isNotEmpty()) PillButton("Tout supprimer", { Downloads.removeAll() }, primary = false)
+
         SectionHeader("Ce casque")
         OutlinedTextField(name, { name = it }, singleLine = true, label = { SonaText("Nom dans Sona Connect", 14.sp, tone = 1) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(server, { server = it }, singleLine = true, label = { SonaText("Serveur Sona", 14.sp, tone = 1) }, modifier = Modifier.fillMaxWidth())

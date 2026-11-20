@@ -7,6 +7,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
@@ -162,5 +174,75 @@ fun QualityChips() {
         listOf("lossless" to "Lossless", "best" to "Meilleure", "standard" to "Standard").forEach { (key, label) ->
             Chip(label, account.quality == key, { Hub.setQuality(key) })
         }
+    }
+}
+
+fun formatBytes(b: Long): String = when {
+    b >= 1_000_000_000 -> "%.1f Go".format(b / 1e9)
+    b >= 1_000_000 -> "%.0f Mo".format(b / 1e6)
+    else -> "%.0f Ko".format(b / 1e3)
+}
+
+/** Onglet « Téléchargés » de la bibliothèque : ce qui joue sans réseau. */
+@Composable
+fun DownloadsTab() {
+    val items by Downloads.items.collectAsState()
+    val active by Downloads.active.collectAsState()
+    if (items.isEmpty() && active.isEmpty()) {
+        EmptyState("Rien de téléchargé", "Utilise « Télécharger » sur un album, une playlist ou un mix : la musique joue ensuite sans réseau.")
+        return
+    }
+    val tracks = items.map { it.track }
+    LazyColumn(Modifier.fillMaxSize()) {
+        if (active.isNotEmpty()) {
+            item {
+                SonaText("Téléchargement en cours : ${active.size} titre${if (active.size > 1) "s" else ""}…", 14.sp, tone = 3, modifier = Modifier.padding(bottom = 8.dp))
+            }
+        }
+        itemsIndexed(items) { i, offline ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TrackItem(offline.track, { Hub.playQueue(tracks, i, "Téléchargés") }, Modifier.weight(1f), current = isCurrent(offline.track))
+                SonaText(formatBytes(offline.bytes), 13.sp, tone = 2)
+                IconButton(onClick = { Downloads.remove(offline.track) }) {
+                    Icon(Icons.Filled.Delete, "Supprimer", tint = LocalLook.current.secondary)
+                }
+            }
+        }
+    }
+}
+
+/** Réveil musical : activé, heure et minute. */
+@Composable
+fun AlarmSettings() {
+    val look = LocalLook.current
+    val context = LocalContext.current
+    var on by remember { mutableStateOf(Hub.settings.alarmOn) }
+    var hour by remember { mutableStateOf(Hub.settings.alarmHour) }
+    var minute by remember { mutableStateOf(Hub.settings.alarmMinute) }
+    fun commit() {
+        Hub.settings.alarmOn = on
+        Hub.settings.alarmHour = hour
+        Hub.settings.alarmMinute = minute
+        Alarm.schedule(context.applicationContext)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Switch(
+            checked = on,
+            onCheckedChange = { on = it; commit() },
+            colors = SwitchDefaults.colors(checkedTrackColor = look.accent, checkedThumbColor = look.onAccent),
+        )
+        Column {
+            SonaText("Réveil musical", 17.sp, FontWeight.SemiBold)
+            SonaText("Ton mix du jour démarre doucement à l'heure choisie, casque en veille compris si Horizon OS le permet.", 13.sp, tone = 1)
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Chip("−", false, { hour = (hour + 23) % 24; commit() })
+        SonaText("%02d".format(hour), 28.sp, FontWeight.Bold)
+        Chip("+", false, { hour = (hour + 1) % 24; commit() })
+        SonaText(":", 28.sp, FontWeight.Bold)
+        Chip("−", false, { minute = (minute + 55) % 60; commit() })
+        SonaText("%02d".format(minute), 28.sp, FontWeight.Bold)
+        Chip("+", false, { minute = (minute + 5) % 60; commit() })
     }
 }
