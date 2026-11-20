@@ -95,9 +95,14 @@ class SoundcloudClient:
             if self._client_id is None:
                 self._client_id = await self._find_client_id()
             try:
+                url = path if path.startswith("http") else f"{API_BASE}{path}"
+                # Une URL « next_href » porte déjà son offset : on le recopie dans
+                # les paramètres, car httpx >= 0.28 remplace la requête au lieu de
+                # la fusionner (la page suivante revenait alors à la première).
+                query = dict(httpx.URL(url).params)
                 response = await self._client.get(
-                    path if path.startswith("http") else f"{API_BASE}{path}",
-                    params={**(params or {}), "client_id": self._client_id},
+                    url.split("?", 1)[0],
+                    params={**query, **(params or {}), "client_id": self._client_id},
                 )
             except httpx.HTTPError as exc:
                 raise SoundcloudError(f"SoundCloud injoignable : {exc}") from exc
