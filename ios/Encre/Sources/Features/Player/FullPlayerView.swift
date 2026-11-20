@@ -44,6 +44,7 @@ struct FullPlayerView: View {
     @ObservedObject private var remote = RemoteFlag.shared
     @ObservedObject private var cast = CastManager.shared
     @ObservedObject private var gta = GtaTheme.shared
+    @ObservedObject private var archive = ArchiveTheme.shared
     @Namespace private var hero
 
     private struct AutoHideKey: Equatable {
@@ -67,6 +68,9 @@ struct FullPlayerView: View {
             if gta.on {
                 // Thème GTA VI : le coucher de soleil de Vice City à la place du fond vivant.
                 GtaBackdrop(veil: 0.22).transition(.opacity)
+            } else if archive.on {
+                // Thème archive : un aplat noir bleuté, sans fond vivant.
+                ArchiveColor.canvas.ignoresSafeArea().transition(.opacity)
             } else {
                 LivingBackground(colors: palette, animated: player.isPlaying, reactive: true, tempo: player.current?.bpm)
                     .id(palette)
@@ -379,7 +383,7 @@ struct FullPlayerView: View {
                     Text(track.title)
                         .font(.system(size: compact ? 17 : 22, weight: .bold))
                         .foregroundStyle(Tone.primary)
-                        .gtaTitle(size: compact ? 18 : 24)
+                        .themeTitle(size: compact ? 18 : 24)
                         .lineLimit(1)
                     ExclusiveTag(track: track, compact: compact)
                 }

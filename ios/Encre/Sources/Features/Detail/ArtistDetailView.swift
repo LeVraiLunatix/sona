@@ -194,7 +194,7 @@ struct ArtistDetailView: View {
         let name = Text(artist.name)
             .font(.system(size: 44, weight: .heavy))
             .foregroundStyle(Tone.primary)
-            .gtaTitle(size: 46)
+            .themeTitle(size: 46)
             .multilineTextAlignment(.center)
             .lineLimit(2)
             .minimumScaleFactor(0.6)
