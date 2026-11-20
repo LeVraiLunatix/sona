@@ -2735,6 +2735,10 @@ html.archive .drawer .queue .tr, html.archive .drawer .mini { font-family: var(-
    qu'un titre de l'album joue (voir `syncGta`, app.js). Un coucher de soleil de néons : ciel
    violet, soleil rayé, grille au sol, palmiers, rose et orange, cyan en filet. Réglage :
    Réglages > Apparence > Thème GTA VI. */
+/* La police de GTA : Pricedown Black (Typodermic), un seul graisse, déjà grasse : ni italique ni gras
+   synthétiques. Fichier woff2 converti depuis « Pricedown Bl.otf » (archive des polices gratuites de
+   Typodermic) ; licence : voir docs/GUIDE.md. */
+@font-face { font-family: "Pricedown"; src: url("fonts/Pricedown.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
 html.gtavi {
   --canvas: #0d0220; --bg: rgba(22, 5, 40, .66); --bg-elevated: rgba(48, 12, 78, .9); --sidebar: transparent;
   --glass: rgba(30, 7, 54, .74); --hairline: rgba(255, 130, 215, .24);
@@ -2743,7 +2747,7 @@ html.gtavi {
   --accent: #ff4fa3 !important; --accent-2: #7a7bff !important; --accent-soft: rgba(255, 79, 163, .2) !important; --on-accent: #1a0230 !important;
   --neon-cyan: #25e8ff; --neon-pink: #ff2e97; --neon-blue: #6f7bff; --neon-violet: #a45bff;
   --shadow-pop: 0 0 0 1px rgba(255, 130, 215, .2), 0 24px 64px rgba(10, 0, 30, .6), 0 0 42px rgba(255, 46, 151, .16);
-  --font-title: "Pricedown", "Bowlby One SC", Impact, "Haettenschweiler", "Arial Black", sans-serif;
+  --font-title: "Pricedown", Impact, "Haettenschweiler", "Arial Black", sans-serif;
   color-scheme: dark;
 }
 
@@ -2783,18 +2787,18 @@ html.gtavi .hero-glow img { filter: blur(70px) saturate(1.8) hue-rotate(-12deg);
 
 /* Titres : lettres de façade de Vice City, dégradé jaune-rose et halo néon. */
 html.gtavi .page-title, html.gtavi .hero h1, html.gtavi .pa-name, html.gtavi .profile-head h1 {
-  font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .015em; font-weight: 900;
+  font-family: var(--font-title); font-style: normal; text-transform: uppercase; letter-spacing: .015em; font-weight: 400;
   background: linear-gradient(180deg, #f2f7ff 0%, #9cc0ff 34%, #a45bff 66%, #ff4fa3 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 0 12px rgba(255, 46, 151, .55)) drop-shadow(0 2px 0 rgba(30, 0, 50, .6));
 }
-html.gtavi .section-head h2, html.gtavi .set-head { font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .05em; font-weight: 800; color: #ffd6ee; text-shadow: 0 0 10px rgba(255, 46, 151, .5); }
+html.gtavi .section-head h2, html.gtavi .set-head { font-family: var(--font-title); font-style: normal; text-transform: uppercase; letter-spacing: .05em; font-weight: 400; color: #ffd6ee; text-shadow: 0 0 10px rgba(255, 46, 151, .5); }
 html.gtavi .hero .kind { color: var(--neon-cyan); text-shadow: 0 0 8px rgba(37, 232, 255, .6); letter-spacing: .24em; }
 html.gtavi .hero .by, html.gtavi .page-sub { color: var(--text-2); }
 html.gtavi .hero-art, html.gtavi .card .art-wrap, html.gtavi .tr img, html.gtavi .mini img { box-shadow: 0 0 0 1px rgba(255, 130, 215, .35), 0 0 26px rgba(255, 46, 151, .28); }
 html.gtavi .card:hover .art-wrap { box-shadow: 0 0 0 1px rgba(37, 232, 255, .6), 0 0 34px rgba(37, 232, 255, .35); }
 
 /* Marque, menu, boutons : rose et orange, halo au survol. */
-html.gtavi .brand .wordmark { font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .06em; color: #ffd6ee; text-shadow: 0 0 12px rgba(255, 46, 151, .7); }
+html.gtavi .brand .wordmark { font-family: var(--font-title); font-style: normal; text-transform: uppercase; letter-spacing: .06em; color: #ffd6ee; text-shadow: 0 0 12px rgba(255, 46, 151, .7); }
 html.gtavi .brand .wordmark::after { content: " VI"; color: var(--neon-blue); text-shadow: 0 0 12px rgba(111, 123, 255, .85); }
 html.gtavi .brand-mark svg { filter: drop-shadow(0 0 8px rgba(255, 79, 163, .6)); }
 html.gtavi .side-link.active { background: linear-gradient(90deg, rgba(255, 79, 163, .3), rgba(111, 123, 255, .14)); color: #fff; box-shadow: inset 2px 0 0 var(--neon-pink), 0 0 20px rgba(255, 46, 151, .22); }
@@ -2820,7 +2824,7 @@ html.gtavi .scroll { --sb: rgba(255, 130, 215, .32); --sb-on: rgba(255, 130, 215
 /* Lecteur plein écran : le décor de Vice City derrière la pochette et les paroles. */
 html.gtavi .np { background: linear-gradient(180deg, #080224 0%, #1d0c66 40%, #5a1aa8 70%, #c52fb0 90%, #ff5fa8 100%); }
 html.gtavi .np .np-bg { opacity: .55; mix-blend-mode: screen; }
-html.gtavi .np .np-meta .t { font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .02em; background: linear-gradient(180deg, #f2f7ff, #9cc0ff 40%, #a45bff 72%, #ff4fa3); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 0 10px rgba(255, 46, 151, .6)); }
+html.gtavi .np .np-meta .t { font-family: var(--font-title); font-style: normal; text-transform: uppercase; letter-spacing: .02em; background: linear-gradient(180deg, #f2f7ff, #9cc0ff 40%, #a45bff 72%, #ff4fa3); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 0 10px rgba(255, 46, 151, .6)); }
 html.gtavi .np .lyrics p.on, html.gtavi .np .lyrics p.active, html.gtavi .np .lyrics p.cur { color: #fff; text-shadow: 0 0 18px rgba(255, 79, 163, .9), 0 0 4px rgba(111, 123, 255, .7); }
 html.gtavi .np .np-art { box-shadow: 0 0 0 1px rgba(255, 130, 215, .5), 0 0 60px rgba(255, 46, 151, .45); }
 
