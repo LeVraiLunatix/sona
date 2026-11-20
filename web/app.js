@@ -117,9 +117,9 @@ const isGtaTrack = (t) => !!t && (gtaName(t.artist) || GTA_ARTISTS.has(`${t.arti
   || GTA_TAG.test(t.album || "") || GTA_TAG.test(t.title || "") || (t.artists || []).some((a) => gtaName(a?.name)));
 /** `route` : la page affichée est celle de GTA VI ; `pending` : verdict de la page en cours de chargement ; `on` : thème actif. */
 const gta = { route: false, pending: false, on: false };
-/** Le logo de Sona devient un soleil de Vice City (rayé) au-dessus d'une plage et d'un palmier. */
+/** Le logo de Sona devient un soleil de Vice City (rose et violet, rayé) au-dessus d'une plage et d'un palmier. */
 const gtaLogo = (p = "gv") => ({
-  defs: `<linearGradient id="${p}-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd36b"/><stop offset=".55" stop-color="#ff7a59"/><stop offset="1" stop-color="#ff2e97"/></linearGradient>
+  defs: `<linearGradient id="${p}-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffa6dc"/><stop offset=".55" stop-color="#ff4fa3"/><stop offset="1" stop-color="#6f5cff"/></linearGradient>
     <mask id="${p}-m"><rect width="64" height="64" fill="#fff"/><rect y="33" width="64" height="1.6" fill="#000"/><rect y="38" width="64" height="2.2" fill="#000"/><rect y="43.2" width="64" height="2.8" fill="#000"/></mask>`,
   body: `<circle cx="32" cy="30" r="17" fill="url(#${p}-s)" mask="url(#${p}-m)"/>
     <path d="M6 50h52" stroke="#25e8ff" stroke-width="2" stroke-linecap="round"/><path d="M13 57h38" stroke="#ff2e97" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
