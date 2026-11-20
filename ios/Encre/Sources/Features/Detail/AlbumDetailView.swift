@@ -223,7 +223,7 @@ struct AlbumDetailView: View {
             Text(album.title)
                 .font(.system(size: 28, weight: .heavy))
                 .foregroundStyle(Tone.primary)
-                .gtaTitle(size: 30)
+                .themeTitle(size: 30)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.7)

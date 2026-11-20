@@ -9,6 +9,10 @@ struct Artwork: View {
     let url: String?
     var cornerRadius: CGFloat = 8
     var symbol: String = "music.note"
+    @ObservedObject private var archive = ArchiveTheme.shared
+
+    /// Thème archive : angles droits et pochettes en noir et blanc.
+    private var radius: CGFloat { archive.on ? 0 : cornerRadius }
 
     var body: some View {
         GeometryReader { proxy in
@@ -17,18 +21,18 @@ struct Artwork: View {
                 if let url, let imageURL = URL(string: url) {
                     AsyncImage(url: imageURL, transaction: Transaction(animation: .easeOut(duration: 0.35))) { phase in
                         if case .success(let image) = phase {
-                            image.resizable().scaledToFill().transition(.opacity)
+                            image.resizable().scaledToFill().grayscale(archive.on ? 1 : 0).transition(.opacity)
                         }
                     }
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .overlay(
             // Filet presque invisible : détache une pochette noire du fond noir.
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(archive.on ? ArchiveColor.line : Color.white.opacity(0.06), lineWidth: 0.5)
         )
     }
 

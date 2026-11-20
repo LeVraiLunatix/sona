@@ -36,6 +36,7 @@ enum Look {
     static let tintKey = "sona.look.tint"
     static let immersiveKey = "sona.look.immersive"
     static let gtaKey = "sona.look.gtavi"
+    static let archiveKey = "sona.look.archive"
 
     static var tintEnabled: Bool {
         UserDefaults.standard.object(forKey: tintKey) as? Bool ?? true
@@ -47,6 +48,7 @@ struct AppearanceView: View {
     @AppStorage(Look.tintKey) private var tint = true
     @AppStorage(Look.immersiveKey) private var immersive = true
     @AppStorage(Look.gtaKey) private var gta = true
+    @AppStorage(Look.archiveKey) private var archive = true
 
     var body: some View {
         Form {
@@ -54,6 +56,11 @@ struct AppearanceView: View {
                 Toggle("Thème GTA VI", isOn: $gta)
             } footer: {
                 Text("Sur la page de Grand Theft Auto VI, et dès qu'un titre de l'album joue, Sona devient Vice City : ciel violet, soleil rayé, rose néon.")
+            }
+            Section {
+                Toggle("Thème archive", isOn: $archive)
+            } footer: {
+                Text("Quand un titre d'un artiste à identités (FEMTOGO…) joue, Sona prend l'esprit archive : monospace, noir, pochettes en noir et blanc et un seul accent doré.")
             }
             Section {
                 Toggle("Teinte de la pochette", isOn: $tint)
@@ -90,5 +97,6 @@ struct AppearanceView: View {
         .navigationTitle("Apparence")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: gta) { _, _ in GtaTheme.shared.refresh() }
+        .onChange(of: archive) { _, _ in ArchiveTheme.shared.refresh() }
     }
 }

@@ -83,7 +83,7 @@ final class GtaTheme: ObservableObject {
     }
 
     /// Le titre qu'on entend : celui de l'iPhone, ou celui de l'appareil piloté à distance.
-    private var currentTrack: Track? {
+    static var listeningTrack: Track? {
         RemoteFlag.shared.isRemote ? ConnectManager.shared.remoteTarget?.track : PlayerManager.shared.current
     }
 
@@ -96,7 +96,7 @@ final class GtaTheme: ObservableObject {
     /// À rappeler quand le réglage change.
     func refresh() {
         let enabled = UserDefaults.standard.object(forKey: Look.gtaKey) as? Bool ?? true
-        let want = enabled && (!pages.isEmpty || GtaVI.isTrack(currentTrack))
+        let want = enabled && (!pages.isEmpty || GtaVI.isTrack(Self.listeningTrack))
         guard want != on else { return }
         withAnimation(.easeInOut(duration: 0.5)) { on = want }
     }
@@ -152,8 +152,9 @@ enum GtaFont {
 
 /// Titre en lettres de façade de Vice City : Pricedown en majuscules, dégradé et halo néon.
 /// Thème éteint : le texte reste tel que l'écran l'a dessiné.
-private struct GtaTitleStyle: ViewModifier {
+private struct ThemeTitleStyle: ViewModifier {
     @ObservedObject private var gta = GtaTheme.shared
+    @ObservedObject private var archive = ArchiveTheme.shared
     let size: CGFloat
 
     @ViewBuilder
@@ -164,6 +165,12 @@ private struct GtaTitleStyle: ViewModifier {
                 .textCase(.uppercase)
                 .foregroundStyle(GtaColor.title)
                 .shadow(color: GtaColor.hotPink.opacity(0.55), radius: 9)
+        } else if archive.on {
+            // Archive : mono gras en capitales, doré.
+            content
+                .font(.system(size: size * 0.8, weight: .bold, design: .monospaced))
+                .textCase(.uppercase)
+                .foregroundStyle(ArchiveColor.gold)
         } else {
             content
         }
@@ -173,11 +180,12 @@ private struct GtaTitleStyle: ViewModifier {
 /// Fond de page : noir, ou le coucher de soleil de Vice City quand le thème est actif.
 private struct PageBackground: ViewModifier {
     @ObservedObject private var gta = GtaTheme.shared
+    @ObservedObject private var archive = ArchiveTheme.shared
 
     func body(content: Content) -> some View {
         content.background {
             ZStack {
-                Tone.background.ignoresSafeArea()
+                (archive.on && !gta.on ? ArchiveColor.canvas : Tone.background).ignoresSafeArea()
                 if gta.on { GtaBackdrop().transition(.opacity) }
             }
         }
@@ -198,7 +206,7 @@ private struct GtaPageModifier: ViewModifier {
 }
 
 extension View {
-    func gtaTitle(size: CGFloat) -> some View { modifier(GtaTitleStyle(size: size)) }
+    func themeTitle(size: CGFloat) -> some View { modifier(ThemeTitleStyle(size: size)) }
     func pageBackground() -> some View { modifier(PageBackground()) }
     func gtaPage(_ key: String, active: Bool) -> some View { modifier(GtaPageModifier(key: key, active: active)) }
 }

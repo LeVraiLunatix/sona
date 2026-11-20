@@ -24,6 +24,12 @@ rose — puis redevient noire. Les morceaux « GTA VI » d'autres artistes ne
 l'activent pas. Détection : `GtaVI`, état : `GtaTheme` (`DesignSystem/GtaTheme.swift`) ;
 la police est `Resources/Fonts/Pricedown.otf` (licence : voir `docs/GUIDE.md`).
 
+**Thème archive** (Réglages › Apparence › Thème archive, activé par défaut) : quand
+un titre d'un artiste à identités (FEMTOGO…) joue, l'app prend l'esprit trois.id
+comme le site — monospace, noir bleuté, pochettes en noir et blanc aux angles
+droits, titres dorés (`ArchiveTheme`, `DesignSystem/ArchiveTheme.swift`). Le
+thème GTA VI a priorité s'il est actif.
+
 Animations : transitions zoom système (la pochette tapée devient la fiche,
 le lecteur grandit depuis le mini-lecteur), apparition en cascade des
 sections, vignettes qui respirent au défilement, boutons qui s'enfoncent,
