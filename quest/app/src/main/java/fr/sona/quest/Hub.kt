@@ -3,6 +3,11 @@ package fr.sona.quest
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.core.graphics.drawable.toBitmap
+import androidx.palette.graphics.Palette
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -60,10 +65,21 @@ object Hub {
     val audioSessionId = MutableStateFlow(0)
     val message = MutableStateFlow<String?>(null)
 
+    /** Thème choisi (Sona, Archive, GTA VI). */
+    val theme = MutableStateFlow(ThemeId.Sona)
+
+    /** Couleur dominante (sombre) de la pochette en cours : fond du lecteur, comme dans Musique. */
+    val coverColor = MutableStateFlow<Int?>(null)
+
+    /** Fin du minuteur de sommeil (ms), s'il est réglé. */
+    val sleepEndsAt = MutableStateFlow<Long?>(null)
+
     private var player: ExoPlayer? = null
     private var lyricsJob: Job? = null
     private var connectJob: Job? = null
     private var tickerJob: Job? = null
+    private var coverJob: Job? = null
+    private var sleepJob: Job? = null
 
     /** « Je viens de lancer la lecture ici » : les autres appareils se mettent en pause. */
     private var claimNext = false
@@ -82,6 +98,12 @@ object Hub {
         settings = Settings(application)
         api = Api(settings)
         loggedIn.value = settings.token.isNotBlank()
+        theme.value = ThemeId.fromKey(settings.theme)
+    }
+
+    fun setTheme(id: ThemeId) {
+        settings.theme = id.key
+        theme.value = id
     }
 
     // ── Lecteur ──────────────────────────────────────────────────────────────
@@ -111,6 +133,7 @@ object Hub {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (p.mediaItemCount > 0) index.value = p.currentMediaItemIndex
                 loadLyrics()
+                loadCoverColor()
                 kick.trySend(Unit)
             }
 
@@ -225,6 +248,7 @@ object Hub {
         p.playWhenReady = play
         if (play) claimNext = true
         loadLyrics()
+        loadCoverColor()
         kick.trySend(Unit)
     }
 
@@ -244,6 +268,16 @@ object Hub {
     }
 
     fun seekTo(seconds: Double) { player?.seekTo((seconds * 1000).toLong()) }
+
+    /** « À suivre » : lance le titre d'index `i` de la file. */
+    fun jumpTo(i: Int) {
+        val p = player ?: return
+        if (i in 0 until p.mediaItemCount) {
+            p.seekTo(i, 0)
+            p.play()
+            claimNext = true
+        }
+    }
 
     fun toggleShuffle() { player?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }
 
@@ -265,6 +299,51 @@ object Hub {
         if (track == null) return
         lyricsJob = scope.launch {
             lyrics.value = withContext(Dispatchers.IO) { runCatching { api.lyrics(track) }.getOrNull() }
+        }
+    }
+
+    // ── Couleur de la pochette, minuteur de sommeil ──────────────────────────
+
+    private fun loadCoverColor() {
+        coverJob?.cancel()
+        val url = current?.coverUrl
+        if (url == null) {
+            coverColor.value = null
+            return
+        }
+        coverJob = scope.launch {
+            coverColor.value = withContext(Dispatchers.IO) {
+                runCatching {
+                    val request = ImageRequest.Builder(app).data(url).allowHardware(false).size(96).build()
+                    val bitmap = (app.imageLoader.execute(request) as? SuccessResult)?.drawable?.toBitmap()
+                        ?: return@runCatching null
+                    val palette = Palette.from(bitmap).maximumColorCount(12).generate()
+                    palette.getDarkVibrantColor(palette.getDarkMutedColor(palette.getDominantColor(0xFF1C1C24.toInt())))
+                }.getOrNull()
+            }
+        }
+    }
+
+    /** Éteint la musique après `minutes` (fondu sur les 10 dernières secondes) ; null : annule. */
+    fun setSleepTimer(minutes: Int?) {
+        sleepJob?.cancel()
+        player?.volume = 1f
+        if (minutes == null) {
+            sleepEndsAt.value = null
+            return
+        }
+        val end = System.currentTimeMillis() + minutes * 60_000L
+        sleepEndsAt.value = end
+        sleepJob = scope.launch {
+            while (isActive) {
+                val left = end - System.currentTimeMillis()
+                if (left <= 0) break
+                if (left < 10_000) player?.volume = (left / 10_000f).coerceIn(0f, 1f)
+                delay(500)
+            }
+            player?.pause()
+            player?.volume = 1f
+            sleepEndsAt.value = null
         }
     }
 

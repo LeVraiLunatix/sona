@@ -146,3 +146,100 @@ data class CommandIn(
     val queue: List<Track>? = null,
     val name: String? = null,
 )
+
+// ── Accueil, bibliothèque, fiches ────────────────────────────────────────────
+
+@Serializable
+data class Mix(
+    val id: String,
+    val title: String,
+    val subtitle: String = "",
+    val covers: List<String> = emptyList(),
+    val tracks: List<Track> = emptyList(),
+)
+
+@Serializable
+data class DailyOut(val track: Track? = null, val reason: String = "")
+
+@Serializable
+data class LibraryItem(
+    val kind: String = "",
+    val source: String,
+    @SerialName("source_id") val sourceId: String,
+    val title: String,
+    val subtitle: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+    val track: Track? = null,
+)
+
+@Serializable
+data class LibraryResponse(val total: Int = 0, val items: List<LibraryItem> = emptyList())
+
+@Serializable
+data class HistoryItem(
+    val source: String,
+    @SerialName("source_id") val sourceId: String,
+    val title: String,
+    val subtitle: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+)
+
+@Serializable
+data class HistoryResponse(val total: Int = 0, val items: List<HistoryItem> = emptyList())
+
+@Serializable
+data class Playlist(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+    val covers: List<String> = emptyList(),
+    @SerialName("track_count") val trackCount: Int = 0,
+    @SerialName("duration_seconds") val durationSeconds: Int = 0,
+)
+
+@Serializable
+data class PlaylistEntry(val track: Track)
+
+@Serializable
+data class PlaylistDetail(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+    val covers: List<String> = emptyList(),
+    @SerialName("track_count") val trackCount: Int = 0,
+    val entries: List<PlaylistEntry> = emptyList(),
+)
+
+@Serializable
+data class Album(
+    val source: String,
+    @SerialName("source_id") val sourceId: String,
+    val title: String,
+    val artist: String,
+    @SerialName("artist_source_id") val artistSourceId: String? = null,
+    val year: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+    @SerialName("track_count") val trackCount: Int? = null,
+    val tracks: List<Track> = emptyList(),
+)
+
+@Serializable
+data class Artist(
+    val source: String,
+    @SerialName("source_id") val sourceId: String,
+    val name: String,
+    @SerialName("picture_url") val pictureUrl: String? = null,
+    val fans: Int? = null,
+)
+
+@Serializable
+data class RadioStation(
+    val id: String,
+    val title: String,
+    @SerialName("picture_url") val pictureUrl: String? = null,
+)
+
+@Serializable
+data class RadioGroup(val title: String, val radios: List<RadioStation> = emptyList())

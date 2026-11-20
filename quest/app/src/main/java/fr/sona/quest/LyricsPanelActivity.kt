@@ -10,16 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -32,11 +28,7 @@ class LyricsPanelActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Hub.ensureService()
-        setContent {
-            SonaTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Panel() }
-            }
-        }
+        setContent { SonaTheme { LookBackground { Panel() } } }
     }
 }
 
@@ -47,18 +39,18 @@ private fun Panel() {
     val index by Hub.index.collectAsState()
     val track = queue.getOrNull(index)
     when {
-        !loggedIn -> CenterMessage("Connecte Sona", "Ouvre l'app Sona dans le casque et scanne le QR code avec ton iPhone.")
-        track == null -> CenterMessage("Rien en lecture", "Lance un titre depuis l'app, ton iPhone ou le site.")
-        else -> Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        !loggedIn -> EmptyState("Connecte Sona", "Ouvre l'app Sona dans le casque et autorise-la depuis ton iPhone.")
+        track == null -> EmptyState("Rien en lecture", "Lance un titre depuis l'app, ton iPhone ou le site.")
+        else -> Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Cover(track.coverUrl, Modifier.size(72.dp))
+                Cover(track.coverUrl, Modifier.size(76.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(track.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    SonaText(track.title, 21.sp, FontWeight.ExtraBold, maxLines = 1, title = true)
+                    SonaText(track.artist, 15.sp, tone = 1, maxLines = 1)
                 }
             }
             LyricsView(Modifier.weight(1f).fillMaxWidth(), fontSize = 26.sp)
-            TransportControls(Modifier.fillMaxWidth(), big = false)
+            TransportControls(Modifier.fillMaxWidth(), compact = true)
         }
     }
 }

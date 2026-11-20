@@ -89,6 +89,27 @@ class Api(private val settings: Settings) {
         return SonaJson.decodeFromString(call(request("/lyrics", query).build()))
     }
 
+    private suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
+        SonaJson.decodeFromString(call(request(path, query).build()))
+
+    suspend fun searchArtists(q: String): List<Artist> = get("/search/artists", mapOf("q" to q, "limit" to "12"))
+    suspend fun searchAlbums(q: String): List<Album> = get("/search/albums", mapOf("q" to q, "limit" to "12"))
+
+    // ── Accueil et bibliothèque ──────────────────────────────────────────────
+
+    suspend fun daily(): DailyOut = get("/home/daily")
+    suspend fun mixes(): List<Mix> = get("/home/mixes")
+    suspend fun history(limit: Int = 20): HistoryResponse = get("/history", mapOf("limit" to limit.toString()))
+    suspend fun library(kind: String, limit: Int = 200): LibraryResponse =
+        get("/library/$kind", mapOf("limit" to limit.toString()))
+    suspend fun playlists(): List<Playlist> = get("/me/playlists")
+    suspend fun playlist(id: Int): PlaylistDetail = get("/me/playlists/$id")
+    suspend fun album(source: String, id: String): Album = get("/albums/$source/$id")
+    suspend fun artist(source: String, id: String): Artist = get("/artists/$source/$id")
+    suspend fun artistTopTracks(source: String, id: String): List<Track> = get("/artists/$source/$id/top-tracks")
+    suspend fun radios(): List<RadioGroup> = get("/browse/radios")
+    suspend fun radioTracks(id: String): List<Track> = get("/radios/$id/tracks")
+
     // ── Sona Connect ─────────────────────────────────────────────────────────
 
     suspend fun sync(input: SyncIn): SyncOut = SonaJson.decodeFromString(

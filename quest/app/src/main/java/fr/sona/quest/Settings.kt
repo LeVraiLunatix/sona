@@ -30,6 +30,11 @@ class Settings(context: Context) {
         get() = prefs.getString("device_name", null) ?: defaultName()
         set(value) = prefs.edit().putString("device_name", value.trim().ifEmpty { defaultName() }).apply()
 
+    /** Thème de Sona : « sona » (noir), « archive » ou « gta ». */
+    var theme: String
+        get() = prefs.getString("theme", "sona") ?: "sona"
+        set(value) = prefs.edit().putString("theme", value).apply()
+
     /** Garder la musique quand un jeu VR prend le son (pas de focus audio). */
     var keepOverGames: Boolean
         get() = prefs.getBoolean("keep_over_games", true)
