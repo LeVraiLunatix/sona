@@ -110,7 +110,7 @@ struct PersonaArtistView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ARTISTE · \(personas.count) IDENTITÉ\(personas.count > 1 ? "S" : "") · \(count) SORTIE\(count > 1 ? "S" : "")")
                         .font(Typo.caption).tracking(0.6).foregroundStyle(Tone.tertiary)
-                    Text(archiveArtistName).font(Typo.largeTitle).foregroundStyle(Tone.primary)
+                    Text(archiveArtistName).font(Typo.largeTitle).foregroundStyle(Tone.primary).themeTitle(size: 32)
                     Text("(archives)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                     Text("sous le nom de \(current) — \(subline)")
                         .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
@@ -170,7 +170,7 @@ struct PersonaArtistView: View {
         if !list.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(title).font(Typo.title).foregroundStyle(Tone.primary)
+                    Text(title).font(Typo.title).foregroundStyle(Tone.primary).themeTitle(size: 22)
                     Spacer()
                     Text("\(list.count) sortie\(list.count > 1 ? "s" : "")").font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary)
                 }

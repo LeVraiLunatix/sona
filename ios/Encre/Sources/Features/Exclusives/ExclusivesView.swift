@@ -266,7 +266,7 @@ struct ExclusiveArtistView: View {
                             SPKSeal(size: 84)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("EXCLUS · ARCHIVES").font(Typo.caption).tracking(0.6).foregroundStyle(Tone.tertiary)
-                                Text(group.label).font(Typo.largeTitle).foregroundStyle(Tone.primary)
+                                Text(group.label).font(Typo.largeTitle).foregroundStyle(Tone.primary).themeTitle(size: 32)
                                 Text("(archives)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                             }
                         }

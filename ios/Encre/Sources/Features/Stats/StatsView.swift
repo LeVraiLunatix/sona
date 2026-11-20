@@ -353,7 +353,7 @@ struct StatsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("N°1").font(Typo.caption).tracking(1.5).foregroundStyle(Tone.secondary)
-                    Text(artist.name).font(Typo.largeTitle).foregroundStyle(Tone.primary).lineLimit(2)
+                    Text(artist.name).font(Typo.largeTitle).foregroundStyle(Tone.primary).themeTitle(size: 32).lineLimit(2)
                     Text("\(artist.plays) écoutes · \(Self.durationValue(artist.minutes)) \(Self.durationUnit(artist.minutes))")
                         .font(Typo.rowSubtitle)
                         .foregroundStyle(Tone.secondary)

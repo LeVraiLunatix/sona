@@ -311,7 +311,7 @@ struct HomeView: View {
                             .foregroundStyle(Tone.secondary)
                         Text(track.title)
                             .font(Typo.largeTitle)
-                            .foregroundStyle(Tone.primary)
+                            .foregroundStyle(Tone.primary).themeTitle(size: 32)
                             .lineLimit(2)
                         Text(track.artist)
                             .font(Typo.body)
