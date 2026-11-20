@@ -49,6 +49,11 @@ FAST_FROM = 160.0
 FAST_PENALTY = 0.5  # facteur appliqué à MAX_BPM
 TEMPO_HARMONICS = ((1.0, 1.0), (2.0, 0.5), (3.0, 0.3), (4.0, 0.3), (0.5, 0.3))
 
+# Poids du profil des basses face à celui des médiums (somme de chacun = 1).
+# Mesuré sur 7 titres réels de tonalité connue : 3 bonnes tonalités sans basse,
+# 5 avec 0,6 (au-delà, la basse écrase l'harmonie et les titres sans 808 se perdent).
+BASS_WEIGHT = 0.6
+
 NOTES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 # Profils de Krumhansl-Schmuckler (importance de chaque note dans la gamme).
 _MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
@@ -191,6 +196,29 @@ def camelot(pitch: int, minor: bool) -> str:
     return f"{number}{'A' if minor else 'B'}"
 
 
+def bass_chroma(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Notes jouées dans les basses (38–150 Hz), somme sur tout le titre, total = 1.
+
+    Le profil de gamme seul confond souvent la tonique et sa quinte (la mineur
+    pour ré mineur) : les accords sont les mêmes, mais la basse (808, basse
+    synthé) joue la tonique. Fenêtre longue pour séparer les notes graves (une
+    case = 0,7 Hz, un demi-ton à 40 Hz = 2,4 Hz) ; traité par lots pour ne pas
+    dépasser quelques dizaines de Mo sur un titre de dix minutes.
+    """
+    size, hop = 16384, 4096
+    freqs = np.fft.rfftfreq(size, 1 / sample_rate)
+    usable = (freqs >= 38) & (freqs <= 150)
+    pitch = np.round(12 * np.log2(freqs[usable] / 440.0) + 9).astype(int) % 12
+    window = np.hanning(size).astype(np.float32)
+    frames = _frames(samples, size, hop)
+    total = np.zeros(12)
+    for start in range(0, len(frames), 128):
+        mag = np.abs(np.fft.rfft(frames[start : start + 128] * window, axis=1))[:, usable]
+        for note in range(12):
+            total[note] += mag[:, pitch == note].sum()
+    return total / max(total.sum(), 1e-9)
+
+
 def detect_key(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Key | None:
     if len(samples) < sample_rate * MIN_SECONDS:
         return None
@@ -213,7 +241,7 @@ def detect_key(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Key | Non
     # Chaque image compte pareil, qu'elle soit forte ou non.
     totals = chroma.sum(axis=1, keepdims=True)
     chroma = chroma / np.maximum(totals, 1e-9)
-    profile = chroma.mean(axis=0)
+    profile = chroma.mean(axis=0) + BASS_WEIGHT * bass_chroma(samples, sample_rate)
     if profile.std() < 1e-6:
         return None
     best = (-2.0, 0, False)
