@@ -87,10 +87,19 @@ def test_apple_artwork_url_and_album_match():
     assert apple_motion.find_album(results, "GTA VI", "Quelqu'un d'autre") is None
 
 
+def test_apple_match_by_title_and_day_when_the_page_artist_is_not_the_singles_artist():
+    """Page « Grand Theft Auto VI » de Deezer : les singles sont d'autres artistes."""
+    results = [{"id": "7", "attributes": {"name": "All Again (from GTAVI)", "artistName": "Rose Gray",
+                                          "releaseDate": "2026-11-19"}}]
+    assert apple_motion.find_album(results, "All Again (from GTAVI)", "Grand Theft Auto VI") is None
+    assert apple_motion.find_album(results, "All Again (from GTAVI)", "Grand Theft Auto VI", "2026-11-18") is None
+    assert apple_motion.find_album(results, "All Again (from GTAVI)", "Grand Theft Auto VI", "2026-11-19")["id"] == "7"
+
+
 def test_enrich_fills_missing_cover_and_tracklist_from_apple(monkeypatch):
     calls = []
 
-    async def preview(title, artist, with_tracks=False):
+    async def preview(title, artist, with_tracks=False, release_date=None):
         calls.append(with_tracks)
         return {"cover_url": "https://apple/cover.jpg", "release_date": "2999-12-05", "tracks": [
             {"id": "11", "title": "Intro", "artist": "Artiste", "duration": 90, "track": 1, "disc": 1,
@@ -112,7 +121,7 @@ def test_enrich_fills_missing_cover_and_tracklist_from_apple(monkeypatch):
 
 def test_enrich_dates_titles_already_out_as_singles(monkeypatch):
     """Deezer date tout l'album du jour de sortie : Apple corrige les titres déjà parus."""
-    async def preview(title, artist, with_tracks=False):
+    async def preview(title, artist, with_tracks=False, release_date=None):
         assert with_tracks
         return {"cover_url": None, "release_date": None, "tracks": [
             {"id": "1", "title": "Single", "artist": "A", "duration": 1, "track": 1, "disc": 1,
@@ -168,7 +177,7 @@ def test_upcoming_releases_of_favourite_artists_soonest_first(monkeypatch):
                 return [album("2999-12-05", title="Loin"), album("2020-01-01", title="Passé")], []
             return [], [album("2998-01-01", title="Proche")]
 
-    async def preview(title, artist, with_tracks=False):
+    async def preview(title, artist, with_tracks=False, release_date=None):
         return {"cover_url": "https://apple/c.jpg", "release_date": None, "tracks": []}
 
     class Deps:

@@ -184,8 +184,13 @@ def pick_artist(results: list[dict], name: str) -> str | None:
 _VARIOUS = {_key(n) for n in ("Various Artists", "Multi-interprètes", "Artistes divers", "Varios artistas", "Verschiedene Interpreten")}
 
 
-def find_album(results: list[dict], title: str, artist: str) -> dict | None:
-    """Résultat de recherche dont le titre (édition mise à part) et l'artiste sont les bons."""
+def find_album(results: list[dict], title: str, artist: str, release_date: str | None = None) -> dict | None:
+    """Résultat de recherche dont le titre (édition mise à part) et l'artiste sont les bons.
+
+    Avec `release_date`, un résultat de même titre et de même jour de sortie est
+    aussi accepté quand l'artiste diffère : la page « Grand Theft Auto VI » de
+    Deezer range chez lui les singles d'autres artistes (« All Again » de Rose
+    Gray), dont l'artiste ne peut donc pas servir de critère."""
     wanted_title, wanted_artist = _album_key(title), _key(artist)
     for item in results:
         attrs = item.get("attributes") or {}
@@ -193,6 +198,11 @@ def find_album(results: list[dict], title: str, artist: str) -> dict | None:
             wanted_artist in _key(attrs.get("artistName") or "") or _key(attrs.get("artistName") or "") in _VARIOUS
         ):
             return item
+    if release_date:
+        for item in results:
+            attrs = item.get("attributes") or {}
+            if _album_key(attrs.get("name") or "") == wanted_title and (attrs.get("releaseDate") or "")[:10] == release_date[:10]:
+                return item
     return None
 
 
@@ -260,15 +270,21 @@ async def album_motion(title: str, artist: str) -> dict | None:
     return await _cached(f"album:{_album_key(title)}:{_key(artist)}", fetch)
 
 
-async def album_preview(title: str, artist: str, with_tracks: bool = False) -> dict | None:
+async def album_preview(title: str, artist: str, with_tracks: bool = False, release_date: str | None = None) -> dict | None:
     """Fiche Apple Music d'un album, y compris annoncé (pas encore sorti) :
     `{"cover_url", "release_date", "tracks": [...]}`. Sert de secours quand la
     source de l'app n'a ni pochette ni liste de titres pour un album annoncé.
     Chaque titre : `{"id", "title", "artist", "duration", "track", "disc", "release_date", "isrc"}`."""
 
     async def fetch() -> dict | None:
-        search = await _get("search", {"term": f"{title} {artist}", "types": "albums", "limit": 5})
-        item = find_album(((search.get("results") or {}).get("albums") or {}).get("data") or [], title, artist)
+        async def candidates(term: str) -> list[dict]:
+            search = await _get("search", {"term": term, "types": "albums", "limit": 5})
+            return ((search.get("results") or {}).get("albums") or {}).get("data") or []
+
+        item = find_album(await candidates(f"{title} {artist}"), title, artist, release_date)
+        if not item and release_date:
+            # Le nom d'un autre artiste noie la recherche : on cherche le titre seul.
+            item = find_album(await candidates(title), title, artist, release_date)
         if not item:
             return None
         attrs = item.get("attributes") or {}
@@ -292,7 +308,7 @@ async def album_preview(title: str, artist: str, with_tracks: bool = False) -> d
                 })
         return found
 
-    return await _cached(f"preview:{_album_key(title)}:{_key(artist)}:{int(with_tracks)}", fetch)
+    return await _cached(f"preview:{_album_key(title)}:{_key(artist)}:{int(with_tracks)}:{release_date or ''}", fetch)
 
 
 # ── Fichier MP4 pour l'écran verrouillé ─────────────────────────────────────

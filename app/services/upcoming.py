@@ -71,7 +71,8 @@ async def enrich_album(album: AlbumInfo) -> None:
     )
     if not need_cover and not need_tracks and not need_dates:
         return
-    found = await apple_motion.album_preview(album.title, album.artist, with_tracks=need_tracks or need_dates)
+    found = await apple_motion.album_preview(album.title, album.artist, with_tracks=need_tracks or need_dates,
+                                              release_date=album.release_date)
     if not found:
         return
     if need_cover and found.get("cover_url"):
