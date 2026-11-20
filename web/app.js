@@ -1764,7 +1764,11 @@ async function runSearch(q) {
   searchUI.abort?.abort();
   const ctrl = (searchUI.abort = new AbortController());
   const opts = { signal: ctrl.signal };
-  searchUI.data = null;
+  box.classList.remove("refreshing");
+  // Une nouvelle recherche garde les résultats précédents à l'écran (estompés) au lieu de les
+  // remplacer par un squelette : plus de clignotement à chaque pause de frappe.
+  const keep = !!(q && searchUI.data && box.querySelector(".top-result, .shelf, .grid, .tracks"));
+  if (!keep) searchUI.data = null;
   if (!q) {
     // Rien de tapé : les radios, comme l'onglet Rechercher de l'app.
     const groups = await radioGroups().catch(() => []);
@@ -1789,7 +1793,7 @@ async function runSearch(q) {
       return;
     }
   }
-  box.innerHTML = searchSkeleton();
+  if (keep) box.classList.add("refreshing"); else box.innerHTML = searchSkeleton();
   const [songs, artists, albums, lib] = await Promise.all([
     api(`/search?q=${encodeURIComponent(q)}&limit=${SEARCH_PAGE}`, opts).then((r) => r.tracks).catch(() => []),
     api(`/search/artists?q=${encodeURIComponent(q)}&limit=12`, opts).catch(() => []),
@@ -1805,6 +1809,7 @@ async function runSearch(q) {
 }
 
 function drawResults(box) {
+  box.classList.remove("refreshing");
   const { q, songs, artists, albums, lib } = searchUI.data;
   const libCount = lib.tracks.length + lib.playlists.length;
   const counts = { songs: songs.length, artists: artists.length, albums: albums.length, library: libCount };

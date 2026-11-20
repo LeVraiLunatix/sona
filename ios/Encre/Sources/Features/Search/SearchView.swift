@@ -14,7 +14,6 @@ struct SearchView: View {
             }
             .padding(.top, 8)
             .padding(.bottom, 24)
-            .animation(Motion.smooth, value: viewModel.isSearching)
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.immediately)
@@ -30,7 +29,10 @@ struct SearchView: View {
     @ViewBuilder
     private var content: some View {
         let hasQuery = !viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty
-        if viewModel.isSearching {
+        // Squelette / suggestions seulement à la toute première recherche. Ensuite, les résultats
+        // restent à l'écran (estompés) pendant qu'une nouvelle recherche tourne : avant, chaque pause
+        // de frappe les remplaçait par un squelette puis les refaisait apparaître (« pop / dépop »).
+        if viewModel.isSearching && !viewModel.hasResults {
             if viewModel.suggestions.isEmpty {
                 SearchSkeleton()
             } else {
@@ -40,6 +42,8 @@ struct SearchView: View {
             resolvedView(link).padding(.horizontal, 20).reveal(0)
         } else if viewModel.hasResults {
             results
+                .opacity(viewModel.isSearching ? 0.45 : 1)
+                .animation(.easeOut(duration: 0.18), value: viewModel.isSearching)
         } else if hasQuery {
             if let message = viewModel.errorMessage {
                 EmptyState(systemImage: "exclamationmark.triangle", title: "Recherche impossible", message: message)
