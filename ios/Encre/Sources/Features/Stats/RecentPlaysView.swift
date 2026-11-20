@@ -35,7 +35,7 @@ struct RecentPlaysView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Historique")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

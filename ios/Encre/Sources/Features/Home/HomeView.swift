@@ -172,7 +172,7 @@ struct HomeView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Écouter")
         .navigationBarTitleDisplayMode(.large)
         .overlay {

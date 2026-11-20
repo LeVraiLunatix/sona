@@ -24,6 +24,7 @@ struct AlbumDetailView: View {
     @State private var coverHeight: CGFloat = 420
     @EnvironmentObject private var player: PlayerManager
     @Environment(\.addToPlaylist) private var addToPlaylist
+    @ObservedObject private var gta = GtaTheme.shared
 
     /// Le titre passe dans la barre de navigation quand il quitte la pochette.
     private var titleOpacity: Double {
@@ -55,7 +56,9 @@ struct AlbumDetailView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(alignment: .top) { glow }
-        .background(Tone.background)
+        .pageBackground()
+        // Album ou single de Grand Theft Auto VI : reconnu une fois chargé.
+        .gtaPage("album:\(source):\(id)", active: !isPlaylist && album.map(GtaVI.isAlbum) == true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
@@ -142,7 +145,7 @@ struct AlbumDetailView: View {
             .frame(height: 520)
             .blur(radius: 40)
             .ignoresSafeArea()
-            .opacity(tintOn ? 1 : 0)
+            .opacity(tintOn && !gta.on ? 1 : 0)
             .animation(.easeInOut(duration: 0.8), value: palette)
     }
 
@@ -220,6 +223,7 @@ struct AlbumDetailView: View {
             Text(album.title)
                 .font(.system(size: 28, weight: .heavy))
                 .foregroundStyle(Tone.primary)
+                .gtaTitle(size: 30)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.7)

@@ -17,7 +17,7 @@ struct PartyView: View {
                     PartyLobby()
                 }
             }
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Écoute ensemble")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

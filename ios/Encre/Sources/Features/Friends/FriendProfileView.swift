@@ -32,7 +32,7 @@ struct FriendProfileView: View {
             }
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { blend = try? await APIClient.shared.blend(with: accountId) }

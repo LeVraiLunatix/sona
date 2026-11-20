@@ -18,7 +18,7 @@ struct SearchView: View {
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.immediately)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Rechercher")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $viewModel.query, prompt: "Artistes, titres, albums ou lien")

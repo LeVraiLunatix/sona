@@ -64,7 +64,7 @@ struct StatsView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Stats")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

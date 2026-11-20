@@ -15,6 +15,7 @@ enum AppTab: Hashable {
 struct RootTabView: View {
     @StateObject private var player = PlayerManager.shared
     @ObservedObject private var remote = RemoteFlag.shared
+    @ObservedObject private var gta = GtaTheme.shared
     @State private var selectedTab: AppTab
 
     init(startTab: AppTab = .home) {
@@ -69,7 +70,7 @@ struct RootTabView: View {
             .matchedTransitionSource(id: "player", in: playerNamespace)
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tint(.white)
+        .tint(gta.on ? GtaColor.pink : .white)
         .environmentObject(player)
         .environment(\.zoomNamespace, zoomNamespace)
         .fullScreenCover(isPresented: $showingPlayer) {

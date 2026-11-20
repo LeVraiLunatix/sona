@@ -27,6 +27,7 @@ struct ArtistDetailView: View {
     @State private var scrollY: CGFloat = 0
     @State private var motion: MotionVideo?
     @EnvironmentObject private var player: PlayerManager
+    @ObservedObject private var gta = GtaTheme.shared
 
     private var motionURL: URL? { (motion?.square ?? motion?.wide).flatMap(URL.init(string:)) }
     private var logoURL: URL? { motion?.logo.flatMap(URL.init(string:)) }
@@ -74,7 +75,7 @@ struct ArtistDetailView: View {
                         .padding(.top, 20)
                     }
                     .background(alignment: .top) {
-                        LinearGradient(colors: [tint, Tone.background], startPoint: .top, endPoint: .bottom)
+                        LinearGradient(colors: gta.on ? [.clear, .clear] : [tint, Tone.background], startPoint: .top, endPoint: .bottom)
                             .frame(height: 1100)
                     }
                     .padding(.bottom, 24)
@@ -93,7 +94,10 @@ struct ArtistDetailView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        .background(Tone.background)
+        .pageBackground()
+        // Fiche de Grand Theft Auto VI : tout Sona passe à Vice City (reconnue d'après son identifiant,
+        // avant même le chargement).
+        .gtaPage("artist:\(source):\(id)", active: GtaVI.isArtistId(source: source, id: id) || artist.map(GtaVI.isArtist) == true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
@@ -190,6 +194,7 @@ struct ArtistDetailView: View {
         let name = Text(artist.name)
             .font(.system(size: 44, weight: .heavy))
             .foregroundStyle(Tone.primary)
+            .gtaTitle(size: 46)
             .multilineTextAlignment(.center)
             .lineLimit(2)
             .minimumScaleFactor(0.6)

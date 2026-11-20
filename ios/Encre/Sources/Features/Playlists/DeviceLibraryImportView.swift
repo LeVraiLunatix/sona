@@ -83,7 +83,7 @@ struct DeviceLibraryImportView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Bibliothèque Musique")
         .navigationBarTitleDisplayMode(.inline)
         .task { if authorization == .authorized { loadPlaylists() } }

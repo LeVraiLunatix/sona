@@ -53,7 +53,7 @@ struct LibraryView: View {
             .animation(Motion.smooth, value: viewModel.items)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Bibliothèque")
         .navigationBarTitleDisplayMode(.large)
         .task { await viewModel.load() }

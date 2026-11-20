@@ -169,7 +169,7 @@ struct ExclusivesView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle("Exclus")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $query, prompt: "Chercher un artiste")
@@ -320,7 +320,7 @@ struct ExclusiveArtistView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-        .background(Tone.background)
+        .pageBackground()
         .navigationTitle(group.isArchive ? "" : group.label)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "Chercher un titre, un album…")

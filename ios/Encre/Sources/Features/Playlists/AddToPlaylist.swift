@@ -80,7 +80,7 @@ struct AddToPlaylistSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle(tracks.count == 1 ? "Ajouter à une playlist" : "Ajouter \(tracks.count) titres")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -152,7 +152,7 @@ struct NewPlaylistSheet: View {
                 Spacer()
             }
             .padding(20)
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Nouvelle playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -260,7 +260,7 @@ struct ImportPlaylistSheet: View {
                 Spacer()
             }
             .padding(20)
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Importer une playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

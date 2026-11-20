@@ -63,7 +63,7 @@ struct CreditsView: View {
                 }
                 .padding(20)
             }
-            .background(Tone.background)
+            .pageBackground()
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])

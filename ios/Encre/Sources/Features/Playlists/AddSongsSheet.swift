@@ -55,7 +55,7 @@ struct AddSongsSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Tone.background)
+            .pageBackground()
             .navigationTitle("Ajouter des morceaux")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
