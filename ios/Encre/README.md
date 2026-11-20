@@ -1,6 +1,6 @@
 # Sona (app iOS)
 
-App SwiftUI native branchée sur l'[API privée de Sona](../../README.md#api-backend-pour-une-app-iphone).
+App SwiftUI native branchée sur l'[API privée de Sona](../../docs/GUIDE.md#api-backend-pour-une-app-iphone).
 Usage strictement personnel, comme le reste du projet.
 
 L'app s'appelle **Sona** sur l'iPhone (nom affiché et icône) ; le projet
