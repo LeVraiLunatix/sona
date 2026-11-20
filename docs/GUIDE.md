@@ -535,3 +535,5 @@ fichier quand il existe (même ISRC, ou même artiste et titre).
 ## Personnalisation
 
 Réglages > Apparence : le logo (six propositions en verre liquide), la couleur d'accent, la teinte de la pochette sur les pages d'album, la forme des coins (arrondies ou nettes) et le menu (rail qui s'ouvre au survol, ou toujours ouvert). Les choix sont gardés sur l'appareil (`localStorage`, clé `sona.look`).
+
+**Thème GTA VI** : sur la fiche de Grand Theft Auto VI (artiste Deezer `237278551` ou sa fiche YouTube Music, album et singles « from GTAVI: … ») et tant qu'un titre de cet album joue, tout le site prend l'allure de Vice City (classe `gtavi` sur `<html>`, voir `syncGta` dans `web/app.js` et le dernier bloc de `web/app.css`). L'interrupteur « Thème GTA VI » de Réglages > Apparence le désactive ; l'app Windows, qui affiche ce même site, le reprend telle quelle.

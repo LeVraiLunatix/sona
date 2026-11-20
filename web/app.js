@@ -103,17 +103,54 @@ const LOGOS = {
 const logoSvg = (id, p = "x") => { const { defs, body } = LOGOS[id].build(p); return `<defs>${defs}</defs>${body}`; };
   return { LOGOS, logoSvg };
 })();
+// ── Thème GTA VI : Vice City, Leonida ─────────────────────────────────────────
+// Sur la fiche de Grand Theft Auto VI (artiste, album) et quand un titre de l'album
+// joue, tout Sona prend les couleurs du jeu (classe `gtavi` sur <html>, voir app.css).
+const GTA_ARTISTS = new Set(["deezer:237278551", "youtube:UCJ97ksybdciBBv7xsFSK6HA"]);
+/** « (from GTAVI: The Album) », « [From GTAVI: Original Score] », « Grand Theft Auto VI: The Album »
+    — mais pas « GTA VI » de n'importe quel rappeur : il faut les deux-points du titre officiel. */
+const GTA_TAG = /(?:\bgtavi|grand theft auto vi)\s*:/i;
+const gtaName = (n) => words(n) === " grand theft auto vi ";
+const isGtaArtist = (a) => !!a && (GTA_ARTISTS.has(`${a.source}:${a.source_id}`) || gtaName(a.name));
+const isGtaAlbum = (a) => !!a && (gtaName(a.artist) || GTA_TAG.test(a.title || "") || GTA_ARTISTS.has(`${a.source}:${a.artist_source_id}`));
+const isGtaTrack = (t) => !!t && (gtaName(t.artist) || GTA_ARTISTS.has(`${t.artist_source || t.source}:${t.artist_source_id}`)
+  || GTA_TAG.test(t.album || "") || GTA_TAG.test(t.title || "") || (t.artists || []).some((a) => gtaName(a?.name)));
+/** `route` : la page affichée est celle de GTA VI ; `pending` : verdict de la page en cours de chargement ; `on` : thème actif. */
+const gta = { route: false, pending: false, on: false };
+/** Le logo de Sona devient un soleil de Vice City (rayé) au-dessus d'une plage et d'un palmier. */
+const gtaLogo = (p = "gv") => ({
+  defs: `<linearGradient id="${p}-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd36b"/><stop offset=".55" stop-color="#ff7a59"/><stop offset="1" stop-color="#ff2e97"/></linearGradient>
+    <mask id="${p}-m"><rect width="64" height="64" fill="#fff"/><rect y="33" width="64" height="1.6" fill="#000"/><rect y="38" width="64" height="2.2" fill="#000"/><rect y="43.2" width="64" height="2.8" fill="#000"/></mask>`,
+  body: `<circle cx="32" cy="30" r="17" fill="url(#${p}-s)" mask="url(#${p}-m)"/>
+    <path d="M6 50h52" stroke="#25e8ff" stroke-width="2" stroke-linecap="round"/><path d="M13 57h38" stroke="#ff2e97" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
+    <path d="M47 50c0-9 1.5-15 3.5-22" fill="none" stroke="#12032a" stroke-width="1.9" stroke-linecap="round"/>
+    <path d="M50.5 28c-4-3-8-3-11-1 3-1 7 0 11 1zM50.5 28c1-5 4-8 8-9-3 2-5 5-8 9zM50.5 28c4-2 8-1 10 2-3-2-6-2-10-2z" fill="#12032a"/>`,
+});
+const currentTrackNow = () => { const r = remoteDevice(); return r ? deviceNow(r).track : state.queue[state.index]; };
+/** Allume ou éteint le thème selon la page affichée et le titre en cours. */
+function syncGta(track) {
+  const t = track !== undefined ? track : currentTrackNow();
+  const want = look.gtavi !== false && (gta.route || isGtaTrack(t));
+  if (want === gta.on) return;
+  gta.on = want;
+  document.documentElement.classList.toggle("gtavi", want);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", want ? "#1b0536" : "#08080a");
+  applyLook();
+  if (want) toast("Bienvenue à Leonida 🌴");
+}
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
-const LOOK_DEFAULT = { logo: "orbite", accent: "neutre", tint: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
+const LOOK_DEFAULT = { logo: "orbite", accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
 let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
 function applyLook() {
   const root = document.documentElement;
   const sym = document.getElementById("sona-mark");
-  if (sym && LOGOS[look.logo]) sym.innerHTML = logoSvg(look.logo, "sm");
+  // Thème GTA VI actif : le logo est le soleil de Vice City ; sinon, celui choisi dans Réglages.
+  const mark = (p) => gta.on ? (({ defs, body }) => `<defs>${defs}</defs>${body}`)(gtaLogo(p)) : logoSvg(look.logo, p);
+  if (sym && (gta.on || LOGOS[look.logo])) sym.innerHTML = mark("sm");
   const fav = document.querySelector('link[rel="icon"]');
-  if (fav && LOGOS[look.logo]) {
+  if (fav && (gta.on || LOGOS[look.logo])) {
     fav.type = "image/svg+xml"; fav.removeAttribute("sizes");
-    fav.href = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#0b0b0c"/>${logoSvg(look.logo, "fv")}</svg>`);
+    fav.href = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="${gta.on ? "#1b0536" : "#0b0b0c"}"/>${mark("fv")}</svg>`);
   }
   for (const k of ["--accent", "--accent-2", "--accent-soft", "--on-accent"]) root.style.removeProperty(k);
   const c = ACCENTS[look.accent]?.[1];
@@ -902,9 +939,15 @@ async function route() {
   };
   const view = views[parts[0]] || viewHome;
   const token_ = (route.seq = (route.seq || 0) + 1);
+  // Thème GTA VI : la fiche d'artiste est reconnue tout de suite (son identifiant est dans l'adresse),
+  // un album seulement une fois chargé (ses pages disent `gta.pending`).
+  gta.pending = parts[0] === "artist" && GTA_ARTISTS.has(`${parts[1]}:${parts[2]}`);
+  if (gta.pending && !gta.route) { gta.route = true; syncGta(); }
   try {
     const html = await view();
     if (token_ !== route.seq || html == null) return;
+    gta.route = gta.pending;
+    syncGta();
     content.innerHTML = html;
     const pageEl = $(".page", content);
     if (pageEl && direction !== "none" && isMobile()) pageEl.classList.add(direction === "push" ? "push" : "pop");
@@ -916,6 +959,8 @@ async function route() {
   } catch (e) {
     coverFlight.cancel();
     if (token_ !== route.seq) return;
+    gta.route = false;
+    syncGta();
     content.innerHTML = page(`<div class="empty"><div class="big">⚠︎</div><h3>Impossible d'afficher cette page</h3><p>${esc(e.message)}</p></div>`);
   }
   const title = $(".page-title, .hero h1, .profile-head h1, .pa-name", content)?.textContent || "";
@@ -1924,6 +1969,7 @@ function addSongsSheet(p, existing = []) {
 async function viewAlbum(source, id, isPlaylist = false) {
   $("#content").innerHTML = skeleton("");
   const album = await api(`/${isPlaylist ? "playlists" : "albums"}/${encodeURIComponent(source)}/${encodeURIComponent(id)}`);
+  gta.pending = !isPlaylist && isGtaAlbum(album);
   const tracks = (album.tracks || []).map((t) => isPlaylist ? t : ({ ...t, cover_url: t.cover_url || album.cover_url, album: t.album || album.title, album_source_id: t.album_source_id || album.source_id }));
   const total = tracks.reduce((s, t) => s + (t.duration_seconds || 0), 0);
   const list = register(tracks, album.title);
@@ -2127,6 +2173,7 @@ async function viewArtist(source, id) {
   // Exclus de l'artiste (ajoutés à la main) : tout en haut de sa page, avec l'année et le tag.
   const exclusives = (await api(`${base}/exclusives?name=${encodeURIComponent(artist.name)}`).catch(() => ({ tracks: [] }))).tracks;
   const list = register(top, artist.name);
+  gta.pending = isGtaArtist(artist);
   // Discographie : filtre (tout / albums / singles) et tri (récent / ancien / A-Z).
   const disco = { filter: "all", sort: "recent" };
   const year = (a) => a.year || "0";
@@ -2922,6 +2969,7 @@ function renderTopbar() {
   const remote = remoteDevice();
   const rnow = deviceNow(remote);
   const t = remote ? rnow.track : state.queue[state.index];
+  syncGta(t);
   const liked = t && state.liked.has(`${t.source}:${t.source_id}`);
   const playingIcon = remote ? (rnow.paused ? icons.play : icons.pause) : audio.paused ? icons.play : icons.pause;
   const volumeShown = remote ? (state.connect.pendingVolume ?? remote.volume ?? 1) : vol.level;
@@ -3049,6 +3097,7 @@ function renderMini() {
   document.body.classList.toggle("has-mini", !!t);
   // Un titre d'un artiste à identités (FEMTOGO…) : tout Sona prend l'esprit « archive ».
   document.documentElement.classList.toggle("archive", !!(t && t.persona));
+  syncGta(t);
   if (!t) { mp.innerHTML = ""; return; }
   const paused = remote ? rnow.paused : audio.paused;
   mp.innerHTML = `<div class="mp-inner" data-mp="open" style="--mp-cover:url('${esc(big(t.cover_url, 120))}')">
@@ -7514,6 +7563,7 @@ function viewAppearance() {
     <h3 class="set-head">Logo</h3><div class="look-logos">${logos}</div>
     <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
     <h3 class="set-head">Interface</h3><div class="set-group">
+      <label class="switch-row"><span><b>Thème GTA VI</b><small>Sur la page de Grand Theft Auto VI, et quand un titre de l'album joue, Sona devient Vice City.</small></span><input type="checkbox" data-look-gtavi ${look.gtavi !== false ? "checked" : ""}><i></i></label>
       <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
       <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
       <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Un rail d'icônes qui s'ouvre au survol, ou toujours ouvert.</small></span><span class="chips">${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
@@ -7537,6 +7587,8 @@ function bindAppearance() {
     $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === look.menu));
     const tint = $("[data-look-tint]", root);
     if (tint) tint.checked = look.tint;
+    const gtaBox = $("[data-look-gtavi]", root);
+    if (gtaBox) gtaBox.checked = look.gtavi !== false;
     const auto = $("[data-look-lyrauto]", root), blur = $("[data-look-lyrblur]", root), glob = $("#lyr-global", root);
     if (auto) auto.checked = look.lyrAuto;
     if (blur) blur.checked = look.lyrBlur;
@@ -7554,6 +7606,7 @@ function bindAppearance() {
     mark();
   });
   $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
+  $("[data-look-gtavi]", root)?.addEventListener("change", (e) => { setLook({ gtavi: e.target.checked }); syncGta(); });
   $("[data-look-lyrauto]", root)?.addEventListener("change", (e) => setLook({ lyrAuto: e.target.checked }));
   $("[data-look-lyrblur]", root)?.addEventListener("change", (e) => setLook({ lyrBlur: e.target.checked }));
   // Décalage global des paroles : 0,05 s par appui, borné à ±1,5 s.

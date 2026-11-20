@@ -2729,3 +2729,103 @@ html.archive .drawer .queue .tr, html.archive .drawer .mini { font-family: var(-
 .pp-row.done .pp-add { background: var(--accent-soft); color: var(--accent); }
 .pp-empty { padding: 24px 4px; text-align: center; }
 .pp-back { color: var(--text-2); font-weight: 600; }
+
+/* ── Thème GTA VI : Vice City, Leonida ─────────────────────────────────────────────────────────
+   Classe `gtavi` sur <html> : posée sur la fiche de Grand Theft Auto VI (artiste, album) et tant
+   qu'un titre de l'album joue (voir `syncGta`, app.js). Un coucher de soleil de néons : ciel
+   violet, soleil rayé, grille au sol, palmiers, rose et orange, cyan en filet. Réglage :
+   Réglages > Apparence > Thème GTA VI. */
+html.gtavi {
+  --canvas: #0d0220; --bg: rgba(22, 5, 40, .66); --bg-elevated: rgba(48, 12, 78, .9); --sidebar: transparent;
+  --glass: rgba(30, 7, 54, .74); --hairline: rgba(255, 130, 215, .24);
+  --fill: rgba(255, 110, 200, .08); --fill-strong: rgba(255, 110, 200, .16);
+  --text: #fff4fb; --text-2: rgba(255, 226, 244, .72); --text-3: rgba(255, 205, 236, .46);
+  --accent: #ff4fa3 !important; --accent-2: #ffb347 !important; --accent-soft: rgba(255, 79, 163, .2) !important; --on-accent: #1a0230 !important;
+  --neon-cyan: #25e8ff; --neon-pink: #ff2e97; --neon-orange: #ffb347;
+  --shadow-pop: 0 0 0 1px rgba(255, 130, 215, .2), 0 24px 64px rgba(10, 0, 30, .6), 0 0 42px rgba(255, 46, 151, .16);
+  --font-title: "Pricedown", "Bowlby One SC", Impact, "Haettenschweiler", "Arial Black", sans-serif;
+  color-scheme: dark;
+}
+
+/* Le décor : ciel, soleil, palmiers (body::before) et grille qui fuit vers l'horizon (body::after). */
+html.gtavi, html.gtavi body { background: #0d0220; }
+html.gtavi body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 400'><g fill='%230a0118'><path d='M96 400C100 300 104 220 118 140' stroke='%230a0118' stroke-width='9' fill='none' stroke-linecap='round'/><path d='M118 140C90 110 50 105 12 130 52 118 90 125 118 140Z'/><path d='M118 140C95 100 70 75 30 70 70 78 98 100 118 140Z'/><path d='M118 140C130 95 150 70 185 62 156 80 138 100 118 140Z'/><path d='M118 140C150 118 185 118 198 140 176 130 146 132 118 140Z'/><path d='M118 140C112 100 112 70 100 40 122 70 124 100 118 140Z'/><path d='M118 140C100 150 70 165 40 195 78 172 100 160 118 140Z'/><path d='M118 140C140 152 166 168 178 198 156 176 134 160 118 140Z'/></g></svg>") left -2vmin bottom -4vh / auto min(62vh, 560px) no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 400'><g fill='%230a0118'><path d='M96 400C100 300 104 220 118 140' stroke='%230a0118' stroke-width='9' fill='none' stroke-linecap='round'/><path d='M118 140C90 110 50 105 12 130 52 118 90 125 118 140Z'/><path d='M118 140C95 100 70 75 30 70 70 78 98 100 118 140Z'/><path d='M118 140C130 95 150 70 185 62 156 80 138 100 118 140Z'/><path d='M118 140C150 118 185 118 198 140 176 130 146 132 118 140Z'/><path d='M118 140C112 100 112 70 100 40 122 70 124 100 118 140Z'/><path d='M118 140C100 150 70 165 40 195 78 172 100 160 118 140Z'/><path d='M118 140C140 152 166 168 178 198 156 176 134 160 118 140Z'/></g></svg>") right -4vmin bottom -10vh / auto min(78vh, 700px) no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='s' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23ffe27a'/><stop offset='.5' stop-color='%23ff8a4d'/><stop offset='1' stop-color='%23ff2e97'/></linearGradient><mask id='m'><rect width='200' height='200' fill='%23fff'/><rect y='112' width='200' height='4' fill='%23000'/><rect y='132' width='200' height='7' fill='%23000'/><rect y='154' width='200' height='10' fill='%23000'/><rect y='177' width='200' height='14' fill='%23000'/></mask></defs><circle cx='100' cy='100' r='96' fill='url(%23s)' mask='url(%23m)'/></svg>") center 62% / min(54vmin, 480px) no-repeat,
+    linear-gradient(180deg, #0d0220 0%, #260846 34%, #6a1275 52%, #c01d88 66%, #ff5e7a 76%, #ffa24d 86%, #ffd36b 100%);
+}
+html.gtavi body::after {
+  content: ""; position: fixed; left: -25%; right: -25%; top: 66vh; height: 90vh; z-index: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(37, 232, 255, .55) 0 2px, transparent 2px 72px),
+    repeating-linear-gradient(0deg, rgba(255, 46, 151, .6) 0 2px, transparent 2px 46px),
+    linear-gradient(180deg, rgba(13, 2, 32, .94), rgba(70, 8, 90, .72));
+  transform: perspective(420px) rotateX(64deg); transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%); mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%);
+  opacity: .72;
+}
+html.gtavi #root, html.gtavi .app { position: relative; z-index: 1; }
+html.gtavi .ambient { display: none !important; }
+@media (prefers-reduced-motion: no-preference) {
+  html.gtavi body::before { animation: gta-dusk 14s ease-in-out infinite alternate; }
+  @keyframes gta-dusk { from { filter: saturate(1) brightness(1); } to { filter: saturate(1.25) brightness(1.08); } }
+}
+
+/* Panneaux de verre violet, filets néon. */
+html.gtavi .content { background: var(--bg); -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%); border-color: var(--hairline); box-shadow: 0 0 0 1px rgba(255, 46, 151, .08) inset, 0 0 38px rgba(255, 46, 151, .12); }
+html.gtavi .topbar, html.gtavi .sheet, html.gtavi .mp-inner, html.gtavi .tabbar { border-color: var(--hairline); box-shadow: var(--shadow-pop); }
+html.gtavi .tabbar { background: rgba(28, 6, 50, .78); }
+html.gtavi .tabbar button.active { background: linear-gradient(135deg, rgba(255, 79, 163, .55), rgba(255, 179, 71, .45)); box-shadow: 0 0 18px rgba(255, 79, 163, .45); color: #fff; text-shadow: 0 0 8px rgba(26, 2, 48, .9); }
+html.gtavi .hero-glow img { filter: blur(70px) saturate(1.8) hue-rotate(-12deg); opacity: .7; }
+
+/* Titres : lettres de façade de Vice City, dégradé jaune-rose et halo néon. */
+html.gtavi .page-title, html.gtavi .hero h1, html.gtavi .pa-name, html.gtavi .profile-head h1 {
+  font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .015em; font-weight: 900;
+  background: linear-gradient(180deg, #fff6c7 0%, #ffb347 38%, #ff4fa3 78%, #c01d88 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 12px rgba(255, 46, 151, .55)) drop-shadow(0 2px 0 rgba(30, 0, 50, .6));
+}
+html.gtavi .section-head h2, html.gtavi .set-head { font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .05em; font-weight: 800; color: #ffd6ee; text-shadow: 0 0 10px rgba(255, 46, 151, .5); }
+html.gtavi .hero .kind { color: var(--neon-cyan); text-shadow: 0 0 8px rgba(37, 232, 255, .6); letter-spacing: .24em; }
+html.gtavi .hero .by, html.gtavi .page-sub { color: var(--text-2); }
+html.gtavi .hero-art, html.gtavi .card .art-wrap, html.gtavi .tr img, html.gtavi .mini img { box-shadow: 0 0 0 1px rgba(255, 130, 215, .35), 0 0 26px rgba(255, 46, 151, .28); }
+html.gtavi .card:hover .art-wrap { box-shadow: 0 0 0 1px rgba(37, 232, 255, .6), 0 0 34px rgba(37, 232, 255, .35); }
+
+/* Marque, menu, boutons : rose et orange, halo au survol. */
+html.gtavi .brand .wordmark { font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .06em; color: #ffd6ee; text-shadow: 0 0 12px rgba(255, 46, 151, .7); }
+html.gtavi .brand .wordmark::after { content: " VI"; color: var(--neon-orange); text-shadow: 0 0 12px rgba(255, 179, 71, .8); }
+html.gtavi .brand-mark svg { filter: drop-shadow(0 0 8px rgba(255, 79, 163, .6)); }
+html.gtavi .side-link.active { background: linear-gradient(90deg, rgba(255, 79, 163, .3), rgba(255, 179, 71, .12)); color: #fff; box-shadow: inset 2px 0 0 var(--neon-pink), 0 0 20px rgba(255, 46, 151, .22); }
+html.gtavi .side-link:hover { background: var(--fill-strong); }
+html.gtavi .btn, html.gtavi .tbtn.big, html.gtavi .chip.on, html.gtavi .card .play-fab { background: linear-gradient(135deg, #ff4fa3, #ff8a4d); color: #1a0230; box-shadow: 0 0 22px rgba(255, 79, 163, .5); }
+html.gtavi .btn.ghost { background: var(--fill-strong); color: var(--text); box-shadow: none; border: 1px solid var(--hairline); }
+html.gtavi .btn.ghost:hover { border-color: var(--neon-cyan); box-shadow: 0 0 16px rgba(37, 232, 255, .3); }
+html.gtavi .tr.current { background: linear-gradient(90deg, rgba(255, 79, 163, .24), rgba(255, 179, 71, .08)); box-shadow: inset 2px 0 0 var(--neon-pink); }
+html.gtavi .tr.current .ti, html.gtavi .mini.current .t { text-shadow: 0 0 10px rgba(255, 79, 163, .7); }
+html.gtavi .bars i { background: var(--neon-cyan); box-shadow: 0 0 6px var(--neon-cyan); }
+html.gtavi input[type="range"].slider { background: linear-gradient(to right, var(--neon-pink), var(--neon-orange) var(--p, 0%), var(--fill-strong) var(--p, 0%)); }
+html.gtavi input[type="range"].slider::-webkit-slider-thumb { background: #fff; box-shadow: 0 0 10px var(--neon-pink); }
+html.gtavi .lcd .progress .fill, html.gtavi .mp-progress .fill { background: linear-gradient(90deg, var(--neon-pink), var(--neon-orange)); box-shadow: 0 0 8px var(--neon-pink); }
+html.gtavi .field, html.gtavi .side-search input, html.gtavi .search-hero input { background: rgba(255, 110, 200, .1); }
+html.gtavi .field:focus, html.gtavi .side-search input:focus, html.gtavi .search-hero input:focus { box-shadow: 0 0 0 1px var(--neon-cyan), 0 0 18px rgba(37, 232, 255, .3); }
+html.gtavi .tag-exclu, html.gtavi .tag { background: rgba(37, 232, 255, .12); color: var(--neon-cyan); border: 1px solid rgba(37, 232, 255, .4); }
+html.gtavi .set-group, html.gtavi .set-account, html.gtavi .tile { border: 1px solid var(--hairline); }
+html.gtavi .switch-row input:checked + i { background: var(--neon-pink); box-shadow: 0 0 10px rgba(255, 46, 151, .7); }
+html.gtavi .toast { background: rgba(40, 8, 70, .95); color: #fff; border: 1px solid var(--neon-pink); box-shadow: 0 0 24px rgba(255, 46, 151, .5); font-weight: 700; letter-spacing: .02em; }
+html.gtavi ::selection { background: rgba(255, 79, 163, .45); }
+html.gtavi .scroll { --sb: rgba(255, 130, 215, .32); --sb-on: rgba(255, 130, 215, .6); }
+
+/* Lecteur plein écran : le décor de Vice City derrière la pochette et les paroles. */
+html.gtavi .np { background: linear-gradient(180deg, #12032a 0%, #3b0a5c 48%, #a3197c 82%, #ff6a6a 100%); }
+html.gtavi .np .np-bg { opacity: .55; mix-blend-mode: screen; }
+html.gtavi .np .np-meta .t { font-family: var(--font-title); font-style: italic; text-transform: uppercase; letter-spacing: .02em; background: linear-gradient(180deg, #fff6c7, #ffb347 55%, #ff4fa3); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 0 10px rgba(255, 46, 151, .6)); }
+html.gtavi .np .lyrics p.on, html.gtavi .np .lyrics p.active, html.gtavi .np .lyrics p.cur { color: #fff; text-shadow: 0 0 18px rgba(255, 79, 163, .9), 0 0 4px rgba(255, 179, 71, .6); }
+html.gtavi .np .np-art { box-shadow: 0 0 0 1px rgba(255, 130, 215, .5), 0 0 60px rgba(255, 46, 151, .45); }
+
+/* Téléphone : palmiers et grille plus discrets, pour ne pas gêner la lecture. */
+@media (max-width: 760px) {
+  html.gtavi body::after { opacity: .5; }
+  html.gtavi .content { background: rgba(22, 5, 40, .74); }
+}
