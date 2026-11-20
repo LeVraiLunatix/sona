@@ -110,6 +110,27 @@ def test_enrich_fills_missing_cover_and_tracklist_from_apple(monkeypatch):
     assert [t.released for t in out.tracks] == [False, True]
 
 
+def test_enrich_dates_titles_already_out_as_singles(monkeypatch):
+    """Deezer date tout l'album du jour de sortie : Apple corrige les titres déjà parus."""
+    async def preview(title, artist, with_tracks=False):
+        assert with_tracks
+        return {"cover_url": None, "release_date": None, "tracks": [
+            {"id": "1", "title": "Single", "artist": "A", "duration": 1, "track": 1, "disc": 1,
+             "release_date": "2026-09-17", "isrc": None},
+            {"id": "2", "title": "Inédit", "artist": "A", "duration": 1, "track": 2, "disc": 1,
+             "release_date": "2999-12-05", "isrc": None},
+        ]}
+
+    monkeypatch.setattr(apple_motion, "album_preview", preview)
+    info = album("2999-12-05", [track("Single (feat. Quelqu'un)"), track("Inédit")])
+    for t in info.tracks:
+        t.release_date = "2999-12-05"
+    asyncio.run(upcoming.enrich_albums([info]))
+    assert [t.release_date for t in info.tracks] == ["2026-09-17", "2999-12-05"]
+    assert [t.released for t in Album.from_info(info).tracks] == [True, False]
+    assert [t.source for t in info.tracks] == ["deezer", "deezer"]  # la liste Deezer est gardée
+
+
 def test_enrich_does_nothing_for_a_complete_album(monkeypatch):
     async def boom(*args, **kwargs):
         raise AssertionError("Apple ne doit pas être interrogé")

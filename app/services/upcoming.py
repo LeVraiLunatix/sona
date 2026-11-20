@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import unicodedata
 from datetime import date, datetime, time, timezone
 
 from app.providers.base import AlbumInfo, TrackInfo
@@ -49,14 +51,27 @@ def track_released(track: TrackInfo, album_date: str | None, now: datetime | Non
     return moment is None or moment <= (now or datetime.now(timezone.utc))
 
 
+def _title_key(title: str) -> str:
+    """Titre sans accents, sans « (feat. …) » ni « [from …] », pour rapprocher
+    la liste de Deezer de celle d'Apple Music."""
+    bare = re.sub(r"[(\[].*?[)\]]", "", title)
+    bare = unicodedata.normalize("NFKD", bare).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "", bare.lower())
+
+
 async def enrich_album(album: AlbumInfo) -> None:
     """Pochette et, pour un album annoncé, liste des titres manquantes, lues sur
     Apple Music. Au mieux : sans réponse, l'album reste tel quel."""
     need_cover = not album.cover_url
     need_tracks = not album.tracks and is_upcoming(album.release_date)
-    if not need_cover and not need_tracks:
+    # Deezer date tous les titres d'un album annoncé du jour de l'album, même ceux
+    # déjà sortis en single : Apple Music, qui date chaque titre, corrige.
+    need_dates = bool(album.tracks) and is_upcoming(album.release_date) and all(
+        t.release_date in (None, album.release_date) for t in album.tracks
+    )
+    if not need_cover and not need_tracks and not need_dates:
         return
-    found = await apple_motion.album_preview(album.title, album.artist, with_tracks=need_tracks)
+    found = await apple_motion.album_preview(album.title, album.artist, with_tracks=need_tracks or need_dates)
     if not found:
         return
     if need_cover and found.get("cover_url"):
@@ -66,6 +81,13 @@ async def enrich_album(album: AlbumInfo) -> None:
     if not album.release_date and found.get("release_date"):
         album.release_date = found["release_date"]
         album.year = album.year or album.release_date[:4]
+    if need_dates and found.get("tracks"):
+        earlier = {}
+        for t in found["tracks"]:
+            if t.get("release_date") and t["release_date"] < (album.release_date or "9999"):
+                earlier.setdefault(_title_key(t["title"]), t["release_date"])
+        for track in album.tracks:
+            track.release_date = earlier.get(_title_key(track.title), track.release_date)
     if need_tracks and found.get("tracks"):
         album.tracks = [
             TrackInfo(
