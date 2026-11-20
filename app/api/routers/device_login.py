@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import get_deps, identify, require_token
+from app.api.clientip import client_ip
 from app.api.routers.accounts import AccountOut
 from app.api.state import ApiDeps
-from app.services import device_login
+from app.services import connect, device_login
 
 router = APIRouter(prefix="/auth/device", tags=["connexion par QR code"])
 
@@ -46,9 +47,13 @@ def _verify_url(request: Request, deps: ApiDeps, user_code: str) -> str:
 @router.post("/start", response_model=StartOut)
 async def start(payload: StartIn, request: Request, deps: ApiDeps = Depends(get_deps)) -> StartOut:
     """L'appareil (sans compte) demande un code ; il affichera `verify_url` en QR code."""
-    created = device_login.start(payload.name)
+    created = device_login.start(payload.name, device_login.network_key(client_ip(request)))
     if created is None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop de connexions en attente : réessaie dans quelques minutes.")
+    # Les appareils du compte posés sur le même réseau voient la demande tout de suite :
+    # un appui sur « Autoriser » suffit, plus besoin de scanner le QR code.
+    for user_id in device_login.watchers_of(created.network):
+        connect.wake(user_id)
     return StartOut(
         device_code=created.device_code, user_code=created.user_code, verify_url=_verify_url(request, deps, created.user_code),
         expires_in=device_login.TTL_SECONDS, interval=device_login.POLL_INTERVAL,
@@ -69,6 +74,23 @@ async def poll(payload: PollIn, deps: ApiDeps = Depends(get_deps)) -> dict:
         return {"status": "pending"}
     device_login.consume(found.device_code)
     return {"status": "approved", "session_token": found.session_token, "account": AccountOut.from_account(found.account)}
+
+
+def login_requests(deps: ApiDeps, request: Request) -> list[dict]:
+    """Demandes de connexion venues du même réseau que l'appelant (vide pour le jeton unique)."""
+    if deps.account is None:
+        return []
+    now = time.time()
+    return [
+        {"user_code": r.user_code, "name": r.name, "expires_in": max(0, int(device_login.TTL_SECONDS - (now - r.created)))}
+        for r in device_login.nearby(device_login.network_key(client_ip(request)))
+    ]
+
+
+@router.get("/nearby")
+async def nearby(request: Request, deps: ApiDeps = Depends(require_token)) -> list[dict]:
+    """Appareils qui demandent l'accès depuis le même réseau : l'app propose « Autoriser »."""
+    return login_requests(deps, request)
 
 
 @router.get("/{user_code}")

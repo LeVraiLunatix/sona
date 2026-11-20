@@ -24,6 +24,9 @@ final class ConnectManager: ObservableObject {
     /// commande envoyée) : écran verrouillé et boutons de volume pilotent
     /// l'appareil (voir `RemoteNowPlaying`).
     @Published private(set) var engaged = false
+    /// Un appareil voisin (casque Quest, TV…) demande l'accès au compte : proposé en alerte.
+    @Published private(set) var loginRequest: DeviceLoginRequest?
+    private var answeredLoginCodes = Set<String>()
     private var receivedAt = Date()
     private var loop: Task<Void, Never>?
     private var claimPending = false
@@ -45,6 +48,24 @@ final class ConnectManager: ObservableObject {
     private init() {}
 
     var otherDevices: [ConnectDevice] { devices.filter { !$0.isMe } }
+
+    /// Réponse à la demande de connexion affichée (autoriser ou refuser).
+    func answerLoginRequest(_ ask: DeviceLoginRequest, approve: Bool) async {
+        answeredLoginCodes.insert(ask.userCode)
+        if loginRequest?.userCode == ask.userCode { loginRequest = nil }
+        do {
+            try await APIClient.shared.answerDeviceLink(code: ask.userCode, approve: approve)
+            lastMessage = approve ? "\(ask.name) est connecté à ton compte" : "Connexion refusée"
+        } catch {
+            lastMessage = error.localizedDescription
+        }
+    }
+
+    /// L'alerte a été fermée sans réponse (elle ne revient pas pour ce code).
+    func dismissLoginRequest() {
+        if let ask = loginRequest { answeredLoginCodes.insert(ask.userCode) }
+        loginRequest = nil
+    }
 
     /// L'appareil qui joue ailleurs pendant que rien ne joue ici.
     var remoteDevice: ConnectDevice? {
@@ -214,6 +235,10 @@ final class ConnectManager: ObservableObject {
         devices = freshDevices
         session = fresh
         activeDeviceId = response.activeDeviceId
+        if loginRequest == nil,
+           let ask = response.loginRequests?.first(where: { !answeredLoginCodes.contains($0.userCode) }) {
+            loginRequest = ask
+        }
         for command in response.commands { run(command) }
         RemoteFlag.shared.update(remoteTarget != nil)
         return true
@@ -486,7 +511,7 @@ struct ConnectDevicesSection: View {
     private func row(_ device: ConnectDevice) -> some View {
         let isTarget = connect.remoteTarget?.id == device.id
         return HStack(spacing: 14) {
-            Image(systemName: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+            Image(systemName: connectDeviceSymbol(device.kind))
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(device.playing || isTarget ? .white : Tone.secondary)
                 .frame(width: 42, height: 42)
@@ -558,7 +583,7 @@ struct RemotePlayerView: View {
                         }
                         .buttonStyle(.pressable(scale: 0.85))
                         Spacer()
-                        Label("Lecture sur \(device.name)", systemImage: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+                        Label("Lecture sur \(device.name)", systemImage: connectDeviceSymbol(device.kind))
                             .font(Typo.caption).foregroundStyle(Tone.primary)
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .background(Capsule().fill(Color.white.opacity(0.15)))
@@ -587,7 +612,7 @@ struct RemotePlayerView: View {
                         progress(device, track: track)
                     } else {
                         VStack(spacing: 10) {
-                            Image(systemName: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+                            Image(systemName: connectDeviceSymbol(device.kind))
                                 .font(.system(size: 54, weight: .light)).foregroundStyle(Tone.tertiary)
                             Text("Rien en lecture sur \(device.name)").font(Typo.headline).foregroundStyle(Tone.primary)
                             Text("Envoie-lui ta musique, ou lance un titre dessus.")
@@ -802,7 +827,7 @@ struct RemoteMiniPlayer: View {
                 Artwork(url: now.track?.coverURL, cornerRadius: 7).frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(now.track?.title ?? "Rien en lecture").font(Typo.rowTitle).foregroundStyle(Tone.primary).lineLimit(1)
-                    Label("Sur \(device.name)", systemImage: device.kind == "iphone" ? "iphone" : "laptopcomputer")
+                    Label("Sur \(device.name)", systemImage: connectDeviceSymbol(device.kind))
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor).lineLimit(1)
                 }
                 Spacer(minLength: 4)

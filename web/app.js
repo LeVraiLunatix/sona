@@ -341,6 +341,7 @@ const icons = {
   calendar: ic("M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1zM4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9z"),
   trophy: ic("M7 3h10a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v2a4 4 0 0 1-3.8 4 6 6 0 0 1-4.2 3.9V18h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.1A6 6 0 0 1 6.8 12 4 4 0 0 1 3 8V6a1 1 0 0 1 1-1h2V4a1 1 0 0 1 1-1zM5 7v1a2 2 0 0 0 1.1 1.8A6 6 0 0 1 6 9V7zm13 0v2c0 .3 0 .5-.1.8A2 2 0 0 0 19 8V7z"),
   headphones: ic("M12 3a9 9 0 0 1 9 9v5.5a3.5 3.5 0 0 1-3.5 3.5H16a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h3v-.9a7 7 0 0 0-14 0v.9h3a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6.5A3.5 3.5 0 0 1 3 17.5V12a9 9 0 0 1 9-9z"),
+  headset: ic("M20 6H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4.6a2 2 0 0 0 1.8-1.1l.4-.9h2.4l.4.9a2 2 0 0 0 1.8 1.1H20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm0 10h-4.2l-.6-1.2a2 2 0 0 0-1.8-1.1h-2.8a2 2 0 0 0-1.8 1.1L8.2 16H4V8h16v8z"),
   tv: ic("M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-7v1h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-1H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v10h16V6z"),
   moon: ic("M12.3 2.1a1 1 0 0 1 .3 1.1 7 7 0 0 0 8.2 9.1 1 1 0 0 1 1.2 1.3A10 10 0 1 1 11.2 2a1 1 0 0 1 1.1.1z"),
   flag: ic("M5 2a1 1 0 0 1 1 1v.3C7.2 2.8 8.5 2.5 10 2.9c1.4.4 2.4 1.1 3.6 1.4 1.3.3 2.8.2 4.9-.8A1 1 0 0 1 20 4.4v9.2a1 1 0 0 1-.6.9c-2.6 1.2-4.6 1.4-6.3 1-1.4-.4-2.4-1.1-3.6-1.4-1-.3-2-.2-3.5.4V21a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1z"),
@@ -2996,7 +2997,7 @@ function renderTopbar() {
     ${grip()}
     ${t ? `<div class="lcd ${remote ? "remote" : ""}"><img class="art" data-act="${remote ? "devices" : "open"}" src="${esc(big(t.cover_url, 120))}" alt="">
       <div class="meta" data-act="${remote ? "devices" : "open"}"><div class="t">${esc(t.title)}</div>
-        <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${albumHtml(t)}` : ""}`}</div></div>
+        <div class="a">${remote ? `<span class="on-device">${kindIcon(remote.kind)} Sur ${esc(remote.name)}</span>` : `${artistHtml(t)}${t.album ? ` — ${albumHtml(t)}` : ""}`}</div></div>
       <div class="progress" data-act="seek"><div class="fill" id="lcd-fill"></div></div>
       <span class="tm cur" id="lcd-cur">0:00</span><span class="tm rem" id="lcd-rem">-0:00</span></div>`
       : `<div class="lcd idle"><span>${icons.note}</span></div>`}
@@ -3115,7 +3116,7 @@ function renderMini() {
   mp.innerHTML = `<div class="mp-inner" data-mp="open" style="--mp-cover:url('${esc(big(t.cover_url, 120))}')">
     <img src="${esc(big(t.cover_url, 120))}" alt="">
     <div class="mp-meta"><div class="t">${esc(t.title)}</div>
-      <div class="a">${remote ? `<span class="on-device">${remote.kind === "iphone" ? icons.phone : icons.laptop} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${artistHtml(t)}` : artistHtml(t)}</div></div>
+      <div class="a">${remote ? `<span class="on-device">${kindIcon(remote.kind)} Sur ${esc(remote.name)}</span>` : cast.screen ? `${icons.tv} Sur ${esc(cast.screen.name)}` : party.state ? `${icons.headphones} ${party.state.is_host ? "Ta session" : `Avec ${esc(party.state.host_name || "l'hôte")}`} · ${artistHtml(t)}` : artistHtml(t)}</div></div>
     <button class="mp-btn" data-mp="toggle" aria-label="Lecture/Pause">${paused ? icons.play : icons.pause}</button>
     <button class="mp-btn" data-mp="next" aria-label="Suivant">${icons.next}</button>
     <div class="mp-progress"><div class="fill" id="mp-fill"></div></div></div>`;
@@ -5541,6 +5542,9 @@ function setControl(id) {
   renderTopbar();
 }
 
+/** Icône d'un appareil Sona Connect : téléphone, casque VR (Meta Quest) ou ordinateur. */
+const kindIcon = (kind) => (kind === "iphone" ? icons.phone : kind === "quest" ? icons.headset : icons.laptop);
+
 function localState() {
   if (!state.queue.length || state.index < 0) return null;
   const start = Math.max(0, state.index - 20);
@@ -5587,6 +5591,7 @@ async function connectSync(wait = 0) {
     }
   }
   Object.assign(state.connect, { devices: data.devices, session: data.session, active: data.active_device_id, receivedAt: Date.now() });
+  showLoginRequests(data.login_requests || []);
   for (const command of data.commands || []) runCommand(command);
   // Pas de rafraîchissement pendant qu'on fait glisser un curseur de volume.
   const dragging = document.activeElement?.matches?.('#vol, input[data-dc="volume"], input[data-dev-vol]') && state.connect.pointerDown;
@@ -5599,6 +5604,25 @@ async function connectSync(wait = 0) {
   if (state.connect.open && !dragging) renderDevices();
   if (!dragging) renderDevicesPage();
   return true;
+}
+
+// Un appareil posé sur le même réseau (casque Meta Quest, TV…) demande l'accès à ton
+// compte : on te le propose ici, un appui sur « Autoriser » remplace le QR code.
+const shownLoginRequests = new Set();
+function showLoginRequests(list) {
+  const req = list.find((r) => !shownLoginRequests.has(r.user_code));
+  if (!req || $("[data-login-req]")) return;
+  shownLoginRequests.add(req.user_code);
+  const answer = async (path, done) => {
+    try { await api(path, { method: "POST", body: JSON.stringify({ user_code: req.user_code }) }); toast(done); }
+    catch (e) { toast(e.message || "Impossible pour le moment."); }
+  };
+  const wrap = openSheet(`<div data-login-req>
+    <h2 class="sheet-title">${esc(req.name)} veut se connecter</h2>
+    <p class="muted">Un appareil sur ton réseau demande l'accès à ton compte Sona. Le code affiché sur son écran doit être <b>${esc(req.user_code)}</b>. Si tu ne reconnais pas l'appareil, refuse.</p>
+    <div class="pill-row"><button class="btn ghost" data-no>Refuser</button><button class="btn" data-yes>Autoriser</button></div></div>`);
+  $("[data-yes]", wrap).onclick = async () => { wrap.close(); await answer("/auth/device/approve", `${req.name} est connecté à ton compte`); };
+  $("[data-no]", wrap).onclick = async () => { wrap.close(); await answer("/auth/device/deny", "Connexion refusée"); };
 }
 
 function startConnect() {
@@ -5775,7 +5799,7 @@ function renderDevices() {
       <input type="range" class="slider" data-dc="volume" min="0" max="1" step="0.05" value="${remote.volume ?? 1}" style="--p:${(remote.volume ?? 1) * 100}%" aria-label="Volume à distance">
     </div>` : ""}
     ${devices.map((d) => `<button class="dp-device ${d.playing ? "playing" : ""}" data-device="${esc(d.id)}">
-      <span class="dp-icon">${d.kind === "iphone" ? icons.phone : icons.laptop}</span>
+      <span class="dp-icon">${kindIcon(d.kind)}</span>
       <span style="min-width:0"><span class="n">${d.is_me ? (isMobile() ? "Ce téléphone" : "Cet ordinateur") : esc(d.name)}</span>
         <span class="st">${d.playing ? `${bars()} ${esc(d.track?.title || "En lecture")}` : d.is_me ? esc(d.name) : "Connecté"}</span></span>
       <span class="go">${d.is_me ? (remote || (session && !audio.src) ? "Écouter ici" : "") : "Écouter dessus"}</span></button>`).join("")}
@@ -5830,7 +5854,7 @@ function devicesList() {
   return { saved, others };
 }
 
-const deviceIcon = (d) => (d.kind === "iphone" ? icons.phone : icons.laptop);
+const deviceIcon = (d) => (kindIcon(d.kind));
 
 function deviceStatus(d) {
   if (!d.online) {
@@ -6288,7 +6312,7 @@ function trackMenu(t, ctx = null, index = -1) {
       toast("Retiré de la playlist"); route();
     } },
     ...otherDevices().filter((d) => d.kind !== "iphone" || d.id === state.connect.control).map((d) => ({
-      icon: d.kind === "iphone" ? icons.phone : icons.laptop, label: `Écouter sur ${d.name}`,
+      icon: kindIcon(d.kind), label: `Écouter sur ${d.name}`,
       sub: "Le titre se lance sur cet appareil", run: () => playOnDevice(d, ctx?.tracks?.length ? ctx.tracks : [t], ctx?.tracks?.length ? Math.max(0, index) : 0, ctx?.name),
     })),
     offline.supported && { icon: icons.download, label: offlineHas(t) ? "Supprimer le téléchargement" : "Télécharger pour l'écoute hors ligne",

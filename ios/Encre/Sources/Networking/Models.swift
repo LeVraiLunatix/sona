@@ -1596,10 +1596,37 @@ struct ConnectSyncResponse: Codable {
     var activeDeviceId: String?
     var session: ConnectSession?
     var commands: [ConnectCommand]
+    /// Appareils posés sur le même réseau qui demandent l'accès au compte (casque Quest, TV…).
+    var loginRequests: [DeviceLoginRequest]?
 
     enum CodingKeys: String, CodingKey {
         case devices, session, commands
         case activeDeviceId = "active_device_id"
+        case loginRequests = "login_requests"
+    }
+}
+
+/// Un appareil voisin qui veut se connecter : « Autoriser » remplace le QR code.
+struct DeviceLoginRequest: Codable, Hashable, Identifiable {
+    var userCode: String
+    var name: String
+    var expiresIn: Int?
+
+    var id: String { userCode }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case userCode = "user_code"
+        case expiresIn = "expires_in"
+    }
+}
+
+/// Symbole d'un appareil Sona Connect : iPhone, casque (Meta Quest) ou ordinateur.
+func connectDeviceSymbol(_ kind: String) -> String {
+    switch kind {
+    case "iphone": return "iphone"
+    case "quest": return "visionpro"
+    default: return "laptopcomputer"
     }
 }
 

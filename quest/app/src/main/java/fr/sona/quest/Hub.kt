@@ -68,6 +68,9 @@ object Hub {
     /** « Je viens de lancer la lecture ici » : les autres appareils se mettent en pause. */
     private var claimNext = false
 
+    /** Type d'appareil annoncé à Sona Connect (« quest », ou « desktop » face à un vieux serveur). */
+    private var deviceKind = "quest"
+
     /** Réveille la boucle Sona Connect pour qu'elle publie tout de suite l'état. */
     private val kick = Channel<Unit>(Channel.CONFLATED)
 
@@ -339,6 +342,7 @@ object Hub {
                 val input = SyncIn(
                     deviceId = settings.deviceId,
                     name = settings.deviceName,
+                    kind = deviceKind,
                     state = buildState(),
                     claim = claim,
                     // Long polling : la réponse arrive dès qu'une commande attend.
@@ -367,6 +371,10 @@ object Hub {
                 if (e.code == 401) {
                     message.value = "Session expirée : reconnecte-toi."
                     logout()
+                } else if (e.code == 422 && deviceKind == "quest") {
+                    // Serveur pas encore à jour (il ne connaît pas le type « quest ») : on
+                    // se signale comme un ordinateur, au lieu de rester déconnecté de Sona Connect.
+                    deviceKind = "desktop"
                 } else {
                     message.value = e.message
                     delay(backoff)

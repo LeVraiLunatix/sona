@@ -160,7 +160,7 @@ struct DevicesView: View {
         let chosen = live != nil && connect.controlId == live?.id
         let now = live.map { connect.now(on: $0) }
         return HStack(spacing: 14) {
-            Image(systemName: kind == "iphone" ? "iphone" : "laptopcomputer")
+            Image(systemName: connectDeviceSymbol(kind))
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(chosen ? .white : live == nil ? Tone.tertiary : Tone.secondary)
                 .frame(width: 42, height: 42)

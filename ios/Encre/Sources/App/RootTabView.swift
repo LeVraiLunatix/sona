@@ -36,6 +36,7 @@ struct RootTabView: View {
     @State private var recap: RecapLaunch?
     @State private var showingRecognize = false
     @ObservedObject private var carMode = CarMode.shared
+    @ObservedObject private var connect = ConnectManager.shared
     @Namespace private var zoomNamespace
     @Namespace private var playerNamespace
 
@@ -111,6 +112,20 @@ struct RootTabView: View {
         }
         .sheet(isPresented: $showingRecognize) {
             RecognizeView()
+        }
+        // Un casque (Meta Quest), une TV… sur le même réseau demande l'accès : un appui suffit.
+        .alert(
+            "\(connect.loginRequest?.name ?? "Un appareil") veut se connecter",
+            isPresented: Binding(
+                get: { connect.loginRequest != nil },
+                set: { if !$0 { connect.dismissLoginRequest() } }
+            ),
+            presenting: connect.loginRequest
+        ) { ask in
+            Button("Autoriser") { Task { await connect.answerLoginRequest(ask, approve: true) } }
+            Button("Refuser", role: .cancel) { Task { await connect.answerLoginRequest(ask, approve: false) } }
+        } message: { ask in
+            Text("Le code affiché sur son écran doit être \(ask.userCode). Si tu ne reconnais pas l'appareil, refuse.")
         }
         .onOpenURL { url in open(url) }
         // Raccourcis Siri qui ouvrent l'app (défi du jour, récap…).

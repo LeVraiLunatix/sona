@@ -177,7 +177,7 @@ struct OutputButton: View {
     private var current: (String, String?) {
         if let screen = cast.active { return ("tv.fill", screen.name) }
         if flag.isRemote, let device = ConnectManager.shared.remoteTarget {
-            return (device.kind == "iphone" ? "iphone" : "laptopcomputer", device.name)
+            return (connectDeviceSymbol(device.kind), device.name)
         }
         if route.isExternal { return (route.icon, route.name) }
         return ("airplay.audio", nil)

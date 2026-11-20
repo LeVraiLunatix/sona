@@ -54,8 +54,10 @@ class Api(private val settings: Settings) {
     }
 
     private fun errorText(code: Int, body: String): String {
+        // « detail » est une phrase, ou (erreur de validation 422) une liste d'objets avec « msg ».
         val detail = Regex("\"detail\"\\s*:\\s*\"([^\"]*)\"").find(body)?.groupValues?.get(1)
-        return detail ?: "Erreur $code"
+            ?: Regex("\"msg\"\\s*:\\s*\"([^\"]*)\"").find(body)?.groupValues?.get(1)
+        return if (detail != null) "$detail ($code)" else "Erreur $code"
     }
 
     private inline fun <reified T> body(value: T) =

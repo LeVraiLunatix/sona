@@ -100,3 +100,43 @@ def test_the_number_of_pending_requests_is_capped(client, monkeypatch):
     start(client)
     start(client)
     assert client.post("/auth/device/start", json={}).status_code == 429
+
+
+def test_network_key_groups_a_home_network():
+    assert device_login.network_key("203.0.113.7") == "203.0.113.7"
+    # IPv6 : tout un réseau local partage le préfixe /64.
+    assert device_login.network_key("2a02:8440:2602:c747:e49a:a2ff:fe45:ceb5") == device_login.network_key("2a02:8440:2602:c747::1")
+    assert device_login.network_key("2a02:8440:2602:c747::1") != device_login.network_key("2a02:8440:2602:c748::1")
+    assert device_login.network_key("") == "" and device_login.network_key("pas-une-adresse") == ""
+
+
+def test_nearby_request_is_offered_without_scanning(client):
+    owner, _ = login(client, "Proprio")
+    home = {"X-Forwarded-For": "203.0.113.7"}
+    elsewhere = {"X-Forwarded-For": "198.51.100.9"}
+    sync = {"device_id": "iphone-123", "name": "iPhone", "kind": "iphone"}
+    # Le téléphone est sur le réseau de la maison : il se signale, rien à autoriser.
+    got = client.post("/connect/sync", headers=owner | home, json=sync)
+    assert got.status_code == 200 and got.json()["login_requests"] == []
+
+    # Le casque, sur le même réseau, demande l'accès : la demande est proposée à l'appareil, sans QR code.
+    body = client.post("/auth/device/start", headers=home, json={"name": "Meta Quest 3"}).json()
+    seen = client.get("/auth/device/nearby", headers=owner | home).json()
+    assert [r["user_code"] for r in seen] == [body["user_code"]] and seen[0]["name"] == "Meta Quest 3"
+    pushed = client.post("/connect/sync", headers=owner | home, json=sync).json()["login_requests"]
+    assert [r["user_code"] for r in pushed] == [body["user_code"]]
+    # Un appareil d'un autre réseau ne voit rien : il ne peut pas se laisser berner par la demande d'un voisin.
+    assert client.get("/auth/device/nearby", headers=owner | elsewhere).json() == []
+
+    # Autoriser : le casque reçoit sa session, la demande disparaît.
+    assert client.post("/auth/device/approve", headers=owner, json={"user_code": body["user_code"]}).json()["ok"] is True
+    assert client.post("/auth/device/poll", json={"device_code": body["device_code"]}).json()["status"] == "approved"
+    assert client.get("/auth/device/nearby", headers=owner | home).json() == []
+
+
+def test_waiting_device_is_woken_by_a_nearby_request(client):
+    owner, _ = login(client, "Proprio")
+    home = {"X-Forwarded-For": "203.0.113.7"}
+    client.post("/connect/sync", headers=owner | home, json={"device_id": "web-abcdef", "name": "Chrome", "kind": "web"})
+    assert device_login.watchers_of("203.0.113.7")
+    assert device_login.watchers_of("198.51.100.9") == []
