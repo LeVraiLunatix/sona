@@ -170,7 +170,9 @@ final class SearchViewModel: ObservableObject {
             if !Task.isCancelled { errorMessage = error.localizedDescription }
         }
         let (foundArtists, foundAlbums, foundLibrary) = await (artistsTask, albumsTask, libraryTask)
-        guard !Task.isCancelled else { return }
+        // Réponse d'une saisie dépassée : on l'ignore (la recherche en cours de la nouvelle saisie
+        // posera la sienne), sinon d'anciens résultats écrasaient les nouveaux.
+        guard !Task.isCancelled, text == query.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
         results = tracks
         artists = foundArtists
         albums = foundAlbums
