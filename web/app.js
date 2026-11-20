@@ -7596,7 +7596,9 @@ function bindAppearance() {
   };
   root.addEventListener("click", (e) => {
     const b = e.target.closest("[data-logo], [data-accent], [data-shape], [data-menu], [data-look-reset]");
-    if (!b) return;
+    // `<html>` porte aussi data-shape et data-menu : sans ce test, un clic sur n'importe quel
+    // interrupteur de la page remontait jusque-là et lui remettait son ancienne valeur.
+    if (!b || !root.contains(b)) return;
     haptic();
     if (b.dataset.lookReset !== undefined) setLook({ ...LOOK_DEFAULT });
     else if (b.dataset.logo) setLook({ logo: b.dataset.logo });
