@@ -1470,6 +1470,11 @@ struct TrackAnalysis: Codable, Hashable {
     var keyName: String? = nil
     var keyConfidence: Double? = nil
     var tempoConfidence: Double? = nil
+    /// Grille mesurée sur la fin du titre (heures absolues, là où il sort) et fiabilité du
+    /// premier temps de mesure : le tempo dérive un peu, la grille du début se décale en route.
+    var outBeatOffset: Double? = nil
+    var outDownbeat: Double? = nil
+    var downbeatConfidence: Double? = nil
 
     enum CodingKeys: String, CodingKey {
         case loudness, start, end, duration, bpm, downbeat, key
@@ -1478,6 +1483,9 @@ struct TrackAnalysis: Codable, Hashable {
         case keyName = "key_name"
         case keyConfidence = "key_confidence"
         case tempoConfidence = "tempo_confidence"
+        case outBeatOffset = "out_beat_offset"
+        case outDownbeat = "out_downbeat"
+        case downbeatConfidence = "downbeat_confidence"
     }
 }
 
