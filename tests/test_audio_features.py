@@ -55,6 +55,35 @@ def test_downbeat_is_the_beat_with_the_most_kick():
     assert circular_gap(tempo.downbeat, 0.25 + 2 * 0.5, 2.0) < 0.06  # mesure de 4 × 0,5 s
 
 
+@pytest.mark.parametrize("bpm", [127.9, 100.13, 140.07, 92.4])
+def test_tempo_is_refined_below_the_coarse_step(bpm):
+    """Pas de 0,25 BPM seul : 0,12 BPM d'erreur, 0,2 s de dérive de la grille sur trois minutes."""
+    tempo = f.detect_tempo(beat_track(bpm, 0.2, seconds=150), end=148)
+    assert tempo.bpm == pytest.approx(bpm, abs=0.05)
+
+
+@pytest.mark.parametrize("bpm", [127.9, 100.13, 140.07])
+def test_grid_near_the_end_follows_the_real_beats(bpm):
+    """La grille de la fin est mesurée là où l'enchaînement a lieu : elle tombe sur les vrais
+    temps de la fin, pas sur ceux d'un tempo moyen extrapolé depuis le début."""
+    period = 60 / bpm
+    tempo = f.detect_tempo(beat_track(bpm, 0.2, seconds=150), end=148)
+    # Heure absolue, vers 10 s avant la fin ; les vrais temps sont à 0,2 + k × période.
+    assert 130 <= tempo.out_beat_offset <= 140
+    drift = circular_gap(tempo.out_beat_offset, 0.2, period)
+    assert drift < 0.06
+    # Même grille que celle du début (les deux mesures concordent) à quelques dizaines de ms près.
+    assert circular_gap(tempo.out_beat_offset, tempo.beat_offset, period) < 0.06
+
+
+def test_downbeat_near_the_end_keeps_the_bar_position():
+    # Le temps fort est le 3e temps de chaque mesure : celui de la fin tombe sur la même place.
+    tempo = f.detect_tempo(beat_track(120, 0.25, loud_slot=2, seconds=90), end=88)
+    assert 70 <= tempo.out_downbeat <= 90
+    assert circular_gap(tempo.out_downbeat, 0.25 + 2 * 0.5, 2.0) < 0.06
+    assert tempo.downbeat_confidence is not None and 0 <= tempo.downbeat_confidence <= 1
+
+
 def test_silence_has_no_tempo():
     assert f.detect_tempo(np.zeros(SR * 30, dtype=np.float32)) is None
 

@@ -75,11 +75,14 @@ def test_analysis_endpoint(client):
         "loudness": -9.0, "start": 1.2, "mix_out": 150.0, "end": 170.0, "duration": 175.0,
         "bpm": None, "beat_offset": None, "downbeat": None, "key": None, "key_name": None,
         "key_confidence": None, "tempo_confidence": None,
+        "out_beat_offset": None, "out_downbeat": None, "downbeat_confidence": None,
     }
     client.portal.call(partial(
         client.deps.repo.analysis_set, "deezer", "1", -9.0, 1.2, 150.0, 170.0, 175.0,
         bpm=128.0, beat_offset=0.25, downbeat=0.5, key="8B", key_name="C major",
-        key_confidence=0.8, tempo_confidence=0.9, version=2,
+        key_confidence=0.8, tempo_confidence=0.9, version=3,
+        out_beat_offset=160.25, out_downbeat=160.75, downbeat_confidence=0.6,
     ))
     found = client.get("/analysis/deezer/1", headers=auth).json()
     assert (found["bpm"], found["downbeat"], found["key"], found["key_name"]) == (128.0, 0.5, "8B", "C major")
+    assert (found["out_beat_offset"], found["out_downbeat"], found["downbeat_confidence"]) == (160.25, 160.75, 0.6)
