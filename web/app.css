@@ -2313,6 +2313,8 @@ mark { background: transparent; color: var(--accent); font-weight: inherit; bord
 .more-row { display: flex; justify-content: center; margin: 14px 0 6px; }
 .section-head .link-btn { margin-left: auto; }
 
+#results { transition: opacity .18s; }
+#results.refreshing { opacity: .45; }
 .search-skel { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; max-width: 760px; }
 .sk-row { display: flex; align-items: center; gap: 14px; }
 .sk-thumb { width: 46px; height: 46px; border-radius: 8px; flex: none; }
