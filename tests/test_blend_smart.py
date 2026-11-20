@@ -63,6 +63,10 @@ def test_web_page_and_stream_token(client):
         assert got.status_code == 200 and got.headers["content-type"] == "image/png", icon["src"]
     assert "addEventListener(\"fetch\"" in client.get("/web/sw.js").text
     assert client.get("/web/icons/apple-touch-icon.png").headers["content-type"] == "image/png"
+    # Polices du site (Pricedown du thème GTA VI…) : servies telles quelles, jamais la page d'accueil.
+    font = client.get("/web/fonts/Pricedown.woff2")
+    assert font.status_code == 200 and font.headers["content-type"] == "font/woff2" and font.content[:4] == b"wOF2"
+    assert client.get("/web/fonts/../app.js").headers["content-type"] != "font/woff2"
     me = login(client, "alice")
     token = me["Authorization"].split()[1]
     # Sans jeton : refusé ; jeton dans l'adresse : accepté pour un flux audio

@@ -48,6 +48,7 @@ Une seule API, un seul compte, et le même catalogue partout : sur iPhone, sur l
 - **Sorties annoncées** avec compte à rebours (minuit à Paris), titres grisés tant qu'ils ne sont pas sortis, pochette et tracklist récupérées sur Apple Music quand Deezer n'a rien.
 - **Stats complètes**, carte de tes écoutes, récaps en story, souvenirs.
 - **Exclus** : titres inédits rangés par artiste.
+- **Thème GTA VI** : sur la page de Grand Theft Auto VI, et dès qu'un titre de l'album joue, Sona se transforme en Vice City (coucher de soleil néon, soleil rayé, palmiers, lettrage rose et orange). Se coupe dans Réglages > Apparence.
 
 ## Les applications
 

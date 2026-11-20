@@ -249,6 +249,10 @@ def create_app() -> FastAPI:
                  "manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
     for icon in ("icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png", "favicon-64.png"):
         web_files[f"icons/{icon}"] = (f"icons/{icon}", "image/png")
+    # Polices du site (Pricedown du thème GTA VI, IBM Plex Mono, Space Mono) : sans cette route elles
+    # recevaient la page d'accueil. Liste établie au démarrage, uniquement des .woff2 de web/fonts.
+    for font in sorted((web_dir / "fonts").glob("*.woff2")):
+        web_files[f"fonts/{font.name}"] = (f"fonts/{font.name}", "font/woff2")
 
     @app.get("/web", include_in_schema=False)
     async def web_root() -> RedirectResponse:
