@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import unicodedata
+from collections import deque
 
 import httpx
 
@@ -21,6 +23,13 @@ ALBUM_DETAIL_MAX_TRACKS = 100
 ALBUM_DETAIL_CONCURRENCY = 4
 ALBUM_DETAIL_PAUSE = 0.3
 ALBUM_DETAIL_BUDGET = 12.0
+# Quota de Deezer : 50 requêtes / 5 s par adresse. Une recherche en lance une quinzaine
+# (titres, artistes, albums, featurings) : deux recherches rapprochées le dépassaient, Deezer
+# répondait « Quota limit exceeded » et Sona retombait en silence sur Apple Music (sans le
+# titre célèbre cherché). On reste sous 40 / 5 s et on retente les échecs passagers.
+RATE_MAX = 40
+RATE_WINDOW = 5.0
+RETRY_DELAYS = (0.7, 1.6)
 
 
 def _artist_key(name: str) -> str:
@@ -32,6 +41,10 @@ def _artist_key(name: str) -> str:
 
 class DeezerError(Exception):
     pass
+
+
+class _Transient(DeezerError):
+    """Échec qui mérite un nouvel essai : quota dépassé, panne passagère de Deezer."""
 
 
 def _error_message(error) -> str:
@@ -97,6 +110,7 @@ def _track_from_json(d: dict) -> TrackInfo:
         track_number=d.get("track_position") or None,
         artists=_contributors(d),
         release_date=d.get("release_date") or album.get("release_date") or None,
+        popularity=d["rank"] if isinstance(d.get("rank"), int) and d["rank"] > 0 else None,
     )
 
 
@@ -132,20 +146,54 @@ class DeezerClient:
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         self._client = client or httpx.AsyncClient(timeout=10)
         self._owns_client = client is None
+        self._sent: deque[float] = deque()
+        self._gate = asyncio.Lock()
+
+    async def _throttle(self) -> None:
+        """Attend, au besoin, pour rester sous RATE_MAX requêtes par RATE_WINDOW secondes."""
+        async with self._gate:
+            while True:
+                now = time.monotonic()
+                while self._sent and now - self._sent[0] >= RATE_WINDOW:
+                    self._sent.popleft()
+                if len(self._sent) < RATE_MAX:
+                    self._sent.append(now)
+                    return
+                await asyncio.sleep(RATE_WINDOW - (now - self._sent[0]) + 0.01)
 
     async def aclose(self) -> None:
         if self._owns_client:
             await self._client.aclose()
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
+        for attempt, delay in enumerate((*RETRY_DELAYS, None)):
+            try:
+                return await self._get_once(path, params)
+            except _Transient as exc:
+                if delay is None:
+                    raise DeezerError(str(exc)) from exc
+                logger.info("Deezer %s : %s, nouvel essai dans %.1f s (%d)", path, exc, delay, attempt + 1)
+                await asyncio.sleep(delay)
+        raise DeezerError("Deezer injoignable.")  # inatteignable : la dernière boucle lève
+
+    async def _get_once(self, path: str, params: dict | None = None) -> dict:
+        await self._throttle()
         try:
             resp = await self._client.get(f"{API_BASE}{path}", params=params)
             resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            raise (_Transient if status == 429 or status >= 500 else DeezerError)(str(exc)) from exc
+        except httpx.TransportError as exc:  # délai dépassé, connexion coupée
+            raise _Transient(str(exc) or type(exc).__name__) from exc
         except httpx.HTTPError as exc:
             raise DeezerError(str(exc)) from exc
         data = resp.json()
         if isinstance(data, dict) and data.get("error"):
-            raise DeezerError(_error_message(data["error"]))
+            error = data["error"]
+            code = error.get("code") if isinstance(error, dict) else None
+            # 4 = quota dépassé, 700 = service indisponible : passagers ; le reste (introuvable, paramètre) non.
+            raise (_Transient if code in (4, 700) else DeezerError)(_error_message(error))
         return data
 
     async def search_tracks(
