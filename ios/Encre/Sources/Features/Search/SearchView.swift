@@ -342,14 +342,14 @@ struct SearchView: View {
     private func topArtistCard(_ artist: Artist) -> some View {
         let route = Route.artist(source: artist.source, id: artist.sourceId)
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Meilleur résultat").font(Typo.title).foregroundStyle(Tone.primary)
+            Text("Meilleur résultat").font(Typo.title).foregroundStyle(Tone.primary).themeTitle(size: 22)
             Button { path.append(route) } label: {
                 HStack(spacing: 16) {
                     Artwork(url: artist.pictureURL, cornerRadius: 44, symbol: "person.fill")
                         .frame(width: 88, height: 88)
                         .zoomSource(route)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(artist.name).font(Typo.title).foregroundStyle(Tone.primary).lineLimit(2)
+                        Text(artist.name).font(Typo.title).foregroundStyle(Tone.primary).themeTitle(size: 22).lineLimit(2)
                         Text(fansLabel(artist)).font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)
                     }
                     Spacer()
@@ -395,7 +395,7 @@ struct SearchView: View {
     private var recentsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Récentes").font(Typo.title).foregroundStyle(Tone.primary)
+                Text("Récentes").font(Typo.title).foregroundStyle(Tone.primary).themeTitle(size: 22)
                 Spacer()
                 Button("Effacer") { withAnimation(Motion.snappy) { viewModel.clearRecents() } }
                     .font(Typo.rowSubtitle).foregroundStyle(Tone.secondary)

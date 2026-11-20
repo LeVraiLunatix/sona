@@ -178,7 +178,7 @@ struct FriendsBoardsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Entre amis cette semaine").font(Typo.title).foregroundStyle(Tone.primary)
+            Text("Entre amis cette semaine").font(Typo.title).foregroundStyle(Tone.primary).themeTitle(size: 22)
             if let champion = friends.champion {
                 Label("\(champion.me ? "Tu es" : "\(champion.name) est") champion de la semaine dernière · \(champion.minutes) min",
                       systemImage: "trophy.fill")
@@ -217,7 +217,7 @@ struct ChallengesSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Défis de la semaine").font(Typo.title).foregroundStyle(Tone.primary)
+                Text("Défis de la semaine").font(Typo.title).foregroundStyle(Tone.primary).themeTitle(size: 22)
                 Spacer()
                 Text(challenges.endsInDays == 0 ? "Dernier jour" : "Encore \(challenges.endsInDays) j")
                     .font(Typo.caption).foregroundStyle(Tone.secondary)
