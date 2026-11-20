@@ -35,6 +35,48 @@ class Settings(context: Context) {
         get() = prefs.getString("theme", "sona") ?: "sona"
         set(value) = prefs.edit().putString("theme", value).apply()
 
+    /** Égaliseur 5 bandes (dB) : 60, 250, 1k, 4k, 12k Hz. */
+    var eq: List<Int>
+        get() = (prefs.getString("eq", null) ?: "0,0,0,0,0").split(",").mapNotNull { it.trim().toIntOrNull() }
+            .let { if (it.size == 5) it else List(5) { 0 } }
+        set(value) = prefs.edit().putString("eq", value.joinToString(",")).apply()
+
+    /** Volume égalisé : tous les titres au même niveau sonore. */
+    var normalize: Boolean
+        get() = prefs.getBoolean("normalize", true)
+        set(value) = prefs.edit().putBoolean("normalize", value).apply()
+
+    /** Fondu entre les titres (secondes, 0 = aucun). */
+    var fade: Int
+        get() = prefs.getInt("fade", 0)
+        set(value) = prefs.edit().putInt("fade", value).apply()
+
+    /** Qualité des flux (lossless, best, standard) — celle du compte, recopiée ici. */
+    var quality: String
+        get() = prefs.getString("quality", "best") ?: "best"
+        set(value) = prefs.edit().putString("quality", value).apply()
+
+    /** Niveau de la voix guide en karaoké (0 à 1). */
+    var guide: Float
+        get() = prefs.getFloat("guide", 0f)
+        set(value) = prefs.edit().putFloat("guide", value).apply()
+
+    /** Annonces de la radio DJ (voix). */
+    var djVoice: Boolean
+        get() = prefs.getBoolean("dj_voice", true)
+        set(value) = prefs.edit().putBoolean("dj_voice", value).apply()
+
+    /** Réveil musical : activé, heure et minute. */
+    var alarmOn: Boolean
+        get() = prefs.getBoolean("alarm_on", false)
+        set(value) = prefs.edit().putBoolean("alarm_on", value).apply()
+    var alarmHour: Int
+        get() = prefs.getInt("alarm_hour", 7)
+        set(value) = prefs.edit().putInt("alarm_hour", value).apply()
+    var alarmMinute: Int
+        get() = prefs.getInt("alarm_minute", 30)
+        set(value) = prefs.edit().putInt("alarm_minute", value).apply()
+
     /** Garder la musique quand un jeu VR prend le son (pas de focus audio). */
     var keepOverGames: Boolean
         get() = prefs.getBoolean("keep_over_games", true)
