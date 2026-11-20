@@ -15,3 +15,5 @@ onnxruntime>=1.20
 # « Reconnaître un titre » (app/services/recognize.py) : service de Shazam, sans clé.
 shazamio>=0.8
 Pillow>=10
+# Fuseaux horaires (Europe/Paris) : absents de Windows, sans effet sous Linux.
+tzdata
