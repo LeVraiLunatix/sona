@@ -36,6 +36,9 @@ class TrackInfo:
     # Date de sortie du titre (AAAA-MM-JJ) : plus tard qu'aujourd'hui, le titre
     # n'est pas encore sorti (album annoncé, ou sorti en plusieurs temps).
     release_date: str | None = None
+    # Popularité du titre chez sa source (« rank » de Deezer, jusqu'à ~1 000 000) : départage
+    # le tube du titre obscur qui porte exactement le nom cherché (voir `tidy_results`).
+    popularity: int | None = None
 
     @property
     def uid(self) -> str:

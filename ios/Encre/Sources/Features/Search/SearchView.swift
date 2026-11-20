@@ -133,18 +133,26 @@ struct SearchView: View {
 
     @ViewBuilder
     private var allResults: some View {
-        if let top = viewModel.artists.first {
+        let top = viewModel.top
+        let topTrackId: String? = { if case .track(let track)? = top { return track.id }; return nil }()
+        let topArtistId: String? = { if case .artist(let artist)? = top { return artist.id }; return nil }()
+        let songs = viewModel.results.filter { $0.id != topTrackId }
+        let otherArtists = viewModel.artists.filter { $0.id != topArtistId }
+
+        if let top {
             topResult(top).padding(.horizontal, 20).reveal(0)
         }
 
-        if viewModel.artists.count > 1 {
-            section("Artistes", index: 1) {
-                Carousel(items: Array(viewModel.artists.dropFirst()), spacing: 18) { artist in
-                    let route = Route.artist(source: artist.source, id: artist.sourceId)
-                    ArtistBubble(name: artist.name, pictureURL: artist.pictureURL, route: route, size: 96) {
-                        path.append(route)
-                    }
+        // Les titres tout de suite après le meilleur résultat : on cherche d'abord un son.
+        if !songs.isEmpty {
+            if songs.count > 5 || viewModel.canLoadMore {
+                section("Titres", index: 1, actionLabel: "Tout voir") {
+                    withAnimation(Motion.snappy) { viewModel.filter = .songs }
+                } content: {
+                    songPreview(Array(songs.prefix(5)))
                 }
+            } else {
+                section("Titres", index: 1) { songPreview(songs) }
             }
         }
 
@@ -159,17 +167,43 @@ struct SearchView: View {
             }
         }
 
+        if !otherArtists.isEmpty {
+            section("Artistes", index: 3) {
+                Carousel(items: otherArtists, spacing: 18) { artist in
+                    let route = Route.artist(source: artist.source, id: artist.sourceId)
+                    ArtistBubble(name: artist.name, pictureURL: artist.pictureURL, route: route, size: 96) {
+                        path.append(route)
+                    }
+                }
+            }
+        }
+
         if !viewModel.albums.isEmpty {
-            section("Albums", index: 3) {
+            section("Albums", index: 4) {
                 Carousel(items: viewModel.albums) { album in
                     AlbumTile(album: album) { path.append(Route.album(source: album.source, id: album.sourceId)) }
                 }
             }
         }
+    }
 
-        if !viewModel.results.isEmpty {
-            songsSection(viewModel.results, title: "Titres", index: 4)
+    /// Les premiers titres de « Tout » (la liste complète, avec « Afficher plus », est dans le filtre Titres).
+    private func songPreview(_ tracks: [Track]) -> some View {
+        LazyVStack(spacing: 2) {
+            ForEach(tracks) { track in
+                TrackRow(
+                    track: track,
+                    isCurrent: player.current?.id == track.id,
+                    isPlaying: player.isPlaying,
+                    onOpenArtist: track.artistSourceId.map { id in { path.append(Route.artist(source: track.artistRouteSource, id: id)) } },
+                    onOpenAlbum: track.albumSourceId.map { id in { path.append(Route.album(source: track.source, id: id)) } },
+                    highlight: viewModel.query
+                ) {
+                    PersonalQueue.play(track, with: player)
+                }
+            }
         }
+        .padding(.horizontal, 20)
     }
 
     private func songsSection(_ tracks: [Track], title: String, index: Int) -> some View {
@@ -272,9 +306,40 @@ struct SearchView: View {
         }
     }
 
-    /// « Meilleur résultat » : le premier artiste en grande carte, comme
-    /// Musique — chercher un nom doit mener à sa fiche d'un tap.
-    private func topResult(_ artist: Artist) -> some View {
+    /// « Meilleur résultat » : un titre (un tap le lance) ou un artiste (un tap ouvre sa fiche),
+    /// en grande carte, comme Musique.
+    @ViewBuilder
+    private func topResult(_ top: SearchTop) -> some View {
+        switch top {
+        case .artist(let artist): topArtistCard(artist)
+        case .track(let track): topTrackCard(track)
+        }
+    }
+
+    private func topTrackCard(_ track: Track) -> some View {
+        let playing = player.current?.id == track.id && player.isPlaying
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Meilleur résultat").font(Typo.title).foregroundStyle(Tone.primary)
+            Button { PersonalQueue.play(track, with: player) } label: {
+                HStack(spacing: 16) {
+                    Artwork(url: track.coverURL, cornerRadius: 12, symbol: "music.note")
+                        .frame(width: 88, height: 88)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(track.title).font(Typo.title).foregroundStyle(Tone.primary).lineLimit(2)
+                        Text("Titre · \(track.artist)").font(Typo.rowSubtitle).foregroundStyle(Tone.secondary).lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 18, weight: .semibold)).foregroundStyle(Tone.primary)
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Tone.surface))
+            }
+            .buttonStyle(.pressable(scale: 0.98))
+        }
+    }
+
+    private func topArtistCard(_ artist: Artist) -> some View {
         let route = Route.artist(source: artist.source, id: artist.sourceId)
         return VStack(alignment: .leading, spacing: 12) {
             Text("Meilleur résultat").font(Typo.title).foregroundStyle(Tone.primary)

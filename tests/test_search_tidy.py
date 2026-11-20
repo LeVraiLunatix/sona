@@ -141,3 +141,32 @@ def test_archive_artists_are_hidden_from_search_results():
     tracks = [t("1", "A", "FEMTOGO"), t("2", "B", "Ziak"), t("3", "C", "Ziak, baby hayabusa")]
     kept = asyncio.run(_without_archives(deps, tracks))
     assert [x.source_id for x in kept] == ["2"]
+
+
+def ranked(source_id: str, title: str, artist: str, rank: int) -> TrackInfo:
+    track = t(source_id, title, artist)
+    track.popularity = rank
+    return track
+
+
+def test_much_more_listened_title_starting_with_the_query_beats_an_obscure_exact_title():
+    # « music sounds » : un titre exact peu écouté, puis le tube de Stardust (2 fois plus écouté).
+    found = tidy_results("music sounds", [
+        ranked("1", "Music Sounds", "Fast Boy", 403_292),
+        ranked("2", "Music Sounds Better With You (Radio Edit)", "Stardust", 872_510),
+        ranked("3", "Music Sounds (Tek Houze Mix)", "minijoy", 82_117),
+    ])
+    assert ids(found)[:2] == ["2", "1"]
+
+
+def test_exact_title_stays_first_when_the_other_is_not_much_more_listened_or_does_not_start_with_the_query():
+    close = tidy_results("music sounds", [
+        ranked("1", "Music Sounds", "Fast Boy", 403_292), ranked("2", "Music Sounds Better", "Autre", 500_000),
+    ])
+    assert ids(close) == ["1", "2"]
+    elsewhere = tidy_results("music sounds", [
+        ranked("1", "Music Sounds", "Fast Boy", 100_000), ranked("2", "Best Music Sounds", "Autre", 900_000),
+    ])
+    assert ids(elsewhere) == ["1", "2"]
+    unknown = tidy_results("music sounds", [t("1", "Music Sounds"), t("2", "Music Sounds Better With You")])
+    assert ids(unknown) == ["1", "2"]  # sans popularité connue, l'ancien comportement

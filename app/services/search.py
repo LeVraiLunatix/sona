@@ -22,6 +22,9 @@ FALLBACK_POOL = 40
 # un titre de chanson inconnu qui ramènerait un artiste quelconque, non.
 ARTIST_MATCH_RATIO = 0.7
 POPULAR = "RANKING"
+# Un titre qui commence par la saisie passe devant le titre exact s'il est au moins aussi
+# souvent plus écouté (rank Deezer).
+POPULARITY_LEAD = 2.0
 
 
 class SearchError(Exception):
@@ -191,4 +194,15 @@ def tidy_results(query: str, tracks: list[TrackInfo]) -> list[TrackInfo]:
     if not wanted:
         return kept
     exact = [t for t in kept if _core_title(t.title) == wanted and not _versions(t.title)]
-    return exact + [t for t in kept if t not in exact]
+    rest = [t for t in kept if t not in exact]
+    # Le titre exact passe devant, sauf s'il est bien moins écouté que le titre qui commence par la
+    # saisie : « music sounds » mène au tube de Stardust (« Music Sounds Better With You », 2 fois plus
+    # écouté) et non à un « Music Sounds » obscur.
+    if exact and rest:
+        lead, anchor = rest[0], exact[0]
+        if (
+            lead.popularity and anchor.popularity and lead.popularity >= POPULARITY_LEAD * anchor.popularity
+            and _core_title(lead.title).startswith(wanted)
+        ):
+            return [lead] + exact + rest[1:]
+    return exact + rest
