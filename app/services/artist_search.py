@@ -32,3 +32,9 @@ def name_similarity(query: str, name: str) -> float:
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a, b).ratio()
+
+
+def exact_homonym(name: str, artists: list[ArtistInfo]) -> ArtistInfo | None:
+    """L'artiste de ce nom exact (le plus suivi s'ils sont plusieurs), ou `None`."""
+    ranked = rank_artists(name, artists)
+    return ranked[0] if ranked and _key(ranked[0].name) == _key(name) else None

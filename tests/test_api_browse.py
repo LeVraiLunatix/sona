@@ -178,3 +178,41 @@ def test_radio_tracks_reports_deezer_outage(client):
 
     client.app_state.deps.deezer.get_radio_tracks = broken
     assert client.get("/radios/1/tracks", headers=AUTH).status_code == 502
+
+
+def test_youtube_artist_without_albums_shows_its_exact_deezer_homonym_discography(client, monkeypatch):
+    """Fiche YouTube « Grand Theft Auto VI » : vide chez YouTube, pleine chez Deezer."""
+    deps = client.app_state.deps
+    asked = []
+
+    async def fake_artist_info(source_id):
+        return artist("Grand Theft Auto VI", source_id, source="youtube")
+
+    async def fake_search_artists(query, limit=10):
+        return [artist("Grand Theft Auto III", "5137333", fans=286), artist("Grand Theft Auto VI", "237278551", fans=1929)]
+
+    async def fake_albums(artist_id, name=None):
+        asked.append(artist_id)
+        return [AlbumInfo("deezer", "1119883012", "Grand Theft Auto VI: The Album", "Grand Theft Auto VI", artist_id,
+                          "2020", "https://img/c.jpg", 34, None, release_date="2020-11-20", record_type="album")], []
+
+    monkeypatch.setattr("app.bot.lookup.resolver.get_artist_info", fake_artist_info)
+    deps.deezer.search_artists = fake_search_artists
+    deps.deezer.get_artist_albums = fake_albums
+    got = client.get("/artists/youtube/UCjta/albums", headers=AUTH)
+    assert got.status_code == 200
+    assert [a["title"] for a in got.json()["albums"]] == ["Grand Theft Auto VI: The Album"]
+    assert asked == ["237278551"]  # l'homonyme exact, pas « Grand Theft Auto III »
+
+
+def test_youtube_artist_without_deezer_homonym_stays_empty(client, monkeypatch):
+    async def fake_artist_info(source_id):
+        return artist("Underground", source_id, source="youtube")
+
+    async def fake_search_artists(query, limit=10):
+        return [artist("Underground Kings", "9", fans=5)]
+
+    monkeypatch.setattr("app.bot.lookup.resolver.get_artist_info", fake_artist_info)
+    client.app_state.deps.deezer.search_artists = fake_search_artists
+    got = client.get("/artists/youtube/UCnone/albums", headers=AUTH)
+    assert got.status_code == 200 and got.json()["albums"] == [] and got.json()["singles"] == []
