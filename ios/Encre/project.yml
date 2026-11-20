@@ -64,6 +64,9 @@ targets:
         NSAlarmKitUsageDescription: Sona te réveille en musique, à l'heure que tu choisis.
         # « Reconnaître un titre » (ShazamKit) : quelques secondes d'écoute.
         NSMicrophoneUsageDescription: Sona écoute quelques secondes pour reconnaître le titre qui passe autour de toi.
+        # Pricedown (thème GTA VI) : déclarée ici en plus de l'enregistrement à l'exécution (GtaFont).
+        UIAppFonts:
+          - Pricedown.otf
         # Liens `encre://` : ouverture depuis les widgets (blind test, récap…).
         CFBundleURLTypes:
           - CFBundleURLName: com.sona.encre
