@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -76,6 +77,7 @@ fun PlayerScreen() {
     var pane by remember { mutableStateOf(Pane.Lyrics) }
     var devices by remember { mutableStateOf(false) }
     var sleep by remember { mutableStateOf(false) }
+    var sound by remember { mutableStateOf(false) }
 
     // Le fond prend la couleur de la pochette (Sona), l'or d'Archive, ou le coucher de soleil de Vice City.
     val tint by animateColorAsState(coverColor?.let { Color(it) } ?: Color(0xFF1C1C24), tween(800), label = "tint")
@@ -93,6 +95,7 @@ fun PlayerScreen() {
                     SonaText("EN LECTURE", 11.sp, FontWeight.Bold, tone = 2)
                     if (queueName.isNotBlank()) SonaText(queueName, 14.sp, FontWeight.SemiBold, tone = 1, maxLines = 1)
                 }
+                IconButton(onClick = { sound = true }) { Icon(Icons.Filled.Tune, "Son", tint = look.secondary) }
                 IconButton(onClick = { sleep = true }) {
                     Icon(Icons.Filled.Bedtime, "Minuteur", tint = if (sleepEnd != null) look.accent else look.secondary)
                 }
@@ -106,6 +109,7 @@ fun PlayerScreen() {
                     }
                     SeekBar()
                     TransportControls(Modifier.fillMaxWidth())
+                    KaraokeBar()
                     PaneSwitch(pane) { pane = it }
                     Box(Modifier.weight(1f).fillMaxWidth()) { PaneContent(pane) }
                 }
@@ -116,6 +120,7 @@ fun PlayerScreen() {
                         TitleBlock(track)
                         SeekBar()
                         TransportControls(Modifier.fillMaxWidth())
+                        KaraokeBar()
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         PaneSwitch(pane) { pane = it }
@@ -127,6 +132,7 @@ fun PlayerScreen() {
     }
     if (devices) DevicePicker { devices = false }
     if (sleep) SleepDialog { sleep = false }
+    if (sound) SoundDialog { sound = false }
 }
 
 @Composable

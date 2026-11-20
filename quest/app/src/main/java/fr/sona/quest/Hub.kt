@@ -99,7 +99,11 @@ object Hub {
         api = Api(settings)
         loggedIn.value = settings.token.isNotBlank()
         theme.value = ThemeId.fromKey(settings.theme)
+        Sound.init(settings)
+        Karaoke.init(settings)
     }
+
+    fun currentPlayer(): ExoPlayer? = player
 
     fun setTheme(id: ThemeId) {
         settings.theme = id.key
@@ -108,18 +112,21 @@ object Hub {
 
     // ── Lecteur ──────────────────────────────────────────────────────────────
 
-    fun player(): ExoPlayer {
-        player?.let { return it }
+    /** Source de données des flux : le jeton est relu à chaque requête (une reconnexion ne reconstruit rien). */
+    fun dataSourceFactory(): DataSource.Factory {
         val http = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(30_000)
             .setReadTimeoutMs(60_000)
             .setAllowCrossProtocolRedirects(true)
-        // Le jeton est relu à chaque requête : une reconnexion n'oblige pas à tout reconstruire.
-        val dataSource = DataSource.Factory {
+        return DataSource.Factory {
             http.createDataSource().also { it.setRequestProperty("Authorization", "Bearer ${settings.token}") }
         }
+    }
+
+    fun player(): ExoPlayer {
+        player?.let { return it }
         val p = ExoPlayer.Builder(app)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(app).setDataSourceFactory(dataSource))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(app).setDataSourceFactory(dataSourceFactory()))
             .setAudioAttributes(musicAttributes(), !settings.keepOverGames)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -134,7 +141,17 @@ object Hub {
                 if (p.mediaItemCount > 0) index.value = p.currentMediaItemIndex
                 loadLyrics()
                 loadCoverColor()
+                Sound.onTrackChanged(current)
+                Karaoke.onTrackChanged()
                 kick.trySend(Unit)
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int,
+            ) {
+                Karaoke.onSeek(p)
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -144,6 +161,7 @@ object Hub {
 
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 this@Hub.audioSessionId.value = audioSessionId
+                Sound.attach(audioSessionId)
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -166,12 +184,16 @@ object Hub {
         })
         audioSessionId.value = p.audioSessionId
         player = p
+        Sound.attach(p.audioSessionId)
+        Sound.apply()
         startTicker()
         return p
     }
 
     fun releasePlayer() {
         tickerJob?.cancel()
+        Sound.release()
+        Karaoke.release()
         player?.release()
         player = null
         playing.value = false
@@ -198,8 +220,10 @@ object Hub {
                     durationMs.value = if (d == C.TIME_UNSET || d <= 0) {
                         (current?.durationSeconds ?: 0) * 1000L
                     } else d
+                    Sound.tick(p)
+                    Karaoke.tick(p)
                 }
-                delay(250)
+                delay(if (Sound.fadeSeconds.value > 0) 100 else 250)
             }
         }
     }
@@ -213,8 +237,15 @@ object Hub {
         }
     }
 
-    private fun mediaItem(t: Track): MediaItem {
+    /**
+     * Un titre pour le lecteur. `stem` (« instrumental » ou « vocals ») : la piste séparée du karaoké,
+     * dans la qualité `quality` (« fast » ou « hq ») ; sinon le flux du titre, dans la qualité du compte.
+     */
+    fun mediaItem(t: Track, stem: String? = null, quality: String? = null): MediaItem {
         fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+        val base = "${settings.server}/stream/${enc(t.source)}/${enc(t.sourceId)}"
+        val uri = if (stem != null) "$base/karaoke/$stem?quality=${quality ?: "fast"}" else "$base?quality=${settings.quality}"
+        val id = if (stem != null) "${t.source}:${t.sourceId}:k:${quality ?: "fast"}" else "${t.source}:${t.sourceId}"
         val meta = MediaMetadata.Builder()
             .setTitle(t.title)
             .setArtist(t.artist)
@@ -222,8 +253,8 @@ object Hub {
             .setArtworkUri(t.coverUrl?.let { Uri.parse(it) })
             .build()
         return MediaItem.Builder()
-            .setMediaId("${t.source}:${t.sourceId}")
-            .setUri("${settings.server}/stream/${enc(t.source)}/${enc(t.sourceId)}")
+            .setMediaId(id)
+            .setUri(uri)
             .setMediaMetadata(meta)
             .build()
     }
@@ -327,7 +358,8 @@ object Hub {
     /** Éteint la musique après `minutes` (fondu sur les 10 dernières secondes) ; null : annule. */
     fun setSleepTimer(minutes: Int?) {
         sleepJob?.cancel()
-        player?.volume = 1f
+        Sound.sleepGain = 1f
+        Sound.apply()
         if (minutes == null) {
             sleepEndsAt.value = null
             return
@@ -338,11 +370,15 @@ object Hub {
             while (isActive) {
                 val left = end - System.currentTimeMillis()
                 if (left <= 0) break
-                if (left < 10_000) player?.volume = (left / 10_000f).coerceIn(0f, 1f)
+                if (left < 10_000) {
+                    Sound.sleepGain = (left / 10_000f).coerceIn(0f, 1f)
+                    Sound.apply()
+                }
                 delay(500)
             }
             player?.pause()
-            player?.volume = 1f
+            Sound.sleepGain = 1f
+            Sound.apply()
             sleepEndsAt.value = null
         }
     }
@@ -352,7 +388,30 @@ object Hub {
     fun login(token: String) {
         settings.token = token
         loggedIn.value = true
+        loadAccountSettings()
         kick.trySend(Unit)
+    }
+
+    /** Qualité du son et lecture automatique du compte (les mêmes sur tous les appareils). */
+    val account = MutableStateFlow(AccountSettings())
+
+    fun loadAccountSettings() {
+        if (!loggedIn.value) return
+        scope.launch {
+            val found = withContext(Dispatchers.IO) { runCatching { api.accountSettings() }.getOrNull() }
+            if (found != null) {
+                account.value = found
+                settings.quality = found.quality
+            }
+        }
+    }
+
+    fun setQuality(quality: String) {
+        settings.quality = quality
+        account.value = account.value.copy(quality = quality)
+        scope.launch {
+            withContext(Dispatchers.IO) { runCatching { api.updateAccountSettings(AccountSettingsUpdate(quality = quality)) } }
+        }
     }
 
     fun logout() {
@@ -380,6 +439,7 @@ object Hub {
 
     fun startConnect() {
         if (connectJob?.isActive == true) return
+        loadAccountSettings()
         connectJob = scope.launch { connectLoop() }
     }
 
@@ -397,7 +457,7 @@ object Hub {
             index = index.value.coerceIn(0, q.lastIndex),
             position = p.currentPosition / 1000.0,
             paused = !p.playWhenReady,
-            volume = p.volume.toDouble(),
+            volume = Sound.userVolume.toDouble(),
             name = queueName.value,
             shuffle = p.shuffleModeEnabled,
             repeat = when (p.repeatMode) {
@@ -475,7 +535,10 @@ object Hub {
             "next" -> next()
             "previous" -> previous()
             "seek" -> c.position?.let { seekTo(it) }
-            "volume" -> c.volume?.let { p.volume = it.toFloat().coerceIn(0f, 1f) }
+            "volume" -> c.volume?.let {
+                Sound.userVolume = it.toFloat().coerceIn(0f, 1f)
+                Sound.apply()
+            }
             "shuffle" -> toggleShuffle()
             "repeat" -> cycleRepeat()
             "play_index" -> c.index?.let { i ->

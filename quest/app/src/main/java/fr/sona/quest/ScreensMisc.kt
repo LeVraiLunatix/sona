@@ -259,6 +259,13 @@ fun SettingsScreen() {
             }
         }
 
+        SectionHeader("Son")
+        SonaText("Qualité du son (celle de ton compte, la même sur tous tes appareils)", 14.sp, tone = 1)
+        QualityChips()
+        var soundOpen by remember { mutableStateOf(false) }
+        PillButton("Égaliseur, volume égalisé et fondu", { soundOpen = true }, primary = false)
+        if (soundOpen) SoundDialog { soundOpen = false }
+
         SectionHeader("Ce casque")
         OutlinedTextField(name, { name = it }, singleLine = true, label = { SonaText("Nom dans Sona Connect", 14.sp, tone = 1) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(server, { server = it }, singleLine = true, label = { SonaText("Serveur Sona", 14.sp, tone = 1) }, modifier = Modifier.fillMaxWidth())

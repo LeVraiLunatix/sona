@@ -89,6 +89,8 @@ class Api(private val settings: Settings) {
         return SonaJson.decodeFromString(call(request("/lyrics", query).build()))
     }
 
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
     private suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
         SonaJson.decodeFromString(call(request(path, query).build()))
 
@@ -109,6 +111,41 @@ class Api(private val settings: Settings) {
     suspend fun artistTopTracks(source: String, id: String): List<Track> = get("/artists/$source/$id/top-tracks")
     suspend fun radios(): List<RadioGroup> = get("/browse/radios")
     suspend fun radioTracks(id: String): List<Track> = get("/radios/$id/tracks")
+
+    // ── Son, karaoké, radio DJ ───────────────────────────────────────────────
+
+    suspend fun analysis(source: String, id: String): Analysis = get("/analysis/${enc(source)}/${enc(id)}")
+
+    suspend fun karaokeRequest(source: String, id: String): KaraokeStatus = SonaJson.decodeFromString(
+        call(request("/karaoke/${enc(source)}/${enc(id)}").post("{}".toRequestBody("application/json".toMediaType())).build()),
+    )
+
+    suspend fun karaokeStatus(source: String, id: String): KaraokeStatus = get("/karaoke/${enc(source)}/${enc(id)}")
+
+    suspend fun karaokePrepare(tracks: List<Track>) {
+        call(request("/karaoke/prepare").post(body(KaraokePrepareIn(tracks))).build())
+    }
+
+    suspend fun djRadio(seed: Track, exclude: List<String>): List<Track> = get(
+        "/djradio/${enc(seed.source)}/${enc(seed.sourceId)}",
+        mapOf("title" to seed.title, "artist" to seed.artist, "exclude" to exclude.joinToString(",")),
+    )
+
+    suspend fun djIntro(track: Track, previous: Track?): DjIntro = get(
+        "/dj/intro",
+        buildMap {
+            put("title", track.title)
+            put("artist", track.artist)
+            previous?.let { put("prev_title", it.title); put("prev_artist", it.artist) }
+            track.year?.toIntOrNull()?.let { put("year", it.toString()) }
+        },
+    )
+
+    suspend fun accountSettings(): AccountSettings = get("/settings")
+
+    suspend fun updateAccountSettings(update: AccountSettingsUpdate): AccountSettings = SonaJson.decodeFromString(
+        call(request("/settings").put(body(update)).build()),
+    )
 
     // ── Sona Connect ─────────────────────────────────────────────────────────
 
