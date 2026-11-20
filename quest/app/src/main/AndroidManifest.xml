@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Visualiseur : analyse du son que Sona joue lui-même (jamais le micro). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Meta Horizon OS : continuer à jouer quand un jeu VR passe devant. -->
+    <uses-permission android:name="com.oculus.permission.PLAY_AUDIO_BACKGROUND" />
+    <uses-permission android:name="horizonos.permission.PLAY_AUDIO_BACKGROUND" />
+
+    <uses-feature android:name="android.hardware.vr.headtracking" android:required="false" />
+
+    <application
+        android:name=".SonaApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Sona"
+        android:theme="@style/Theme.Sona"
+        android:usesCleartextTraffic="false">
+
+        <meta-data
+            android:name="com.oculus.supportedDevices"
+            android:value="quest2|questpro|quest3|quest3s" />
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <layout
+                android:defaultWidth="1100dp"
+                android:defaultHeight="720dp"
+                android:minWidth="420dp"
+                android:minHeight="420dp" />
+        </activity>
+
+        <!-- Petit panneau flottant : pochette, paroles synchronisées, contrôles. -->
+        <activity
+            android:name=".LyricsPanelActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|uiMode|density"
+            android:exported="true"
+            android:label="Sona Paroles"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:taskAffinity="fr.sona.quest.paroles">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <layout
+                android:defaultWidth="520dp"
+                android:defaultHeight="760dp"
+                android:minWidth="320dp"
+                android:minHeight="360dp" />
+        </activity>
+
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

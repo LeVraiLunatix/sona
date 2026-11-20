@@ -3,13 +3,15 @@ appareil depuis un autre (voir services/connect.py)."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import require_token
+from app.api.clientip import client_ip
+from app.api.routers.device_login import login_requests
 from app.api.schemas import Track
 from app.api.state import ApiDeps
-from app.services import connect
+from app.services import connect, device_login
 
 router = APIRouter(prefix="/connect", tags=["sona connect"])
 MAX_QUEUE = 150
@@ -32,7 +34,8 @@ class SyncIn(BaseModel):
     device_id: str = Field(min_length=6, max_length=64)
     name: str = Field(min_length=1, max_length=60)
     # `desktop` : Sona pour Windows (l'app d'ordinateur, voir desktop/).
-    kind: str = Field("web", pattern="^(iphone|web|desktop)$")
+    # `quest` : Sona pour Meta Quest (voir quest/).
+    kind: str = Field("web", pattern="^(iphone|web|desktop|quest)$")
     state: PlaybackIn | None = None
     # Lecture lancée à la main sur cet appareil : les autres se mettent en pause.
     claim: bool = False
@@ -63,20 +66,25 @@ class CommandIn(BaseModel):
 
 
 @router.post("/sync")
-async def sync(payload: SyncIn, deps: ApiDeps = Depends(require_token)) -> dict:
-    # Sona pour Windows s'inscrit tout seul dans « Appareils » (sauf s'il y
-    # a été oublié) : rien à ajouter à la main pour le piloter du téléphone.
-    # Une seule écriture en base par PC, pas une à chaque relevé.
-    if payload.kind == "desktop" and (deps.user_id, payload.device_id) not in connect.autosaved:
+async def sync(payload: SyncIn, request: Request, deps: ApiDeps = Depends(require_token)) -> dict:
+    # Sona pour Windows et le casque Quest s'inscrivent tout seuls dans « Appareils »
+    # (sauf s'ils y ont été oubliés) : rien à ajouter à la main pour les piloter du
+    # téléphone. Une seule écriture en base par appareil, pas une à chaque relevé.
+    if payload.kind in ("desktop", "quest") and (deps.user_id, payload.device_id) not in connect.autosaved:
         await deps.repo.connect_autosave(deps.user_id, payload.device_id, payload.name, payload.kind)
         connect.autosaved.add((deps.user_id, payload.device_id))
     state = None
     if payload.state is not None:
         state = payload.state.model_dump()
         state["queue"] = [t.model_dump() for t in payload.state.queue]
-    return await connect.sync_wait(
+    # Un appareil du compte est ici, sur ce réseau : s'il arrive une demande de
+    # connexion (casque, TV…) de ce réseau, on la lui propose (`login_requests`).
+    if deps.account is not None:
+        device_login.seen(device_login.network_key(client_ip(request)), deps.user_id)
+    result = await connect.sync_wait(
         deps.user_id, payload.device_id, payload.name, payload.kind, state, payload.claim, payload.wait
     )
+    return result | {"login_requests": login_requests(deps, request)}
 
 
 @router.post("/command", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

@@ -1,0 +1,78 @@
+name: Quest
+
+# Sona pour Meta Quest (dossier quest/) : fabrique l'APK à installer par ADB ou
+# SideQuest. Seulement quand quest/ change : pas besoin du reste du dépôt.
+on:
+  pull_request:
+    paths:
+      - "quest/**"
+      - ".github/workflows/quest.yml"
+  push:
+    branches: [master]
+    paths:
+      - "quest/**"
+      - ".github/workflows/quest.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: quest-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Sona pour Meta Quest (.apk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Publication sur master : mise à jour de la version « quest ».
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: quest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: Fabriquer l'APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Renommer l'APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/Sona-Quest.apk"
+          ls -la dist
+
+      - name: Garder le fichier
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sona-Quest
+          path: quest/dist/Sona-Quest.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publier la version Quest
+        # Toujours la même version « quest », en préversion : elle ne prend
+        # jamais la place de la dernière version iOS (« latest »).
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          NOTES="Sona pour Meta Quest 1.0.${{ github.run_number }} — à installer par ADB (adb install -r Sona-Quest.apk) ou SideQuest. Voir quest/README.md."
+          if ! gh release view quest --repo "$REPO" >/dev/null 2>&1; then
+            gh release create quest --repo "$REPO" --target "$GITHUB_SHA" --prerelease --latest=false --title "Sona pour Meta Quest" --notes "$NOTES"
+          else
+            gh release edit quest --repo "$REPO" --notes "$NOTES"
+          fi
+          gh release upload quest dist/Sona-Quest.apk --repo "$REPO" --clobber

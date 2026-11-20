@@ -93,6 +93,20 @@ def test_windows_app_is_a_connect_device_the_iphone_can_drive(client):
     assert [c["action"] for c in got["commands"]] == ["pause"]
 
 
+def test_quest_headset_is_a_connect_device(client):
+    me = login(client, "alice")
+    sync(client, me, "iphone-123", "iPhone", "iphone", {"queue": [TRACK], "position": 3, "paused": False})
+    got = sync(client, me, "quest-abcdef", "Meta Quest 3", "quest")
+    headset = next(d for d in got["devices"] if d["id"] == "quest-abcdef")
+    assert headset["kind"] == "quest" and headset["is_me"]
+    # Le casque se pilote comme n'importe quel appareil : l'iPhone lui envoie une commande.
+    response = client.post("/connect/command", headers=me,
+                           json={"device_id": "iphone-123", "target": "quest-abcdef", "action": "pause"})
+    assert response.status_code == 204
+    got = sync(client, me, "quest-abcdef", "Meta Quest 3", "quest")
+    assert [c["action"] for c in got["commands"]] == ["pause"]
+
+
 def test_unknown_device_kind_is_refused(client):
     me = login(client, "alice")
     response = client.post("/connect/sync", headers=me, json={"device_id": "toaster-1", "name": "Grille-pain", "kind": "toaster"})

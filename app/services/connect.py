@@ -88,6 +88,13 @@ def reset() -> None:
     autosaved.clear()
 
 
+def wake(user_id: int) -> None:
+    """Réveille les appareils du compte qui attendent des nouvelles (sync_wait)."""
+    account = _accounts.get(user_id)
+    if account is not None:
+        account.notify()
+
+
 def _account(user_id: int) -> Account:
     account = _accounts.setdefault(user_id, Account())
     now = _now()
