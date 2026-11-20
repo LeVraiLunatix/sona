@@ -15,6 +15,15 @@ couleur vient des pochettes (fond vivant du lecteur, halo des fiches
 album). Les jetons sont dans `DesignSystem/Theme.swift` (`Tone`, `Typo`,
 `Motion`), les composants dans `DesignSystem/Components.swift`.
 
+**Thème GTA VI** (Réglages › Apparence › Thème GTA VI, activé par défaut) : sur la
+fiche de Grand Theft Auto VI (artiste Deezer `237278551` ou YouTube Music
+`UCJ97ksybdciBBv7xsFSK6HA`, albums et singles « GTAVI: … ») et dès qu'un titre
+de l'album joue, toute l'app passe à Vice City — ciel violet, soleil rayé,
+grille et palmiers (`GtaBackdrop`), titres en Pricedown avec halo néon, accent
+rose — puis redevient noire. Les morceaux « GTA VI » d'autres artistes ne
+l'activent pas. Détection : `GtaVI`, état : `GtaTheme` (`DesignSystem/GtaTheme.swift`) ;
+la police est `Resources/Fonts/Pricedown.otf` (licence : voir `docs/GUIDE.md`).
+
 Animations : transitions zoom système (la pochette tapée devient la fiche,
 le lecteur grandit depuis le mini-lecteur), apparition en cascade des
 sections, vignettes qui respirent au défilement, boutons qui s'enfoncent,
