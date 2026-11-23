@@ -248,7 +248,8 @@ li.on b { color: #fff; } li.on button { background: #fff; color: #000; }
 footer { margin-top: 40px; color: var(--faint); font-size: 12.5px; max-width: 420px; }
 footer b { color: var(--muted); }
 .logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: var(--muted); letter-spacing: -.01em; margin-bottom: 8px; }
-.logo i { width: 22px; height: 22px; border-radius: 6px; background: #fff; color: #000; font-style: normal; font-size: 15px; display: grid; place-items: center; }
+.logo i { width: 22px; height: 22px; border-radius: 6px; background: #000; font-style: normal; display: grid; place-items: center; }
+.logo i svg { width: 74%; height: 74%; }
 @media (prefers-reduced-motion: reduce) { .play .ring { transition: none; } }
 """
 
@@ -376,7 +377,7 @@ def _share_page(link: ShareLink, found: list, url: str, web_app: str | None, bot
 <body>
 <div class="bg" style="background-image:url('{_e(_cover(link.cover_url, 300))}')"></div>
 <main>
-  <div class="logo"><i>S</i>Sona</div>
+  <div class="logo"><i><svg viewBox="88.42 88.25 223.50 223.50" aria-hidden="true"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></svg></i>Sona</div>
   {cover_html}
   <div class="kind">{_e(kind_label)}</div>
   <h1>{_e(link.title)}</h1>
@@ -396,5 +397,5 @@ def _message_page(title: str, message: str) -> str:
     return f"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>{_e(title)} — Sona</title><style>{_STYLE}</style></head>
-<body><main style="min-height:80vh;justify-content:center"><div class="logo"><i>S</i>Sona</div><h1>{_e(title)}</h1>
+<body><main style="min-height:80vh;justify-content:center"><div class="logo"><i><svg viewBox="88.42 88.25 223.50 223.50" aria-hidden="true"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></svg></i>Sona</div><h1>{_e(title)}</h1>
 <p class="sub">{_e(message)}</p></main></body></html>"""
