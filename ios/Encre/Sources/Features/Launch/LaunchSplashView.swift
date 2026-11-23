@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Écran de démarrage animé : le logo (l'orbite : anneau, sphère de verre, lune) se trace au milieu
+/// Écran de démarrage animé : le logo (le « S » de Sona) se pose au milieu
 /// d'ondes qui se propagent, puis le nom et l'accroche montent. Il reste le temps que l'app soit
 /// prête (compte vérifié), au moins un instant pour que l'animation s'achève ; puis, avec
 /// `leaving`, le logo s'agrandit et se fond pendant que l'app apparaît dessous (voir `EncreApp`),
@@ -44,10 +44,10 @@ struct LaunchSplashView: View {
                 .opacity(min(1, max(0, (t - 0.3) / 0.8)))
             }
 
-            // Le logo démarre exactement où et comme l'écran de lancement système (même image, 120 pt,
-            // au centre) : aucun saut ; puis il grossit et sa lune se met à tourner.
-            OrbitLogo(size: 120, live: true, drawIn: 0)
-                .scaleEffect(swells ? 1.3 : 1)
+            // Le logo démarre exactement où et comme l'écran de lancement système (même image, 72 pt,
+            // au centre) : aucun saut ; puis il grossit et son halo se met à respirer.
+            SonaLogo(size: 72, live: true, drawIn: 0)
+                .scaleEffect(swells ? 1.6 : 1)
 
             VStack(spacing: 10) {
                 Text("Sona")
@@ -64,7 +64,7 @@ struct LaunchSplashView: View {
                     .opacity(showsTagline ? 1 : 0)
                     .offset(y: showsTagline ? 0 : 10)
             }
-            .offset(y: 170)
+            .offset(y: 150)
 
             VStack {
                 Spacer()

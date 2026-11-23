@@ -6,5 +6,5 @@
         <item name="android:navigationBarColor">@color/sona_bg</item>
     </style>
     <color name="sona_bg">#FF0B0B12</color>
-    <color name="sona_icon_bg">#FF0B0B12</color>
+    <color name="sona_icon_bg">#FF000000</color>
 </resources>

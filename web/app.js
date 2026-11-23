@@ -21,88 +21,7 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
-// ── Apparence : logo, couleur, formes, menu (gardés sur cet appareil) ──────────
-// Six logos en verre liquide, dessinés dans un carré de 64 ; le choix remplace le symbole #sona-mark.
-const { LOGOS, logoSvg } = (() => {
-// Logos de Sona : six propositions en verre liquide, dessinées dans un carré de 64.
-// Chaque logo renvoie { defs, body } ; `p` préfixe les identifiants (plusieurs logos sur une même page).
-const stop = (off, o) => `<stop offset="${off}" stop-color="#fff" stop-opacity="${o}"/>`;
-const rimGrad = (p, x1 = 12, y1 = 8, x2 = 52, y2 = 58) =>
-  `<linearGradient id="${p}-rim" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stop(0, 1)}${stop(.4, .42)}${stop(.68, .26)}${stop(1, .85)}</linearGradient>`;
-const bodyGrad = (p, x1 = 18, y1 = 8, x2 = 46, y2 = 58) =>
-  `<linearGradient id="${p}-body" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stop(0, .36)}${stop(.55, .1)}${stop(1, .2)}</linearGradient>`;
-const blur = (p, id, sd) => `<filter id="${p}-${id}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${sd}"/></filter>`;
-const orbGrad = (p) => `<radialGradient id="${p}-orb" cx=".34" cy=".28" r=".9">${stop(0, .62)}${stop(.5, .16)}${stop(1, .06)}</radialGradient>`;
-const SPATH = "M40.7 17A10 10 0 1 0 32 32A10 10 0 1 1 23.3 47";
-
-const LOGOS = {
-  orbe: { name: "Orbe", build: (p) => ({
-    defs: orbGrad(p) + rimGrad(p) + blur(p, "g", 3) + blur(p, "s", 1.1),
-    body: `<circle cx="32" cy="32" r="22" fill="#fff" fill-opacity=".14" filter="url(#${p}-g)"/>
-      <circle cx="32" cy="32" r="22" fill="url(#${p}-orb)"/>
-      <circle cx="32" cy="32" r="22" fill="none" stroke="url(#${p}-rim)" stroke-width="1.5"/>
-      <ellipse cx="24.5" cy="21.5" rx="8.5" ry="4.4" transform="rotate(-34 24.5 21.5)" fill="#fff" fill-opacity=".72" filter="url(#${p}-s)"/>
-      <path d="M44.5 44.5A17 17 0 0 1 31 50" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="2" stroke-linecap="round"/>` }) },
-
-  barres: { name: "Barres", build: (p) => {
-    const bars = [[14, 24], [27.5, 40], [41, 30]];
-    return { defs: bodyGrad(p, 0, 8, 0, 58) + rimGrad(p, 10, 8, 54, 58) + blur(p, "g", 3),
-      body: bars.map(([x, h]) => { const y = 32 - h / 2;
-        return `<rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="#fff" fill-opacity=".12" filter="url(#${p}-g)"/>
-        <rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="url(#${p}-body)"/>
-        <rect x="${x}" y="${y}" width="9" height="${h}" rx="4.5" fill="none" stroke="url(#${p}-rim)" stroke-width="1.4"/>
-        <path d="M${x + 2.6} ${y + 6}V${y + h * .42}" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/>`; }).join("") }; } },
-
-  disque: { name: "Disque", build: (p) => ({
-    defs: orbGrad(p) + rimGrad(p) + blur(p, "g", 3),
-    body: `<circle cx="32" cy="32" r="24" fill="#fff" fill-opacity=".1" filter="url(#${p}-g)"/>
-      <circle cx="32" cy="32" r="24" fill="url(#${p}-orb)"/>
-      <circle cx="32" cy="32" r="24" fill="none" stroke="url(#${p}-rim)" stroke-width="1.5"/>
-      <circle cx="32" cy="32" r="18.4" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width=".8"/>
-      <circle cx="32" cy="32" r="14" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width=".8"/>
-      <circle cx="32" cy="32" r="7.4" fill="#fff" fill-opacity=".16"/>
-      <circle cx="32" cy="32" r="7.4" fill="none" stroke="url(#${p}-rim)" stroke-width="1"/>
-      <circle cx="32" cy="32" r="1.7" fill="#fff" fill-opacity=".95"/>
-      <path d="M15.2 22.5A19.5 19.5 0 0 1 23 14.6" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.7" stroke-linecap="round"/>
-      <path d="M48.8 41.5A19.5 19.5 0 0 1 41 49.4" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.7" stroke-linecap="round"/>` }) },
-
-  trait: { name: "Trait", build: (p) => ({
-    defs: `<linearGradient id="${p}-ln" gradientUnits="userSpaceOnUse" x1="22" y1="12" x2="44" y2="54">${stop(0, 1)}${stop(.6, .72)}${stop(1, .42)}</linearGradient>` + blur(p, "g", 2.2),
-    body: `<path d="${SPATH}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="3.4" stroke-linecap="round" filter="url(#${p}-g)"/>
-      <path d="${SPATH}" fill="none" stroke="url(#${p}-ln)" stroke-width="3.2" stroke-linecap="round"/>
-      <circle cx="46" cy="50.5" r="2.3" fill="#fff" fill-opacity=".95"/>` }) },
-
-  orbite: { name: "Orbite", build: (p) => {
-    // Anneau incliné autour d'une sphère de verre. L'arrière de l'anneau est découpé derrière la sphère (rien ne
-    // transparaît à travers) ; l'avant repasse par-dessus, avec la même épaisseur et le même dégradé : pas de couture.
-    const R = 12.5, BACK = "M4 32A28 10 0 0 1 60 32", FRONT = "M4 32A28 10 0 0 0 60 32", TILT = "rotate(-22 32 32)";
-    return {
-      defs: orbGrad(p) + rimGrad(p, 12, 8, 52, 58) + blur(p, "g", 2.8) + blur(p, "s", .9) + blur(p, "h", 1.5)
-        + `<linearGradient id="${p}-ring" gradientUnits="userSpaceOnUse" x1="4" y1="26" x2="60" y2="38">${stop(0, .95)}${stop(.3, .5)}${stop(.62, .34)}${stop(1, .9)}</linearGradient>`
-        + `<mask id="${p}-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="32" cy="32" r="${R + .6}" fill="#000"/></mask>`
-        + `<clipPath id="${p}-ball"><circle cx="32" cy="32" r="${R}"/></clipPath>`,
-      body: `<g transform="${TILT}" mask="url(#${p}-cut)"><path d="${BACK}" fill="none" stroke="url(#${p}-ring)" stroke-width="2.1" stroke-linecap="round"/></g>
-        <circle cx="32" cy="32" r="${R}" fill="#fff" fill-opacity=".08" filter="url(#${p}-g)"/>
-        <circle cx="32" cy="32" r="${R}" fill="url(#${p}-orb)"/>
-        <g clip-path="url(#${p}-ball)"><g transform="${TILT}"><path d="${FRONT}" fill="none" stroke="#000" stroke-opacity=".42" stroke-width="5" transform="translate(0 2.2)" filter="url(#${p}-h)"/></g></g>
-        <circle cx="32" cy="32" r="${R}" fill="none" stroke="url(#${p}-rim)" stroke-width="1.3"/>
-        <ellipse cx="27.6" cy="26.8" rx="4.8" ry="2.5" transform="rotate(-34 27.6 26.8)" fill="#fff" fill-opacity=".72" filter="url(#${p}-s)"/>
-        <g transform="${TILT}"><path d="${FRONT}" fill="none" stroke="url(#${p}-ring)" stroke-width="2.1" stroke-linecap="round"/>
-          <circle cx="9.2" cy="37.5" r="2.2" fill="url(#${p}-orb)"/><circle cx="9.2" cy="37.5" r="2.2" fill="#fff" fill-opacity=".35"/><circle cx="9.2" cy="37.5" r="2.2" fill="none" stroke="url(#${p}-rim)" stroke-width=".8"/></g>` };
-  } },
-
-  lecture: { name: "Lecture", build: (p) => {
-    const P = "M23.5 16.5L23.5 47.5L49 32Z";
-    return { defs: rimGrad(p, 14, 10, 52, 56) + blur(p, "g", 3)
-        + `<mask id="${p}-m" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><path d="${P}" fill="#fff" stroke="#fff" stroke-width="10.4" stroke-linejoin="round"/><path d="${P}" fill="#000" stroke="#000" stroke-width="8.8" stroke-linejoin="round"/></mask>`,
-      body: `<g fill="#fff" stroke="#fff" stroke-width="9" stroke-linejoin="round" opacity=".16" filter="url(#${p}-g)"><path d="${P}"/></g>
-        <g fill="#fff" stroke="#fff" stroke-width="8.8" stroke-linejoin="round" opacity=".2"><path d="${P}"/></g>
-        <path d="${P}" fill="none" stroke="url(#${p}-rim)" stroke-width="10.4" stroke-linejoin="round" mask="url(#${p}-m)"/>
-        <path d="M24.6 22.5V30" stroke="#fff" stroke-opacity=".75" stroke-width="1.6" stroke-linecap="round"/>` }; } },
-};
-const logoSvg = (id, p = "x") => { const { defs, body } = LOGOS[id].build(p); return `<defs>${defs}</defs>${body}`; };
-  return { LOGOS, logoSvg };
-})();
+// ── Apparence : couleur, formes, menu (gardés sur cet appareil) ──────────
 // ── Thème GTA VI : Vice City, Leonida ─────────────────────────────────────────
 // Sur la fiche de Grand Theft Auto VI (artiste, album) et quand un titre de l'album
 // joue, tout Sona prend les couleurs du jeu (classe `gtavi` sur <html>, voir app.css).
@@ -117,15 +36,6 @@ const isGtaTrack = (t) => !!t && (gtaName(t.artist) || GTA_ARTISTS.has(`${t.arti
   || GTA_TAG.test(t.album || "") || GTA_TAG.test(t.title || "") || (t.artists || []).some((a) => gtaName(a?.name)));
 /** `route` : la page affichée est celle de GTA VI ; `pending` : verdict de la page en cours de chargement ; `on` : thème actif. */
 const gta = { route: false, pending: false, on: false };
-/** Le logo de Sona devient un soleil de Vice City (rose et violet, rayé) au-dessus d'une plage et d'un palmier. */
-const gtaLogo = (p = "gv") => ({
-  defs: `<linearGradient id="${p}-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffa6dc"/><stop offset=".55" stop-color="#ff4fa3"/><stop offset="1" stop-color="#6f5cff"/></linearGradient>
-    <mask id="${p}-m"><rect width="64" height="64" fill="#fff"/><rect y="33" width="64" height="1.6" fill="#000"/><rect y="38" width="64" height="2.2" fill="#000"/><rect y="43.2" width="64" height="2.8" fill="#000"/></mask>`,
-  body: `<circle cx="32" cy="30" r="17" fill="url(#${p}-s)" mask="url(#${p}-m)"/>
-    <path d="M6 50h52" stroke="#25e8ff" stroke-width="2" stroke-linecap="round"/><path d="M13 57h38" stroke="#ff2e97" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
-    <path d="M47 50c0-9 1.5-15 3.5-22" fill="none" stroke="#12032a" stroke-width="1.9" stroke-linecap="round"/>
-    <path d="M50.5 28c-4-3-8-3-11-1 3-1 7 0 11 1zM50.5 28c1-5 4-8 8-9-3 2-5 5-8 9zM50.5 28c4-2 8-1 10 2-3-2-6-2-10-2z" fill="#12032a"/>`,
-});
 const currentTrackNow = () => { const r = remoteDevice(); return r ? deviceNow(r).track : state.queue[state.index]; };
 /** Allume ou éteint le thème selon la page affichée et le titre en cours. */
 function syncGta(track) {
@@ -139,19 +49,10 @@ function syncGta(track) {
   if (want) toast("Bienvenue à Leonida 🌴");
 }
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
-const LOOK_DEFAULT = { logo: "orbite", accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
+const LOOK_DEFAULT = { accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
 let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
 function applyLook() {
   const root = document.documentElement;
-  const sym = document.getElementById("sona-mark");
-  // Thème GTA VI actif : le logo est le soleil de Vice City ; sinon, celui choisi dans Réglages.
-  const mark = (p) => gta.on ? (({ defs, body }) => `<defs>${defs}</defs>${body}`)(gtaLogo(p)) : logoSvg(look.logo, p);
-  if (sym && (gta.on || LOGOS[look.logo])) sym.innerHTML = mark("sm");
-  const fav = document.querySelector('link[rel="icon"]');
-  if (fav && (gta.on || LOGOS[look.logo])) {
-    fav.type = "image/svg+xml"; fav.removeAttribute("sizes");
-    fav.href = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="${gta.on ? "#1b0536" : "#0b0b0c"}"/>${mark("fv")}</svg>`);
-  }
   for (const k of ["--accent", "--accent-2", "--accent-soft", "--on-accent"]) root.style.removeProperty(k);
   const c = ACCENTS[look.accent]?.[1];
   if (c) {
@@ -7590,13 +7491,10 @@ const linkRow = (attrs, icon, title, sub = "") => `<a class="set-row" ${attrs}><
 
 function viewAppearance() {
   const chip = (attr, val, label, on) => `<button class="chip${on ? " on" : ""}" data-${attr}="${val}">${label}</button>`;
-  const logos = Object.entries(LOGOS).map(([id, l]) => `<button class="look-logo${look.logo === id ? " on" : ""}" data-logo="${id}" aria-label="${esc(l.name)}">
-    <svg viewBox="0 0 64 64" aria-hidden="true">${logoSvg(id, "lk" + id)}</svg><span>${esc(l.name)}</span></button>`).join("");
   const accents = Object.entries(ACCENTS).map(([id, [name, c]]) => `<button class="look-sw${look.accent === id ? " on" : ""}" data-accent="${id}" style="--c:${c || "#f2f5fb"}" aria-label="${esc(name)}"><span>${esc(name)}</span></button>`).join("");
   setTimeout(bindAppearance);
   return page(`<h1 class="page-title">Apparence</h1>
-    <p class="page-sub">Choisis le logo, la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
-    <h3 class="set-head">Logo</h3><div class="look-logos">${logos}</div>
+    <p class="page-sub">Choisis la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
     <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
     <h3 class="set-head">Interface</h3><div class="set-group">
       <label class="switch-row"><span><b>Thème GTA VI</b><small>Sur la page de Grand Theft Auto VI, et quand un titre de l'album joue, Sona devient Vice City.</small></span><input type="checkbox" data-look-gtavi ${look.gtavi !== false ? "checked" : ""}><i></i></label>
@@ -7617,7 +7515,6 @@ function bindAppearance() {
   const root = $(".page");
   if (!root) return;
   const mark = () => {
-    $$("[data-logo]", root).forEach((b) => b.classList.toggle("on", b.dataset.logo === look.logo));
     $$("[data-accent]", root).forEach((b) => b.classList.toggle("on", b.dataset.accent === look.accent));
     $$("[data-shape]", root).forEach((b) => b.classList.toggle("on", b.dataset.shape === look.shape));
     $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === look.menu));
@@ -7631,13 +7528,12 @@ function bindAppearance() {
     if (glob) glob.textContent = offsetLabel(Number(look.lyrOffset) || 0);
   };
   root.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-logo], [data-accent], [data-shape], [data-menu], [data-look-reset]");
+    const b = e.target.closest("[data-accent], [data-shape], [data-menu], [data-look-reset]");
     // `<html>` porte aussi data-shape et data-menu : sans ce test, un clic sur n'importe quel
     // interrupteur de la page remontait jusque-là et lui remettait son ancienne valeur.
     if (!b || !root.contains(b)) return;
     haptic();
     if (b.dataset.lookReset !== undefined) setLook({ ...LOOK_DEFAULT });
-    else if (b.dataset.logo) setLook({ logo: b.dataset.logo });
     else if (b.dataset.accent) setLook({ accent: b.dataset.accent });
     else if (b.dataset.shape) setLook({ shape: b.dataset.shape });
     else if (b.dataset.menu) setLook({ menu: b.dataset.menu });

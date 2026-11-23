@@ -65,7 +65,7 @@
           ]
         }
       ],
-      "icon": "../web/icons/icon-512.png",
+      "icon": "icons/sona.ico",
       "artifactName": "Sona-${version}-${arch}-${target}.${ext}"
     },
     "nsis": {

@@ -28,21 +28,9 @@ struct SonaWidgetBundle: WidgetBundle {
 
 // MARK: - Logo
 
-/// Le « S » en barres de forme d'onde (même géométrie que l'icône).
+/// Le logo de Sona (le même « S » que l'icône).
 struct LogoShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let side = min(rect.width, rect.height)
-        let width = SonaLogoGeometry.barWidth * side
-        var path = Path()
-        for bar in SonaLogoGeometry.bars {
-            let frame = CGRect(
-                x: rect.minX + bar.x * side - width / 2, y: rect.minY + bar.top * side,
-                width: width, height: max(width, (bar.bottom - bar.top) * side)
-            )
-            path.addRoundedRect(in: frame, cornerSize: CGSize(width: width / 2, height: width / 2))
-        }
-        return path
-    }
+    func path(in rect: CGRect) -> Path { SonaMark().path(in: rect) }
 }
 
 // MARK: - Raccourcis

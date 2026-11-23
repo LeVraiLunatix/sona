@@ -4,11 +4,14 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Croche : tête de note et hampe, dans l'accent de Sona. -->
-    <path
-        android:fillColor="#FF9F7BFF"
-        android:pathData="M58,30 L58,60 A9,7 0 1,1 52,53 L52,36 L72,31 L72,28 Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M34,70 L74,70 L74,74 L34,74 Z" />
+    <!-- Le logo de Sona (pack « Fin »), gris clair sur fond noir. -->
+    <group
+        android:scaleX="0.26"
+        android:scaleY="0.26"
+        android:translateX="1.95"
+        android:translateY="2.00">
+        <path
+            android:fillColor="#FFD2D1D8"
+            android:pathData="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" />
+    </group>
 </vector>
