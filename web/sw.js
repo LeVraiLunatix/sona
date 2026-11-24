@@ -6,7 +6,7 @@
    tout de suite), la copie gardée ne sert que hors connexion. Icônes : copie
    gardée d'abord. */
 
-const CACHE = "sona-shell-v3";
+const CACHE = "sona-shell-v5";
 const SHELL = ["./", "app.css", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -30,7 +30,7 @@ self.addEventListener("fetch", (event) => {
   // Flux audio servi sous /web ? jamais : seulement les fichiers du site.
   if (request.headers.has("range")) return;
   // Page de présentation : autre page du même site, jamais gardée à la place de l'app.
-  if (url.pathname === scope.pathname + "presentation" || url.pathname === scope.pathname + "presentation.html") return;
+  if (["presentation", "mentions-legales", "confidentialite"].some((p) => url.pathname === scope.pathname + p || url.pathname === scope.pathname + p + ".html")) return;
 
   if (url.pathname.includes("/icons/")) {
     event.respondWith(caches.match(request).then((hit) => hit || fetch(request).then((res) => keep(request, res))));

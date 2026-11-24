@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ececf0">
-<title>Sona — ta musique, en clair.</title>
-<meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Ouvre Sona dans le navigateur ou installe l'app.">
-<meta property="og:title" content="Sona — ta musique, en clair.">
+<meta name="theme-color" content="#0a0a0b">
+<title>Sona, ta musique en clair</title>
+<meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Installe Sona sur Windows ou sur ton téléphone.">
+<meta property="og:title" content="Sona, ta musique en clair">
 <meta property="og:description" content="Paroles mot à mot, lossless, écoute ensemble, relais entre appareils.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="/icons/icon-512.png">
@@ -14,129 +14,187 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/icons/favicon-64.png" sizes="64x64">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sona">
+<link rel="preload" href="/fonts/FamiljenGrotesk-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+
+@font-face { font-family: "Familjen Grotesk"; font-weight: 500; font-display: swap; src: url("/fonts/FamiljenGrotesk-500.woff2") format("woff2"); }
+@font-face { font-family: "Familjen Grotesk"; font-weight: 700; font-display: swap; src: url("/fonts/FamiljenGrotesk-700.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: swap; src: url("/fonts/IBMPlexMono-500-latin.woff2") format("woff2"); }
+@property --tint { syntax: "<color>"; inherits: true; initial-value: #d2d1d8; }
 :root {
-  --ink: #0b0b0d; --ink-2: rgba(11, 11, 13, .62); --ink-3: rgba(11, 11, 13, .4);
-  --sky: #ececf0; --sky-deep: #0b0b0d; --paper: #f6f6f8; --card: #ffffff; --line: rgba(11, 11, 13, .08);
-  --night: #0a0a0b; --night-2: #151518; --mock: #f5f5f7;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --bg: #0a0a0b; --fg: #ecebf0; --dim: rgba(236, 235, 240, .3); --mid: rgba(236, 235, 240, .62); --line: rgba(236, 235, 240, .14); --grey: #d2d1d8;
+  --tint: #d2d1d8; --r: 12px; --gap: clamp(96px, 13vw, 190px);
+  --font: "Familjen Grotesk", "Segoe UI Variable Text", "Segoe UI", -apple-system, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { scroll-behavior: smooth; }
-body { margin: 0; color: var(--ink); font: 18px/1.55 var(--font); -webkit-font-smoothing: antialiased; background: var(--paper); }
+html { scroll-behavior: smooth; background: var(--bg); }
+body { margin: 0; color: var(--fg); font: 500 19px/1.55 var(--font); -webkit-font-smoothing: antialiased; background: var(--bg); padding-bottom: 96px; transition: --tint .8s ease; }
 a { color: inherit; text-decoration: none; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 12px; }
-.wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
-
-/* Ciel : un dégradé doux qui descend du haut de la page */
-.sky { display: flow-root; background: linear-gradient(180deg, #e6e6ea 0%, #efeff2 40%, var(--paper) 100%); padding-bottom: 96px; }
-
-nav { display: flex; align-items: center; justify-content: space-between; margin: 24px auto 0; padding: 10px 10px 10px 24px; max-width: 1056px; background: var(--card); border-radius: 999px; box-shadow: 0 1px 0 var(--line); }
-.brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
+:focus-visible { outline: 2px solid var(--grey); outline-offset: 3px; border-radius: 6px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 36px; }
 .mark { width: 34px; height: 34px; flex: none; border-radius: 9px; }
-.pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 28px; border-radius: 999px; font-size: 16px; font-weight: 600; background: var(--sky); color: var(--ink); transition: transform .2s ease, filter .2s ease; }
-.pill:hover { filter: brightness(.97); transform: translateY(-1px); }
-.pill.white { background: var(--card); box-shadow: 0 1px 0 var(--line); }
-.pill.dark { background: var(--ink); color: #fff; }
-nav .pill { height: 44px; padding: 0 22px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 26px; border-radius: var(--r); font: 700 17px/1 var(--font); background: var(--grey); color: #0a0a0b; transition: background .15s ease; white-space: nowrap; }
+.btn:hover { background: #fff; }
+.btn[aria-disabled="true"] { background: transparent; color: var(--dim); box-shadow: inset 0 0 0 1.5px var(--line); pointer-events: none; }
+.link { font-weight: 700; color: var(--mid); border-bottom: 1.5px solid var(--line); padding-bottom: 2px; transition: color .15s, border-color .15s; }
+.link:hover { color: var(--fg); border-color: var(--fg); }
+.tiny { font: 500 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 
-.hero { padding: 112px 0 72px; text-align: center; }
-.tag { display: inline-block; font: 500 15px/1 var(--mono); padding: 10px 16px; border: 1.5px solid var(--ink); border-radius: 12px; margin-bottom: 32px; }
-h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045em; font-weight: 700; margin: 0 auto 28px; max-width: 12ch; text-wrap: balance; }
-.lead { font-size: 21px; color: var(--ink-2); max-width: 44ch; margin: 0 auto 44px; }
-.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.note { margin-top: 20px; font-size: 15px; color: var(--ink-3); }
+/* Hero : le titre est la démo, il s'allume mot à mot */
+.hero { padding: clamp(72px, 12vh, 140px) 0 var(--gap); text-align: center; }
+.hero .brand { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: clamp(40px, 8vh, 96px); }
+h1 { font-size: clamp(60px, 11.5vw, 176px); line-height: .92; letter-spacing: -.055em; font-weight: 700; margin: 0 0 clamp(32px, 5vw, 56px); }
+.lw { color: var(--dim); transition: color .45s ease; display: inline-block; }
+.lw.lit { color: var(--fg); }
+.lead { font-size: clamp(20px, 2vw, 25px); line-height: 1.45; color: var(--mid); max-width: 27em; margin: 0 auto 40px; }
+.cta { display: flex; align-items: center; justify-content: center; gap: 28px; flex-wrap: wrap; }
+.note { margin: 22px 0 0; font-size: 15px; color: var(--dim); }
 
-/* Maquette de l'app */
-.mock { margin: 24px auto 0; max-width: 1056px; padding: 20px; border-radius: 36px; background: linear-gradient(160deg, #3a3a42, #1c1c21 60%, #0b0b0d); }
-.app { display: grid; grid-template-columns: 64px 1.05fr 1fr; height: 460px; border-radius: 22px; overflow: hidden; background: var(--night); color: #f2f5fb; position: relative; }
-.rail { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 22px 0; }
-.rail i { width: 20px; height: 20px; border-radius: 6px; background: rgba(255, 255, 255, .2); }
-.rail i.on { background: var(--mock); }
-.stage { background: var(--night-2); margin: 10px 10px 10px 0; min-width: 0; border-radius: 18px; padding: 28px 32px; overflow: hidden; }
-.album { display: flex; gap: 24px; align-items: flex-end; margin-bottom: 20px; }
-.cover { width: 120px; height: 120px; border-radius: 16px; background: linear-gradient(140deg, #e4e3ea, #8d8c97 55%, #2b2b32); flex: none; }
-.album small { color: rgba(242, 245, 251, .6); font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-.album h3 { margin: 8px 0 4px; font-size: 30px; letter-spacing: -.03em; line-height: 1.1; }
-.album p { margin: 0; color: rgba(242, 245, 251, .6); font-size: 15px; }
-.row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; padding: 11px 14px; border-radius: 12px; font-size: 15px; color: rgba(242, 245, 251, .85); }
-.row span:first-child, .row span:last-child { color: rgba(242, 245, 251, .4); font-variant-numeric: tabular-nums; }
-.row.on { background: rgba(255, 255, 255, .1); color: #fff; }
-.row.on span:first-child { color: #fff; }
-.lyrics { margin: 10px 10px 10px 0; border-radius: 18px; background: var(--night-2); position: relative; overflow: hidden; font-size: 27px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent); transition: opacity .6s ease; }
+/* Une section = un titre de l'album */
+.track { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; gap: clamp(40px, 6vw, 72px); padding: var(--gap) 0 0; margin-bottom: var(--gap); border-top: 1px solid var(--line); position: relative; }
+.track:last-of-type { margin-bottom: 0; }
+.tn { display: block; text-align: center; font: 700 clamp(72px, 10vw, 150px)/.8 var(--font); letter-spacing: -.06em; color: var(--tint); margin-bottom: 28px; }
+h2 { font-size: clamp(34px, 4.4vw, 62px); line-height: 1; letter-spacing: -.045em; font-weight: 700; margin: 0 0 20px; }
+.track p { margin: 0 auto 14px; color: var(--mid); max-width: 28em; }
+.track .small { font-size: 16px; color: var(--dim); }
+.vis { min-width: 0; width: 100%; max-width: 880px; }
+
+/* 01 paroles */
+.lyrics { position: relative; height: clamp(360px, 46vw, 520px); overflow: hidden; font-size: clamp(30px, 4vw, 54px); font-weight: 700; letter-spacing: -.035em; line-height: 1.1;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 74%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 74%, transparent); transition: opacity .6s ease; }
 .lyrics.fade { opacity: 0; }
-.ly-track { position: absolute; left: 32px; right: 28px; top: 0; transform: translateY(var(--ty, 150px)); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
+.ly-track { position: absolute; left: 0; right: 0; top: 0; transform: translateY(var(--ty, 150px)); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
 .lyrics.jump .ly-track, .lyrics.jump p { transition: none; }
-.lyrics p { margin: 0 0 .7em; color: rgba(255, 255, 255, .32); transform: scale(.94); transform-origin: left center; filter: blur(1.4px); opacity: .6;
+.lyrics p { margin: 0 0 .55em; color: rgba(255, 255, 255, .3); transform: scale(.95); transform-origin: center; text-align: center; filter: blur(1.6px); opacity: .6;
   transition: color .5s ease, filter .6s ease, transform .7s cubic-bezier(.2, .8, .2, 1), opacity .5s; }
-.lyrics p[data-d="1"] { opacity: .82; filter: blur(.5px); }
-.lyrics p[data-d="2"] { opacity: .62; filter: blur(1.1px); }
+.lyrics p[data-d="1"] { opacity: .82; filter: blur(.6px); }
+.lyrics p[data-d="2"] { opacity: .6; filter: blur(1.2px); }
 .lyrics p.on { color: #fff; filter: none; transform: scale(1); opacity: 1; }
 .lyrics .w { display: inline-block; white-space: pre-wrap; transform-origin: 50% 85%; }
 .lyrics p.on .w { color: transparent; -webkit-background-clip: text; background-clip: text;
-  background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .38) calc(var(--p, 0) * 116% + 8%)); }
-.lyrics p.on .w.held { transform: scale(calc(1 + var(--e, 0) * .08)); margin-inline: calc(var(--e, 0) * .04em); filter: drop-shadow(0 0 calc(var(--e, 0) * .5em) rgba(255, 255, 255, calc(var(--e, 0) * .85))); }
-.bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 82%); height: 60px; border-radius: 22px; background: rgba(19, 26, 40, .92); border: 1px solid rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 14px; padding: 0 20px 0 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
-.bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #e4e3ea, #8d8c97); flex: none; }
-.bar b { font-size: 14px; display: block; line-height: 1.2; }
-.bar small { font-size: 12px; color: rgba(242, 245, 251, .55); }
-.bar .play { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: var(--mock); display: grid; place-items: center; }
-.bar .play::after { content: ""; border-left: 11px solid #06111f; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px; }
+  background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .34) calc(var(--p, 0) * 116% + 8%)); }
+.lyrics p.on .w.held { transform: scale(calc(1 + var(--e, 0) * .07)); margin-inline: calc(var(--e, 0) * .04em); filter: drop-shadow(0 0 calc(var(--e, 0) * .5em) rgba(255, 255, 255, calc(var(--e, 0) * .8))); }
+.shift { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 18px; font: 500 14px/1 var(--mono); color: var(--mid); }
+.shift button { width: 40px; height: 40px; border-radius: var(--r); border: 1.5px solid var(--line); background: none; color: var(--fg); font: 700 20px/1 var(--font); cursor: pointer; }
+.shift button:hover { border-color: var(--fg); }
+.shift output { min-width: 92px; text-align: center; color: var(--fg); }
 
-/* Points forts */
-.section { padding: 120px 0 0; }
-h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04em; font-weight: 700; margin: 0 0 56px; max-width: 14ch; }
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.card { background: var(--card); border-radius: 32px; padding: 40px 36px 44px; min-height: 280px; display: flex; flex-direction: column; box-shadow: 0 1px 0 var(--line); }
-.card .n { font: 500 14px/1 var(--mono); color: var(--sky-deep); margin-bottom: auto; padding-bottom: 56px; }
-.card h3 { font-size: 26px; letter-spacing: -.03em; line-height: 1.15; margin: 0 0 12px; }
-.card p { margin: 0; color: var(--ink-2); font-size: 17px; }
+/* 02 lossless */
+.spec { display: grid; gap: 28px; }
+.spec figure { margin: 0; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 150px; }
+.bars i { flex: 1; min-width: 0; border-radius: 2px 2px 0 0; background: var(--tint); height: calc(var(--h) * 1%); transform-origin: bottom; transform: scaleY(var(--on, 0)); transition: transform .9s cubic-bezier(.2, .8, .2, 1); transition-delay: calc(var(--k) * 8ms); }
+.bars i.cut { background: rgba(236, 235, 240, .12); }
+.spec.in .bars i { --on: 1; }
+.spec figcaption { display: flex; justify-content: space-between; margin-top: 12px; font: 500 13px/1.3 var(--mono); color: var(--mid); }
+.spec figcaption b { color: var(--fg); font-weight: 500; }
+.axis { display: flex; justify-content: space-between; margin-top: 6px; font: 500 11px/1 var(--mono); color: var(--dim); }
 
-.also { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 64px; margin-top: 8px; }
-.also div { padding: 28px 0; border-top: 1px solid var(--line); }
-.also b { display: block; font-size: 20px; letter-spacing: -.02em; margin-bottom: 4px; }
-.also span { color: var(--ink-2); font-size: 17px; }
+/* 03 relais */
+.devs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; }
+.dev { display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--dim); transition: color .5s ease; }
+.dev .shape { position: relative; border: 2px solid currentColor; border-radius: 14px; display: grid; place-items: center; transition: box-shadow .5s ease; }
+.dev.on { color: var(--tint); }
+.dev.on .shape { box-shadow: 0 0 0 5px color-mix(in srgb, var(--tint) 18%, transparent); }
+.dev .shape::after { content: ""; width: 34%; height: 5px; border-radius: 3px; background: currentColor; opacity: 0; transition: opacity .4s; }
+.dev.on .shape::after { opacity: 1; }
+.dev.phone .shape { width: 74px; height: 140px; }
+.dev.laptop .shape { width: 170px; height: 108px; border-radius: 10px 10px 4px 4px; }
+.dev.tv .shape { width: 200px; height: 118px; border-radius: 8px; }
+.dev span { font: 500 13px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.now { margin: 56px 0 0; justify-content: center; display: flex; align-items: center; gap: 14px; font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.now small { font: 500 13px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tint); transition: color .5s; }
 
-.final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #e9e9ed, #dcdce2); }
-.final h2 { margin: 0 auto 36px; max-width: 12ch; }
+/* 04 ensemble */
+.duo { display: grid; gap: 22px; }
+.who { display: grid; grid-template-columns: 52px minmax(0, 1fr) 56px; align-items: center; gap: 18px; }
+.who .av { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 20px; background: var(--tint); color: #0a0a0b; }
+.who .av.b { background: transparent; color: var(--tint); box-shadow: inset 0 0 0 2px var(--tint); }
+.who .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.who .bar i { display: block; height: 100%; width: calc(var(--pr, 0) * 100%); background: var(--tint); }
+.who time { font: 500 15px/1 var(--mono); color: var(--fg); text-align: right; font-variant-numeric: tabular-nums; }
+.duo .sync { font: 500 13px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tint); }
 
-.plats { display: flex; flex-wrap: wrap; gap: 12px; }
-.plats span { padding: 16px 26px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 0 var(--line); font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
-.final { background: var(--night); color: #f2f2f5; }
-.final .pill.white { background: rgba(255, 255, 255, .12); color: #fff; box-shadow: none; }
-.final .pill.dark { background: #e9e9ee; color: var(--ink); }
-.rv { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
-.rv.in { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; transition: none; } .lyrics p { transition: none; } html { scroll-behavior: auto; } }
-nav { position: sticky; top: 12px; z-index: 5; }
-footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 48px 0 64px; color: var(--ink-3); font-size: 15px; }
+/* 05 récap */
+.cal { display: grid; grid-template-columns: repeat(14, 1fr); gap: 6px; }
+.cal i { aspect-ratio: 1; border-radius: 4px; background: color-mix(in srgb, var(--tint) calc(var(--v) * 1%), rgba(236, 235, 240, .07)); }
+.cal-cap { margin-top: 16px; display: flex; justify-content: space-between; font: 500 13px/1.3 var(--mono); color: var(--dim); }
+.big { margin-top: 30px; font-size: clamp(30px, 3.6vw, 50px); font-weight: 700; letter-spacing: -.04em; line-height: 1.05; }
+.big em { font-style: normal; color: var(--tint); }
 
-@media (max-width: 860px) {
+/* 06 installer */
+.os { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 5fr) auto; gap: 28px; align-items: center; padding: 26px 0; border-top: 1px solid var(--line); }
+.os:last-of-type { border-bottom: 1px solid var(--line); }
+.os b { font-size: clamp(24px, 2.6vw, 34px); letter-spacing: -.035em; line-height: 1.1; }
+.os b em { display: block; font: 500 12px/1 var(--mono); font-style: normal; letter-spacing: .1em; text-transform: uppercase; color: var(--tint); margin-top: 8px; opacity: 0; height: 0; }
+.os.you b em { opacity: 1; height: auto; }
+.os span { color: var(--mid); font-size: 17px; }
+.os .btn { height: 46px; min-width: 140px; }
+.os .soon { font: 500 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); min-width: 140px; text-align: center; font-style: normal; }
+.install-side .more { color: var(--dim); font-size: 16px; }
+.install { grid-template-columns: minmax(0, 1fr); } .install-side { width: 100%; max-width: 920px; text-align: left; }
+
+footer .wrap { display: flex; flex-direction: column; justify-content: center; text-align: center; align-items: center; gap: 16px 32px; flex-wrap: wrap; padding-top: 72px; padding-bottom: 40px; color: var(--dim); font-size: 15px; }
+footer .fnav { display: flex; gap: 24px; }
+footer a:hover { color: var(--fg); }
+
+/* Lecteur collé en bas : la page est un album, la barre dit où tu en es */
+.pbar { position: fixed; left: 50%; bottom: 16px; z-index: 10; width: min(920px, calc(100% - 24px)); transform: translate(-50%, 140%); transition: transform .5s cubic-bezier(.2, .8, .2, 1);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 10px 10px 10px 12px; border-radius: 14px; background: #141416; border: 1px solid #26262a; }
+.pbar.show { transform: translate(-50%, 0); }
+.pbar .mark { width: 40px; height: 40px; }
+.pbar .info { min-width: 0; }
+.pbar b { display: block; font-size: 16px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pbar small { display: block; font: 500 12px/1 var(--mono); color: var(--dim); margin-top: 5px; letter-spacing: .04em; }
+.pbar .line { position: absolute; left: 12px; right: 12px; top: -1px; height: 2px; background: transparent; }
+.pbar .line i { display: block; height: 100%; width: calc(var(--sp, 0) * 100%); background: var(--tint); border-radius: 2px; }
+.pbar .btn { height: 44px; padding: 0 20px; font-size: 15px; }
+
+@media (max-width: 900px) {
   .wrap { padding: 0 20px; }
-  nav { margin-top: 16px; padding-left: 18px; }
-  .hero { padding: 72px 0 48px; }
-  .lead { font-size: 18px; }
-  .mock { padding: 12px; border-radius: 28px; }
-  .app { grid-template-columns: 1fr; height: 420px; }
-  .rail, .lyrics { display: none; }
-  .stage { margin: 8px; padding: 20px; }
-  .album h3 { font-size: 24px; }
-  .cover { width: 88px; height: 88px; }
-  .cards { grid-template-columns: 1fr; }
-  .card { min-height: 0; }
-  .card .n { padding-bottom: 32px; }
-  .also { grid-template-columns: 1fr; }
-  .section { padding-top: 88px; }
-  .final { margin-top: 88px; padding: 64px 20px; border-radius: 32px; }
+  .track { grid-template-columns: 1fr; gap: 36px; }
+  .devs { gap: 6px; }
+  .dev.phone .shape { width: 52px; height: 100px; } .dev.laptop .shape { width: 100px; height: 68px; } .dev.tv .shape { width: 108px; height: 68px; }
+  .os { grid-template-columns: 1fr auto; gap: 8px 20px; padding: 22px 0; }
+  .os span { grid-column: 1 / -1; grid-row: 2; }
+  .cal { grid-template-columns: repeat(10, 1fr); }
+  .pbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
+  .pbar small { display: none; }
 }
+@media (prefers-reduced-motion: reduce) { .lyrics p, .lw, .bars i, body { transition: none; } .bars i { --on: 1; } html { scroll-behavior: auto; } }
 
+.lang { position: fixed; top: 14px; inset-inline-end: 14px; z-index: 20; }
+.lang > button { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 10px; background: #141416; border: 1px solid #26262a; color: var(--fg); font: 500 14px/1 var(--mono); letter-spacing: .06em; cursor: pointer; }
+.lang > button:hover { border-color: #3a3a40; }
+.lang svg { width: 18px; height: 18px; }
+.lang img { width: 22px; height: 16px; border-radius: 3px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .12); }
+.lang li button { justify-content: flex-start; }
+.lang li button[aria-selected="true"]::after { margin-inline-start: auto; }
+.lang > button svg { display: none; }
+.lang ul { position: absolute; top: 46px; inset-inline-end: 0; margin: 0; padding: 6px; list-style: none; min-width: 190px; max-height: 70vh; overflow-y: auto; background: #141416; border: 1px solid #26262a; border-radius: 12px; }
+.lang ul[hidden] { display: none; }
+.lang li button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: var(--mid); font: 500 16px/1.2 var(--font); text-align: start; cursor: pointer; }
+.lang li button:hover { background: #1d1d20; color: var(--fg); }
+.lang li button[aria-selected="true"] { color: var(--fg); font-weight: 700; }
+.lang li button[aria-selected="true"]::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tint); }
+html[dir="rtl"] .lyrics p.on .w { background-image: linear-gradient(270deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .34) calc(var(--p, 0) * 116% + 8%)); }
+html[dir="rtl"] .install-side { text-align: right; }
+html:lang(ja) h1, html:lang(ja) h2, html:lang(zh) h1, html:lang(zh) h2, html:lang(ko) h1, html:lang(ko) h2, html:lang(ar) h1, html:lang(ar) h2, html:lang(ja) .lyrics, html:lang(zh) .lyrics, html:lang(ko) .lyrics, html:lang(ar) .lyrics { letter-spacing: 0; }
+html:lang(ja) h1, html:lang(zh) h1, html:lang(ko) h1 { line-height: 1.12; font-size: clamp(44px, 8vw, 120px); }
+html:lang(ar) h1 { font-size: clamp(52px, 9vw, 140px); line-height: 1.1; }
+html:lang(ar) .lw, html:lang(ar) .lyrics .w { letter-spacing: 0; }
+.install-side { text-align: start; }
+@media (max-width: 900px) { .lang { top: 10px; inset-inline-end: 10px; } .lang > button { height: 38px; } }
 /* Intro : le S se trace au scroll, s'illumine, puis « ona » apparaît */
-.intro { height: 100vh; height: 100svh; position: relative; background: #000; color: #e6e5ec; }
+.intro { height: 100vh; height: 100svh; position: relative; background: #0a0a0b; color: #e6e5ec; }
 .intro-stage { height: 100%; display: grid; place-items: center; overflow: hidden; }
 .intro-stage::before { content: ""; position: absolute; width: 70vmin; height: 70vmin; border-radius: 50%; background: radial-gradient(closest-side, rgba(210, 209, 216, .22), transparent); opacity: var(--glow, 0); transform: scale(calc(.8 + var(--glow, 0) * .4)); }
-.logo-word { position: relative; display: flex; align-items: baseline; font-size: clamp(88px, 24vmin, 240px); font-weight: 700; letter-spacing: -.05em; line-height: 1; }
+.logo-word { direction: ltr; position: relative; display: flex; align-items: baseline; font-size: clamp(88px, 24vmin, 240px); font-weight: 700; letter-spacing: -.05em; line-height: 1; }
 .logo-word svg { height: .72em; width: auto; overflow: visible; flex: none; }
 .logo-word .glyph { fill: #d2d1d8; fill-opacity: var(--fill, 0); stroke: #d2d1d8; stroke-width: 3; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: var(--dash, 1); filter: drop-shadow(0 0 calc(var(--glow, 0) * 26px) rgba(236, 236, 244, calc(var(--glow, 0) * .95))); }
 .logo-word .rest { display: block; width: calc(var(--o, 0) * var(--w, 0px)); white-space: nowrap; }
@@ -150,114 +208,110 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="s" viewBox="0 0 64 64"><rect width="64" height="64" rx="14.4" fill="#000"/><g transform="translate(32 32) scale(0.24145) translate(-200.169 -200)"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></g></symbol></svg>
+
 <section class="intro" id="intro" aria-label="Sona">
   <div class="intro-stage">
     <div class="logo-word" role="img" aria-label="Sona">
       <svg viewBox="118 120 163 160" aria-hidden="true"><path class="glyph" pathLength="1" d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z"/></svg>
       <span class="rest" aria-hidden="true"><span><i>o</i><i>n</i><i>a</i></span></span>
     </div>
-    <div class="cue" aria-hidden="true">Défile</div>
+    <div class="cue" aria-hidden="true" data-i18n="scroll">Défile</div>
   </div>
 </section>
+<div class="lang" id="lang"></div>
+<main>
+<header class="hero"><div class="wrap">
+  <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut"><svg class="mark" aria-hidden="true"><use href="#s"/></svg><span class="tiny" data-i18n="tag">Lecteur de musique</span></a>
+  <h1 id="h1"><span class="lw">Ta</span> <span class="lw">musique,</span><br><span class="lw">en</span> <span class="lw">clair.</span></h1>
+  <p class="lead" data-i18n="lead">Les paroles défilent mot à mot, tes fichiers FLAC sont lus tels quels, et ce que tu écoutes te suit du téléphone à l'ordinateur et à la télé.</p>
+  <div class="cta"><a class="btn" href="#installer" data-cta>Télécharger Sona</a><a class="link" href="#paroles" data-i18n="how">Voir comment ça marche</a></div>
+  <p class="note" data-note>Gratuit. Sur Windows et sur ton téléphone. macOS et Linux arrivent.</p>
+</div></header>
 
-<div class="sky">
-  <div class="wrap">
-    <nav aria-label="Principal">
-      <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut">
-        <svg class="mark" aria-hidden="true"><use href="#s"/></svg>
-        Sona
-      </a>
-      <a class="pill" href="/?connexion" data-app>Se connecter</a>
-    </nav>
-
-    <header class="hero">
-      <span class="tag">/v2</span>
-      <h1>Ta musique, en clair.</h1>
-      <p class="lead">Les paroles mot à mot, ton son sans compromis, et ta musique là où tu es : ordinateur, téléphone, salon.</p>
-      <div class="cta">
-        <a class="pill dark" href="/?connexion" data-app>Ouvrir Sona</a>
-        <a class="pill white" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
-      </div>
-      <p class="note">Gratuit. Dans le navigateur, sur Windows, et sur iPhone.</p>
-    </header>
-
-    <div class="mock" aria-hidden="true">
-      <div class="app">
-        <div class="rail"><svg class="mark" aria-hidden="true" style="width:28px;height:28px;margin-bottom:8px"><use href="#s"/></svg><i class="on"></i><i></i><i></i><i></i></div>
-        <div class="stage">
-          <div class="album">
-            <div class="cover"></div>
-            <div><small>Album · 2026</small><h3>Premier matin</h3><p>Nils Aubert · 9 titres · 34 min</p></div>
-          </div>
-          <div class="row on"><span>1</span><span>Premier matin</span><span>3:42</span></div>
-          <div class="row"><span>2</span><span>Ligne claire</span><span>2:58</span></div>
-          <div class="row"><span>3</span><span>Silence blanc</span><span>4:05</span></div>
-          <div class="row"><span>4</span><span>Marée</span><span>3:19</span></div>
-        </div>
-        <div class="lyrics" id="lyrics" aria-hidden="true"><div class="ly-track">
+<div class="wrap">
+  <section class="track" id="paroles" data-tint="#9fb8e6">
+    <div><span class="tn">01</span><h2 data-i18n="t1">Paroles mot à mot</h2><p data-i18n="t1p">Chaque mot s'allume au moment où il est chanté. Les notes tenues brillent plus longtemps.</p><p class="small" data-i18n="t1s">Elles arrivent trop tôt ou trop tard ? Tu les décales, essaie.</p>
+      <div class="shift"><button type="button" id="sh-" data-i18n-aria="sh_less" aria-label="Décaler plus tôt">−</button><output id="sh-v">0,0 s</output><button type="button" id="sh+" data-i18n-aria="sh_more" aria-label="Décaler plus tard">+</button></div></div>
+    <div class="vis"><div class="lyrics" id="lyrics" aria-hidden="true"><div class="ly-track">
           <p><span class="w" data-d="0.3">Le</span> <span class="w" data-d="0.4">jour</span> <span class="w" data-d="0.25">se</span> <span class="w" data-d="0.5">lève</span> <span class="w" data-d="0.3">sans</span> <span class="w" data-d="0.7">bruit</span></p>
           <p><span class="w" data-d="0.25">et</span> <span class="w" data-d="0.45">chaque</span> <span class="w" data-d="0.35">mot</span> <span class="w" data-d="0.6">s'allume</span></p>
           <p><span class="w" data-d="0.4">juste</span> <span class="w" data-d="0.2">à</span> <span class="w" data-d="0.5">temps</span> <span class="w" data-d="0.35">pour</span> <span class="w" data-d="0.9">toi</span></p>
           <p><span class="w" data-d="0.25">ta</span> <span class="w" data-d="0.5">musique</span> <span class="w" data-d="0.25">en</span> <span class="w held" data-d="1.5">clair</span></p>
-        </div></div>
-        <div class="bar"><div class="mini"></div><div><b>Premier matin</b><small>Nils Aubert · FLAC 24 bits / 96 kHz</small></div><div class="play"></div></div>
-      </div>
+        </div></div></div>
+  </section>
+
+  <section class="track" id="lossless" data-tint="#e3b872">
+    <div><span class="tn">02</span><h2 data-i18n="t2">Lossless pour de vrai</h2><p data-i18n="t2p">Tu branches ton dossier de FLAC ou d'ALAC. Sona les lit tels quels, sans conversion ni recompression.</p><p class="small" data-i18n="t2s">Un fichier compressé coupe souvent les aigus vers 16 kHz. Ici, tout ce qui est dans ton fichier est joué.</p></div>
+    <div class="vis"><div class="spec" id="spec"></div></div>
+  </section>
+
+  <section class="track" id="relais" data-tint="#86c9b4">
+    <div><span class="tn">03</span><h2 data-i18n="t3">Ça te suit</h2><p data-i18n="t3p">Tu lances sur le téléphone, tu continues sur l'ordinateur, tu envoies sur la télé du salon. Même titre, même seconde.</p><p class="small" data-i18n="t3s">Les titres téléchargés sur l'iPhone se lisent aussi sans réseau.</p></div>
+    <div class="vis"><div class="devs" id="devs" aria-hidden="true">
+      <div class="dev phone on"><div class="shape"></div><span data-i18n="dev_phone">Téléphone</span></div>
+      <div class="dev laptop"><div class="shape"></div><span data-i18n="dev_laptop">Ordinateur</span></div>
+      <div class="dev tv"><div class="shape"></div><span data-i18n="dev_tv">Télé</span></div>
+    </div><p class="now" aria-hidden="true"><small id="now-s">En cours sur le téléphone</small></p></div>
+  </section>
+
+  <section class="track" id="ensemble" data-tint="#e8957f">
+    <div><span class="tn">04</span><h2 data-i18n="t4">Écoute ensemble</h2><p data-i18n="t4p">Tu invites quelqu'un, vous écoutez le même son au même moment, où que vous soyez.</p></div>
+    <div class="vis"><div class="duo" aria-hidden="true">
+      <div class="who"><span class="av">T</span><div class="bar"><i id="d1"></i></div><time id="t1">0:00</time></div>
+      <div class="who"><span class="av b">L</span><div class="bar"><i id="d2"></i></div><time id="t2">0:00</time></div>
+      <span class="sync" data-i18n="sync">Synchronisés</span>
+    </div></div>
+  </section>
+
+  <section class="track" id="recap" data-tint="#c9a4e0">
+    <div><span class="tn">05</span><h2 data-i18n="t5">Ton mois en musique</h2><p data-i18n="t5p">Sona garde ce que tu écoutes : tes artistes, tes habitudes, tes jours les plus chargés, avec un récap à la fin du mois.</p><p class="small" data-i18n="t5s">Playlists importables depuis un autre service, partageables à plusieurs.</p></div>
+    <div class="vis"><div class="cal" id="cal" aria-hidden="true"></div><div class="cal-cap"><span data-i18n="cal1">Exemple d'un mois d'écoute</span><span data-i18n="cal2">Plus clair = plus d'écoutes</span></div></div>
+  </section>
+
+  <section class="track install" id="installer" data-tint="#d2d1d8">
+    <div><span class="tn">06</span><h2 data-i18n="t6">Installe Sona.</h2><p data-i18n="t6p">Sona s'installe, il ne s'ouvre pas dans un onglet.</p></div>
+    <div class="install-side">
+      <div class="os" data-os="windows"><b>Windows<em data-i18n="you">Ton système</em></b><span data-i18n="os_win_d">L'app complète : mini-lecteur, télécommande du téléphone, raccourcis clavier.</span><a class="btn" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows" data-i18n="os_dl">Télécharger</a></div>
+      <div class="os" data-os="ios"><b><span data-i18n="os_ios">iPhone et iPad</span><em data-i18n="you">Ton système</em></b><span data-i18n="os_ios_d">Ouvre cette page dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</span><a class="btn" href="#installer" data-install data-i18n="os_inst">Installer</a></div>
+      <div class="os" data-os="android"><b>Android<em data-i18n="you">Ton système</em></b><span data-i18n="os_and_d">Ouvre cette page dans Chrome, puis menu ⋮ et « Installer l'application ».</span><a class="btn" href="#installer" data-install data-i18n="os_inst">Installer</a></div>
+      <div class="os" data-os="mac"><b>macOS<em data-i18n="you">Ton système</em></b><span data-i18n="os_prep">En préparation.</span><em class="soon" data-i18n="soon">Bientôt</em></div>
+      <div class="os" data-os="linux"><b>Linux<em data-i18n="you">Ton système</em></b><span data-i18n="os_prep">En préparation.</span><em class="soon" data-i18n="soon">Bientôt</em></div>
+      <p class="more" data-i18n="more">Sona existe aussi sur Android TV, Meta Quest et Stream Deck, avec le même compte.</p>
     </div>
-  </div>
+  </section>
 </div>
+</main>
 
-<div class="wrap">
-  <section class="section" aria-label="L'essentiel">
-    <span class="tag">/essentiel</span>
-    <h2>Tout est en place. Rien de plus.</h2>
-    <div class="cards">
-      <div class="card rv"><span class="n">01</span><h3>Paroles mot à mot</h3><p>Les paroles défilent en rythme, mot après mot, et se règlent d'un geste.</p></div>
-      <div class="card rv"><span class="n">02</span><h3>Vrai lossless</h3><p>Branche ton dossier de FLAC ou d'ALAC : Sona les lit tels quels, sans jamais les convertir.</p></div>
-      <div class="card rv"><span class="n">03</span><h3>Où tu veux</h3><p>Lance sur le téléphone, continue sur l'ordinateur, envoie sur l'écran du salon.</p></div>
-    </div>
-  </section>
+<footer><div class="wrap"><span>Sona</span><span class="fnav"><a href="/mentions-legales" data-i18n="legal">Mentions légales</a><a href="/confidentialite" data-i18n="priv">Confidentialité</a><a href="#haut" data-i18n="top">Retour en haut</a></span></div></footer>
 
-  <section class="section" aria-label="Et aussi">
-    <span class="tag">/aussi</span>
-    <h2>Et aussi.</h2>
-    <div class="also">
-      <div class="rv"><b>Écoute ensemble</b><span>Le même son, au même moment, avec tes amis.</span></div>
-      <div class="rv"><b>Playlists et bibliothèque</b><span>Importe depuis d'autres services, partage, collabore.</span></div>
-      <div class="rv"><b>Stats et récaps</b><span>Tes artistes, tes habitudes, ton mois en musique.</span></div>
-      <div class="rv"><b>Hors ligne</b><span>Les titres téléchargés sur l'iPhone se lisent sans réseau.</span></div>
-    </div>
-  </section>
-
-  <section class="section" aria-label="Plateformes">
-    <span class="tag">/partout</span>
-    <h2>Un seul compte, chaque écran.</h2>
-    <div class="plats">
-      <span>Navigateur</span><span>Windows</span><span>iPhone</span><span>Android TV</span><span>Meta Quest</span><span>Stream Deck</span>
-    </div>
-  </section>
-
-  <section class="final" aria-label="Commencer">
-    <h2>Prêt à écouter ?</h2>
-    <div class="cta">
-      <a class="pill dark" href="/?connexion" data-app>Ouvrir Sona</a>
-      <a class="pill white" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
-    </div>
-  </section>
-
-  <footer>
-    <span style="display:flex;align-items:center;gap:10px"><svg class="mark" aria-hidden="true" style="width:24px;height:24px;border-radius:6px"><use href="#s"/></svg>Sona v2</span>
-    <a href="/" data-app>Ouvrir l'app</a>
-  </footer>
+<div class="pbar" id="pbar" role="region" data-i18n-aria="pb_aria" aria-label="Où tu en es">
+  <div class="line"><i></i></div>
+  <svg class="mark" aria-hidden="true"><use href="#s"/></svg>
+  <div class="info"><b id="pb-t">Sona</b><small id="pb-s">Titre 1 sur 6</small></div>
+  <a class="btn" href="#installer" data-cta>Télécharger Sona</a>
 </div>
+<script src="/presentation-i18n.js"></script>
 <script>
-// Déjà connecté : les boutons ramènent directement à l'app.
-let loggedIn = false;
-try { loggedIn = !!localStorage.getItem("sona.token"); } catch { /* navigation privée : on suppose non connecté */ }
-if (loggedIn) document.querySelectorAll("[data-app]").forEach((a) => { a.href = "/"; if (a.closest("nav")) a.textContent = "Ouvrir"; });
+// Rechargement : on repart toujours du haut, avec l'intro.
+history.scrollRestoration = "manual";
+if (location.hash) history.replaceState(null, "", location.pathname);
+scrollTo(0, 0);
+
+// Système détecté : met en avant la bonne plateforme et adapte le bouton principal.
+const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+const os = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(plat) && navigator.maxTouchPoints > 1) ? "ios" : /Android/.test(ua) ? "android" : /Win/.test(plat + ua) ? "windows" : /Mac/.test(plat + ua) ? "mac" : /Linux|X11|CrOS/.test(plat + ua) ? "linux" : "";
+const names = { mac: "macOS", linux: "Linux" };
+const you = document.querySelector(`.os[data-os="${os}"]`);
+if (you) you.classList.add("you");
+// Android/Chrome : vrai bouton d'installation quand le navigateur le propose.
+let installEvt = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
+document.querySelectorAll("[data-install]").forEach((a) => a.addEventListener("click", (e) => { if (installEvt) { e.preventDefault(); installEvt.prompt(); } }));
 
 // Scroll fluide à inertie (molette seulement ; le tactile garde son inertie native).
 // On garde une position CIBLE, la position RÉELLE s'en rapproche à chaque image (indépendant du taux de rafraîchissement).
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let goTo = (y) => scrollTo({ top: y, behavior: reduce ? "auto" : "smooth" });
 if (!reduce && matchMedia("(pointer: fine)").matches) {
   const EASE = .095;
   document.documentElement.style.scrollBehavior = "auto"; // le CSS smooth se battrait avec nos scrollTo
@@ -272,6 +326,7 @@ if (!reduce && matchMedia("(pointer: fine)").matches) {
     scrollTo(0, current);
     raf = requestAnimationFrame(frame);
   };
+  goTo = (y) => { target = clampY(y); if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
   addEventListener("wheel", (e) => {
     if (e.ctrlKey || e.defaultPrevented || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
     e.preventDefault();
@@ -286,6 +341,11 @@ if (!reduce && matchMedia("(pointer: fine)").matches) {
   addEventListener("keydown", adopt); addEventListener("pointerdown", adopt);
   addEventListener("resize", () => { target = clampY(target); current = clampY(current); });
 }
+document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", (e) => {
+  const id = a.getAttribute("href").slice(1), el = id && id !== "haut" ? document.getElementById(id) : null;
+  if (id && id !== "haut" && !el) return;
+  e.preventDefault(); goTo(el ? el.getBoundingClientRect().top + scrollY - 24 : 0);
+}));
 // Intro : tracé -> remplissage + lueur -> « ona ».
 const intro = document.getElementById("intro"), glyph = intro.querySelector(".glyph"), word = intro.querySelector(".logo-word"), letters = [...intro.querySelectorAll("i")];
 const ease = (t) => 1 - Math.pow(1 - t, 3), clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a));
@@ -316,47 +376,192 @@ else {
   });
 }
 
-// Paroles de la maquette : même logique que l'app (ligne chantée remplie mot par mot, notes tenues qui s'illuminent, vue qui suit la ligne).
-(() => {
-  const box = document.getElementById("lyrics"), track = box.firstElementChild, lines = [...track.children];
-  const words = lines.map((p) => [...p.children]);
-  let t = 0; const GAP = .3, END = 1.6;
-  const times = []; // [{start, end, w:[{el,s,e}]}]
-  lines.forEach((p, i) => {
-    let c = i ? times[i - 1].end + GAP : .6; const start = c, w = [];
-    words[i].forEach((el) => { const d = parseFloat(el.dataset.d); w.push({ el, s: c, e: c + d, held: el.classList.contains("held") }); c += d; });
-    times.push({ start, end: c, w });
+
+// ───────────────────────── Langue : détectée au chargement, changeable à la main (mémorisée).
+const SUPPORTED = LANGS.map((l) => l[0]), hooks = [];
+function detectLang() {
+  try { const saved = localStorage.getItem("sona.lang"); if (SUPPORTED.includes(saved)) return saved; } catch { /* stockage bloqué */ }
+  for (const l of navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"]) {
+    const c = String(l).toLowerCase().split("-")[0];
+    if (SUPPORTED.includes(c)) return c;
+  }
+  return "en"; // langue du monde par défaut
+}
+let lang = detectLang(), L = I18N[lang];
+const fill = (str, o) => str.replace(/\{(\w+)\}/g, (_, k) => o[k]);
+const dec = () => (["fr", "es", "de", "it", "pt", "nl"].includes(lang) ? "," : ".");
+
+function applyCta() {
+  const url = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
+  const c = { windows: [L.cta_win, url], ios: [L.cta_ios, "#installer"], android: [L.cta_and, "#installer"] }[os];
+  document.querySelectorAll("[data-cta]").forEach((a) => {
+    a.removeAttribute("aria-disabled");
+    if (c) { a.textContent = c[0]; a.href = c[1]; }
+    else if (names[os]) { a.textContent = fill(L.cta_soon, { os: names[os] }); a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); }
+    else { a.textContent = L.cta; a.href = "#installer"; }
   });
-  const total = times[times.length - 1].end + END;
-  const clamp01 = (v) => Math.max(0, Math.min(1, v));
-  let active = -1;
-  function setActive(i) {
-    active = i;
-    lines.forEach((p, k) => { p.classList.toggle("on", k === i); const d = Math.abs(k - i); if (d >= 1 && d <= 2) p.dataset.d = d; else delete p.dataset.d; });
-    const p = lines[Math.max(0, i)];
-    box.style.setProperty("--ty", box.clientHeight * .42 - (p.offsetTop + p.offsetHeight / 2) + "px");
-  }
-  function paint() {
-    let cur = -1;
-    times.forEach((l, i) => { if (t >= l.start - GAP / 2) cur = i; });
-    if (cur !== active) setActive(cur);
-    times.forEach((l) => l.w.forEach((w) => {
-      const p = clamp01((t - w.s) / (w.e - w.s));
-      w.el.style.setProperty("--p", p);
-      if (w.held) w.el.style.setProperty("--e", Math.sin(Math.PI * p) ** .6);
-    }));
-    box.classList.toggle("fade", t > total - .6);
-  }
-  function reset() { box.classList.add("jump"); t = 0; active = -2; paint(); void box.offsetWidth; box.classList.remove("jump"); }
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { t = times[1].start + .5; paint(); return; }
-  let last = 0;
-  const loop = (now) => { t += Math.min(.05, last ? (now - last) / 1000 : 0); last = now; if (t >= total) reset(); else paint(); requestAnimationFrame(loop); };
-  setActive(-1); box.classList.add("jump"); paint(); requestAnimationFrame(() => { box.classList.remove("jump"); requestAnimationFrame(loop); });
+  const note = document.querySelector("[data-note]");
+  if (note) note.textContent = names[os] ? fill(L.note_soon, { os: names[os] }) : L.note;
+}
+
+let h1Started = false;
+function buildH1() {
+  const h1 = document.getElementById("h1");
+  h1.innerHTML = L.h1.map((line) => line.map((w) => `<span class="lw${h1Started || reduce ? " lit" : ""}">${w}</span>`).join(" ")).join("<br>");
+}
+function startH1() {
+  if (h1Started) return;
+  h1Started = true;
+  const ws = [...document.querySelectorAll("#h1 .lw")];
+  if (reduce) return ws.forEach((w) => w.classList.add("lit"));
+  ws.forEach((w, i) => setTimeout(() => w.classList.add("lit"), 250 + i * 320));
+}
+new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && startH1(), { threshold: .3 }).observe(document.getElementById("h1"));
+
+function setLang(code, remember) {
+  lang = code; L = I18N[code];
+  if (remember) { try { localStorage.setItem("sona.lang", code); } catch { /* ignoré */ } }
+  document.documentElement.lang = code;
+  document.documentElement.dir = code === "ar" ? "rtl" : "ltr";
+  document.title = L.title;
+  document.querySelector('meta[name="description"]').content = L.desc;
+  document.querySelector('meta[property="og:title"]').content = L.title;
+  document.querySelector('meta[property="og:description"]').content = L.desc;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = L[el.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", L[el.dataset.i18nAria]));
+  buildH1(); applyCta();
+  hooks.forEach((f) => f());
+}
+
+// Sélecteur de langue
+(() => {
+  const box = document.getElementById("lang");
+  box.innerHTML = `<button type="button" id="lg-btn" aria-haspopup="listbox" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></svg><img id="lg-flag" alt="" width="22" height="16"><span id="lg-code"></span></button><ul id="lg-list" role="listbox" hidden>${LANGS.map(([c, n, f]) => `<li><button type="button" role="option" data-lang="${c}" lang="${c}"><img src="/flags/${f}.svg" alt="" width="22" height="16" loading="lazy"><span>${n}</span></button></li>`).join("")}</ul>`;
+  const btn = document.getElementById("lg-btn"), list = document.getElementById("lg-list");
+  const mark = () => { document.getElementById("lg-code").textContent = lang.toUpperCase(); document.getElementById("lg-flag").src = "/flags/" + LANGS.find((l) => l[0] === lang)[2] + ".svg"; btn.setAttribute("aria-label", L.lang); list.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.lang === lang)); };
+  const toggle = (open) => { list.hidden = !open; btn.setAttribute("aria-expanded", open); };
+  btn.onclick = () => toggle(list.hidden);
+  list.onclick = (e) => { const b = e.target.closest("[data-lang]"); if (b) { setLang(b.dataset.lang, true); toggle(false); btn.focus(); } };
+  addEventListener("click", (e) => { if (!box.contains(e.target)) toggle(false); });
+  addEventListener("keydown", (e) => { if (e.key === "Escape") toggle(false); });
+  hooks.push(mark);
 })();
-if ("IntersectionObserver" in window) {
-  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .15 });
-  document.querySelectorAll(".rv").forEach((el) => io.observe(el));
-} else document.querySelectorAll(".rv").forEach((el) => el.classList.add("in"));
+
+// Paroles : même logique que l'app (ligne chantée remplie mot par mot, note tenue qui s'illumine, la vue suit la ligne).
+const Lyr = (() => {
+  const box = document.getElementById("lyrics"), track = box.firstElementChild;
+  let token = 0, shift = 0, redraw = () => {};
+  const out = document.getElementById("sh-v");
+  const showShift = () => { out.textContent = (shift > 0 ? "+" : shift < 0 ? "−" : "") + Math.abs(shift).toFixed(1).replace(".", dec()) + " s"; };
+  const nudge = (d) => { shift = Math.round((shift + d) * 10) / 10; showShift(); redraw(); };
+  document.getElementById("sh-").onclick = () => nudge(-.2);
+  document.getElementById("sh+").onclick = () => nudge(.2);
+  function set(data) {
+    const my = ++token;
+    track.innerHTML = data.map((ln, i) => "<p>" + ln.map((w, k) => {
+      const last = i === data.length - 1 && k === ln.length - 1, d = last ? 1.5 : k === ln.length - 1 ? .7 : Math.min(.55, .2 + [...w].length * .05);
+      return `<span class="w${last ? " held" : ""}" data-d="${d}">${w}</span>`;
+    }).join(" ") + "</p>").join("");
+    const lines = [...track.children], words = lines.map((p) => [...p.children]);
+    let t = 0; const GAP = .3, END = 1.8, times = [];
+    lines.forEach((p, i) => {
+      let c = i ? times[i - 1].end + GAP : .6; const start = c, w = [];
+      words[i].forEach((el) => { const d = parseFloat(el.dataset.d); w.push({ el, s: c, e: c + d, held: el.classList.contains("held") }); c += d; });
+      times.push({ start, end: c, w });
+    });
+    const total = times[times.length - 1].end + END, clamp01 = (v) => Math.max(0, Math.min(1, v));
+    let active = -1;
+    function setActive(i) {
+      active = i;
+      lines.forEach((p, k) => { p.classList.toggle("on", k === i); const d = Math.abs(k - i); if (d >= 1 && d <= 2) p.dataset.d = d; else delete p.dataset.d; });
+      const p = lines[Math.max(0, i)];
+      box.style.setProperty("--ty", box.clientHeight * .4 - (p.offsetTop + p.offsetHeight / 2) + "px");
+    }
+    function paint() {
+      const tt = t + shift; // décalage : positif = les paroles arrivent plus tôt
+      let cur = -1;
+      times.forEach((l, i) => { if (tt >= l.start - GAP / 2) cur = i; });
+      if (cur !== active) setActive(cur);
+      times.forEach((l) => l.w.forEach((w) => {
+        const p = clamp01((tt - w.s) / (w.e - w.s));
+        w.el.style.setProperty("--p", p);
+        if (w.held) w.el.style.setProperty("--e", Math.sin(Math.PI * p) ** .6);
+      }));
+      box.classList.toggle("fade", t > total - .6);
+    }
+    redraw = paint;
+    function reset() { box.classList.add("jump"); t = 0; active = -2; paint(); void box.offsetWidth; box.classList.remove("jump"); }
+    showShift();
+    if (reduce) { t = times[1].start + .5; paint(); return; }
+    let last = 0;
+    const loop = (now) => { if (my !== token) return; t += Math.min(.05, last ? (now - last) / 1000 : 0); last = now; if (t >= total) reset(); else paint(); requestAnimationFrame(loop); };
+    setActive(-1); box.classList.add("jump"); paint(); requestAnimationFrame(() => { box.classList.remove("jump"); requestAnimationFrame(loop); });
+  }
+  return { set };
+})();
+hooks.push(() => Lyr.set(L.lyr));
+
+// 02 : le spectre complet d'un FLAC contre un fichier compressé coupé vers 16 kHz.
+(() => {
+  const el = document.getElementById("spec"), N = 72;
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const env = Array.from({ length: N }, (_, k) => { const x = k / N; return Math.max(8, 94 * Math.pow(1 - x, .8) * (.68 + .32 * rnd()) + 6 * rnd()); });
+  const row = (cut, title, sub) => `<figure><div class="bars">${env.map((h, k) => `<i${cut && k / N > .4 ? ' class="cut"' : ""} style="--h:${cut && k / N > .4 ? Math.min(h, 7) : h};--k:${k}"></i>`).join("")}</div><div class="axis"><span>0</span><span>8 kHz</span><span>16 kHz</span><span>24</span><span>48 kHz</span></div><figcaption><b>${title}</b><span>${sub}</span></figcaption></figure>`;
+  const draw = () => { el.innerHTML = row(false, "FLAC 24 bits / 96 kHz", L.s_all) + row(true, L.s_lossy, L.s_cut); };
+  hooks.push(draw);
+  new IntersectionObserver((es, o) => es.some((e) => e.isIntersecting) && (el.classList.add("in"), o.disconnect()), { threshold: .3 }).observe(el);
+})();
+
+// 03 : le titre saute d'un appareil à l'autre.
+(() => {
+  const devs = [...document.querySelectorAll("#devs .dev")], out = document.getElementById("now-s");
+  let i = 0;
+  const show = () => { devs.forEach((d, k) => d.classList.toggle("on", k === i)); out.textContent = L["now" + i]; };
+  hooks.push(show);
+  if (!reduce) setInterval(() => { i = (i + 1) % 3; show(); }, 2600);
+})();
+
+// 04 : deux auditeurs, la même seconde.
+(() => {
+  const bars = [document.getElementById("d1"), document.getElementById("d2")], ts = [document.getElementById("t1"), document.getElementById("t2")];
+  const LEN = 222; let t = 74, last = 0;
+  const fmt = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+  const paint = () => bars.forEach((b, k) => { b.style.setProperty("--pr", t / LEN); ts[k].textContent = fmt(t); });
+  paint();
+  if (reduce) return;
+  const loop = (now) => { t += last ? Math.min(.05, (now - last) / 1000) : 0; last = now; if (t >= LEN) t = 0; paint(); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+})();
+
+// 05 : un mois d'écoute (exemple).
+(() => {
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  document.getElementById("cal").innerHTML = Array.from({ length: 42 }, (_, k) => `<i style="--v:${Math.round(8 + 80 * Math.pow(rnd(), 1.6) * (k % 7 > 4 ? 1 : .85))}"></i>`).join("");
+})();
+
+// Lecteur du bas : la barre suit la page (titre en cours, avancement, couleur de l'album).
+(() => {
+  const bar = document.getElementById("pbar"), tt = document.getElementById("pb-t"), ss = document.getElementById("pb-s");
+  const secs = [...document.querySelectorAll(".track")], n = secs.length, tints = ["#9fb8e6", "#e3b872", "#86c9b4", "#e8957f", "#c9a4e0", "#d2d1d8"];
+  let cur = -2;
+  const tick = () => {
+    bar.classList.toggle("show", document.getElementById("intro").getBoundingClientRect().bottom < innerHeight * .5);
+    let k = -1;
+    secs.forEach((s, i) => { if (s.getBoundingClientRect().top < innerHeight * .5) k = i; });
+    if (k !== cur) {
+      cur = k;
+      tt.textContent = k < 0 ? "Sona" : secs[k].querySelector("h2").textContent;
+      ss.textContent = k < 0 ? L.pb_home : fill(L.pb_sub, { n: k + 1, t: n });
+      document.body.style.setProperty("--tint", k < 0 ? "#d2d1d8" : tints[k]);
+    }
+    const max = document.documentElement.scrollHeight - innerHeight;
+    bar.style.setProperty("--sp", Math.min(1, Math.max(0, (scrollY - innerHeight) / Math.max(1, max - innerHeight))));
+  };
+  hooks.push(() => { cur = -2; tick(); });
+  addEventListener("scroll", tick, { passive: true }); addEventListener("resize", tick);
+})();
+
+setLang(lang, false);
 </script>
 </body>
 </html>
