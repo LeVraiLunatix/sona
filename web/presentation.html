@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ececf0">
-<title>Sona — ta musique, en clair.</title>
+<meta name="theme-color" content="#efede8">
+<title>Sona, ta musique en clair</title>
 <meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Installe Sona sur Windows ou sur ton téléphone.">
-<meta property="og:title" content="Sona — ta musique, en clair.">
+<meta property="og:title" content="Sona, ta musique en clair">
 <meta property="og:description" content="Paroles mot à mot, lossless, écoute ensemble, relais entre appareils.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="/icons/icon-512.png">
@@ -18,60 +18,58 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sona">
+<link rel="preload" href="/fonts/FamiljenGrotesk-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+
+@font-face { font-family: "Familjen Grotesk"; font-weight: 500; font-display: swap; src: url("/fonts/FamiljenGrotesk-500.woff2") format("woff2"); }
+@font-face { font-family: "Familjen Grotesk"; font-weight: 700; font-display: swap; src: url("/fonts/FamiljenGrotesk-700.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: swap; src: url("/fonts/IBMPlexMono-500-latin.woff2") format("woff2"); }
 :root {
-  --ink: #0b0b0d; --ink-2: rgba(11, 11, 13, .62); --ink-3: rgba(11, 11, 13, .4);
-  --sky: #ececf0; --sky-deep: #0b0b0d; --paper: #f6f6f8; --card: #ffffff; --line: rgba(11, 11, 13, .08);
-  --night: #0a0a0b; --night-2: #151518; --mock: #f5f5f7;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --paper: #efede8; --ink: #141413; --ink-2: rgba(20, 20, 19, .68); --ink-3: rgba(20, 20, 19, .46); --line: rgba(20, 20, 19, .15);
+  --night: #0c0c0d; --night-2: #151517; --grey: #d2d1d8;
+  --r-ctl: 10px; --r-card: 14px; --gap: clamp(72px, 10vw, 136px);
+  --font: "Familjen Grotesk", "Segoe UI Variable Text", "Segoe UI", -apple-system, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; }
-body { margin: 0; color: var(--ink); font: 18px/1.55 var(--font); -webkit-font-smoothing: antialiased; background: var(--paper); }
+body { margin: 0; color: var(--ink); font: 500 18px/1.55 var(--font); -webkit-font-smoothing: antialiased; background: var(--paper); }
 a { color: inherit; text-decoration: none; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 12px; }
-.wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
 
-/* Ciel : un dégradé doux qui descend du haut de la page */
-.sky { display: flow-root; background: linear-gradient(180deg, #e6e6ea 0%, #efeff2 40%, var(--paper) 100%); padding-bottom: 96px; }
+nav { position: sticky; top: 0; z-index: 5; background: var(--paper); border-bottom: 1px solid var(--line); }
+nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -.03em; }
+.mark { width: 30px; height: 30px; flex: none; border-radius: 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 48px; padding: 0 22px; border-radius: var(--r-ctl); font: 700 16px/1 var(--font); background: var(--ink); color: var(--paper); transition: background .15s ease; }
+.btn:hover { background: #2c2c2a; }
+.btn[aria-disabled="true"] { background: transparent; color: var(--ink-3); box-shadow: inset 0 0 0 1.5px var(--line); pointer-events: none; }
+nav .btn { height: 40px; padding: 0 18px; font-size: 15px; }
+.link { font-weight: 700; border-bottom: 1.5px solid currentColor; padding-bottom: 1px; }
 
-nav { display: flex; align-items: center; justify-content: space-between; margin: 24px auto 0; padding: 10px 10px 10px 24px; max-width: 1056px; background: var(--card); border-radius: 999px; box-shadow: 0 1px 0 var(--line); }
-.brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
-.mark { width: 34px; height: 34px; flex: none; border-radius: 9px; }
-.pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 28px; border-radius: 999px; font-size: 16px; font-weight: 600; background: var(--sky); color: var(--ink); transition: transform .2s ease, filter .2s ease; }
-.pill:hover { filter: brightness(.97); transform: translateY(-1px); }
-.pill.white { background: var(--card); box-shadow: 0 1px 0 var(--line); }
-.pill.dark { background: var(--ink); color: #fff; }
-nav .pill { height: 44px; padding: 0 22px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: center; padding: clamp(56px, 8vw, 104px) 0 var(--gap); }
+h1 { font-size: clamp(52px, 7.6vw, 112px); line-height: .95; letter-spacing: -.05em; font-weight: 700; margin: 0 0 28px; text-wrap: balance; }
+.lead { font-size: 21px; line-height: 1.5; color: var(--ink-2); max-width: 30em; margin: 0 0 36px; }
+.cta { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+.note { margin: 20px 0 0; font-size: 15px; color: var(--ink-3); max-width: 34em; }
 
-.hero { padding: 112px 0 72px; text-align: center; }
-.tag { display: inline-block; font: 500 15px/1 var(--mono); padding: 10px 16px; border: 1.5px solid var(--ink); border-radius: 12px; margin-bottom: 32px; }
-h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045em; font-weight: 700; margin: 0 auto 28px; max-width: 12ch; text-wrap: balance; }
-.lead { font-size: 21px; color: var(--ink-2); max-width: 44ch; margin: 0 auto 44px; }
-.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.note { margin-top: 20px; font-size: 15px; color: var(--ink-3); }
+/* Maquette : le lecteur, tel qu'il est */
+.player { background: var(--night); color: #f2f2f5; border-radius: var(--r-card); border: 1px solid #000; display: flex; flex-direction: column; height: 460px; overflow: hidden; }
+.p-head { display: flex; align-items: center; gap: 14px; padding: 20px 24px 0; }
+.p-cover { width: 48px; height: 48px; border-radius: 6px; background: linear-gradient(140deg, #e4e3ea, #7c7b86 60%, #2b2b32); flex: none; }
+.p-head b { display: block; font-size: 17px; line-height: 1.2; }
+.p-head small { color: rgba(242, 242, 245, .55); font-size: 14px; }
+.p-flac { margin-left: auto; font: 500 12px/1 var(--mono); letter-spacing: .04em; color: rgba(242, 242, 245, .6); border: 1px solid rgba(242, 242, 245, .22); border-radius: 6px; padding: 7px 9px; white-space: nowrap; }
+.p-foot { padding: 0 24px 22px; }
+.p-bar { height: 3px; border-radius: 2px; background: rgba(242, 242, 245, .16); overflow: hidden; }
+.p-bar i { display: block; height: 100%; width: calc(var(--prog, 0) * 100%); background: #f2f2f5; }
+.p-time { display: flex; justify-content: space-between; margin-top: 9px; font: 500 12px/1 var(--mono); color: rgba(242, 242, 245, .5); }
 
-/* Maquette de l'app */
-.mock { margin: 24px auto 0; max-width: 1056px; padding: 20px; border-radius: 36px; background: linear-gradient(160deg, #3a3a42, #1c1c21 60%, #0b0b0d); }
-.app { display: grid; grid-template-columns: 64px 1.05fr 1fr; height: 460px; border-radius: 22px; overflow: hidden; background: var(--night); color: #f2f5fb; position: relative; }
-.rail { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 22px 0; }
-.rail i { width: 20px; height: 20px; border-radius: 6px; background: rgba(255, 255, 255, .2); }
-.rail i.on { background: var(--mock); }
-.stage { background: var(--night-2); margin: 10px 10px 10px 0; min-width: 0; border-radius: 18px; padding: 28px 32px; overflow: hidden; }
-.album { display: flex; gap: 24px; align-items: flex-end; margin-bottom: 20px; }
-.cover { width: 120px; height: 120px; border-radius: 16px; background: linear-gradient(140deg, #e4e3ea, #8d8c97 55%, #2b2b32); flex: none; }
-.album small { color: rgba(242, 245, 251, .6); font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-.album h3 { margin: 8px 0 4px; font-size: 30px; letter-spacing: -.03em; line-height: 1.1; }
-.album p { margin: 0; color: rgba(242, 245, 251, .6); font-size: 15px; }
-.row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; padding: 11px 14px; border-radius: 12px; font-size: 15px; color: rgba(242, 245, 251, .85); }
-.row span:first-child, .row span:last-child { color: rgba(242, 245, 251, .4); font-variant-numeric: tabular-nums; }
-.row.on { background: rgba(255, 255, 255, .1); color: #fff; }
-.row.on span:first-child { color: #fff; }
-.lyrics { margin: 10px 10px 10px 0; border-radius: 18px; background: var(--night-2); position: relative; overflow: hidden; font-size: 27px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent); transition: opacity .6s ease; }
+.lyrics { position: relative; flex: 1; min-height: 0; overflow: hidden; font-size: 28px; font-weight: 700; letter-spacing: -.025em; line-height: 1.18;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 76%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 76%, transparent); transition: opacity .6s ease; }
 .lyrics.fade { opacity: 0; }
-.ly-track { position: absolute; left: 32px; right: 28px; top: 0; transform: translateY(var(--ty, 150px)); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
+.ly-track { position: absolute; left: 24px; right: 24px; top: 0; transform: translateY(var(--ty, 150px)); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
 .lyrics.jump .ly-track, .lyrics.jump p { transition: none; }
 .lyrics p { margin: 0 0 .7em; color: rgba(255, 255, 255, .32); transform: scale(.94); transform-origin: left center; filter: blur(1.4px); opacity: .6;
   transition: color .5s ease, filter .6s ease, transform .7s cubic-bezier(.2, .8, .2, 1), opacity .5s; }
@@ -82,71 +80,43 @@ h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045
 .lyrics p.on .w { color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .38) calc(var(--p, 0) * 116% + 8%)); }
 .lyrics p.on .w.held { transform: scale(calc(1 + var(--e, 0) * .08)); margin-inline: calc(var(--e, 0) * .04em); filter: drop-shadow(0 0 calc(var(--e, 0) * .5em) rgba(255, 255, 255, calc(var(--e, 0) * .85))); }
-.bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 82%); height: 60px; border-radius: 22px; background: rgba(19, 26, 40, .92); border: 1px solid rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 14px; padding: 0 20px 0 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
-.bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #e4e3ea, #8d8c97); flex: none; }
-.bar b { font-size: 14px; display: block; line-height: 1.2; }
-.bar small { font-size: 12px; color: rgba(242, 245, 251, .55); }
-.bar .play { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: var(--mock); display: grid; place-items: center; }
-.bar .play::after { content: ""; border-left: 11px solid #06111f; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px; }
 
-/* Points forts */
-.section { padding: 120px 0 0; }
-h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04em; font-weight: 700; margin: 0 0 56px; max-width: 14ch; }
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.card { background: var(--card); border-radius: 32px; padding: 40px 36px 44px; min-height: 280px; display: flex; flex-direction: column; box-shadow: 0 1px 0 var(--line); }
-.card .n { font: 500 14px/1 var(--mono); color: var(--sky-deep); margin-bottom: auto; padding-bottom: 56px; }
-.card h3 { font-size: 26px; letter-spacing: -.03em; line-height: 1.15; margin: 0 0 12px; }
-.card p { margin: 0; color: var(--ink-2); font-size: 17px; }
+.section { padding: 0 0 var(--gap); }
+.label { display: block; font: 500 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 20px; }
+h2 { font-size: clamp(36px, 5vw, 64px); line-height: 1; letter-spacing: -.045em; font-weight: 700; margin: 0 0 clamp(36px, 5vw, 64px); max-width: 14em; text-wrap: balance; }
+.rows { border-top: 1px solid var(--ink); }
+.rows > div { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; padding: 28px 0; border-bottom: 1px solid var(--line); }
+.rows b { font-size: clamp(22px, 2.4vw, 30px); letter-spacing: -.03em; line-height: 1.15; }
+.rows span { color: var(--ink-2); max-width: 34em; }
 
-.also { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 64px; margin-top: 8px; }
-.also div { padding: 28px 0; border-top: 1px solid var(--line); }
-.also b { display: block; font-size: 20px; letter-spacing: -.02em; margin-bottom: 4px; }
-.also span { color: var(--ink-2); font-size: 17px; }
+.install { background: var(--night); color: #ecebf0; padding: var(--gap) 0; }
+.install .label { color: rgba(236, 235, 240, .5); }
+.install h2 { margin-bottom: clamp(32px, 4vw, 56px); }
+.os { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 5fr) auto; gap: 32px; align-items: center; padding: 26px 0; border-top: 1px solid rgba(236, 235, 240, .16); }
+.os:last-of-type { border-bottom: 1px solid rgba(236, 235, 240, .16); }
+.os b { font-size: clamp(22px, 2.4vw, 30px); letter-spacing: -.03em; line-height: 1.15; }
+.os b em { display: block; font: 500 12px/1 var(--mono); font-style: normal; letter-spacing: .1em; text-transform: uppercase; color: var(--grey); margin-top: 8px; opacity: 0; height: 0; }
+.os.you b em { opacity: 1; height: auto; }
+.os span { color: rgba(236, 235, 240, .62); font-size: 17px; }
+.os .btn { background: #ecebf0; color: var(--ink); height: 44px; min-width: 132px; }
+.os .btn:hover { background: #fff; }
+.os .soon { font: 500 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: rgba(236, 235, 240, .42); min-width: 132px; text-align: center; }
+.more { margin: 28px 0 0; color: rgba(236, 235, 240, .5); font-size: 16px; }
 
-.final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #e9e9ed, #dcdce2); }
-.final h2 { margin: 0 auto 36px; max-width: 12ch; }
+footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px 32px; flex-wrap: wrap; padding-top: 36px; padding-bottom: 44px; color: var(--ink-3); font-size: 15px; }
+footer nav2 { display: flex; gap: 24px; }
+footer a:hover { color: var(--ink); }
 
-.dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.os { background: var(--card); border-radius: 28px; padding: 32px 30px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 0 var(--line); transition: box-shadow .3s ease, transform .3s ease; }
-.os b { font-size: 24px; letter-spacing: -.03em; }
-.os span { color: var(--ink-2); font-size: 16px; flex: 1; }
-.os .pill { align-self: flex-start; margin-top: 10px; height: 44px; padding: 0 22px; }
-.os em { font: 500 13px/1 var(--mono); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 10px; }
-.os.soon { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
-.os.you { box-shadow: 0 0 0 2px var(--ink); transform: translateY(-4px); }
-.plats-note { margin: 28px 0 0; color: var(--ink-3); font-size: 16px; }
-.pill[aria-disabled="true"] { opacity: .45; pointer-events: none; }
-@media (max-width: 860px) { .dl { grid-template-columns: 1fr; } }
-.plats { display: flex; flex-wrap: wrap; gap: 12px; }
-.plats span { padding: 16px 26px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 0 var(--line); font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
-.final { background: var(--night); color: #f2f2f5; }
-.final .pill.white { background: rgba(255, 255, 255, .12); color: #fff; box-shadow: none; }
-.final .pill.dark { background: #e9e9ee; color: var(--ink); }
-.rv { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
-.rv.in { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; transition: none; } .lyrics p { transition: none; } html { scroll-behavior: auto; } }
-nav { position: sticky; top: 12px; z-index: 5; }
-footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 48px 0 64px; color: var(--ink-3); font-size: 15px; }
-
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .wrap { padding: 0 20px; }
-  nav { margin-top: 16px; padding-left: 18px; }
-  .hero { padding: 72px 0 48px; }
-  .lead { font-size: 18px; }
-  .mock { padding: 12px; border-radius: 28px; }
-  .app { grid-template-columns: 1fr; height: 420px; }
-  .rail, .lyrics { display: none; }
-  .stage { margin: 8px; padding: 20px; }
-  .album h3 { font-size: 24px; }
-  .cover { width: 88px; height: 88px; }
-  .cards { grid-template-columns: 1fr; }
-  .card { min-height: 0; }
-  .card .n { padding-bottom: 32px; }
-  .also { grid-template-columns: 1fr; }
-  .section { padding-top: 88px; }
-  .final { margin-top: 88px; padding: 64px 20px; border-radius: 32px; }
+  .hero { grid-template-columns: 1fr; gap: 48px; }
+  .player { height: 400px; }
+  .lyrics { font-size: 24px; }
+  .rows > div { grid-template-columns: 1fr; gap: 8px; padding: 22px 0; }
+  .os { grid-template-columns: 1fr auto; gap: 8px 20px; padding: 22px 0; }
+  .os span { grid-column: 1 / -1; grid-row: 2; }
 }
-
+@media (prefers-reduced-motion: reduce) { .lyrics p { transition: none; } html { scroll-behavior: auto; } }
 /* Intro : le S se trace au scroll, s'illumine, puis « ona » apparaît */
 .intro { height: 100vh; height: 100svh; position: relative; background: #000; color: #e6e5ec; }
 .intro-stage { height: 100%; display: grid; place-items: center; overflow: hidden; }
@@ -175,94 +145,70 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
   </div>
 </section>
 
-<div class="sky">
+<nav aria-label="Principal">
   <div class="wrap">
-    <nav aria-label="Principal">
-      <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut">
-        <svg class="mark" aria-hidden="true"><use href="#s"/></svg>
-        Sona
-      </a>
-      <a class="pill" href="#telecharger">Télécharger</a>
-    </nav>
+    <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut"><svg class="mark" aria-hidden="true"><use href="#s"/></svg>Sona</a>
+    <a class="btn" href="#telecharger">Télécharger</a>
+  </div>
+</nav>
 
-    <header class="hero">
-      <span class="tag">/v2</span>
+<main class="wrap">
+  <header class="hero">
+    <div>
       <h1>Ta musique, en clair.</h1>
-      <p class="lead">Les paroles mot à mot, ton son sans compromis, et ta musique là où tu es : ordinateur, téléphone, salon.</p>
-      <div class="cta"><a class="pill dark" href="#telecharger" data-cta>Télécharger Sona</a></div>
-      <p class="note" data-note>Gratuit. Sur Windows et sur ton téléphone. macOS et Linux bientôt.</p>
-    </header>
-
-    <div class="mock" aria-hidden="true">
-      <div class="app">
-        <div class="rail"><svg class="mark" aria-hidden="true" style="width:28px;height:28px;margin-bottom:8px"><use href="#s"/></svg><i class="on"></i><i></i><i></i><i></i></div>
-        <div class="stage">
-          <div class="album">
-            <div class="cover"></div>
-            <div><small>Album · 2026</small><h3>Premier matin</h3><p>Nils Aubert · 9 titres · 34 min</p></div>
-          </div>
-          <div class="row on"><span>1</span><span>Premier matin</span><span>3:42</span></div>
-          <div class="row"><span>2</span><span>Ligne claire</span><span>2:58</span></div>
-          <div class="row"><span>3</span><span>Silence blanc</span><span>4:05</span></div>
-          <div class="row"><span>4</span><span>Marée</span><span>3:19</span></div>
-        </div>
-        <div class="lyrics" id="lyrics" aria-hidden="true"><div class="ly-track">
+      <p class="lead">Les paroles défilent mot à mot, tes fichiers FLAC sont lus tels quels, et ton titre te suit de l'ordinateur au téléphone et à la télé.</p>
+      <div class="cta">
+        <a class="btn" href="#telecharger" data-cta>Télécharger Sona</a>
+        <a class="link" href="#details">Ce que Sona fait</a>
+      </div>
+      <p class="note" data-note>Gratuit. Sur Windows et sur ton téléphone. macOS et Linux arrivent.</p>
+    </div>
+    <div class="player" aria-hidden="true">
+      <div class="p-head"><div class="p-cover"></div><div><b>Premier matin</b><small>Démo des paroles</small></div><span class="p-flac">FLAC 24 bits · 96 kHz</span></div>
+      <div class="lyrics" id="lyrics"><div class="ly-track">
           <p><span class="w" data-d="0.3">Le</span> <span class="w" data-d="0.4">jour</span> <span class="w" data-d="0.25">se</span> <span class="w" data-d="0.5">lève</span> <span class="w" data-d="0.3">sans</span> <span class="w" data-d="0.7">bruit</span></p>
           <p><span class="w" data-d="0.25">et</span> <span class="w" data-d="0.45">chaque</span> <span class="w" data-d="0.35">mot</span> <span class="w" data-d="0.6">s'allume</span></p>
           <p><span class="w" data-d="0.4">juste</span> <span class="w" data-d="0.2">à</span> <span class="w" data-d="0.5">temps</span> <span class="w" data-d="0.35">pour</span> <span class="w" data-d="0.9">toi</span></p>
           <p><span class="w" data-d="0.25">ta</span> <span class="w" data-d="0.5">musique</span> <span class="w" data-d="0.25">en</span> <span class="w held" data-d="1.5">clair</span></p>
         </div></div>
-        <div class="bar"><div class="mini"></div><div><b>Premier matin</b><small>Nils Aubert · FLAC 24 bits / 96 kHz</small></div><div class="play"></div></div>
-      </div>
+      <div class="p-foot"><div class="p-bar" style="--prog:.32"><i></i></div><div class="p-time"><span>1:12</span><span>3:42</span></div></div>
     </div>
+  </header>
+
+  <section class="section" id="details" aria-label="Ce que Sona fait">
+    <span class="label">Au quotidien</span>
+    <h2>Sept choses qu'on utilise tous les jours.</h2>
+    <div class="rows">
+      <div><b>Paroles mot à mot</b><span>Chaque mot s'allume au moment où il est chanté. Si elles sont en avance ou en retard, tu les décales d'un geste.</span></div>
+      <div><b>Lossless pour de vrai</b><span>Tu branches ton dossier de FLAC ou d'ALAC et Sona les lit tels quels. Rien n'est converti ni recompressé.</span></div>
+      <div><b>Un compte, tous tes écrans</b><span>Tu lances sur le téléphone, tu continues sur l'ordinateur, tu envoies sur la télé.</span></div>
+      <div><b>Écoute ensemble</b><span>Le même son, au même moment, avec tes amis.</span></div>
+      <div><b>Playlists et bibliothèque</b><span>Tu importes depuis un autre service, tu partages, tu construis une playlist à plusieurs.</span></div>
+      <div><b>Stats et récaps</b><span>Tes artistes, tes habitudes d'écoute, ton mois en musique.</span></div>
+      <div><b>Hors ligne</b><span>Les titres téléchargés sur l'iPhone se lisent sans réseau.</span></div>
+    </div>
+  </section>
+</main>
+
+<section class="install" id="telecharger" aria-label="Télécharger">
+  <div class="wrap">
+    <span class="label">Installer</span>
+    <h2>Sona s'installe, il ne s'ouvre pas dans un onglet.</h2>
+    <div class="os" data-os="windows"><b>Windows<em>Ton système</em></b><span>L'app complète : mini-lecteur, télécommande du téléphone, raccourcis clavier.</span><a class="btn" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Télécharger</a></div>
+    <div class="os" data-os="ios"><b>iPhone et iPad<em>Ton système</em></b><span>Ouvre cette page dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</span><a class="btn" href="#telecharger" data-install>Installer</a></div>
+    <div class="os" data-os="android"><b>Android<em>Ton système</em></b><span>Ouvre cette page dans Chrome, puis menu ⋮ et « Installer l'application ».</span><a class="btn" href="#telecharger" data-install>Installer</a></div>
+    <div class="os" data-os="mac"><b>macOS<em>Ton système</em></b><span>En préparation.</span><em class="soon">Bientôt</em></div>
+    <div class="os" data-os="linux"><b>Linux<em>Ton système</em></b><span>En préparation.</span><em class="soon">Bientôt</em></div>
+    <p class="more">Sona existe aussi sur Android TV, Meta Quest et Stream Deck, avec le même compte.</p>
   </div>
-</div>
+</section>
 
-<div class="wrap">
-  <section class="section" aria-label="L'essentiel">
-    <span class="tag">/essentiel</span>
-    <h2>Tout est en place. Rien de plus.</h2>
-    <div class="cards">
-      <div class="card rv"><span class="n">01</span><h3>Paroles mot à mot</h3><p>Les paroles défilent en rythme, mot après mot, et se règlent d'un geste.</p></div>
-      <div class="card rv"><span class="n">02</span><h3>Vrai lossless</h3><p>Branche ton dossier de FLAC ou d'ALAC : Sona les lit tels quels, sans jamais les convertir.</p></div>
-      <div class="card rv"><span class="n">03</span><h3>Où tu veux</h3><p>Lance sur le téléphone, continue sur l'ordinateur, envoie sur l'écran du salon.</p></div>
-    </div>
-  </section>
-
-  <section class="section" aria-label="Et aussi">
-    <span class="tag">/aussi</span>
-    <h2>Et aussi.</h2>
-    <div class="also">
-      <div class="rv"><b>Écoute ensemble</b><span>Le même son, au même moment, avec tes amis.</span></div>
-      <div class="rv"><b>Playlists et bibliothèque</b><span>Importe depuis d'autres services, partage, collabore.</span></div>
-      <div class="rv"><b>Stats et récaps</b><span>Tes artistes, tes habitudes, ton mois en musique.</span></div>
-      <div class="rv"><b>Hors ligne</b><span>Les titres téléchargés sur l'iPhone se lisent sans réseau.</span></div>
-    </div>
-  </section>
-
-  <section class="section" id="telecharger" aria-label="Télécharger">
-    <span class="tag">/installer</span>
-    <h2>Installe Sona.</h2>
-    <div class="dl">
-      <div class="os" data-os="windows"><b>Windows</b><span>L'app complète : mini-lecteur, télécommande du téléphone, raccourcis.</span><a class="pill dark" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Télécharger</a></div>
-      <div class="os" data-os="ios"><b>iPhone et iPad</b><span>Ouvre cette page dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</span><a class="pill dark" href="#telecharger" data-install>Installer</a></div>
-      <div class="os" data-os="android"><b>Android</b><span>Ouvre cette page dans Chrome, puis menu ⋮ et « Installer l'application ».</span><a class="pill dark" href="#telecharger" data-install>Installer</a></div>
-      <div class="os soon" data-os="mac"><b>macOS</b><span>En préparation.</span><em>Bientôt</em></div>
-      <div class="os soon" data-os="linux"><b>Linux</b><span>En préparation.</span><em>Bientôt</em></div>
-    </div>
-    <p class="plats-note">Aussi : Android TV, Meta Quest et Stream Deck, avec ton compte Sona.</p>
-  </section>
-
-  <section class="final" aria-label="Commencer">
-    <h2>Prêt à écouter ?</h2>
-    <div class="cta"><a class="pill dark" href="#telecharger" data-cta>Télécharger Sona</a></div>
-  </section>
-
-  <footer>
-    <span style="display:flex;align-items:center;gap:10px"><svg class="mark" aria-hidden="true" style="width:24px;height:24px;border-radius:6px"><use href="#s"/></svg>Sona v2</span>
-    <a href="#haut">Retour en haut</a>
-  </footer>
-</div>
+<footer>
+  <div class="wrap">
+    <span>Sona</span>
+    <span class="fnav" style="display:flex;gap:24px"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="#haut">Retour en haut</a></span>
+  </div>
+</footer>
 <script>
 // Rechargement : on repart toujours du haut, avec l'intro.
 history.scrollRestoration = "manual";
@@ -392,10 +338,6 @@ else {
   const loop = (now) => { t += Math.min(.05, last ? (now - last) / 1000 : 0); last = now; if (t >= total) reset(); else paint(); requestAnimationFrame(loop); };
   setActive(-1); box.classList.add("jump"); paint(); requestAnimationFrame(() => { box.classList.remove("jump"); requestAnimationFrame(loop); });
 })();
-if ("IntersectionObserver" in window) {
-  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .15 });
-  document.querySelectorAll(".rv").forEach((el) => io.observe(el));
-} else document.querySelectorAll(".rv").forEach((el) => el.classList.add("in"));
 </script>
 </body>
 </html>
