@@ -199,7 +199,7 @@ html:lang(ar) .lw, html:lang(ar) .lyrics .w { letter-spacing: 0; }
 .logo-word .glyph { fill: #d2d1d8; fill-opacity: var(--fill, 0); stroke: #d2d1d8; stroke-width: 3; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: var(--dash, 1); filter: drop-shadow(0 0 calc(var(--glow, 0) * 26px) rgba(236, 236, 244, calc(var(--glow, 0) * .95))); }
 .logo-word .rest { display: block; width: calc(var(--o, 0) * var(--w, 0px)); white-space: nowrap; }
 .logo-word .rest > span { display: block; width: max-content; padding-right: .1em; margin-left: .04em; }
-.logo-word .rest i { font-style: normal; display: inline-block; color: #d2d1d8; }
+.logo-word .rest i { font-style: normal; display: inline-block; color: #d2d1d8; opacity: 0; } /* caché dès le premier rendu, le script les fait apparaître */
 .cue { position: absolute; bottom: 36px; left: 0; right: 0; text-align: center; font: 500 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: rgba(230, 229, 236, .5); opacity: var(--cue, 1); }
 .cue::after { content: ""; display: block; width: 1px; height: 36px; margin: 14px auto 0; background: linear-gradient(rgba(230, 229, 236, .6), transparent); animation: cue 1.8s ease-in-out infinite; }
 @keyframes cue { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
