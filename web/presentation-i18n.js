@@ -6,6 +6,7 @@ window.LANGS = [
 ];
 window.I18N = {
   fr: {
+    word_t: "Un mot de Lunatix", word: "Salut, c'est Lunatix. Sona m'a déjà coûté beaucoup : de l'argent, énormément de temps, des galères en tout genre et pas mal de nuits blanches. Avec les cours à côté, ce n'est pas simple tous les jours. Mais je ne lâche rien : Sona va continuer de vivre, parce que ce n'est que le commencement. Merci d'être là.",
     made: "Vibe codé avec Claude (IA)", scroll: "Défile", title: "Sona, ta musique en clair", desc: "Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Installe Sona sur Windows ou sur ton téléphone.",
     tag: "Lecteur de musique", h1: [["Ta", "musique,"], ["en", "clair."]],
     lead: "Les paroles défilent mot à mot, tes fichiers FLAC sont lus tels quels, et ce que tu écoutes te suit du téléphone à l'ordinateur et à la télé.",
@@ -29,6 +30,7 @@ window.I18N = {
     lyr: [["Le", "jour", "se", "lève", "sans", "bruit"], ["et", "chaque", "mot", "s'allume"], ["juste", "à", "temps", "pour", "toi"], ["ta", "musique", "en", "clair"]],
   },
   en: {
+    word_t: "A word from Lunatix", word: "Hi, it's Lunatix. Sona has already cost me a lot: money, a huge amount of time, all kinds of struggles and quite a few sleepless nights. With classes on top of it, it isn't easy every day. But I'm not giving up: Sona will keep living, because this is only the beginning. Thanks for being here.",
     made: "Vibe coded with Claude (AI)", scroll: "Scroll", title: "Sona, your music made clear", desc: "Word-by-word lyrics, lossless from your own files, listen together and hand off between devices. Install Sona on Windows or on your phone.",
     tag: "Music player", h1: [["Your", "music,"], ["made", "clear."]],
     lead: "Lyrics scroll word by word, your FLAC files play exactly as they are, and whatever you're playing follows you from phone to computer to TV.",
@@ -52,6 +54,7 @@ window.I18N = {
     lyr: [["The", "day", "rises", "without", "a", "sound"], ["and", "every", "word", "lights", "up"], ["right", "on", "time", "for", "you"], ["your", "music,", "made", "clear"]],
   },
   es: {
+    word_t: "Unas palabras de Lunatix", word: "Hola, soy Lunatix. Sona ya me ha costado mucho: dinero, muchísimo tiempo, todo tipo de problemas y bastantes noches sin dormir. Con las clases además, no es fácil todos los días. Pero no lo dejo: Sona seguirá viviendo, porque esto es solo el principio. Gracias por estar aquí.",
     made: "Hecho con vibe coding y Claude (IA)", scroll: "Desplázate", title: "Sona, tu música en claro", desc: "Letras palabra por palabra, lossless desde tus propios archivos, escucha en compañía y continúa entre dispositivos. Instala Sona en Windows o en tu móvil.",
     tag: "Reproductor de música", h1: [["Tu", "música,"], ["en", "claro."]],
     lead: "Las letras avanzan palabra a palabra, tus archivos FLAC suenan tal cual y lo que escuchas te sigue del móvil al ordenador y a la tele.",
@@ -75,6 +78,7 @@ window.I18N = {
     lyr: [["El", "día", "amanece", "sin", "ruido"], ["y", "cada", "palabra", "se", "enciende"], ["justo", "a", "tiempo", "para", "ti"], ["tu", "música,", "en", "claro"]],
   },
   de: {
+    word_t: "Ein Wort von Lunatix", word: "Hallo, hier ist Lunatix. Sona hat mich schon viel gekostet: Geld, enorm viel Zeit, Rückschläge aller Art und einige schlaflose Nächte. Mit dem Unterricht nebenher ist es nicht jeden Tag leicht. Aber ich gebe nicht auf: Sona wird weiterleben, denn das ist erst der Anfang. Danke, dass du da bist.",
     made: "Per Vibe Coding mit Claude (KI) entwickelt", scroll: "Scrollen", title: "Sona, deine Musik in klar", desc: "Songtexte Wort für Wort, verlustfrei aus deinen eigenen Dateien, gemeinsam hören und zwischen Geräten wechseln. Installiere Sona auf Windows oder auf dem Handy.",
     tag: "Musikplayer", h1: [["Deine", "Musik,"], ["klar", "gehört."]],
     lead: "Die Songtexte laufen Wort für Wort, deine FLAC-Dateien werden unverändert abgespielt, und was du hörst, folgt dir vom Handy zum Computer und zum Fernseher.",
@@ -98,6 +102,7 @@ window.I18N = {
     lyr: [["Der", "Tag", "beginnt", "ohne", "ein", "Geräusch"], ["und", "jedes", "Wort", "leuchtet", "auf"], ["genau", "im", "richtigen", "Moment"], ["deine", "Musik,", "klar", "gehört"]],
   },
   it: {
+    word_t: "Due parole da Lunatix", word: "Ciao, sono Lunatix. Sona mi è già costato molto: soldi, moltissimo tempo, difficoltà di ogni tipo e parecchie notti in bianco. Con le lezioni in più, non è facile ogni giorno. Ma non mollo: Sona continuerà a vivere, perché questo è solo l'inizio. Grazie di essere qui.",
     made: "Creato in vibe coding con Claude (IA)", scroll: "Scorri", title: "Sona, la tua musica in chiaro", desc: "Testi parola per parola, lossless dai tuoi file, ascolto insieme e passaggio tra dispositivi. Installa Sona su Windows o sul telefono.",
     tag: "Lettore musicale", h1: [["La", "tua"], ["musica,", "in", "chiaro."]],
     lead: "I testi scorrono parola per parola, i tuoi file FLAC vengono riprodotti così come sono e ciò che ascolti ti segue dal telefono al computer e alla TV.",
@@ -121,6 +126,7 @@ window.I18N = {
     lyr: [["Il", "giorno", "sorge", "senza", "rumore"], ["e", "ogni", "parola", "si", "accende"], ["proprio", "a", "tempo", "per", "te"], ["la", "tua", "musica,", "in", "chiaro"]],
   },
   pt: {
+    word_t: "Uma palavra do Lunatix", word: "Olá, sou o Lunatix. O Sona já me custou muito: dinheiro, muitíssimo tempo, problemas de todo o tipo e várias noites sem dormir. Com as aulas ainda por cima, não é fácil todos os dias. Mas não desisto: o Sona vai continuar a viver, porque isto é só o começo. Obrigado por estares aqui.",
     made: "Feito em vibe coding com o Claude (IA)", scroll: "Desliza", title: "Sona, a tua música em claro", desc: "Letras palavra a palavra, lossless a partir dos teus ficheiros, ouvir em conjunto e continuar entre dispositivos. Instala o Sona no Windows ou no telemóvel.",
     tag: "Leitor de música", h1: [["A", "tua", "música,"], ["em", "claro."]],
     lead: "As letras avançam palavra a palavra, os teus ficheiros FLAC tocam tal como estão e o que ouves acompanha-te do telemóvel ao computador e à televisão.",
@@ -144,6 +150,7 @@ window.I18N = {
     lyr: [["O", "dia", "nasce", "sem", "fazer", "barulho"], ["e", "cada", "palavra", "se", "acende"], ["na", "hora", "certa", "para", "ti"], ["a", "tua", "música,", "em", "claro"]],
   },
   nl: {
+    word_t: "Een woord van Lunatix", word: "Hoi, ik ben Lunatix. Sona heeft me al veel gekost: geld, ontzettend veel tijd, allerlei tegenslagen en nogal wat slapeloze nachten. Met school erbij is het niet elke dag makkelijk. Maar ik geef niet op: Sona blijft leven, want dit is nog maar het begin. Bedankt dat je er bent.",
     made: "Gemaakt met vibe coding en Claude (AI)", scroll: "Scroll", title: "Sona, je muziek helder", desc: "Songteksten woord voor woord, lossless vanuit je eigen bestanden, samen luisteren en doorgeven tussen apparaten. Installeer Sona op Windows of je telefoon.",
     tag: "Muziekspeler", h1: [["Je", "muziek,"], ["helder."]],
     lead: "Songteksten lopen woord voor woord mee, je FLAC-bestanden worden ongewijzigd afgespeeld en wat je luistert volgt je van telefoon naar computer en tv.",
@@ -167,6 +174,7 @@ window.I18N = {
     lyr: [["De", "dag", "begint", "zonder", "geluid"], ["en", "elk", "woord", "licht", "op"], ["precies", "op", "tijd", "voor", "jou"], ["jouw", "muziek,", "helder"]],
   },
   ru: {
+    word_t: "Слово от Lunatix", word: "Привет, это Lunatix. Sona уже многого мне стоил: денег, огромного количества времени, всевозможных трудностей и немало бессонных ночей. Вместе с учёбой это даётся нелегко. Но я не сдаюсь: Sona продолжит жить, потому что это только начало. Спасибо, что ты здесь.",
     made: "Сделано вайб-кодингом с Claude (ИИ)", scroll: "Листай", title: "Sona, твоя музыка начистоту", desc: "Тексты песен слово за словом, музыка без потерь из твоих собственных файлов, совместное прослушивание и переход между устройствами. Установи Sona на Windows или на телефон.",
     tag: "Музыкальный плеер", h1: [["Твоя", "музыка,"], ["начистоту."]],
     lead: "Тексты идут слово за словом, твои FLAC-файлы играют как есть, а то, что ты слушаешь, следует за тобой с телефона на компьютер и на телевизор.",
@@ -190,6 +198,7 @@ window.I18N = {
     lyr: [["День", "встаёт", "без", "единого", "звука"], ["и", "каждое", "слово", "загорается"], ["точно", "вовремя", "для", "тебя"], ["твоя", "музыка,", "начистоту"]],
   },
   ja: {
+    word_t: "Lunatixより", word: "こんにちは、Lunatixです。Sonaにはすでに多くのものを注ぎ込んできました。お金、膨大な時間、さまざまな苦労、そして何度もの徹夜。授業と両立しながらなので、毎日が楽なわけではありません。それでもやめません。これはまだ始まりにすぎないので、Sonaはこれからも生き続けます。来てくれてありがとう。",
     made: "Claude（AI）とバイブコーディングで開発", scroll: "スクロール", title: "Sona、あなたの音楽をクリアに", desc: "一語ずつ光る歌詞、手持ちのファイルをそのまま再生するロスレス、みんなで同時に聴く機能、デバイス間の引き継ぎ。WindowsまたはスマホにSonaをインストール。",
     tag: "ミュージックプレーヤー", h1: [["あなたの", "音楽を、"], ["クリアに。"]],
     lead: "歌詞は一語ずつ流れ、FLACファイルはそのまま再生され、聴いている曲はスマホからパソコン、テレビへとついてきます。",
@@ -213,6 +222,7 @@ window.I18N = {
     lyr: [["朝は", "音もなく", "訪れ"], ["ひとつひとつの", "言葉が", "灯る"], ["ちょうど", "いい", "瞬間に"], ["あなたの", "音楽を、", "クリアに"]],
   },
   ko: {
+    word_t: "Lunatix의 한마디", word: "안녕하세요, Lunatix입니다. Sona에는 이미 많은 것을 쏟았습니다. 돈, 엄청난 시간, 온갖 고생, 그리고 수많은 밤샘. 수업과 병행하다 보니 매일이 쉽지는 않습니다. 그래도 포기하지 않습니다. 이것은 시작일 뿐이라서 Sona는 계속 살아갈 겁니다. 와 주셔서 감사합니다.",
     made: "Claude(AI)와 바이브 코딩으로 개발", scroll: "스크롤", title: "Sona, 당신의 음악을 선명하게", desc: "단어 하나하나 켜지는 가사, 내 파일 그대로 재생하는 무손실, 함께 듣기, 기기 간 이어 듣기. Windows나 휴대폰에 Sona를 설치하세요.",
     tag: "뮤직 플레이어", h1: [["당신의", "음악을,"], ["선명하게."]],
     lead: "가사는 단어 단위로 흐르고, FLAC 파일은 변환 없이 그대로 재생되며, 듣던 음악은 휴대폰에서 컴퓨터, TV까지 따라옵니다.",
@@ -236,6 +246,7 @@ window.I18N = {
     lyr: [["하루가", "소리", "없이", "밝아오고"], ["모든", "단어가", "켜져요"], ["바로", "그", "순간에"], ["당신의", "음악을,", "선명하게"]],
   },
   zh: {
+    word_t: "Lunatix 的话", word: "你好，我是 Lunatix。Sona 已经让我付出了很多：金钱、大量的时间、各种波折，还有不少个不眠之夜。再加上还要上课，并不是每天都轻松。但我不会放弃：Sona 会继续走下去，因为这只是开始。谢谢你来到这里。",
     made: "用 Claude（AI）进行 vibe coding 开发", scroll: "向下滑动", title: "Sona，让你的音乐清清楚楚", desc: "逐字点亮的歌词、直接播放你自己文件的无损音质、一起听、在设备之间无缝接力。在 Windows 或手机上安装 Sona。",
     tag: "音乐播放器", h1: [["你的", "音乐，"], ["清清楚楚。"]],
     lead: "歌词逐字滚动，FLAC 文件原样播放，你正在听的音乐会从手机跟到电脑，再到电视。",
@@ -259,6 +270,7 @@ window.I18N = {
     lyr: [["天亮得", "悄无", "声息"], ["每个字", "都随", "之点亮"], ["恰好", "赶上", "你"], ["你的", "音乐，", "清晰", "如初"]],
   },
   ar: {
+    word_t: "كلمة من Lunatix", word: "مرحبًا، أنا Lunatix. كلّفني سونا الكثير حتى الآن: مالًا، ووقتًا طويلًا جدًا، وصعوبات من كل نوع، وليالي كثيرة بلا نوم. ومع الدراسة بجانبه، ليس الأمر سهلًا كل يوم. لكنني لن أتوقف: سونا سيواصل الحياة، لأن هذه مجرد البداية. شكرًا لأنك هنا.",
     made: "طُوّر بالـ vibe coding مع Claude (ذكاء اصطناعي)", scroll: "مرّر", title: "سونا، موسيقاك بوضوح", desc: "كلمات الأغاني كلمةً بكلمة، وجودة بلا فقدان من ملفاتك الخاصة، واستماع مشترك، وانتقال بين الأجهزة. ثبّت سونا على ويندوز أو على هاتفك.",
     tag: "مشغّل موسيقى", h1: [["موسيقاك،"], ["بوضوح."]],
     lead: "تتحرك الكلمات كلمةً بكلمة، وتُشغَّل ملفات FLAC كما هي، وما تستمع إليه يرافقك من الهاتف إلى الحاسوب إلى التلفاز.",

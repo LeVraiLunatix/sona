@@ -168,6 +168,10 @@ footer a:hover { color: var(--fg); }
 }
 @media (prefers-reduced-motion: reduce) { .lyrics p, .lw, .bars i, body { transition: none; } .bars i { --on: 1; } html { scroll-behavior: auto; } }
 
+.mot { max-width: 780px; margin: 0 auto var(--gap); padding: var(--gap) 0 0; border-top: 1px solid var(--line); text-align: center; }
+.mot p { margin: 28px 0 36px; font-size: clamp(22px, 2.5vw, 31px); line-height: 1.4; letter-spacing: -.02em; color: var(--fg); text-wrap: pretty; }
+.mot .sign { display: inline-flex; align-items: center; gap: 12px; font-size: 18px; }
+.mot .sign .mark { width: 36px; height: 36px; }
 .lang { position: fixed; top: 14px; inset-inline-end: 14px; z-index: 20; }
 .lang > button { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 10px; background: #141416; border: 1px solid #26262a; color: var(--fg); font: 500 14px/1 var(--mono); letter-spacing: .06em; cursor: pointer; }
 .lang > button:hover { border-color: #3a3a40; }
@@ -266,6 +270,12 @@ html:lang(ar) .lw, html:lang(ar) .lyrics .w { letter-spacing: 0; }
   <section class="track" id="recap" data-tint="#c9a4e0">
     <div><span class="tn">05</span><h2 data-i18n="t5">Ton mois en musique</h2><p data-i18n="t5p">Sona garde ce que tu écoutes : tes artistes, tes habitudes, tes jours les plus chargés, avec un récap à la fin du mois.</p><p class="small" data-i18n="t5s">Playlists importables depuis un autre service, partageables à plusieurs.</p></div>
     <div class="vis"><div class="cal" id="cal" aria-hidden="true"></div><div class="cal-cap"><span data-i18n="cal1">Exemple d'un mois d'écoute</span><span data-i18n="cal2">Plus clair = plus d'écoutes</span></div></div>
+  </section>
+
+  <section class="mot" aria-label="Un mot de Lunatix">
+    <span class="tiny" data-i18n="word_t">Un mot de Lunatix</span>
+    <p data-i18n="word">Salut, c'est Lunatix. Sona m'a déjà coûté beaucoup : de l'argent, énormément de temps, des galères en tout genre et pas mal de nuits blanches. Avec les cours à côté, ce n'est pas simple tous les jours. Mais je ne lâche rien : Sona va continuer de vivre, parce que ce n'est que le commencement. Merci d'être là.</p>
+    <div class="sign"><svg class="mark" aria-hidden="true"><use href="#s"/></svg><b>Lunatix</b></div>
   </section>
 
   <section class="track install" id="installer" data-tint="#d2d1d8">
