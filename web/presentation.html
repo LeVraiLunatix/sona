@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#ececf0">
 <title>Sona — ta musique, en clair.</title>
-<meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Ouvre Sona dans le navigateur ou installe l'app.">
+<meta name="description" content="Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Installe Sona sur Windows ou sur ton téléphone.">
 <meta property="og:title" content="Sona — ta musique, en clair.">
 <meta property="og:description" content="Paroles mot à mot, lossless, écoute ensemble, relais entre appareils.">
 <meta property="og:type" content="website">
@@ -14,6 +14,10 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/icons/favicon-64.png" sizes="64x64">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sona">
 <style>
 :root {
   --ink: #0b0b0d; --ink-2: rgba(11, 11, 13, .62); --ink-3: rgba(11, 11, 13, .4);
@@ -102,6 +106,17 @@ h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04e
 .final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #e9e9ed, #dcdce2); }
 .final h2 { margin: 0 auto 36px; max-width: 12ch; }
 
+.dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.os { background: var(--card); border-radius: 28px; padding: 32px 30px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 0 var(--line); transition: box-shadow .3s ease, transform .3s ease; }
+.os b { font-size: 24px; letter-spacing: -.03em; }
+.os span { color: var(--ink-2); font-size: 16px; flex: 1; }
+.os .pill { align-self: flex-start; margin-top: 10px; height: 44px; padding: 0 22px; }
+.os em { font: 500 13px/1 var(--mono); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 10px; }
+.os.soon { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.os.you { box-shadow: 0 0 0 2px var(--ink); transform: translateY(-4px); }
+.plats-note { margin: 28px 0 0; color: var(--ink-3); font-size: 16px; }
+.pill[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+@media (max-width: 860px) { .dl { grid-template-columns: 1fr; } }
 .plats { display: flex; flex-wrap: wrap; gap: 12px; }
 .plats span { padding: 16px 26px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 0 var(--line); font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
 .final { background: var(--night); color: #f2f2f5; }
@@ -167,18 +182,15 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
         <svg class="mark" aria-hidden="true"><use href="#s"/></svg>
         Sona
       </a>
-      <a class="pill" href="/?connexion" data-app>Se connecter</a>
+      <a class="pill" href="#telecharger">Télécharger</a>
     </nav>
 
     <header class="hero">
       <span class="tag">/v2</span>
       <h1>Ta musique, en clair.</h1>
       <p class="lead">Les paroles mot à mot, ton son sans compromis, et ta musique là où tu es : ordinateur, téléphone, salon.</p>
-      <div class="cta">
-        <a class="pill dark" href="/?connexion" data-app>Ouvrir Sona</a>
-        <a class="pill white" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
-      </div>
-      <p class="note">Gratuit. Dans le navigateur, sur Windows, et sur iPhone.</p>
+      <div class="cta"><a class="pill dark" href="#telecharger" data-cta>Télécharger Sona</a></div>
+      <p class="note" data-note>Gratuit. Sur Windows et sur ton téléphone. macOS et Linux bientôt.</p>
     </header>
 
     <div class="mock" aria-hidden="true">
@@ -228,36 +240,57 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
     </div>
   </section>
 
-  <section class="section" aria-label="Plateformes">
-    <span class="tag">/partout</span>
-    <h2>Un seul compte, chaque écran.</h2>
-    <div class="plats">
-      <span>Navigateur</span><span>Windows</span><span>iPhone</span><span>Android TV</span><span>Meta Quest</span><span>Stream Deck</span>
+  <section class="section" id="telecharger" aria-label="Télécharger">
+    <span class="tag">/installer</span>
+    <h2>Installe Sona.</h2>
+    <div class="dl">
+      <div class="os" data-os="windows"><b>Windows</b><span>L'app complète : mini-lecteur, télécommande du téléphone, raccourcis.</span><a class="pill dark" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Télécharger</a></div>
+      <div class="os" data-os="ios"><b>iPhone et iPad</b><span>Ouvre cette page dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</span><a class="pill dark" href="#telecharger" data-install>Installer</a></div>
+      <div class="os" data-os="android"><b>Android</b><span>Ouvre cette page dans Chrome, puis menu ⋮ et « Installer l'application ».</span><a class="pill dark" href="#telecharger" data-install>Installer</a></div>
+      <div class="os soon" data-os="mac"><b>macOS</b><span>En préparation.</span><em>Bientôt</em></div>
+      <div class="os soon" data-os="linux"><b>Linux</b><span>En préparation.</span><em>Bientôt</em></div>
     </div>
+    <p class="plats-note">Aussi : Android TV, Meta Quest et Stream Deck, avec ton compte Sona.</p>
   </section>
 
   <section class="final" aria-label="Commencer">
     <h2>Prêt à écouter ?</h2>
-    <div class="cta">
-      <a class="pill dark" href="/?connexion" data-app>Ouvrir Sona</a>
-      <a class="pill white" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Sona pour Windows</a>
-    </div>
+    <div class="cta"><a class="pill dark" href="#telecharger" data-cta>Télécharger Sona</a></div>
   </section>
 
   <footer>
     <span style="display:flex;align-items:center;gap:10px"><svg class="mark" aria-hidden="true" style="width:24px;height:24px;border-radius:6px"><use href="#s"/></svg>Sona v2</span>
-    <a href="/" data-app>Ouvrir l'app</a>
+    <a href="#haut">Retour en haut</a>
   </footer>
 </div>
 <script>
-// Déjà connecté : les boutons ramènent directement à l'app.
-let loggedIn = false;
-try { loggedIn = !!localStorage.getItem("sona.token"); } catch { /* navigation privée : on suppose non connecté */ }
-if (loggedIn) document.querySelectorAll("[data-app]").forEach((a) => { a.href = "/"; if (a.closest("nav")) a.textContent = "Ouvrir"; });
+// Rechargement : on repart toujours du haut, avec l'intro.
+history.scrollRestoration = "manual";
+if (location.hash) history.replaceState(null, "", location.pathname);
+scrollTo(0, 0);
+
+// Système détecté : met en avant la bonne plateforme et adapte le bouton principal.
+const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+const os = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(plat) && navigator.maxTouchPoints > 1) ? "ios" : /Android/.test(ua) ? "android" : /Win/.test(plat + ua) ? "windows" : /Mac/.test(plat + ua) ? "mac" : /Linux|X11|CrOS/.test(plat + ua) ? "linux" : "";
+const names = { mac: "macOS", linux: "Linux" };
+const you = document.querySelector(`.os[data-os="${os}"]`);
+if (you) you.classList.add("you");
+const cta = { windows: ["Télécharger pour Windows", "https://github.com/LeVraiLunatix/sona/releases/tag/windows"], ios: ["Installer sur iPhone", "#telecharger"], android: ["Installer sur Android", "#telecharger"] }[os];
+document.querySelectorAll("[data-cta]").forEach((a) => {
+  if (cta) { a.textContent = cta[0]; a.href = cta[1]; }
+  else if (names[os]) { a.textContent = `Bientôt sur ${names[os]}`; a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); }
+});
+const note = document.querySelector("[data-note]");
+if (note && names[os]) note.textContent = `Sona arrive bientôt sur ${names[os]}. En attendant : Windows, ou installe-le sur ton téléphone.`;
+// Android/Chrome : vrai bouton d'installation quand le navigateur le propose.
+let installEvt = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
+document.querySelectorAll("[data-install]").forEach((a) => a.addEventListener("click", (e) => { if (installEvt) { e.preventDefault(); installEvt.prompt(); } }));
 
 // Scroll fluide à inertie (molette seulement ; le tactile garde son inertie native).
 // On garde une position CIBLE, la position RÉELLE s'en rapproche à chaque image (indépendant du taux de rafraîchissement).
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let goTo = (y) => scrollTo({ top: y, behavior: reduce ? "auto" : "smooth" });
 if (!reduce && matchMedia("(pointer: fine)").matches) {
   const EASE = .095;
   document.documentElement.style.scrollBehavior = "auto"; // le CSS smooth se battrait avec nos scrollTo
@@ -272,6 +305,7 @@ if (!reduce && matchMedia("(pointer: fine)").matches) {
     scrollTo(0, current);
     raf = requestAnimationFrame(frame);
   };
+  goTo = (y) => { target = clampY(y); if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
   addEventListener("wheel", (e) => {
     if (e.ctrlKey || e.defaultPrevented || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
     e.preventDefault();
@@ -286,6 +320,11 @@ if (!reduce && matchMedia("(pointer: fine)").matches) {
   addEventListener("keydown", adopt); addEventListener("pointerdown", adopt);
   addEventListener("resize", () => { target = clampY(target); current = clampY(current); });
 }
+document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", (e) => {
+  const id = a.getAttribute("href").slice(1), el = id && id !== "haut" ? document.getElementById(id) : null;
+  if (id && id !== "haut" && !el) return;
+  e.preventDefault(); goTo(el ? el.getBoundingClientRect().top + scrollY - 24 : 0);
+}));
 // Intro : tracé -> remplissage + lueur -> « ona ».
 const intro = document.getElementById("intro"), glyph = intro.querySelector(".glyph"), word = intro.querySelector(".logo-word"), letters = [...intro.querySelectorAll("i")];
 const ease = (t) => 1 - Math.pow(1 - t, 3), clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a));

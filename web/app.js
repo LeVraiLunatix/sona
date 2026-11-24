@@ -267,9 +267,24 @@ const bars = () => `<span class="bars ${audio.paused ? "paused" : ""}"><i></i><i
 
 // ── Connexion ──────────────────────────────────────────────────────────────
 
+/** Sona ne s'utilise plus dans un onglet : il faut l'installer (app Windows, ou ajout à l'écran d'accueil).
+    Passent quand même : l'app installée et l'app Windows, le développement local, et les liens techniques
+    dont les apps ont besoin (retour Last.fm, jumelage d'une TV). Sans page de présentation à cette adresse
+    (serveur de l'API), rien ne change. */
+async function webClosed(params) {
+  if (standalone || desktop || ["localhost", "127.0.0.1"].includes(location.hostname)) return false;
+  if (params.has("token") || params.has("handoff") || params.has("link")) return false;
+  try {
+    const res = await fetch("presentation", { method: "HEAD", cache: "no-store" });
+    if (res.ok) { location.replace("presentation"); return true; }
+  } catch { /* réseau coupé : on laisse l'app (copie en cache) */ }
+  return false;
+}
+
 async function boot() {
   registerServiceWorker();
   const params = new URLSearchParams(location.search);
+  if (await webClosed(params)) return;
   const lastfmToken = params.get("token");
   const handoff = params.get("handoff");
   if (lastfmToken || params.has("source") || params.has("party") || params.has("link")) {
