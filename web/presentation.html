@@ -64,10 +64,20 @@ h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045
 .row span:first-child, .row span:last-child { color: rgba(242, 245, 251, .4); font-variant-numeric: tabular-nums; }
 .row.on { background: rgba(255, 255, 255, .1); color: #fff; }
 .row.on span:first-child { color: #fff; }
-.lyrics { margin: 10px 10px 10px 0; padding: 36px 32px; border-radius: 18px; background: var(--night-2); font-size: 27px; font-weight: 700; letter-spacing: -.03em; line-height: 1.2; overflow: hidden; }
-.lyrics p { margin: 0 0 22px; }
-.lyrics span { color: rgba(242, 245, 251, .28); animation: sing 12s linear infinite; animation-delay: calc(var(--i) * .55s); }
-@keyframes sing { 0%, 4% { color: rgba(242, 245, 251, .28); } 6%, 90% { color: #fff; } 96%, 100% { color: rgba(242, 245, 251, .28); } }
+.lyrics { margin: 10px 10px 10px 0; border-radius: 18px; background: var(--night-2); position: relative; overflow: hidden; font-size: 27px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent); transition: opacity .6s ease; }
+.lyrics.fade { opacity: 0; }
+.ly-track { position: absolute; left: 32px; right: 28px; top: 0; transform: translateY(var(--ty, 150px)); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
+.lyrics.jump .ly-track, .lyrics.jump p { transition: none; }
+.lyrics p { margin: 0 0 .7em; color: rgba(255, 255, 255, .32); transform: scale(.94); transform-origin: left center; filter: blur(1.4px); opacity: .6;
+  transition: color .5s ease, filter .6s ease, transform .7s cubic-bezier(.2, .8, .2, 1), opacity .5s; }
+.lyrics p[data-d="1"] { opacity: .82; filter: blur(.5px); }
+.lyrics p[data-d="2"] { opacity: .62; filter: blur(1.1px); }
+.lyrics p.on { color: #fff; filter: none; transform: scale(1); opacity: 1; }
+.lyrics .w { display: inline-block; white-space: pre-wrap; transform-origin: 50% 85%; }
+.lyrics p.on .w { color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(90deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .38) calc(var(--p, 0) * 116% + 8%)); }
+.lyrics p.on .w.held { transform: scale(calc(1 + var(--e, 0) * .08)); margin-inline: calc(var(--e, 0) * .04em); filter: drop-shadow(0 0 calc(var(--e, 0) * .5em) rgba(255, 255, 255, calc(var(--e, 0) * .85))); }
 .bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 82%); height: 60px; border-radius: 22px; background: rgba(19, 26, 40, .92); border: 1px solid rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 14px; padding: 0 20px 0 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 .bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #e4e3ea, #8d8c97); flex: none; }
 .bar b { font-size: 14px; display: block; line-height: 1.2; }
@@ -99,7 +109,7 @@ h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04e
 .final .pill.dark { background: #e9e9ee; color: var(--ink); }
 .rv { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
 .rv.in { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; transition: none; } .lyrics span { animation: none; color: #fff; } html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; transition: none; } .lyrics p { transition: none; } html { scroll-behavior: auto; } }
 nav { position: sticky; top: 12px; z-index: 5; }
 footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 48px 0 64px; color: var(--ink-3); font-size: 15px; }
 
@@ -184,11 +194,12 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
           <div class="row"><span>3</span><span>Silence blanc</span><span>4:05</span></div>
           <div class="row"><span>4</span><span>Marée</span><span>3:19</span></div>
         </div>
-        <div class="lyrics">
-          <p><span style="--i:0">Le</span> <span style="--i:1">jour</span> <span style="--i:2">se</span> <span style="--i:3">lève</span> <span style="--i:4">sans</span> <span style="--i:5">bruit</span></p>
-          <p><span style="--i:7">et</span> <span style="--i:8">chaque</span> <span style="--i:9">mot</span> <span style="--i:10">s'allume</span></p>
-          <p><span style="--i:12">juste</span> <span style="--i:13">à</span> <span style="--i:14">temps</span></p>
-        </div>
+        <div class="lyrics" id="lyrics" aria-hidden="true"><div class="ly-track">
+          <p><span class="w" data-d="0.3">Le</span> <span class="w" data-d="0.4">jour</span> <span class="w" data-d="0.25">se</span> <span class="w" data-d="0.5">lève</span> <span class="w" data-d="0.3">sans</span> <span class="w" data-d="0.7">bruit</span></p>
+          <p><span class="w" data-d="0.25">et</span> <span class="w" data-d="0.45">chaque</span> <span class="w" data-d="0.35">mot</span> <span class="w" data-d="0.6">s'allume</span></p>
+          <p><span class="w" data-d="0.4">juste</span> <span class="w" data-d="0.2">à</span> <span class="w" data-d="0.5">temps</span> <span class="w" data-d="0.35">pour</span> <span class="w" data-d="0.9">toi</span></p>
+          <p><span class="w" data-d="0.25">ta</span> <span class="w" data-d="0.5">musique</span> <span class="w" data-d="0.25">en</span> <span class="w held" data-d="1.5">clair</span></p>
+        </div></div>
         <div class="bar"><div class="mini"></div><div><b>Premier matin</b><small>Nils Aubert · FLAC 24 bits / 96 kHz</small></div><div class="play"></div></div>
       </div>
     </div>
@@ -304,6 +315,44 @@ else {
     requestAnimationFrame(run);
   });
 }
+
+// Paroles de la maquette : même logique que l'app (ligne chantée remplie mot par mot, notes tenues qui s'illuminent, vue qui suit la ligne).
+(() => {
+  const box = document.getElementById("lyrics"), track = box.firstElementChild, lines = [...track.children];
+  const words = lines.map((p) => [...p.children]);
+  let t = 0; const GAP = .3, END = 1.6;
+  const times = []; // [{start, end, w:[{el,s,e}]}]
+  lines.forEach((p, i) => {
+    let c = i ? times[i - 1].end + GAP : .6; const start = c, w = [];
+    words[i].forEach((el) => { const d = parseFloat(el.dataset.d); w.push({ el, s: c, e: c + d, held: el.classList.contains("held") }); c += d; });
+    times.push({ start, end: c, w });
+  });
+  const total = times[times.length - 1].end + END;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  let active = -1;
+  function setActive(i) {
+    active = i;
+    lines.forEach((p, k) => { p.classList.toggle("on", k === i); const d = Math.abs(k - i); if (d >= 1 && d <= 2) p.dataset.d = d; else delete p.dataset.d; });
+    const p = lines[Math.max(0, i)];
+    box.style.setProperty("--ty", box.clientHeight * .42 - (p.offsetTop + p.offsetHeight / 2) + "px");
+  }
+  function paint() {
+    let cur = -1;
+    times.forEach((l, i) => { if (t >= l.start - GAP / 2) cur = i; });
+    if (cur !== active) setActive(cur);
+    times.forEach((l) => l.w.forEach((w) => {
+      const p = clamp01((t - w.s) / (w.e - w.s));
+      w.el.style.setProperty("--p", p);
+      if (w.held) w.el.style.setProperty("--e", Math.sin(Math.PI * p) ** .6);
+    }));
+    box.classList.toggle("fade", t > total - .6);
+  }
+  function reset() { box.classList.add("jump"); t = 0; active = -2; paint(); void box.offsetWidth; box.classList.remove("jump"); }
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { t = times[1].start + .5; paint(); return; }
+  let last = 0;
+  const loop = (now) => { t += Math.min(.05, last ? (now - last) / 1000 : 0); last = now; if (t >= total) reset(); else paint(); requestAnimationFrame(loop); };
+  setActive(-1); box.classList.add("jump"); paint(); requestAnimationFrame(() => { box.classList.remove("jump"); requestAnimationFrame(loop); });
+})();
 if ("IntersectionObserver" in window) {
   const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .15 });
   document.querySelectorAll(".rv").forEach((el) => io.observe(el));
