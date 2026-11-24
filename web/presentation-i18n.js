@@ -6,7 +6,7 @@ window.LANGS = [
 ];
 window.I18N = {
   fr: {
-    made: "Développé avec l'aide de Claude (IA)", scroll: "Défile", title: "Sona, ta musique en clair", desc: "Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Installe Sona sur Windows ou sur ton téléphone.",
+    made: "Vibe codé avec Claude (IA)", scroll: "Défile", title: "Sona, ta musique en clair", desc: "Paroles mot à mot, lossless depuis tes propres fichiers, écoute ensemble et relais entre appareils. Installe Sona sur Windows ou sur ton téléphone.",
     tag: "Lecteur de musique", h1: [["Ta", "musique,"], ["en", "clair."]],
     lead: "Les paroles défilent mot à mot, tes fichiers FLAC sont lus tels quels, et ce que tu écoutes te suit du téléphone à l'ordinateur et à la télé.",
     cta: "Télécharger Sona", cta_win: "Télécharger pour Windows", cta_ios: "Installer sur iPhone", cta_and: "Installer sur Android", cta_soon: "Bientôt sur {os}",
@@ -29,7 +29,7 @@ window.I18N = {
     lyr: [["Le", "jour", "se", "lève", "sans", "bruit"], ["et", "chaque", "mot", "s'allume"], ["juste", "à", "temps", "pour", "toi"], ["ta", "musique", "en", "clair"]],
   },
   en: {
-    made: "Built with the help of Claude (AI)", scroll: "Scroll", title: "Sona, your music made clear", desc: "Word-by-word lyrics, lossless from your own files, listen together and hand off between devices. Install Sona on Windows or on your phone.",
+    made: "Vibe coded with Claude (AI)", scroll: "Scroll", title: "Sona, your music made clear", desc: "Word-by-word lyrics, lossless from your own files, listen together and hand off between devices. Install Sona on Windows or on your phone.",
     tag: "Music player", h1: [["Your", "music,"], ["made", "clear."]],
     lead: "Lyrics scroll word by word, your FLAC files play exactly as they are, and whatever you're playing follows you from phone to computer to TV.",
     cta: "Download Sona", cta_win: "Download for Windows", cta_ios: "Install on iPhone", cta_and: "Install on Android", cta_soon: "Coming soon to {os}",
@@ -52,7 +52,7 @@ window.I18N = {
     lyr: [["The", "day", "rises", "without", "a", "sound"], ["and", "every", "word", "lights", "up"], ["right", "on", "time", "for", "you"], ["your", "music,", "made", "clear"]],
   },
   es: {
-    made: "Desarrollado con la ayuda de Claude (IA)", scroll: "Desplázate", title: "Sona, tu música en claro", desc: "Letras palabra por palabra, lossless desde tus propios archivos, escucha en compañía y continúa entre dispositivos. Instala Sona en Windows o en tu móvil.",
+    made: "Hecho con vibe coding y Claude (IA)", scroll: "Desplázate", title: "Sona, tu música en claro", desc: "Letras palabra por palabra, lossless desde tus propios archivos, escucha en compañía y continúa entre dispositivos. Instala Sona en Windows o en tu móvil.",
     tag: "Reproductor de música", h1: [["Tu", "música,"], ["en", "claro."]],
     lead: "Las letras avanzan palabra a palabra, tus archivos FLAC suenan tal cual y lo que escuchas te sigue del móvil al ordenador y a la tele.",
     cta: "Descargar Sona", cta_win: "Descargar para Windows", cta_ios: "Instalar en iPhone", cta_and: "Instalar en Android", cta_soon: "Próximamente en {os}",
@@ -75,7 +75,7 @@ window.I18N = {
     lyr: [["El", "día", "amanece", "sin", "ruido"], ["y", "cada", "palabra", "se", "enciende"], ["justo", "a", "tiempo", "para", "ti"], ["tu", "música,", "en", "claro"]],
   },
   de: {
-    made: "Entwickelt mit Hilfe von Claude (KI)", scroll: "Scrollen", title: "Sona, deine Musik in klar", desc: "Songtexte Wort für Wort, verlustfrei aus deinen eigenen Dateien, gemeinsam hören und zwischen Geräten wechseln. Installiere Sona auf Windows oder auf dem Handy.",
+    made: "Per Vibe Coding mit Claude (KI) entwickelt", scroll: "Scrollen", title: "Sona, deine Musik in klar", desc: "Songtexte Wort für Wort, verlustfrei aus deinen eigenen Dateien, gemeinsam hören und zwischen Geräten wechseln. Installiere Sona auf Windows oder auf dem Handy.",
     tag: "Musikplayer", h1: [["Deine", "Musik,"], ["klar", "gehört."]],
     lead: "Die Songtexte laufen Wort für Wort, deine FLAC-Dateien werden unverändert abgespielt, und was du hörst, folgt dir vom Handy zum Computer und zum Fernseher.",
     cta: "Sona herunterladen", cta_win: "Für Windows herunterladen", cta_ios: "Auf dem iPhone installieren", cta_and: "Auf Android installieren", cta_soon: "Bald für {os}",
@@ -98,7 +98,7 @@ window.I18N = {
     lyr: [["Der", "Tag", "beginnt", "ohne", "ein", "Geräusch"], ["und", "jedes", "Wort", "leuchtet", "auf"], ["genau", "im", "richtigen", "Moment"], ["deine", "Musik,", "klar", "gehört"]],
   },
   it: {
-    made: "Sviluppato con l'aiuto di Claude (IA)", scroll: "Scorri", title: "Sona, la tua musica in chiaro", desc: "Testi parola per parola, lossless dai tuoi file, ascolto insieme e passaggio tra dispositivi. Installa Sona su Windows o sul telefono.",
+    made: "Creato in vibe coding con Claude (IA)", scroll: "Scorri", title: "Sona, la tua musica in chiaro", desc: "Testi parola per parola, lossless dai tuoi file, ascolto insieme e passaggio tra dispositivi. Installa Sona su Windows o sul telefono.",
     tag: "Lettore musicale", h1: [["La", "tua"], ["musica,", "in", "chiaro."]],
     lead: "I testi scorrono parola per parola, i tuoi file FLAC vengono riprodotti così come sono e ciò che ascolti ti segue dal telefono al computer e alla TV.",
     cta: "Scarica Sona", cta_win: "Scarica per Windows", cta_ios: "Installa su iPhone", cta_and: "Installa su Android", cta_soon: "Presto su {os}",
@@ -121,7 +121,7 @@ window.I18N = {
     lyr: [["Il", "giorno", "sorge", "senza", "rumore"], ["e", "ogni", "parola", "si", "accende"], ["proprio", "a", "tempo", "per", "te"], ["la", "tua", "musica,", "in", "chiaro"]],
   },
   pt: {
-    made: "Desenvolvido com a ajuda do Claude (IA)", scroll: "Desliza", title: "Sona, a tua música em claro", desc: "Letras palavra a palavra, lossless a partir dos teus ficheiros, ouvir em conjunto e continuar entre dispositivos. Instala o Sona no Windows ou no telemóvel.",
+    made: "Feito em vibe coding com o Claude (IA)", scroll: "Desliza", title: "Sona, a tua música em claro", desc: "Letras palavra a palavra, lossless a partir dos teus ficheiros, ouvir em conjunto e continuar entre dispositivos. Instala o Sona no Windows ou no telemóvel.",
     tag: "Leitor de música", h1: [["A", "tua", "música,"], ["em", "claro."]],
     lead: "As letras avançam palavra a palavra, os teus ficheiros FLAC tocam tal como estão e o que ouves acompanha-te do telemóvel ao computador e à televisão.",
     cta: "Transferir o Sona", cta_win: "Transferir para Windows", cta_ios: "Instalar no iPhone", cta_and: "Instalar no Android", cta_soon: "Em breve no {os}",
@@ -144,7 +144,7 @@ window.I18N = {
     lyr: [["O", "dia", "nasce", "sem", "fazer", "barulho"], ["e", "cada", "palavra", "se", "acende"], ["na", "hora", "certa", "para", "ti"], ["a", "tua", "música,", "em", "claro"]],
   },
   nl: {
-    made: "Gebouwd met hulp van Claude (AI)", scroll: "Scroll", title: "Sona, je muziek helder", desc: "Songteksten woord voor woord, lossless vanuit je eigen bestanden, samen luisteren en doorgeven tussen apparaten. Installeer Sona op Windows of je telefoon.",
+    made: "Gemaakt met vibe coding en Claude (AI)", scroll: "Scroll", title: "Sona, je muziek helder", desc: "Songteksten woord voor woord, lossless vanuit je eigen bestanden, samen luisteren en doorgeven tussen apparaten. Installeer Sona op Windows of je telefoon.",
     tag: "Muziekspeler", h1: [["Je", "muziek,"], ["helder."]],
     lead: "Songteksten lopen woord voor woord mee, je FLAC-bestanden worden ongewijzigd afgespeeld en wat je luistert volgt je van telefoon naar computer en tv.",
     cta: "Sona downloaden", cta_win: "Downloaden voor Windows", cta_ios: "Installeren op iPhone", cta_and: "Installeren op Android", cta_soon: "Binnenkort op {os}",
@@ -167,7 +167,7 @@ window.I18N = {
     lyr: [["De", "dag", "begint", "zonder", "geluid"], ["en", "elk", "woord", "licht", "op"], ["precies", "op", "tijd", "voor", "jou"], ["jouw", "muziek,", "helder"]],
   },
   ru: {
-    made: "Создано с помощью Claude (ИИ)", scroll: "Листай", title: "Sona, твоя музыка начистоту", desc: "Тексты песен слово за словом, музыка без потерь из твоих собственных файлов, совместное прослушивание и переход между устройствами. Установи Sona на Windows или на телефон.",
+    made: "Сделано вайб-кодингом с Claude (ИИ)", scroll: "Листай", title: "Sona, твоя музыка начистоту", desc: "Тексты песен слово за словом, музыка без потерь из твоих собственных файлов, совместное прослушивание и переход между устройствами. Установи Sona на Windows или на телефон.",
     tag: "Музыкальный плеер", h1: [["Твоя", "музыка,"], ["начистоту."]],
     lead: "Тексты идут слово за словом, твои FLAC-файлы играют как есть, а то, что ты слушаешь, следует за тобой с телефона на компьютер и на телевизор.",
     cta: "Скачать Sona", cta_win: "Скачать для Windows", cta_ios: "Установить на iPhone", cta_and: "Установить на Android", cta_soon: "Скоро на {os}",
@@ -190,7 +190,7 @@ window.I18N = {
     lyr: [["День", "встаёт", "без", "единого", "звука"], ["и", "каждое", "слово", "загорается"], ["точно", "вовремя", "для", "тебя"], ["твоя", "музыка,", "начистоту"]],
   },
   ja: {
-    made: "Claude（AI）の助けを借りて開発", scroll: "スクロール", title: "Sona、あなたの音楽をクリアに", desc: "一語ずつ光る歌詞、手持ちのファイルをそのまま再生するロスレス、みんなで同時に聴く機能、デバイス間の引き継ぎ。WindowsまたはスマホにSonaをインストール。",
+    made: "Claude（AI）とバイブコーディングで開発", scroll: "スクロール", title: "Sona、あなたの音楽をクリアに", desc: "一語ずつ光る歌詞、手持ちのファイルをそのまま再生するロスレス、みんなで同時に聴く機能、デバイス間の引き継ぎ。WindowsまたはスマホにSonaをインストール。",
     tag: "ミュージックプレーヤー", h1: [["あなたの", "音楽を、"], ["クリアに。"]],
     lead: "歌詞は一語ずつ流れ、FLACファイルはそのまま再生され、聴いている曲はスマホからパソコン、テレビへとついてきます。",
     cta: "Sonaをダウンロード", cta_win: "Windows版をダウンロード", cta_ios: "iPhoneにインストール", cta_and: "Androidにインストール", cta_soon: "{os}版は近日公開",
@@ -213,7 +213,7 @@ window.I18N = {
     lyr: [["朝は", "音もなく", "訪れ"], ["ひとつひとつの", "言葉が", "灯る"], ["ちょうど", "いい", "瞬間に"], ["あなたの", "音楽を、", "クリアに"]],
   },
   ko: {
-    made: "Claude(AI)의 도움으로 개발", scroll: "스크롤", title: "Sona, 당신의 음악을 선명하게", desc: "단어 하나하나 켜지는 가사, 내 파일 그대로 재생하는 무손실, 함께 듣기, 기기 간 이어 듣기. Windows나 휴대폰에 Sona를 설치하세요.",
+    made: "Claude(AI)와 바이브 코딩으로 개발", scroll: "스크롤", title: "Sona, 당신의 음악을 선명하게", desc: "단어 하나하나 켜지는 가사, 내 파일 그대로 재생하는 무손실, 함께 듣기, 기기 간 이어 듣기. Windows나 휴대폰에 Sona를 설치하세요.",
     tag: "뮤직 플레이어", h1: [["당신의", "음악을,"], ["선명하게."]],
     lead: "가사는 단어 단위로 흐르고, FLAC 파일은 변환 없이 그대로 재생되며, 듣던 음악은 휴대폰에서 컴퓨터, TV까지 따라옵니다.",
     cta: "Sona 다운로드", cta_win: "Windows용 다운로드", cta_ios: "iPhone에 설치", cta_and: "Android에 설치", cta_soon: "{os}용은 곧 출시",
@@ -236,7 +236,7 @@ window.I18N = {
     lyr: [["하루가", "소리", "없이", "밝아오고"], ["모든", "단어가", "켜져요"], ["바로", "그", "순간에"], ["당신의", "음악을,", "선명하게"]],
   },
   zh: {
-    made: "借助 Claude（AI）开发", scroll: "向下滑动", title: "Sona，让你的音乐清清楚楚", desc: "逐字点亮的歌词、直接播放你自己文件的无损音质、一起听、在设备之间无缝接力。在 Windows 或手机上安装 Sona。",
+    made: "用 Claude（AI）进行 vibe coding 开发", scroll: "向下滑动", title: "Sona，让你的音乐清清楚楚", desc: "逐字点亮的歌词、直接播放你自己文件的无损音质、一起听、在设备之间无缝接力。在 Windows 或手机上安装 Sona。",
     tag: "音乐播放器", h1: [["你的", "音乐，"], ["清清楚楚。"]],
     lead: "歌词逐字滚动，FLAC 文件原样播放，你正在听的音乐会从手机跟到电脑，再到电视。",
     cta: "下载 Sona", cta_win: "下载 Windows 版", cta_ios: "安装到 iPhone", cta_and: "安装到 Android", cta_soon: "{os} 版即将推出",
@@ -259,7 +259,7 @@ window.I18N = {
     lyr: [["天亮得", "悄无", "声息"], ["每个字", "都随", "之点亮"], ["恰好", "赶上", "你"], ["你的", "音乐，", "清晰", "如初"]],
   },
   ar: {
-    made: "طُوّر بمساعدة Claude (ذكاء اصطناعي)", scroll: "مرّر", title: "سونا، موسيقاك بوضوح", desc: "كلمات الأغاني كلمةً بكلمة، وجودة بلا فقدان من ملفاتك الخاصة، واستماع مشترك، وانتقال بين الأجهزة. ثبّت سونا على ويندوز أو على هاتفك.",
+    made: "طُوّر بالـ vibe coding مع Claude (ذكاء اصطناعي)", scroll: "مرّر", title: "سونا، موسيقاك بوضوح", desc: "كلمات الأغاني كلمةً بكلمة، وجودة بلا فقدان من ملفاتك الخاصة، واستماع مشترك، وانتقال بين الأجهزة. ثبّت سونا على ويندوز أو على هاتفك.",
     tag: "مشغّل موسيقى", h1: [["موسيقاك،"], ["بوضوح."]],
     lead: "تتحرك الكلمات كلمةً بكلمة، وتُشغَّل ملفات FLAC كما هي، وما تستمع إليه يرافقك من الهاتف إلى الحاسوب إلى التلفاز.",
     cta: "نزّل سونا", cta_win: "نزّل نسخة ويندوز", cta_ios: "ثبّت على آيفون", cta_and: "ثبّت على أندرويد", cta_soon: "قريبًا على {os}",
