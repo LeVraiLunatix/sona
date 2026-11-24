@@ -167,33 +167,10 @@ footer a:hover { color: var(--fg); }
   .pbar small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .lyrics p, .lw, .bars i, body { transition: none; } .bars i { --on: 1; } html { scroll-behavior: auto; } }
-/* Intro : le S se trace au scroll, s'illumine, puis « ona » apparaît */
-.intro { height: 100vh; height: 100svh; position: relative; background: #0a0a0b; color: #e6e5ec; }
-.intro-stage { height: 100%; display: grid; place-items: center; overflow: hidden; }
-.intro-stage::before { content: ""; position: absolute; width: 70vmin; height: 70vmin; border-radius: 50%; background: radial-gradient(closest-side, rgba(210, 209, 216, .22), transparent); opacity: var(--glow, 0); transform: scale(calc(.8 + var(--glow, 0) * .4)); }
-.logo-word { position: relative; display: flex; align-items: baseline; font-size: clamp(88px, 24vmin, 240px); font-weight: 700; letter-spacing: -.05em; line-height: 1; }
-.logo-word svg { height: .72em; width: auto; overflow: visible; flex: none; }
-.logo-word .glyph { fill: #d2d1d8; fill-opacity: var(--fill, 0); stroke: #d2d1d8; stroke-width: 3; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: var(--dash, 1); filter: drop-shadow(0 0 calc(var(--glow, 0) * 26px) rgba(236, 236, 244, calc(var(--glow, 0) * .95))); }
-.logo-word .rest { display: block; width: calc(var(--o, 0) * var(--w, 0px)); white-space: nowrap; }
-.logo-word .rest > span { display: block; width: max-content; padding-right: .1em; margin-left: .04em; }
-.logo-word .rest i { font-style: normal; display: inline-block; color: #d2d1d8; }
-.cue { position: absolute; bottom: 36px; left: 0; right: 0; text-align: center; font: 500 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: rgba(230, 229, 236, .5); opacity: var(--cue, 1); }
-.cue::after { content: ""; display: block; width: 1px; height: 36px; margin: 14px auto 0; background: linear-gradient(rgba(230, 229, 236, .6), transparent); animation: cue 1.8s ease-in-out infinite; }
-@keyframes cue { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
-@media (prefers-reduced-motion: reduce) { .cue::after { animation: none; } }
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="s" viewBox="0 0 64 64"><rect width="64" height="64" rx="14.4" fill="#000"/><g transform="translate(32 32) scale(0.24145) translate(-200.169 -200)"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></g></symbol></svg>
-<section class="intro" id="intro" aria-label="Sona">
-  <div class="intro-stage">
-    <div class="logo-word" role="img" aria-label="Sona">
-      <svg viewBox="118 120 163 160" aria-hidden="true"><path class="glyph" pathLength="1" d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z"/></svg>
-      <span class="rest" aria-hidden="true"><span><i>o</i><i>n</i><i>a</i></span></span>
-    </div>
-    <div class="cue" aria-hidden="true">Défile</div>
-  </div>
-</section>
 
 <main>
 <header class="hero"><div class="wrap">
@@ -267,7 +244,7 @@ footer a:hover { color: var(--fg); }
   <a class="btn" href="#installer" data-cta>Télécharger Sona</a>
 </div>
 <script>
-// Rechargement : on repart toujours du haut, avec l'intro.
+// Rechargement : on repart toujours du haut.
 history.scrollRestoration = "manual";
 if (location.hash) history.replaceState(null, "", location.pathname);
 scrollTo(0, 0);
@@ -328,37 +305,6 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("cli
   if (id && id !== "haut" && !el) return;
   e.preventDefault(); goTo(el ? el.getBoundingClientRect().top + scrollY - 24 : 0);
 }));
-// Intro : tracé -> remplissage + lueur -> « ona ».
-const intro = document.getElementById("intro"), glyph = intro.querySelector(".glyph"), word = intro.querySelector(".logo-word"), letters = [...intro.querySelectorAll("i")];
-const ease = (t) => 1 - Math.pow(1 - t, 3), clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a));
-let restW = 0;
-function paintIntro(p) {
-  if (!restW) { restW = word.querySelector(".rest > span").getBoundingClientRect().width; word.style.setProperty("--w", restW + "px"); }
-  
-  const draw = ease(seg(p, 0, .42)), fill = seg(p, .4, .5), pulse = seg(p, .42, .5) * (1 - seg(p, .5, .66));
-  word.style.setProperty("--dash", 1 - draw);
-  word.style.setProperty("--fill", fill);
-  word.style.setProperty("--glow", Math.min(1, pulse * 1.6 + .25 * fill * (1 - seg(p, .66, 1))));
-  const o = ease(seg(p, .52, .85));
-  word.querySelector(".rest").style.setProperty("--o", o);
-  letters.forEach((l, k) => { const t = ease(seg(p, .56 + k * .07, .78 + k * .07)); l.style.opacity = t; l.style.transform = `translateY(${(1 - t) * 40}%)`; l.style.filter = `blur(${(1 - t) * 14}px)`; });
-  intro.style.setProperty("--cue", seg(p, .92, 1));
-}
-// Lecture automatique dès le chargement ; ensuite la page se défile normalement.
-const DURATION = 4400;
-let prog = 0;
-addEventListener("resize", () => { restW = 0; paintIntro(prog); });
-if (reduce) { prog = 1; paintIntro(1); }
-else {
-  paintIntro(0);
-  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
-    const t0 = performance.now() + 350;
-    const run = (now) => { prog = clamp((now - t0) / DURATION); paintIntro(prog); if (prog < 1) requestAnimationFrame(run); };
-    requestAnimationFrame(run);
-  });
-}
-
-
 // Paroles : même logique que l'app (ligne chantée remplie mot par mot, note tenue qui s'illumine, la vue suit la ligne).
 (() => {
   const box = document.getElementById("lyrics"), track = box.firstElementChild, lines = [...track.children];
@@ -451,11 +397,11 @@ else {
 
 // Lecteur du bas : la barre suit la page (titre en cours, avancement, couleur de l'album).
 (() => {
-  const bar = document.getElementById("pbar"), tt = document.getElementById("pb-t"), ss = document.getElementById("pb-s"), intro = document.getElementById("intro");
+  const bar = document.getElementById("pbar"), tt = document.getElementById("pb-t"), ss = document.getElementById("pb-s");
   const secs = [...document.querySelectorAll(".track")], n = secs.length;
   let cur = -1;
   const tick = () => {
-    const vis = intro.getBoundingClientRect().bottom < innerHeight * .5;
+    const vis = scrollY > innerHeight * .4;
     bar.classList.toggle("show", vis);
     let k = -1;
     secs.forEach((s, i) => { if (s.getBoundingClientRect().top < innerHeight * .5) k = i; });
@@ -467,7 +413,7 @@ else {
       document.body.style.setProperty("--tint", k < 0 ? "#d2d1d8" : s.dataset.tint);
     }
     const max = document.documentElement.scrollHeight - innerHeight;
-    bar.style.setProperty("--sp", Math.min(1, Math.max(0, (scrollY - innerHeight) / Math.max(1, max - innerHeight))));
+    bar.style.setProperty("--sp", Math.min(1, Math.max(0, scrollY / Math.max(1, max))));
   };
   addEventListener("scroll", tick, { passive: true }); addEventListener("resize", tick); tick();
 })();
