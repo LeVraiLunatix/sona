@@ -554,7 +554,7 @@ function renderShell() {
   const name = account.display_name || account.username;
   $("#root").innerHTML = `<div class="app">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="wordmark">Sona</span></div>
+      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="wordmark" aria-label="Sona">ona</span></div>
       <label class="side-search">${icons.search}<input id="side-q" type="search" placeholder="Rechercher" autocomplete="off"></label>
       <div class="side-list scroll">
         ${SIDE_NAV.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
