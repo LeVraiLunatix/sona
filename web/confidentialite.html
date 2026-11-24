@@ -1,22 +1,105 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Confidentialité | Sona</title><meta name="robots" content="noindex">
+<title>Confidentialité | Sona</title>
+<meta name="description" content="Ce que Sona enregistre, pourquoi, qui y a accès et comment exercer tes droits.">
+<meta name="theme-color" content="#0a0a0b">
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml"><link rel="icon" href="/icons/favicon-64.png" sizes="64x64">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
 @font-face { font-family: "Familjen Grotesk"; font-weight: 500; src: url("/fonts/FamiljenGrotesk-500.woff2") format("woff2"); font-display: swap; }
 @font-face { font-family: "Familjen Grotesk"; font-weight: 700; src: url("/fonts/FamiljenGrotesk-700.woff2") format("woff2"); font-display: swap; }
-body { margin: 0; background: #efede8; color: #141413; font: 500 18px/1.65 "Familjen Grotesk", "Segoe UI", system-ui, sans-serif; }
-main { max-width: 720px; margin: 0 auto; padding: 56px 24px 96px; }
-a { color: inherit; } h1 { font-size: clamp(40px, 7vw, 64px); line-height: 1; letter-spacing: -.04em; margin: 24px 0 36px; }
-h2 { font-size: 24px; letter-spacing: -.02em; margin: 40px 0 8px; } p { margin: 0 0 14px; color: rgba(20,20,19,.78); }
-mark { background: #f3e08a; padding: 0 4px; border-radius: 3px; }
-</style></head><body><main><a href="/presentation">&larr; Sona</a><h1>Confidentialité</h1>
-<h2>Ce que Sona garde</h2>
-<p><mark>TODO à vérifier et compléter avec ce que Sona enregistre vraiment</mark> : l'adresse e-mail et le mot de passe (haché) de ton compte, tes playlists, ton historique d'écoute et tes réglages.</p>
-<h2>À quoi ça sert</h2>
-<p>À faire fonctionner ton compte et tes appareils, et à calculer tes statistiques. Rien n'est vendu.</p>
-<h2>Services tiers</h2>
-<p><mark>TODO liste des services appelés (par exemple Deezer, LRCLIB, Last.fm, hébergeurs)</mark> et ce qui leur est transmis.</p>
+:root { --bg: #0a0a0b; --fg: #ecebf0; --mid: rgba(236, 235, 240, .68); --dim: rgba(236, 235, 240, .42); --line: rgba(236, 235, 240, .14); --grey: #d2d1d8; }
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; color: var(--fg); font: 500 18px/1.65 "Familjen Grotesk", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--fg); text-underline-offset: 3px; text-decoration-color: var(--dim); } a:hover { text-decoration-color: var(--fg); }
+header, main, footer { max-width: 760px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+header { padding-top: 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; letter-spacing: -.03em; text-decoration: none; }
+.brand svg { width: 30px; height: 30px; border-radius: 8px; }
+header nav { display: flex; gap: 20px; font-size: 15px; } header nav a { color: var(--mid); text-decoration: none; } header nav a:hover, header nav a[aria-current] { color: var(--fg); }
+main { padding-top: 56px; padding-bottom: 80px; }
+h1 { font-size: clamp(40px, 7vw, 68px); line-height: 1; letter-spacing: -.05em; margin: 0 0 16px; }
+.maj { color: var(--dim); font-size: 15px; margin: 0 0 56px; }
+h2 { font-size: 24px; letter-spacing: -.025em; line-height: 1.2; margin: 52px 0 12px; padding-top: 28px; border-top: 1px solid var(--line); }
+h3 { font-size: 18px; margin: 26px 0 6px; }
+p, li { color: var(--mid); } p { margin: 0 0 14px; } ul { margin: 0 0 14px; padding-left: 22px; } li { margin: 0 0 6px; }
+strong { color: var(--fg); font-weight: 700; }
+dl { margin: 0 0 14px; } dt { color: var(--fg); font-weight: 700; margin-top: 12px; } dd { margin: 2px 0 0; color: var(--mid); }
+table { width: 100%; border-collapse: collapse; margin: 6px 0 18px; font-size: 16px; } th, td { text-align: left; vertical-align: top; padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); } th { color: var(--dim); font-weight: 500; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; } td { color: var(--mid); } td:first-child { color: var(--fg); font-weight: 700; white-space: nowrap; }
+footer { padding-top: 24px; padding-bottom: 48px; border-top: 1px solid var(--line); color: var(--dim); font-size: 15px; display: flex; gap: 24px; flex-wrap: wrap; }
+footer a { color: var(--mid); }
+@media (max-width: 600px) { td:first-child { white-space: normal; } table, thead, tbody, tr, th, td { display: block; } thead { display: none; } tr { padding: 10px 0; border-bottom: 1px solid var(--line); } td { border: 0; padding: 2px 0; } }
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="s" viewBox="0 0 64 64"><rect width="64" height="64" rx="14.4" fill="#000"/><g transform="translate(32 32) scale(0.24145) translate(-200.169 -200)"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></g></symbol></svg>
+<header><a class="brand" href="/presentation"><svg aria-hidden="true"><use href="#s"/></svg>Sona</a><nav><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite" aria-current="page">Confidentialité</a></nav></header>
+<main>
+<h1>Confidentialité</h1>
+<p class="maj">Dernière mise à jour : 24 novembre 2026</p>
+<p>Cette page explique, sans détour, ce que Sona enregistre sur toi, pourquoi, qui y a accès et comment tu peux le faire effacer. Sona ne contient <strong>aucune publicité, aucun traceur et aucun outil de mesure d'audience</strong>, et ne vend aucune donnée.</p>
+<h2>Qui est responsable de tes données</h2>
+<p>Lunatix, éditeur de Sona (voir les <a href="/mentions-legales">mentions légales</a>).</p>
+<p>Pour toute question, signalement ou demande, deux moyens :</p>
+<ul>
+<li>le <a href="https://discord.gg/EyX2YR6nAy">serveur Discord</a> (message privé à Lunatix) : le plus rapide, et le bon canal pour une demande qui touche à tes données personnelles ;</li>
+<li>un ticket sur <a href="https://github.com/LeVraiLunatix/sona/issues">GitHub</a> (public : n'y écris aucune donnée personnelle).</li>
+</ul>
+<h2>Ce que Sona enregistre</h2>
+<table>
+<thead><tr><th>Données</th><th>À quoi elles servent</th></tr></thead>
+<tbody>
+<tr><td>Compte</td><td>Ton nom d'utilisateur Last.fm, ton nom affiché, ton avatar, un identifiant interne, le statut de validation de ton compte, et, si tu utilises le bot Telegram, ton identifiant Telegram numérique. Elles servent à te reconnaître et à valider ton accès.</td></tr>
+<tr><td>Connexion Last.fm</td><td>Une clé de session Last.fm, obtenue quand tu autorises Sona sur Last.fm. Elle sert à envoyer tes écoutes à ton compte Last.fm (réglable) et à retrouver ton historique. Sona ne voit jamais ton mot de passe Last.fm.</td></tr>
+<tr><td>Écoutes</td><td>Pour chaque titre écouté : titre, artiste, album, date, durée écoutée et source. Elles alimentent ton historique, tes statistiques, tes récaps, tes mixes et tes souvenirs.</td></tr>
+<tr><td>Bibliothèque et playlists</td><td>Tes favoris, tes playlists (y compris celles importées d'un autre service), les titres de ta bibliothèque locale et leur analyse audio.</td></tr>
+<tr><td>Amis et soirées</td><td>Tes amis dans Sona et les soirées d'écoute auxquelles tu participes. Si l'option « partager mes écoutes » est active (elle l'est par défaut), tes amis validés voient ce que tu écoutes. Tu peux la couper dans les réglages.</td></tr>
+<tr><td>Appareils</td><td>Les appareils connectés à ton compte (téléphone, ordinateur, télé), leur nom et leur dernière activité, pour continuer une lecture d'un écran à l'autre.</td></tr>
+<tr><td>Réglages</td><td>Qualité, format, égaliseur, apparence et autres préférences, enregistrés sur ton compte et sur ton appareil.</td></tr>
+<tr><td>Position (facultative)</td><td>Si tu l'autorises, ta position arrondie à deux décimales (environ un kilomètre), pour afficher la météo dans l'accueil. Elle est gardée sur ton appareil et transmise au serveur pour obtenir la météo ; tu peux la retirer à tout moment.</td></tr>
+<tr><td>Adresse IP</td><td>Lue par le serveur pour deux usages : repérer des appareils qui se trouvent sur le même réseau (par exemple pour connecter une télé), et limiter les abus (demandes trop nombreuses).</td></tr>
+<tr><td>Journaux techniques</td><td>Le serveur garde des journaux d'erreurs et de fonctionnement, conservés le temps nécessaire au dépannage et à la sécurité.</td></tr>
+</tbody></table>
+<h2>Cookies et stockage sur ton appareil</h2>
+<p>Sona n'utilise <strong>aucun cookie</strong>. Il enregistre sur ton appareil (stockage local du navigateur ou de l'application) un jeton de connexion et tes réglages, indispensables au fonctionnement. Il n'y a rien à accepter ni à refuser : on ne dépose aucun traceur.</p>
+<h2>Pourquoi, et sur quelle base légale</h2>
+<ul>
+<li><strong>Fournir le service que tu as demandé</strong> (compte, lecture, historique, playlists, appareils) : exécution du service.</li>
+<li><strong>Sécurité, lutte contre les abus, sauvegardes</strong> : intérêt légitime de l'éditeur à protéger le service et tes données.</li>
+<li><strong>Envoi de tes écoutes à Last.fm, position pour la météo</strong> : ton consentement, que tu peux retirer à tout moment.</li>
+</ul>
+<h2>Qui reçoit tes données</h2>
+<p>Personne ne les achète ni ne les revend. Pour que Sona fonctionne, certaines données passent par des prestataires :</p>
+<ul>
+<li><strong>Hébergeurs</strong> : Vercel (pages du site), Oracle Cloud (serveur de Sona et sa base de données), Discord (cache facultatif de titres déjà préparés, découpés en morceaux, sans lien avec ton identité).</li>
+<li><strong>Last.fm</strong> : ton nom d'utilisateur, ta clé de session et tes écoutes, si tu as relié ton compte.</li>
+<li><strong>Services de musique et d'information</strong> (Deezer, YouTube, SoundCloud, Spotify, Apple Music, LRCLIB, MusicBrainz, Wikipédia, Genius, Musixmatch, Open-Meteo) : Sona leur envoie des recherches et des titres pour obtenir pochettes, paroles, biographies, flux et météo. Ces requêtes partent du serveur de Sona, pas de ton appareil, et ne contiennent pas ton identité.</li>
+<li><strong>Telegram</strong> : si tu utilises le bot, les échanges passent par Telegram.</li>
+<li><strong>Tes amis dans Sona</strong> : ce que tu choisis de partager (voir plus haut).</li>
+</ul>
+<h2>Transferts hors de l'Union européenne</h2>
+<p>La plupart de ces prestataires sont aux États-Unis. Ces transferts s'appuient sur les mécanismes prévus par le RGPD que ces entreprises proposent (clauses contractuelles types ou cadre de protection des données UE-États-Unis).</p>
+<h2>Combien de temps</h2>
+<ul>
+<li>Tes données de compte, d'écoute, de bibliothèque et de playlists sont gardées <strong>tant que ton compte existe</strong>.</li>
+<li>Si tu demandes la suppression de ton compte, tes données sont effacées de la base de Sona. La base est sauvegardée chaque jour et seules les <strong>7 dernières sauvegardes</strong> sont gardées : tes données y disparaissent donc au plus tard sept jours après.</li>
+<li>Les écoutes déjà envoyées à Last.fm y restent : elles dépendent de ton compte Last.fm et de leur politique.</li>
+</ul>
 <h2>Tes droits</h2>
-<p>Tu peux demander l'accès à tes données, leur correction ou leur suppression en écrivant à <mark>TODO adresse e-mail</mark>.</p>
-</main></body></html>
+<p>Tu peux à tout moment demander à :</p>
+<ul>
+<li><strong>accéder</strong> à tes données et en obtenir une copie, y compris dans un format réutilisable (portabilité) ;</li>
+<li>les <strong>corriger</strong> ;</li>
+<li>les <strong>effacer</strong>, ou <strong>supprimer ton compte</strong> ;</li>
+<li><strong>limiter</strong> leur traitement ou t'y <strong>opposer</strong> ;</li>
+<li><strong>retirer ton consentement</strong> (la liaison Last.fm et la position se coupent aussi dans les réglages).</li>
+</ul>
+<p>Écris-nous par le canal privé indiqué plus haut. Nous vérifions que la demande vient bien du titulaire du compte, puis répondons sous <strong>un mois</strong>. Si tu estimes que tes droits ne sont pas respectés, tu peux saisir la CNIL : <a href="https://www.cnil.fr/fr/plaintes">cnil.fr/fr/plaintes</a> (3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07).</p>
+<h2>Sécurité</h2>
+<p>Les connexions passent en HTTPS. Ton jeton de connexion n'est jamais enregistré en clair sur le serveur, seulement sous forme d'empreinte. L'accès au serveur est réservé à l'éditeur. Aucun système n'est parfait : si une faille touchait tes données, nous te préviendrions ainsi que la CNIL dans les délais légaux.</p>
+<h2>Enfants</h2>
+<p>Sona n'est pas conçu pour les enfants de moins de 15 ans. Si tu penses qu'un enfant a créé un compte, écris-nous et nous le supprimons.</p>
+<h2>Changements</h2>
+<p>Quand cette page change sur le fond, la date en haut est mise à jour.</p>
+</main>
+<footer><a href="/presentation">Retour à la présentation</a><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a></footer>
+</body></html>
