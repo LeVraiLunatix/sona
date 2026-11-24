@@ -123,8 +123,8 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
 }
 
 /* Intro : le S se trace au scroll, s'illumine, puis « ona » apparaît */
-.intro { height: 320vh; position: relative; background: #000; color: #e6e5ec; }
-.intro-stage { position: sticky; top: 0; height: 100vh; display: grid; place-items: center; overflow: hidden; }
+.intro { height: 100vh; height: 100svh; position: relative; background: #000; color: #e6e5ec; }
+.intro-stage { height: 100%; display: grid; place-items: center; overflow: hidden; }
 .intro-stage::before { content: ""; position: absolute; width: 70vmin; height: 70vmin; border-radius: 50%; background: radial-gradient(closest-side, rgba(210, 209, 216, .22), transparent); opacity: var(--glow, 0); transform: scale(calc(.8 + var(--glow, 0) * .4)); }
 .logo-word { position: relative; display: flex; align-items: baseline; font-size: clamp(88px, 24vmin, 240px); font-weight: 700; letter-spacing: -.05em; line-height: 1; }
 .logo-word svg { height: .72em; width: auto; overflow: visible; flex: none; }
@@ -135,7 +135,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
 .cue { position: absolute; bottom: 36px; left: 0; right: 0; text-align: center; font: 500 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: rgba(230, 229, 236, .5); opacity: var(--cue, 1); }
 .cue::after { content: ""; display: block; width: 1px; height: 36px; margin: 14px auto 0; background: linear-gradient(rgba(230, 229, 236, .6), transparent); animation: cue 1.8s ease-in-out infinite; }
 @keyframes cue { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
-@media (prefers-reduced-motion: reduce) { .intro { height: 100vh; } .cue::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .cue::after { animation: none; } }
 </style>
 </head>
 <body>
@@ -244,23 +244,44 @@ let loggedIn = false;
 try { loggedIn = !!localStorage.getItem("sona.token"); } catch { /* navigation privée : on suppose non connecté */ }
 if (loggedIn) document.querySelectorAll("[data-app]").forEach((a) => { a.href = "/"; if (a.closest("nav")) a.textContent = "Ouvrir"; });
 
-// Scroll fluide (molette seulement ; le tactile garde son inertie native).
+// Scroll fluide à inertie (molette seulement ; le tactile garde son inertie native).
+// On garde une position CIBLE, la position RÉELLE s'en rapproche à chaque image (indépendant du taux de rafraîchissement).
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 if (!reduce && matchMedia("(pointer: fine)").matches) {
-  let target = scrollY, cur = scrollY, raf = 0;
-  const max = () => document.documentElement.scrollHeight - innerHeight;
-  const tick = () => { cur += (target - cur) * .085; if (Math.abs(target - cur) < .4) cur = target; scrollTo(0, cur); raf = cur === target ? 0 : requestAnimationFrame(tick); };
-  addEventListener("wheel", (e) => { if (e.ctrlKey) return; e.preventDefault(); if (!raf) cur = target = scrollY; target = Math.max(0, Math.min(max(), target + e.deltaY)); raf ||= requestAnimationFrame(tick); }, { passive: false });
-  addEventListener("keydown", () => { raf = 0; });
-  document.documentElement.style.scrollBehavior = "auto";
+  const EASE = .095;
+  document.documentElement.style.scrollBehavior = "auto"; // le CSS smooth se battrait avec nos scrollTo
+  let target = scrollY, current = target, raf = 0, last = 0;
+  const maxScroll = () => Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  const clampY = (v) => Math.min(Math.max(v, 0), maxScroll());
+  const frame = (now) => {
+    const dt = Math.min(64, Math.max(1, last ? now - last : 16.7)); last = now;
+    const diff = target - current;
+    if (Math.abs(diff) < .5) { current = target; scrollTo(0, current); raf = 0; return; }
+    current += diff * (1 - Math.pow(1 - EASE, dt / 16.7));
+    scrollTo(0, current);
+    raf = requestAnimationFrame(frame);
+  };
+  addEventListener("wheel", (e) => {
+    if (e.ctrlKey || e.defaultPrevented || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1;
+    target = clampY(target + e.deltaY * unit);
+    if (!raf) { last = 0; raf = requestAnimationFrame(frame); }
+  }, { passive: false });
+  // Défilement venu d'ailleurs (barre, clavier, ancre) : on se recale.
+  // Pendant l'animation, les événements « scroll » viennent de nos propres scrollTo : on ne les prend pas pour un défilement externe.
+  const adopt = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } current = target = scrollY; };
+  addEventListener("scroll", () => { if (!raf && Math.abs(scrollY - current) > 2) adopt(); }, { passive: true });
+  addEventListener("keydown", adopt); addEventListener("pointerdown", adopt);
+  addEventListener("resize", () => { target = clampY(target); current = clampY(current); });
 }
 // Intro : tracé -> remplissage + lueur -> « ona ».
 const intro = document.getElementById("intro"), glyph = intro.querySelector(".glyph"), word = intro.querySelector(".logo-word"), letters = [...intro.querySelectorAll("i")];
 const ease = (t) => 1 - Math.pow(1 - t, 3), clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a));
 let restW = 0;
-function paintIntro() {
+function paintIntro(p) {
   if (!restW) { restW = word.querySelector(".rest > span").getBoundingClientRect().width; word.style.setProperty("--w", restW + "px"); }
-  const r = intro.getBoundingClientRect(), p = reduce ? 1 : clamp(-r.top / (r.height - innerHeight));
+  
   const draw = ease(seg(p, 0, .42)), fill = seg(p, .4, .5), pulse = seg(p, .42, .5) * (1 - seg(p, .5, .66));
   word.style.setProperty("--dash", 1 - draw);
   word.style.setProperty("--fill", fill);
@@ -268,9 +289,21 @@ function paintIntro() {
   const o = ease(seg(p, .52, .85));
   word.querySelector(".rest").style.setProperty("--o", o);
   letters.forEach((l, k) => { const t = ease(seg(p, .56 + k * .07, .78 + k * .07)); l.style.opacity = t; l.style.transform = `translateY(${(1 - t) * 40}%)`; l.style.filter = `blur(${(1 - t) * 14}px)`; });
-  intro.style.setProperty("--cue", 1 - seg(p, 0, .08));
+  intro.style.setProperty("--cue", seg(p, .92, 1));
 }
-addEventListener("scroll", paintIntro, { passive: true }); addEventListener("resize", () => { restW = 0; paintIntro(); }); paintIntro();
+// Lecture automatique dès le chargement ; ensuite la page se défile normalement.
+const DURATION = 4400;
+let prog = 0;
+addEventListener("resize", () => { restW = 0; paintIntro(prog); });
+if (reduce) { prog = 1; paintIntro(1); }
+else {
+  paintIntro(0);
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
+    const t0 = performance.now() + 350;
+    const run = (now) => { prog = clamp((now - t0) / DURATION); paintIntro(prog); if (prog < 1) requestAnimationFrame(run); };
+    requestAnimationFrame(run);
+  });
+}
 if ("IntersectionObserver" in window) {
   const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .15 });
   document.querySelectorAll(".rv").forEach((el) => io.observe(el));
