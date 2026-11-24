@@ -9,7 +9,10 @@
 <meta property="og:title" content="Sona — ta musique, en clair.">
 <meta property="og:description" content="Paroles mot à mot, lossless, écoute ensemble, relais entre appareils.">
 <meta property="og:type" content="website">
-<link rel="icon" href="/icons/favicon-64.png">
+<meta property="og:image" content="/icons/icon-512.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon-64.png" sizes="64x64">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
 :root {
@@ -31,7 +34,7 @@ a { color: inherit; text-decoration: none; }
 
 nav { display: flex; align-items: center; justify-content: space-between; margin: 24px auto 0; padding: 10px 10px 10px 24px; max-width: 1056px; background: var(--card); border-radius: 999px; box-shadow: 0 1px 0 var(--line); }
 .brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
-.brand svg { width: 28px; height: 28px; color: var(--ink); }
+.mark { width: 34px; height: 34px; flex: none; border-radius: 9px; }
 .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 28px; border-radius: 999px; font-size: 16px; font-weight: 600; background: var(--sky); color: var(--ink); transition: transform .2s ease, filter .2s ease; }
 .pill:hover { filter: brightness(.97); transform: translateY(-1px); }
 .pill.white { background: var(--card); box-shadow: 0 1px 0 var(--line); }
@@ -46,15 +49,14 @@ h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045
 .note { margin-top: 20px; font-size: 15px; color: var(--ink-3); }
 
 /* Maquette de l'app */
-.mock { margin: 24px auto 0; max-width: 1056px; padding: 20px; border-radius: 36px; background: linear-gradient(160deg, #6fb4ff, #2f6fd6 60%, #17356f); }
-.app { display: grid; grid-template-columns: 64px 1fr; height: 460px; border-radius: 22px; overflow: hidden; background: var(--night); color: #f2f5fb; position: relative; }
+.mock { margin: 24px auto 0; max-width: 1056px; padding: 20px; border-radius: 36px; background: linear-gradient(160deg, #3a3a42, #1c1c21 60%, #0b0b0d); }
+.app { display: grid; grid-template-columns: 64px 1.05fr 1fr; height: 460px; border-radius: 22px; overflow: hidden; background: var(--night); color: #f2f5fb; position: relative; }
 .rail { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 22px 0; }
 .rail i { width: 20px; height: 20px; border-radius: 6px; background: rgba(255, 255, 255, .2); }
 .rail i.on { background: var(--mock); }
-.rail i.logo { width: 24px; height: 24px; border-radius: 0; background: var(--mock); margin-bottom: 8px; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='88.42 88.25 223.50 223.50'%3E%3Cpath d='M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='88.42 88.25 223.50 223.50'%3E%3Cpath d='M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z'/%3E%3C/svg%3E") center / contain no-repeat; }
-.stage { background: var(--night-2); margin: 10px 10px 10px 0; border-radius: 18px; padding: 28px 32px; overflow: hidden; }
+.stage { background: var(--night-2); margin: 10px 10px 10px 0; min-width: 0; border-radius: 18px; padding: 28px 32px; overflow: hidden; }
 .album { display: flex; gap: 24px; align-items: flex-end; margin-bottom: 20px; }
-.cover { width: 120px; height: 120px; border-radius: 16px; background: linear-gradient(140deg, #8cc8ff, #3b6fd1 55%, #1b2a5c); flex: none; }
+.cover { width: 120px; height: 120px; border-radius: 16px; background: linear-gradient(140deg, #e4e3ea, #8d8c97 55%, #2b2b32); flex: none; }
 .album small { color: rgba(242, 245, 251, .6); font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 .album h3 { margin: 8px 0 4px; font-size: 30px; letter-spacing: -.03em; line-height: 1.1; }
 .album p { margin: 0; color: rgba(242, 245, 251, .6); font-size: 15px; }
@@ -62,8 +64,12 @@ h1 { font-size: clamp(44px, 8vw, 88px); line-height: 1.02; letter-spacing: -.045
 .row span:first-child, .row span:last-child { color: rgba(242, 245, 251, .4); font-variant-numeric: tabular-nums; }
 .row.on { background: rgba(255, 255, 255, .1); color: #fff; }
 .row.on span:first-child { color: #fff; }
+.lyrics { margin: 10px 10px 10px 0; padding: 36px 32px; border-radius: 18px; background: var(--night-2); font-size: 27px; font-weight: 700; letter-spacing: -.03em; line-height: 1.2; overflow: hidden; }
+.lyrics p { margin: 0 0 22px; }
+.lyrics span { color: rgba(242, 245, 251, .28); animation: sing 12s linear infinite; animation-delay: calc(var(--i) * .55s); }
+@keyframes sing { 0%, 4% { color: rgba(242, 245, 251, .28); } 6%, 90% { color: #fff; } 96%, 100% { color: rgba(242, 245, 251, .28); } }
 .bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 82%); height: 60px; border-radius: 22px; background: rgba(19, 26, 40, .92); border: 1px solid rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 14px; padding: 0 20px 0 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
-.bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #8cc8ff, #3b6fd1); flex: none; }
+.bar .mini { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(140deg, #e4e3ea, #8d8c97); flex: none; }
 .bar b { font-size: 14px; display: block; line-height: 1.2; }
 .bar small { font-size: 12px; color: rgba(242, 245, 251, .55); }
 .bar .play { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; background: var(--mock); display: grid; place-items: center; }
@@ -86,6 +92,15 @@ h2 { font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.04e
 .final { margin: 120px 0 0; padding: 96px 32px; border-radius: 40px; text-align: center; background: linear-gradient(180deg, #e9e9ed, #dcdce2); }
 .final h2 { margin: 0 auto 36px; max-width: 12ch; }
 
+.plats { display: flex; flex-wrap: wrap; gap: 12px; }
+.plats span { padding: 16px 26px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 0 var(--line); font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+.final { background: var(--night); color: #f2f2f5; }
+.final .pill.white { background: rgba(255, 255, 255, .12); color: #fff; box-shadow: none; }
+.final .pill.dark { background: #e9e9ee; color: var(--ink); }
+.rv { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
+.rv.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; transition: none; } .lyrics span { animation: none; color: #fff; } html { scroll-behavior: auto; } }
+nav { position: sticky; top: 12px; z-index: 5; }
 footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 48px 0 64px; color: var(--ink-3); font-size: 15px; }
 
 @media (max-width: 860px) {
@@ -95,7 +110,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
   .lead { font-size: 18px; }
   .mock { padding: 12px; border-radius: 28px; }
   .app { grid-template-columns: 1fr; height: 420px; }
-  .rail { display: none; }
+  .rail, .lyrics { display: none; }
   .stage { margin: 8px; padding: 20px; }
   .album h3 { font-size: 24px; }
   .cover { width: 88px; height: 88px; }
@@ -109,11 +124,12 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="s" viewBox="0 0 64 64"><rect width="64" height="64" rx="14.4" fill="#000"/><g transform="translate(32 32) scale(0.24145) translate(-200.169 -200)"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></g></symbol></svg>
 <div class="sky">
   <div class="wrap">
     <nav aria-label="Principal">
       <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut">
-        <svg viewBox="0 0 64 64" aria-hidden="true"><defs><radialGradient id="lg-orb" cx=".34" cy=".28" r=".9"><stop offset="0" stop-color="#4a4a52"/><stop offset=".55" stop-color="#17171b"/><stop offset="1" stop-color="#0b0b0d"/></radialGradient><mask id="lg-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="32" cy="32" r="13.1" fill="#000"/></mask></defs><g transform="rotate(-22 32 32)" mask="url(#lg-cut)"><path d="M4 32A28 10 0 0 1 60 32" fill="none" stroke="#0b0b0d" stroke-opacity=".55" stroke-width="2.1" stroke-linecap="round"/></g><circle cx="32" cy="32" r="12.5" fill="url(#lg-orb)"/><ellipse cx="27.6" cy="26.8" rx="4.8" ry="2.5" transform="rotate(-34 27.6 26.8)" fill="#fff" fill-opacity=".5"/><g transform="rotate(-22 32 32)"><path d="M4 32A28 10 0 0 0 60 32" fill="none" stroke="#0b0b0d" stroke-width="2.1" stroke-linecap="round"/><circle cx="9.2" cy="37.5" r="2.2" fill="#0b0b0d"/></g></svg>
+        <svg class="mark" aria-hidden="true"><use href="#s"/></svg>
         Sona
       </a>
       <a class="pill" href="/?connexion" data-app>Se connecter</a>
@@ -132,7 +148,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
 
     <div class="mock" aria-hidden="true">
       <div class="app">
-        <div class="rail"><i class="logo"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="rail"><svg class="mark" aria-hidden="true" style="width:28px;height:28px;margin-bottom:8px"><use href="#s"/></svg><i class="on"></i><i></i><i></i><i></i></div>
         <div class="stage">
           <div class="album">
             <div class="cover"></div>
@@ -142,8 +158,13 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
           <div class="row"><span>2</span><span>Ligne claire</span><span>2:58</span></div>
           <div class="row"><span>3</span><span>Silence blanc</span><span>4:05</span></div>
           <div class="row"><span>4</span><span>Marée</span><span>3:19</span></div>
-          <div class="bar"><div class="mini"></div><div><b>Premier matin</b><small>Nils Aubert · FLAC 24 bits / 96 kHz</small></div><div class="play"></div></div>
         </div>
+        <div class="lyrics">
+          <p><span style="--i:0">Le</span> <span style="--i:1">jour</span> <span style="--i:2">se</span> <span style="--i:3">lève</span> <span style="--i:4">sans</span> <span style="--i:5">bruit</span></p>
+          <p><span style="--i:7">et</span> <span style="--i:8">chaque</span> <span style="--i:9">mot</span> <span style="--i:10">s'allume</span></p>
+          <p><span style="--i:12">juste</span> <span style="--i:13">à</span> <span style="--i:14">temps</span></p>
+        </div>
+        <div class="bar"><div class="mini"></div><div><b>Premier matin</b><small>Nils Aubert · FLAC 24 bits / 96 kHz</small></div><div class="play"></div></div>
       </div>
     </div>
   </div>
@@ -154,9 +175,9 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
     <span class="tag">/essentiel</span>
     <h2>Tout est en place. Rien de plus.</h2>
     <div class="cards">
-      <div class="card"><span class="n">01</span><h3>Paroles mot à mot</h3><p>Les paroles défilent en rythme, mot après mot, et se règlent d'un geste.</p></div>
-      <div class="card"><span class="n">02</span><h3>Vrai lossless</h3><p>Branche ton dossier de FLAC ou d'ALAC : Sona les lit tels quels, sans jamais les convertir.</p></div>
-      <div class="card"><span class="n">03</span><h3>Où tu veux</h3><p>Lance sur le téléphone, continue sur l'ordinateur, envoie sur l'écran du salon.</p></div>
+      <div class="card rv"><span class="n">01</span><h3>Paroles mot à mot</h3><p>Les paroles défilent en rythme, mot après mot, et se règlent d'un geste.</p></div>
+      <div class="card rv"><span class="n">02</span><h3>Vrai lossless</h3><p>Branche ton dossier de FLAC ou d'ALAC : Sona les lit tels quels, sans jamais les convertir.</p></div>
+      <div class="card rv"><span class="n">03</span><h3>Où tu veux</h3><p>Lance sur le téléphone, continue sur l'ordinateur, envoie sur l'écran du salon.</p></div>
     </div>
   </section>
 
@@ -164,10 +185,18 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
     <span class="tag">/aussi</span>
     <h2>Et aussi.</h2>
     <div class="also">
-      <div><b>Écoute ensemble</b><span>Le même son, au même moment, avec tes amis.</span></div>
-      <div><b>Playlists et bibliothèque</b><span>Importe depuis d'autres services, partage, collabore.</span></div>
-      <div><b>Stats et récaps</b><span>Tes artistes, tes habitudes, ton mois en musique.</span></div>
-      <div><b>Hors ligne</b><span>Les titres téléchargés sur l'iPhone se lisent sans réseau.</span></div>
+      <div class="rv"><b>Écoute ensemble</b><span>Le même son, au même moment, avec tes amis.</span></div>
+      <div class="rv"><b>Playlists et bibliothèque</b><span>Importe depuis d'autres services, partage, collabore.</span></div>
+      <div class="rv"><b>Stats et récaps</b><span>Tes artistes, tes habitudes, ton mois en musique.</span></div>
+      <div class="rv"><b>Hors ligne</b><span>Les titres téléchargés sur l'iPhone se lisent sans réseau.</span></div>
+    </div>
+  </section>
+
+  <section class="section" aria-label="Plateformes">
+    <span class="tag">/partout</span>
+    <h2>Un seul compte, chaque écran.</h2>
+    <div class="plats">
+      <span>Navigateur</span><span>Windows</span><span>iPhone</span><span>Android TV</span><span>Meta Quest</span><span>Stream Deck</span>
     </div>
   </section>
 
@@ -180,7 +209,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
   </section>
 
   <footer>
-    <span>Sona v2</span>
+    <span style="display:flex;align-items:center;gap:10px"><svg class="mark" aria-hidden="true" style="width:24px;height:24px;border-radius:6px"><use href="#s"/></svg>Sona v2</span>
     <a href="/" data-app>Ouvrir l'app</a>
   </footer>
 </div>
@@ -189,6 +218,10 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
 let loggedIn = false;
 try { loggedIn = !!localStorage.getItem("sona.token"); } catch { /* navigation privée : on suppose non connecté */ }
 if (loggedIn) document.querySelectorAll("[data-app]").forEach((a) => { a.href = "/"; if (a.closest("nav")) a.textContent = "Ouvrir"; });
+if ("IntersectionObserver" in window) {
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .15 });
+  document.querySelectorAll(".rv").forEach((el) => io.observe(el));
+} else document.querySelectorAll(".rv").forEach((el) => el.classList.add("in"));
 </script>
 </body>
 </html>
