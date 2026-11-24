@@ -167,24 +167,44 @@ footer a:hover { color: var(--fg); }
   .pbar small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .lyrics p, .lw, .bars i, body { transition: none; } .bars i { --on: 1; } html { scroll-behavior: auto; } }
+
+.lang { position: fixed; top: 14px; inset-inline-end: 14px; z-index: 20; }
+.lang > button { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 10px; background: #141416; border: 1px solid #26262a; color: var(--fg); font: 500 14px/1 var(--mono); letter-spacing: .06em; cursor: pointer; }
+.lang > button:hover { border-color: #3a3a40; }
+.lang svg { width: 18px; height: 18px; }
+.lang ul { position: absolute; top: 46px; inset-inline-end: 0; margin: 0; padding: 6px; list-style: none; min-width: 190px; max-height: 70vh; overflow-y: auto; background: #141416; border: 1px solid #26262a; border-radius: 12px; }
+.lang ul[hidden] { display: none; }
+.lang li button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: var(--mid); font: 500 16px/1.2 var(--font); text-align: start; cursor: pointer; }
+.lang li button:hover { background: #1d1d20; color: var(--fg); }
+.lang li button[aria-selected="true"] { color: var(--fg); font-weight: 700; }
+.lang li button[aria-selected="true"]::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tint); }
+html[dir="rtl"] .lyrics p.on .w { background-image: linear-gradient(270deg, #fff calc(var(--p, 0) * 116% - 8%), rgba(255, 255, 255, .34) calc(var(--p, 0) * 116% + 8%)); }
+html[dir="rtl"] .install-side { text-align: right; }
+html:lang(ja) h1, html:lang(ja) h2, html:lang(zh) h1, html:lang(zh) h2, html:lang(ko) h1, html:lang(ko) h2, html:lang(ar) h1, html:lang(ar) h2, html:lang(ja) .lyrics, html:lang(zh) .lyrics, html:lang(ko) .lyrics, html:lang(ar) .lyrics { letter-spacing: 0; }
+html:lang(ja) h1, html:lang(zh) h1, html:lang(ko) h1 { line-height: 1.12; font-size: clamp(44px, 8vw, 120px); }
+html:lang(ar) h1 { font-size: clamp(52px, 9vw, 140px); line-height: 1.1; }
+html:lang(ar) .lw, html:lang(ar) .lyrics .w { letter-spacing: 0; }
+.install-side { text-align: start; }
+@media (max-width: 900px) { .lang { top: 10px; inset-inline-end: 10px; } .lang > button { height: 38px; } }
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="s" viewBox="0 0 64 64"><rect width="64" height="64" rx="14.4" fill="#000"/><g transform="translate(32 32) scale(0.24145) translate(-200.169 -200)"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></g></symbol></svg>
 
+<div class="lang" id="lang"></div>
 <main>
 <header class="hero"><div class="wrap">
-  <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut"><svg class="mark" aria-hidden="true"><use href="#s"/></svg><span class="tiny">Lecteur de musique</span></a>
+  <a class="brand" href="#haut" id="haut" aria-label="Sona, retour en haut"><svg class="mark" aria-hidden="true"><use href="#s"/></svg><span class="tiny" data-i18n="tag">Lecteur de musique</span></a>
   <h1 id="h1"><span class="lw">Ta</span> <span class="lw">musique,</span><br><span class="lw">en</span> <span class="lw">clair.</span></h1>
-  <p class="lead">Les paroles défilent mot à mot, tes fichiers FLAC sont lus tels quels, et ce que tu écoutes te suit du téléphone à l'ordinateur et à la télé.</p>
-  <div class="cta"><a class="btn" href="#installer" data-cta>Télécharger Sona</a><a class="link" href="#paroles">Voir comment ça marche</a></div>
+  <p class="lead" data-i18n="lead">Les paroles défilent mot à mot, tes fichiers FLAC sont lus tels quels, et ce que tu écoutes te suit du téléphone à l'ordinateur et à la télé.</p>
+  <div class="cta"><a class="btn" href="#installer" data-cta>Télécharger Sona</a><a class="link" href="#paroles" data-i18n="how">Voir comment ça marche</a></div>
   <p class="note" data-note>Gratuit. Sur Windows et sur ton téléphone. macOS et Linux arrivent.</p>
 </div></header>
 
 <div class="wrap">
-  <section class="track" id="paroles" data-title="Paroles mot à mot" data-tint="#9fb8e6">
-    <div><span class="tn">01</span><h2>Paroles mot à mot</h2><p>Chaque mot s'allume au moment où il est chanté. Les notes tenues brillent plus longtemps.</p><p class="small">Elles arrivent trop tôt ou trop tard ? Tu les décales, essaie.</p>
-      <div class="shift"><button type="button" id="sh-" aria-label="Décaler plus tôt">−</button><output id="sh-v">0,0 s</output><button type="button" id="sh+" aria-label="Décaler plus tard">+</button></div></div>
+  <section class="track" id="paroles" data-tint="#9fb8e6">
+    <div><span class="tn">01</span><h2 data-i18n="t1">Paroles mot à mot</h2><p data-i18n="t1p">Chaque mot s'allume au moment où il est chanté. Les notes tenues brillent plus longtemps.</p><p class="small" data-i18n="t1s">Elles arrivent trop tôt ou trop tard ? Tu les décales, essaie.</p>
+      <div class="shift"><button type="button" id="sh-" data-i18n-aria="sh_less" aria-label="Décaler plus tôt">−</button><output id="sh-v">0,0 s</output><button type="button" id="sh+" data-i18n-aria="sh_more" aria-label="Décaler plus tard">+</button></div></div>
     <div class="vis"><div class="lyrics" id="lyrics" aria-hidden="true"><div class="ly-track">
           <p><span class="w" data-d="0.3">Le</span> <span class="w" data-d="0.4">jour</span> <span class="w" data-d="0.25">se</span> <span class="w" data-d="0.5">lève</span> <span class="w" data-d="0.3">sans</span> <span class="w" data-d="0.7">bruit</span></p>
           <p><span class="w" data-d="0.25">et</span> <span class="w" data-d="0.45">chaque</span> <span class="w" data-d="0.35">mot</span> <span class="w" data-d="0.6">s'allume</span></p>
@@ -193,56 +213,57 @@ footer a:hover { color: var(--fg); }
         </div></div></div>
   </section>
 
-  <section class="track" id="lossless" data-title="Lossless pour de vrai" data-tint="#e3b872">
-    <div><span class="tn">02</span><h2>Lossless pour de vrai</h2><p>Tu branches ton dossier de FLAC ou d'ALAC. Sona les lit tels quels, sans conversion ni recompression.</p><p class="small">Un fichier compressé coupe souvent les aigus vers 16 kHz. Ici, tout ce qui est dans ton fichier est joué.</p></div>
+  <section class="track" id="lossless" data-tint="#e3b872">
+    <div><span class="tn">02</span><h2 data-i18n="t2">Lossless pour de vrai</h2><p data-i18n="t2p">Tu branches ton dossier de FLAC ou d'ALAC. Sona les lit tels quels, sans conversion ni recompression.</p><p class="small" data-i18n="t2s">Un fichier compressé coupe souvent les aigus vers 16 kHz. Ici, tout ce qui est dans ton fichier est joué.</p></div>
     <div class="vis"><div class="spec" id="spec"></div></div>
   </section>
 
-  <section class="track" id="relais" data-title="Un compte, tous tes écrans" data-tint="#86c9b4">
-    <div><span class="tn">03</span><h2>Ça te suit</h2><p>Tu lances sur le téléphone, tu continues sur l'ordinateur, tu envoies sur la télé du salon. Même titre, même seconde.</p><p class="small">Les titres téléchargés sur l'iPhone se lisent aussi sans réseau.</p></div>
+  <section class="track" id="relais" data-tint="#86c9b4">
+    <div><span class="tn">03</span><h2 data-i18n="t3">Ça te suit</h2><p data-i18n="t3p">Tu lances sur le téléphone, tu continues sur l'ordinateur, tu envoies sur la télé du salon. Même titre, même seconde.</p><p class="small" data-i18n="t3s">Les titres téléchargés sur l'iPhone se lisent aussi sans réseau.</p></div>
     <div class="vis"><div class="devs" id="devs" aria-hidden="true">
-      <div class="dev phone on"><div class="shape"></div><span>Téléphone</span></div>
-      <div class="dev laptop"><div class="shape"></div><span>Ordinateur</span></div>
-      <div class="dev tv"><div class="shape"></div><span>Télé</span></div>
+      <div class="dev phone on"><div class="shape"></div><span data-i18n="dev_phone">Téléphone</span></div>
+      <div class="dev laptop"><div class="shape"></div><span data-i18n="dev_laptop">Ordinateur</span></div>
+      <div class="dev tv"><div class="shape"></div><span data-i18n="dev_tv">Télé</span></div>
     </div><p class="now" aria-hidden="true"><small id="now-s">En cours sur le téléphone</small></p></div>
   </section>
 
-  <section class="track" id="ensemble" data-title="Écoute ensemble" data-tint="#e8957f">
-    <div><span class="tn">04</span><h2>Écoute ensemble</h2><p>Tu invites quelqu'un, vous écoutez le même son au même moment, où que vous soyez.</p></div>
+  <section class="track" id="ensemble" data-tint="#e8957f">
+    <div><span class="tn">04</span><h2 data-i18n="t4">Écoute ensemble</h2><p data-i18n="t4p">Tu invites quelqu'un, vous écoutez le même son au même moment, où que vous soyez.</p></div>
     <div class="vis"><div class="duo" aria-hidden="true">
       <div class="who"><span class="av">T</span><div class="bar"><i id="d1"></i></div><time id="t1">0:00</time></div>
       <div class="who"><span class="av b">L</span><div class="bar"><i id="d2"></i></div><time id="t2">0:00</time></div>
-      <span class="sync">Synchronisés</span>
+      <span class="sync" data-i18n="sync">Synchronisés</span>
     </div></div>
   </section>
 
-  <section class="track" id="recap" data-title="Ton mois en musique" data-tint="#c9a4e0">
-    <div><span class="tn">05</span><h2>Ton mois en musique</h2><p>Sona garde ce que tu écoutes : tes artistes, tes habitudes, tes jours les plus chargés, avec un récap à la fin du mois.</p><p class="small">Playlists importables depuis un autre service, partageables à plusieurs.</p></div>
-    <div class="vis"><div class="cal" id="cal" aria-hidden="true"></div><div class="cal-cap"><span>Exemple d'un mois d'écoute</span><span>Plus clair = plus d'écoutes</span></div></div>
+  <section class="track" id="recap" data-tint="#c9a4e0">
+    <div><span class="tn">05</span><h2 data-i18n="t5">Ton mois en musique</h2><p data-i18n="t5p">Sona garde ce que tu écoutes : tes artistes, tes habitudes, tes jours les plus chargés, avec un récap à la fin du mois.</p><p class="small" data-i18n="t5s">Playlists importables depuis un autre service, partageables à plusieurs.</p></div>
+    <div class="vis"><div class="cal" id="cal" aria-hidden="true"></div><div class="cal-cap"><span data-i18n="cal1">Exemple d'un mois d'écoute</span><span data-i18n="cal2">Plus clair = plus d'écoutes</span></div></div>
   </section>
 
-  <section class="track install" id="installer" data-title="Installer Sona" data-tint="#d2d1d8">
-    <div><span class="tn">06</span><h2>Installe Sona.</h2><p>Sona s'installe, il ne s'ouvre pas dans un onglet.</p></div>
+  <section class="track install" id="installer" data-tint="#d2d1d8">
+    <div><span class="tn">06</span><h2 data-i18n="t6">Installe Sona.</h2><p data-i18n="t6p">Sona s'installe, il ne s'ouvre pas dans un onglet.</p></div>
     <div class="install-side">
-      <div class="os" data-os="windows"><b>Windows<em>Ton système</em></b><span>L'app complète : mini-lecteur, télécommande du téléphone, raccourcis clavier.</span><a class="btn" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows">Télécharger</a></div>
-      <div class="os" data-os="ios"><b>iPhone et iPad<em>Ton système</em></b><span>Ouvre cette page dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</span><a class="btn" href="#installer" data-install>Installer</a></div>
-      <div class="os" data-os="android"><b>Android<em>Ton système</em></b><span>Ouvre cette page dans Chrome, puis menu ⋮ et « Installer l'application ».</span><a class="btn" href="#installer" data-install>Installer</a></div>
-      <div class="os" data-os="mac"><b>macOS<em>Ton système</em></b><span>En préparation.</span><em class="soon">Bientôt</em></div>
-      <div class="os" data-os="linux"><b>Linux<em>Ton système</em></b><span>En préparation.</span><em class="soon">Bientôt</em></div>
-      <p class="more">Sona existe aussi sur Android TV, Meta Quest et Stream Deck, avec le même compte.</p>
+      <div class="os" data-os="windows"><b>Windows<em data-i18n="you">Ton système</em></b><span data-i18n="os_win_d">L'app complète : mini-lecteur, télécommande du téléphone, raccourcis clavier.</span><a class="btn" href="https://github.com/LeVraiLunatix/sona/releases/tag/windows" data-i18n="os_dl">Télécharger</a></div>
+      <div class="os" data-os="ios"><b><span data-i18n="os_ios">iPhone et iPad</span><em data-i18n="you">Ton système</em></b><span data-i18n="os_ios_d">Ouvre cette page dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</span><a class="btn" href="#installer" data-install data-i18n="os_inst">Installer</a></div>
+      <div class="os" data-os="android"><b>Android<em data-i18n="you">Ton système</em></b><span data-i18n="os_and_d">Ouvre cette page dans Chrome, puis menu ⋮ et « Installer l'application ».</span><a class="btn" href="#installer" data-install data-i18n="os_inst">Installer</a></div>
+      <div class="os" data-os="mac"><b>macOS<em data-i18n="you">Ton système</em></b><span data-i18n="os_prep">En préparation.</span><em class="soon" data-i18n="soon">Bientôt</em></div>
+      <div class="os" data-os="linux"><b>Linux<em data-i18n="you">Ton système</em></b><span data-i18n="os_prep">En préparation.</span><em class="soon" data-i18n="soon">Bientôt</em></div>
+      <p class="more" data-i18n="more">Sona existe aussi sur Android TV, Meta Quest et Stream Deck, avec le même compte.</p>
     </div>
   </section>
 </div>
 </main>
 
-<footer><div class="wrap"><span>Sona</span><span class="fnav"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="#haut">Retour en haut</a></span></div></footer>
+<footer><div class="wrap"><span>Sona</span><span class="fnav"><a href="/mentions-legales" data-i18n="legal">Mentions légales</a><a href="/confidentialite" data-i18n="priv">Confidentialité</a><a href="#haut" data-i18n="top">Retour en haut</a></span></div></footer>
 
-<div class="pbar" id="pbar" role="region" aria-label="Où tu en es">
+<div class="pbar" id="pbar" role="region" data-i18n-aria="pb_aria" aria-label="Où tu en es">
   <div class="line"><i></i></div>
   <svg class="mark" aria-hidden="true"><use href="#s"/></svg>
   <div class="info"><b id="pb-t">Sona</b><small id="pb-s">Titre 1 sur 6</small></div>
   <a class="btn" href="#installer" data-cta>Télécharger Sona</a>
 </div>
+<script src="/presentation-i18n.js"></script>
 <script>
 // Rechargement : on repart toujours du haut.
 history.scrollRestoration = "manual";
@@ -255,13 +276,6 @@ const os = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(plat) && navigator.maxTouc
 const names = { mac: "macOS", linux: "Linux" };
 const you = document.querySelector(`.os[data-os="${os}"]`);
 if (you) you.classList.add("you");
-const cta = { windows: ["Télécharger pour Windows", "https://github.com/LeVraiLunatix/sona/releases/tag/windows"], ios: ["Installer sur iPhone", "#telecharger"], android: ["Installer sur Android", "#telecharger"] }[os];
-document.querySelectorAll("[data-cta]").forEach((a) => {
-  if (cta) { a.textContent = cta[0]; a.href = cta[1]; }
-  else if (names[os]) { a.textContent = `Bientôt sur ${names[os]}`; a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); }
-});
-const note = document.querySelector("[data-note]");
-if (note && names[os]) note.textContent = `Sona arrive bientôt sur ${names[os]}. En attendant : Windows, ou installe-le sur ton téléphone.`;
 // Android/Chrome : vrai bouton d'installation quand le navigateur le propose.
 let installEvt = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
@@ -305,57 +319,129 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("cli
   if (id && id !== "haut" && !el) return;
   e.preventDefault(); goTo(el ? el.getBoundingClientRect().top + scrollY - 24 : 0);
 }));
-// Paroles : même logique que l'app (ligne chantée remplie mot par mot, note tenue qui s'illumine, la vue suit la ligne).
-(() => {
-  const box = document.getElementById("lyrics"), track = box.firstElementChild, lines = [...track.children];
-  const words = lines.map((p) => [...p.children]);
-  let t = 0, shift = 0; const GAP = .3, END = 1.8;
-  const times = [];
-  lines.forEach((p, i) => {
-    let c = i ? times[i - 1].end + GAP : .6; const start = c, w = [];
-    words[i].forEach((el) => { const d = parseFloat(el.dataset.d); w.push({ el, s: c, e: c + d, held: el.classList.contains("held") }); c += d; });
-    times.push({ start, end: c, w });
-  });
-  const total = times[times.length - 1].end + END;
-  const clamp01 = (v) => Math.max(0, Math.min(1, v));
-  let active = -1;
-  function setActive(i) {
-    active = i;
-    lines.forEach((p, k) => { p.classList.toggle("on", k === i); const d = Math.abs(k - i); if (d >= 1 && d <= 2) p.dataset.d = d; else delete p.dataset.d; });
-    const p = lines[Math.max(0, i)];
-    box.style.setProperty("--ty", box.clientHeight * .4 - (p.offsetTop + p.offsetHeight / 2) + "px");
+// ───────────────────────── Langue : détectée au chargement, changeable à la main (mémorisée).
+const SUPPORTED = LANGS.map((l) => l[0]), hooks = [];
+function detectLang() {
+  try { const saved = localStorage.getItem("sona.lang"); if (SUPPORTED.includes(saved)) return saved; } catch { /* stockage bloqué */ }
+  for (const l of navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"]) {
+    const c = String(l).toLowerCase().split("-")[0];
+    if (SUPPORTED.includes(c)) return c;
   }
-  function paint() {
-    const tt = t + shift; // décalage : positif = les paroles arrivent plus tôt
-    let cur = -1;
-    times.forEach((l, i) => { if (tt >= l.start - GAP / 2) cur = i; });
-    if (cur !== active) setActive(cur);
-    times.forEach((l) => l.w.forEach((w) => {
-      const p = clamp01((tt - w.s) / (w.e - w.s));
-      w.el.style.setProperty("--p", p);
-      if (w.held) w.el.style.setProperty("--e", Math.sin(Math.PI * p) ** .6);
-    }));
-    box.classList.toggle("fade", t > total - .6);
-  }
-  const out = document.getElementById("sh-v");
-  const nudge = (d) => { shift = Math.round((shift + d) * 10) / 10; out.textContent = (shift > 0 ? "+" : shift < 0 ? "−" : "") + Math.abs(shift).toFixed(1).replace(".", ",") + " s"; paint(); };
-  document.getElementById("sh-").onclick = () => nudge(-.2);
-  document.getElementById("sh+").onclick = () => nudge(.2);
-  function reset() { box.classList.add("jump"); t = 0; active = -2; paint(); void box.offsetWidth; box.classList.remove("jump"); }
-  if (reduce) { t = times[1].start + .5; paint(); return; }
-  let last = 0;
-  const loop = (now) => { t += Math.min(.05, last ? (now - last) / 1000 : 0); last = now; if (t >= total) reset(); else paint(); requestAnimationFrame(loop); };
-  setActive(-1); box.classList.add("jump"); paint(); requestAnimationFrame(() => { box.classList.remove("jump"); requestAnimationFrame(loop); });
-})();
+  return "en"; // langue du monde par défaut
+}
+let lang = detectLang(), L = I18N[lang];
+const fill = (str, o) => str.replace(/\{(\w+)\}/g, (_, k) => o[k]);
+const dec = () => (["fr", "es", "de", "it", "pt", "nl"].includes(lang) ? "," : ".");
 
-// Titre : s'allume mot à mot une fois, quand il est à l'écran.
-(() => {
+function applyCta() {
+  const url = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
+  const c = { windows: [L.cta_win, url], ios: [L.cta_ios, "#installer"], android: [L.cta_and, "#installer"] }[os];
+  document.querySelectorAll("[data-cta]").forEach((a) => {
+    a.removeAttribute("aria-disabled");
+    if (c) { a.textContent = c[0]; a.href = c[1]; }
+    else if (names[os]) { a.textContent = fill(L.cta_soon, { os: names[os] }); a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); }
+    else { a.textContent = L.cta; a.href = "#installer"; }
+  });
+  const note = document.querySelector("[data-note]");
+  if (note) note.textContent = names[os] ? fill(L.note_soon, { os: names[os] }) : L.note;
+}
+
+let h1Started = false;
+function buildH1() {
+  const h1 = document.getElementById("h1");
+  h1.innerHTML = L.h1.map((line) => line.map((w) => `<span class="lw${h1Started || reduce ? " lit" : ""}">${w}</span>`).join(" ")).join("<br>");
+}
+function startH1() {
+  if (h1Started) return;
+  h1Started = true;
   const ws = [...document.querySelectorAll("#h1 .lw")];
   if (reduce) return ws.forEach((w) => w.classList.add("lit"));
-  let started = false;
-  const go = () => { if (started) return; started = true; ws.forEach((w, i) => setTimeout(() => w.classList.add("lit"), 250 + i * 320)); };
-  new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && go(), { threshold: .3 }).observe(document.getElementById("h1"));
+  ws.forEach((w, i) => setTimeout(() => w.classList.add("lit"), 250 + i * 320));
+}
+new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && startH1(), { threshold: .3 }).observe(document.getElementById("h1"));
+
+function setLang(code, remember) {
+  lang = code; L = I18N[code];
+  if (remember) { try { localStorage.setItem("sona.lang", code); } catch { /* ignoré */ } }
+  document.documentElement.lang = code;
+  document.documentElement.dir = code === "ar" ? "rtl" : "ltr";
+  document.title = L.title;
+  document.querySelector('meta[name="description"]').content = L.desc;
+  document.querySelector('meta[property="og:title"]').content = L.title;
+  document.querySelector('meta[property="og:description"]').content = L.desc;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = L[el.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", L[el.dataset.i18nAria]));
+  buildH1(); applyCta();
+  hooks.forEach((f) => f());
+}
+
+// Sélecteur de langue
+(() => {
+  const box = document.getElementById("lang");
+  box.innerHTML = `<button type="button" id="lg-btn" aria-haspopup="listbox" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></svg><span id="lg-code"></span></button><ul id="lg-list" role="listbox" hidden>${LANGS.map(([c, n]) => `<li><button type="button" role="option" data-lang="${c}" lang="${c}">${n}</button></li>`).join("")}</ul>`;
+  const btn = document.getElementById("lg-btn"), list = document.getElementById("lg-list");
+  const mark = () => { document.getElementById("lg-code").textContent = lang.toUpperCase(); btn.setAttribute("aria-label", L.lang); list.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.lang === lang)); };
+  const toggle = (open) => { list.hidden = !open; btn.setAttribute("aria-expanded", open); };
+  btn.onclick = () => toggle(list.hidden);
+  list.onclick = (e) => { const b = e.target.closest("[data-lang]"); if (b) { setLang(b.dataset.lang, true); toggle(false); btn.focus(); } };
+  addEventListener("click", (e) => { if (!box.contains(e.target)) toggle(false); });
+  addEventListener("keydown", (e) => { if (e.key === "Escape") toggle(false); });
+  hooks.push(mark);
 })();
+
+// Paroles : même logique que l'app (ligne chantée remplie mot par mot, note tenue qui s'illumine, la vue suit la ligne).
+const Lyr = (() => {
+  const box = document.getElementById("lyrics"), track = box.firstElementChild;
+  let token = 0, shift = 0, redraw = () => {};
+  const out = document.getElementById("sh-v");
+  const showShift = () => { out.textContent = (shift > 0 ? "+" : shift < 0 ? "−" : "") + Math.abs(shift).toFixed(1).replace(".", dec()) + " s"; };
+  const nudge = (d) => { shift = Math.round((shift + d) * 10) / 10; showShift(); redraw(); };
+  document.getElementById("sh-").onclick = () => nudge(-.2);
+  document.getElementById("sh+").onclick = () => nudge(.2);
+  function set(data) {
+    const my = ++token;
+    track.innerHTML = data.map((ln, i) => "<p>" + ln.map((w, k) => {
+      const last = i === data.length - 1 && k === ln.length - 1, d = last ? 1.5 : k === ln.length - 1 ? .7 : Math.min(.55, .2 + [...w].length * .05);
+      return `<span class="w${last ? " held" : ""}" data-d="${d}">${w}</span>`;
+    }).join(" ") + "</p>").join("");
+    const lines = [...track.children], words = lines.map((p) => [...p.children]);
+    let t = 0; const GAP = .3, END = 1.8, times = [];
+    lines.forEach((p, i) => {
+      let c = i ? times[i - 1].end + GAP : .6; const start = c, w = [];
+      words[i].forEach((el) => { const d = parseFloat(el.dataset.d); w.push({ el, s: c, e: c + d, held: el.classList.contains("held") }); c += d; });
+      times.push({ start, end: c, w });
+    });
+    const total = times[times.length - 1].end + END, clamp01 = (v) => Math.max(0, Math.min(1, v));
+    let active = -1;
+    function setActive(i) {
+      active = i;
+      lines.forEach((p, k) => { p.classList.toggle("on", k === i); const d = Math.abs(k - i); if (d >= 1 && d <= 2) p.dataset.d = d; else delete p.dataset.d; });
+      const p = lines[Math.max(0, i)];
+      box.style.setProperty("--ty", box.clientHeight * .4 - (p.offsetTop + p.offsetHeight / 2) + "px");
+    }
+    function paint() {
+      const tt = t + shift; // décalage : positif = les paroles arrivent plus tôt
+      let cur = -1;
+      times.forEach((l, i) => { if (tt >= l.start - GAP / 2) cur = i; });
+      if (cur !== active) setActive(cur);
+      times.forEach((l) => l.w.forEach((w) => {
+        const p = clamp01((tt - w.s) / (w.e - w.s));
+        w.el.style.setProperty("--p", p);
+        if (w.held) w.el.style.setProperty("--e", Math.sin(Math.PI * p) ** .6);
+      }));
+      box.classList.toggle("fade", t > total - .6);
+    }
+    redraw = paint;
+    function reset() { box.classList.add("jump"); t = 0; active = -2; paint(); void box.offsetWidth; box.classList.remove("jump"); }
+    showShift();
+    if (reduce) { t = times[1].start + .5; paint(); return; }
+    let last = 0;
+    const loop = (now) => { if (my !== token) return; t += Math.min(.05, last ? (now - last) / 1000 : 0); last = now; if (t >= total) reset(); else paint(); requestAnimationFrame(loop); };
+    setActive(-1); box.classList.add("jump"); paint(); requestAnimationFrame(() => { box.classList.remove("jump"); requestAnimationFrame(loop); });
+  }
+  return { set };
+})();
+hooks.push(() => Lyr.set(L.lyr));
 
 // 02 : le spectre complet d'un FLAC contre un fichier compressé coupé vers 16 kHz.
 (() => {
@@ -363,17 +449,17 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("cli
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const env = Array.from({ length: N }, (_, k) => { const x = k / N; return Math.max(8, 94 * Math.pow(1 - x, .8) * (.68 + .32 * rnd()) + 6 * rnd()); });
   const row = (cut, title, sub) => `<figure><div class="bars">${env.map((h, k) => `<i${cut && k / N > .4 ? ' class="cut"' : ""} style="--h:${cut && k / N > .4 ? Math.min(h, 7) : h};--k:${k}"></i>`).join("")}</div><div class="axis"><span>0</span><span>8 kHz</span><span>16 kHz</span><span>24</span><span>48 kHz</span></div><figcaption><b>${title}</b><span>${sub}</span></figcaption></figure>`;
-  el.innerHTML = row(false, "FLAC 24 bits / 96 kHz", "tout est joué") + row(true, "Fichier compressé", "aigus coupés");
+  const draw = () => { el.innerHTML = row(false, "FLAC 24 bits / 96 kHz", L.s_all) + row(true, L.s_lossy, L.s_cut); };
+  hooks.push(draw);
   new IntersectionObserver((es, o) => es.some((e) => e.isIntersecting) && (el.classList.add("in"), o.disconnect()), { threshold: .3 }).observe(el);
 })();
 
 // 03 : le titre saute d'un appareil à l'autre.
 (() => {
   const devs = [...document.querySelectorAll("#devs .dev")], out = document.getElementById("now-s");
-  const labels = ["En cours sur le téléphone", "Continue sur l'ordinateur", "Envoyé sur la télé du salon"];
   let i = 0;
-  const show = () => { devs.forEach((d, k) => d.classList.toggle("on", k === i)); out.textContent = labels[i]; };
-  show();
+  const show = () => { devs.forEach((d, k) => d.classList.toggle("on", k === i)); out.textContent = L["now" + i]; };
+  hooks.push(show);
   if (!reduce) setInterval(() => { i = (i + 1) % 3; show(); }, 2600);
 })();
 
@@ -398,25 +484,26 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("cli
 // Lecteur du bas : la barre suit la page (titre en cours, avancement, couleur de l'album).
 (() => {
   const bar = document.getElementById("pbar"), tt = document.getElementById("pb-t"), ss = document.getElementById("pb-s");
-  const secs = [...document.querySelectorAll(".track")], n = secs.length;
-  let cur = -1;
+  const secs = [...document.querySelectorAll(".track")], n = secs.length, tints = ["#9fb8e6", "#e3b872", "#86c9b4", "#e8957f", "#c9a4e0", "#d2d1d8"];
+  let cur = -2;
   const tick = () => {
-    const vis = scrollY > innerHeight * .4;
-    bar.classList.toggle("show", vis);
+    bar.classList.toggle("show", scrollY > innerHeight * .4);
     let k = -1;
     secs.forEach((s, i) => { if (s.getBoundingClientRect().top < innerHeight * .5) k = i; });
     if (k !== cur) {
       cur = k;
-      const s = secs[Math.max(0, k)];
-      tt.textContent = k < 0 ? "Sona" : s.dataset.title;
-      ss.textContent = k < 0 ? "Ta musique, en clair" : `Titre ${k + 1} sur ${n}`;
-      document.body.style.setProperty("--tint", k < 0 ? "#d2d1d8" : s.dataset.tint);
+      tt.textContent = k < 0 ? "Sona" : secs[k].querySelector("h2").textContent;
+      ss.textContent = k < 0 ? L.pb_home : fill(L.pb_sub, { n: k + 1, t: n });
+      document.body.style.setProperty("--tint", k < 0 ? "#d2d1d8" : tints[k]);
     }
     const max = document.documentElement.scrollHeight - innerHeight;
     bar.style.setProperty("--sp", Math.min(1, Math.max(0, scrollY / Math.max(1, max))));
   };
-  addEventListener("scroll", tick, { passive: true }); addEventListener("resize", tick); tick();
+  hooks.push(() => { cur = -2; tick(); });
+  addEventListener("scroll", tick, { passive: true }); addEventListener("resize", tick);
 })();
+
+setLang(lang, false);
 </script>
 </body>
 </html>
