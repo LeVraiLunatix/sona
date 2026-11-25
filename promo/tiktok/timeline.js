@@ -1,9 +1,11 @@
-// Montage calé sur le tempo : « Goutte d'eau » (Ninho) = 137,8 BPM (valeur Deezer). Durées en temps (beats) :
-// 1 beat ≈ 0,435 s ; 1 mesure = 4 beats ≈ 1,74 s. Le son (beat.py) et l'image (motion.html) lisent ce même fichier.
+// Montage calé sur le tempo : « Goutte d'eau » (Ninho) = 138,0 BPM, mesuré sur le fichier audio. Durées en temps (beats) :
+// 1 beat ≈ 0,4348 s ; 1 mesure = 4 beats ≈ 1,74 s. Le son (beat.py) et l'image (motion.html) lisent ce même fichier.
 // Scènes : intro = le S se trace et « ona » (animation du site) · hero = « Ta musique, en clair. », un mot par temps · s_ly = paroles ·
 // s_arc = arc de pochettes · s_home = accueil · s_dev = appareils · s_rc = récap · outro = final.
 window.TIMELINE = {
-  "bpm": 137.8,
+  "bpm": 138.0,
+  "song_start": 31.513,   // instant du morceau (s) joué à t = 0 de la vidéo : le 72e temps du morceau (1er temps à 0,209 s) ; le drop (77e temps, 33,69 s) tombe sur la lueur du logo
+  "lyrics_clip": "iosplayer", // "ioslyrics" = paroles mot à mot dans le lecteur iOS (il faut des paroles fournies : mock/lyrics.local.json) ; "iosplayer" = lecteur iOS plein écran ; "lyrics"/"player" = lecteur web
   "intro_start": 0.35, "intro_dur": 4.4,   // animation du site : le trait se remplit (lueur) à 0,35 + 4,4 × 0,42 ≈ 2,2 s = le 5e temps
   "scenes": [
     { "id": "intro", "b0": 0, "beats": 12 },

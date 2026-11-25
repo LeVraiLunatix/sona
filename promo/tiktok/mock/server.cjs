@@ -114,6 +114,7 @@ function route(method, url, body) {
   if (p === "/exclusives") return { tracks: [] };
   if (p === "/lyrics") return url.searchParams.get("title") === LYR_TRACK.title ? lyrics() : null;
   if (p === "/__track/lyrics") return LYR_TRACK;
+  if (p === "/__track/hero") return TRACKS[0];
   if (p === "/lyrics/prefetch") return {};
   if (p.startsWith("/tracks/") && p.endsWith("/credits")) return null;
   if (p === "/connect/sync") return connect();
@@ -132,6 +133,7 @@ function route(method, url, body) {
 http.createServer((req, res) => {
   const url = new URL(req.url, ORIGIN);
   const send = (code, type, data, extra = {}) => { res.writeHead(code, { "Content-Type": type, "Access-Control-Allow-Origin": "*", ...extra }); res.end(data); };
+  if (url.pathname.startsWith("/promo/")) { const f = path.join(__dirname, "..", path.basename(url.pathname)); return fs.existsSync(f) ? send(200, "text/html", fs.readFileSync(f)) : send(404, "text/plain", "no"); }
   if (url.pathname.startsWith("/asset/")) { const f = path.join(ASSETS, path.basename(url.pathname)); return fs.existsSync(f) ? send(200, "image/jpeg", fs.readFileSync(f), { "Cache-Control": "max-age=3600" }) : send(404, "text/plain", "no"); }
   if (url.pathname.startsWith("/stream/")) {
     const b = wavBuf(), r = /bytes=(\d*)-(\d*)/.exec(req.headers.range || "");

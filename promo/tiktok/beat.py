@@ -1,6 +1,8 @@
 """Beat d'attente ORIGINAL (rien d'échantillonné), calé sur timeline.js : trap sombre en fa mineur.
-usage : python3 beat.py sortie.wav     — le vrai son (PNL…) s'ajoute ensuite dans TikTok, sur la même grille de tempo."""
+usage : python3 beat.py sortie.wav [--fx-only]   (--fx-only : uniquement les whooshes/montées, à mixer sous un vrai morceau)     — le vrai son (PNL…) s'ajoute ensuite dans TikTok, sur la même grille de tempo."""
 import json, re, sys, numpy as np
+FX_ONLY = "--fx-only" in sys.argv
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 
 SR = 44100
 src = open("timeline.js").read()
@@ -70,7 +72,7 @@ roots = [43.65, 43.65, 69.30, 77.78]    # fa, fa, ré♭, mi♭ (une note par me
 chords = [(174.6, 207.7, 261.6, 311.1), (138.6, 174.6, 207.7, 261.6), (207.7, 261.6, 311.1, 392.0), (155.6, 196.0, 233.1, 311.1)]
 penta = [349.2, 415.3, 466.2, 523.3, 622.3, 698.5]
 kicks = np.zeros(N)
-for bar in range(total_beats // 4 + 1):
+for bar in range(0 if FX_ONLY else total_beats // 4 + 1):
     b0 = bar * 4
     if b0 >= total_beats: break
     chord = chords[bar % 4]; pad_on = b0 >= 2
@@ -104,12 +106,14 @@ for i in np.nonzero(kicks)[0]:
     seglen = int(0.28 * SR); e = min(N, i + seglen); duck[i:e] = np.minimum(duck[i:e], 1 - 0.0 * np.exp(-np.arange(e - i) / (0.1 * SR)))
 # ───── effets de montage : impact sur la lueur du logo, whoosh à chaque coup de fouet, riser, impact final ─────
 glow_t = tl['intro_start'] + tl['intro_dur'] * 0.42
-both(K, glow_t, 1.0); both(s808(43.65, 2.2), glow_t, 0.9); both(whoosh(0.9)[::-1], glow_t - 0.9, 0.5)
+if not FX_ONLY: both(K, glow_t, 1.0); both(s808(43.65, 2.2), glow_t, 0.9)
+both(whoosh(0.9)[::-1], glow_t - 0.9, 0.5)
 both(riser(at(2)), at(b("hero") - 2), 0.5)                   # ça monte vers « Ta musique, en clair. »
 for sid, sc in scenes.items():
     if sc["b0"] == 0: continue
     t = sc["b0"] * BEAT; both(whoosh(0.5), t - 0.32, 0.9 if sid != "outro" else 1.0, pan=0.0)
-both(K, at(outro), 1.0); both(s808(43.65, 2.4), at(outro), 0.95); both(whoosh(0.9)[::-1], at(outro) - 0.7, 0.55)
+if not FX_ONLY: both(K, at(outro), 1.0); both(s808(43.65, 2.4), at(outro), 0.95)
+both(whoosh(0.9)[::-1], at(outro) - 0.7, 0.55)
 # ───── mixage final ─────
 mix = np.stack([L, R], axis=1)
 mix = mix + 0.0
@@ -125,5 +129,5 @@ rms = 20 * np.log10(np.sqrt((mix ** 2).mean()) + 1e-9)
 print(f"durée {DUR:.2f}s · tempo {BPM} BPM · crête 0.62 · niveau moyen {rms:.1f} dBFS")
 import wave
 pcm = (mix * 32767).astype("<i2")
-with wave.open(sys.argv[1] if len(sys.argv) > 1 else "beat.wav", "wb") as w:
+with wave.open(ARGS[0] if ARGS else "beat.wav", "wb") as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())

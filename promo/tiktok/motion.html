@@ -123,13 +123,13 @@ const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [..
 const clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a));
 const ease = (t) => 1 - Math.pow(1 - t, 3), eio = (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), lerp = (a, b, t) => a + (b - a) * t;
 const easeBack = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // dépasse un peu puis se pose
-const q = new URLSearchParams(location.search), capture = q.has("capture"), CLIPS = q.get("clips") || "_clips", FPS = 60;
+const q = new URLSearchParams(location.search), LYRC = q.get("lyricsclip") || window.TIMELINE.lyrics_clip, capture = q.has("capture"), CLIPS = q.get("clips") || "_clips", FPS = 60;
 
 /* ───────── Le tempo ───────── */
 const TL = window.TIMELINE, BEAT = 60 / TL.bpm, BAR = BEAT * 4;
 const kick = (t, d = .13) => Math.exp(-(((t % BEAT) + BEAT) % BEAT) / d);        // 1 sur chaque temps, retombe vite
 const down = (t, d = .22) => Math.exp(-(((t % BAR) + BAR) % BAR) / d);           // accent sur le premier temps de chaque mesure
-let NOW = 0;
+let NOW = 0, CAMZ = 1;
 const reveal = (el, p, dy = 34, blur = 12) => { el.style.opacity = p; el.style.transform = `translateY(${(1 - p) * dy}px)`; el.style.filter = p >= 1 ? "none" : `blur(${(1 - p) * blur}px)`; };
 
 /* ───────── Couleurs ───────── */
@@ -159,60 +159,108 @@ function paintHero(lt) {
 }
 
 /* ───────── Légendes : « Paroles |mot à mot.| » (entre barres : mot coloré) ───────── */
-$$(".cap").forEach((c) => {
-  c.innerHTML = c.dataset.t.split("|").map((part, i) => part.split(/(\s+)/).filter(Boolean).map((w) => /^\s+$/.test(w) ? " " : `<span class="w${i % 2 ? " ac" : ""}">${w}</span>`).join("")).join("");
-});
-function paintCap(sc, lt, delay = .12) {
+const buildCap = (c) => { c.innerHTML = c.dataset.t.split("|").map((part, i) => part.split(/(\s+)/).filter(Boolean).map((w) => /^\s+$/.test(w) ? " " : `<span class="w${i % 2 ? " ac" : ""}">${w}</span>`).join("")).join(""); };
+$$(".cap").forEach(buildCap);
+function paintCap(sc, lt, delay = .12, vis = 1) {
   $$(".cap .w", sc).forEach((w, k) => { // les mots tombent sur les demi-temps
     const p = seg(lt, delay + k * BEAT / 2, delay + k * BEAT / 2 + .34), e = easeBack(p);
-    w.style.opacity = clamp(p * 2.2); w.style.transform = `translateY(${((1 - e) * 60).toFixed(1)}px) scale(${(1 + (1 - e) * .3).toFixed(3)})`; w.style.filter = p >= 1 ? "none" : `blur(${((1 - p) * 16).toFixed(1)}px)`;
+    w.style.opacity = clamp(p * 2.2) * vis; w.style.transform = `translateY(${((1 - e) * 60).toFixed(1)}px) scale(${(1 + (1 - e) * .3).toFixed(3)})`; w.style.filter = p >= 1 ? "none" : `blur(${((1 - p) * 16).toFixed(1)}px)`;
   });
-  const sub = $("[data-sub]", sc); if (sub) reveal(sub, ease(seg(lt, delay + BEAT * 1.5, delay + BEAT * 1.5 + .4)), 20, 6);
+  const sub = $("[data-sub]", sc); if (sub) { reveal(sub, ease(seg(lt, delay + BEAT * 1.5, delay + BEAT * 1.5 + .4)), 20, 6); sub.style.opacity = parseFloat(sub.style.opacity) * vis; }
 }
 
 /* ───────── Images des écrans réels (séquences filmées) ───────── */
 const pending = [];
-const CL = { lyrics: 360, home: 216, devices: 216, recap: 252 };
+const CL = { iosplayer: 360, ioslyrics: 360, lyrics: 360, player: 360, home: 216, devices: 216, recap: 252 };
 function setFrame(img, clip, time) {
   const i = Math.max(0, Math.min(CL[clip] - 1, Math.floor(time * FPS)));
   const url = `${CLIPS}/${clip}/f${String(i).padStart(4, "0")}.jpg`;
   if (img._u === url) return; img._u = url; img.src = url; pending.push(img.decode().catch(() => {}));
 }
 const P = (x, y, z, rx, ry, rz, s) => ({ x, y, z, rx, ry, rz, s });
-/** Panneau 3D : entrée avec rebond, dérive lente, et un coup de grosse caisse à chaque temps. */
-function panel(el, lt, dur, from, mid, to) {
+/** Appareil en 3D : entrée avec rebond, dérive lente, coup de grosse caisse à chaque temps, et TRAVELLING AVANT :
+ *  la caméra s'approche (translation en profondeur sous la perspective) et amène le point visé (c.cx, c.cy) au centre du cadre,
+ *  cadre du téléphone compris, comme un vrai plan de pub. g = géométrie de l'appareil (boîtier + écran, en px). */
+const PERSP = 2200, PO = { x: 540, y: 1920 * .46 }, TARGET = { x: 540, y: 900 };
+const GEO_PHONE = { W: 508, H: 1068, pad: 14, sw: 480, sh: 1040 }, GEO_WIN = { W: 1160, H: 725, pad: 0, sw: 1160, sh: 725 };
+function panel(el, lt, dur, from, mid, to, c, g) {
   const inK = easeBack(seg(lt, .06, .62)), drift = eio(seg(lt, .4, dur)), cur = {};
   for (const key in from) cur[key] = lerp(lerp(from[key], mid[key], inK), to[key], drift);
-  const k = kick(NOW), d = down(NOW), flip = Math.floor(NOW / BAR) % 2 ? -1 : 1;
-  cur.s *= 1 + k * .012 + d * .02; cur.rz += flip * (k * .35 + d * .5); cur.y -= k * 6 + d * 10;
-  el.style.transform = `translate3d(${cur.x + Math.sin(NOW * .9) * 6}px, ${cur.y + Math.sin(NOW * 1.1 + 1) * 8}px, ${cur.z}px) rotateX(${cur.rx}deg) rotateY(${cur.ry}deg) rotateZ(${cur.rz}deg) scale(${cur.s})`;
+  const k = kick(NOW), d = down(NOW), flip = Math.floor(NOW / BAR) % 2 ? -1 : 1, zkk = clamp((c.z - 1) / 1.1);
+  const flat = 1 - .8 * zkk; cur.rx *= flat; cur.ry *= flat; cur.rz *= flat;       // face à la caméra quand elle plonge
+  cur.s *= 1 + k * .012 + d * .02; cur.rz += flip * (k * .35 + d * .5) * flat; cur.y -= k * 6 + d * 10;
+  cur.x += Math.sin(NOW * .9) * 6; cur.y += Math.sin(NOW * 1.1 + 1) * 8;
+  cur.z += PERSP * (1 - 1 / c.z);                                                    // la caméra avance : grossissement c.z
+  const mat = (x, y) => new DOMMatrix().translateSelf(x, y, cur.z).rotateAxisAngleSelf(1, 0, 0, cur.rx).rotateAxisAngleSelf(0, 1, 0, cur.ry).rotateAxisAngleSelf(0, 0, 1, cur.rz).scaleSelf(cur.s);
+  // où tombe le point visé à l'écran ? on décale l'appareil pour l'amener au centre (progressivement avec le zoom)
+  const top = parseFloat(el.style.top) || 0, C0 = { x: 540, y: top + g.H / 2 };
+  const q = new DOMPoint(g.pad + c.cx * g.sw - g.W / 2, g.pad + c.cy * g.sh - g.H / 2, 0);
+  const p = mat(cur.x, cur.y).transformPoint(q), f = PERSP / (PERSP - p.z), w = eio(clamp((c.z - 1) / .6));
+  cur.x += ((TARGET.x - PO.x) / f - (C0.x - PO.x) - p.x) * w; cur.y += ((TARGET.y - PO.y) / f - (C0.y - PO.y) - p.y) * w;
+  el.style.transform = `translate3d(${cur.x.toFixed(2)}px, ${cur.y.toFixed(2)}px, ${cur.z.toFixed(2)}px) rotateX(${cur.rx.toFixed(3)}deg) rotateY(${cur.ry.toFixed(3)}deg) rotateZ(${cur.rz.toFixed(3)}deg) scale(${cur.s.toFixed(4)})`;
   el.style.opacity = ease(seg(lt, .04, .3));
+  el.style.filter = c.blur > .3 ? `blur(${c.blur.toFixed(1)}px)` : "none";   // léger flou de mouvement pendant le travelling
+  CAMZ = Math.max(CAMZ, c.z);
+}
+
+/* ───────── Caméra : zoom net dans l'écran filmé, qui claque sur les temps (courbe douce façon pub Apple) ─────────
+   kf : [[temps(s), zoom, cx, cy, durée]] — chaque ligne est une cible ; (cx, cy) = point visé, en fraction de l'écran. */
+const bt = (n) => n * BEAT;
+function camera(kf, lt) {
+  let prev = { z: 1, cx: .5, cy: .5 }, cur = prev, blur = 0;
+  for (const [t, z, cx, cy, d] of kf) {
+    if (lt < t) break;
+    const p = seg(lt, t, t + d), to = { z, cx, cy };
+    cur = { z: lerp(prev.z, z, eio(p)), cx: lerp(prev.cx, cx, eio(p)), cy: lerp(prev.cy, cy, eio(p)) };
+    if (p < 1) { blur = Math.sin(Math.PI * p) * (Math.abs(z - prev.z) * 2 + .8); break; }   // léger flou de mouvement pendant le zoom
+    prev = cur = to;
+  }
+  return { ...cur, blur };
+}
+const camVis = (c) => 1 - eio(seg(c.z, 1.25, 1.9));   // les légendes s'effacent quand la caméra plonge
+const zk = (c) => clamp((c.z - 1) / 1.1);
+/** Paroles : la caméra suit la ligne chantée (positions relevées pendant le tournage : _clips/lyrics/track.js). */
+function followLyrics(lt, clipT) {
+  const T = window.TRACKS && window.TRACKS[LYRC]; if (!T) return null;
+  // le mot chanté à cet instant (+ une très légère avance pour que la caméra « arrive » avec lui), lissé pour glisser d'un mot à l'autre
+  const i = Math.max(0, Math.min(T.rects.length - 1, Math.floor(clipT * FPS) + 4)); let sx = 0, sy = 0, n = 0;
+  for (let k = Math.max(0, i - 7); k <= Math.min(T.rects.length - 1, i + 7); k++) { const r = T.rects[k]; if (r) { sx += (r[0] + r[2] / 2); sy += (r[1] + r[3] / 2); n++; } }
+  const zoom = eio(seg(lt, bt(1.5), bt(1.5) + .6)) * (1 - eio(seg(lt, bt(10), bt(10) + .5)));
+  const cx = n ? sx / n / T.viewport[0] : .5, cy = n ? sy / n / T.viewport[1] : .5;
+  return { z: lerp(1, 2.3, zoom), cx: lerp(.5, cx, zoom), cy: lerp(.5, cy, zoom), blur: zoom > 0 && zoom < 1 ? Math.sin(Math.PI * zoom) * 3 : 0 };
 }
 
 /* ───────── Scènes ───────── */
 const topEl = $("#top");
 function sceneLyrics(lt, dur) {
-  paintCap($("#s_ly"), lt);
+  if (!sceneLyrics.done) { sceneLyrics.done = 1; $("#s_ly .cap").dataset.t = (LYRC === "lyrics" || LYRC === "ioslyrics") ? "Paroles |mot à mot.|" : "Ton |son|, en |grand.|"; buildCap($("#s_ly .cap")); }
   const el = $("#ph_ly"); el.style.top = "500px";
-  panel(el, lt, dur, P(90, 260, -260, 16, -38, -9, .84), P(10, 0, 0, 7, -17, -3, 1), P(-18, -22, 40, 4, -8, -1.5, 1.05));
-  setFrame($("img", el), "lyrics", lt - .3);
+  const c = (LYRC === "lyrics" || LYRC === "ioslyrics") ? (followLyrics(lt, lt - .3) || camera([], lt))
+    : camera(LYRC === "iosplayer" ? [[bt(1.5), 1.5, .5, .30, .55], [bt(4), 2.3, .27, .68, .5], [bt(7), 1.9, .5, .80, .5], [bt(10), 1, .5, .5, .5]]
+                                     : [[bt(1.5), 1.55, .5, .37, .55], [bt(4), 2.3, .23, .71, .5], [bt(7), 1.9, .5, .80, .5], [bt(10), 1, .5, .5, .5]], lt);
+  paintCap($("#s_ly"), lt, .12, camVis(c));
+  panel(el, lt, dur, P(90, 260, -260, 16, -38, -9, .84), P(10, 0, 0, 7, -17, -3, 1), P(-18, -22, 40, 4, -8, -1.5, 1.05), c, GEO_PHONE);
+  setFrame($("img", el), LYRC, lt - .3);
 }
 function sceneHome(lt, dur) {
-  paintCap($("#s_home"), lt);
   const el = $("#wn_home"); el.style.top = "620px";
-  panel(el, lt, dur, P(180, 240, -320, 22, 22, 6, .78), P(40, 0, 0, 11, 10, 2, 1), P(-10, -30, 30, 6, 5, 0, 1.07));
+  const c = camera([[bt(.8), 2.0, .77, .31, .5], [bt(4), 1, .5, .5, .5]], lt);
+  paintCap($("#s_home"), lt, .12, camVis(c));
+  panel(el, lt, dur, P(180, 240, -320, 22, 22, 6, .78), P(40, 0, 0, 11, 10, 2, 1), P(-10, -30, 30, 6, 5, 0, 1.07), c, GEO_WIN);
   setFrame($("img", el), "home", lt - .25);
 }
 function sceneDev(lt, dur) {
-  paintCap($("#s_dev"), lt);
   const el = $("#wn_dev"); el.style.top = "790px";
-  panel(el, lt, dur, P(-180, 240, -320, 22, -22, -6, .78), P(-40, 0, 0, 11, -10, -2, 1), P(10, -30, 30, 6, -5, 0, 1.07));
+  const c = camera([[bt(3), 2.0, .58, .52, .5], [bt(5.5), 2.4, .59, .93, .5], [bt(7.6), 1, .5, .5, .4]], lt);
+  paintCap($("#s_dev"), lt, .12, camVis(c));
+  panel(el, lt, dur, P(-180, 240, -320, 22, -22, -6, .78), P(-40, 0, 0, 11, -10, -2, 1), P(10, -30, 30, 6, -5, 0, 1.07), c, GEO_WIN);
   setFrame($("img", el), "devices", lt - .25);
 }
 function sceneRecap(lt, dur) {
-  paintCap($("#s_rc"), lt);
   const el = $("#ph_rc"); el.style.top = "500px";
-  panel(el, lt, dur, P(-90, 260, -260, 16, 38, 9, .84), P(-6, 0, 0, 7, 16, 3, 1), P(14, -22, 40, 4, 8, 1.5, 1.05));
+  const c = camera([[bt(.6), 1.5, .5, .5, .5], [bt(2.4), 2.3, .5, .5, .5], [bt(5), 1.9, .5, .47, .5], [bt(7.2), 1, .5, .5, .4]], lt);
+  paintCap($("#s_rc"), lt, .12, camVis(c));
+  panel(el, lt, dur, P(-90, 260, -260, 16, 38, 9, .84), P(-6, 0, 0, 7, 16, 3, 1), P(14, -22, 40, 4, 8, 1.5, 1.05), c, GEO_PHONE);
   setFrame($("img", el), "recap", lt - .25);
 }
 // Arc de pochettes : elles claquent l'une après l'autre sur le rythme, puis l'arc tourne.
@@ -246,7 +294,7 @@ const S = TL.scenes.map((s, i) => ({ ...s, i, a: s.b0 * BEAT, b: (s.b0 + s.beats
 const DURATION = S[S.length - 1].b, WHIP = { a: .13, b: .24 }; // le cut se fait autour du temps : un coup de fouet de 0,37 s
 window.TIMELINE_CUTS = S.map((s) => s.a);
 async function seek(t) {
-  NOW = t; pending.length = 0;
+  NOW = t; CAMZ = 1; pending.length = 0;
   let cur = S[0];
   for (const s of S) {
     const inP = s.i ? ease(seg(t, s.a - WHIP.a, s.a + WHIP.b)) : 1, outP = s.i < S.length - 1 ? ease(seg(t, s.b - WHIP.a, s.b + WHIP.b)) : 0;
@@ -265,7 +313,7 @@ async function seek(t) {
   const pulse = kick(t, .16) * .22 + down(t) * .3;
   st.setProperty("--amb", String(ease(seg(t, 1.6, 4.6)) * (.78 + pulse)));  // les lueurs pulsent avec le kick
   $$("#amb i").forEach((el, i) => { el.style.transform = `translate(${Math.sin(t * .5 + i * 2) * 90}px, ${Math.cos(t * .4 + i) * 60}px) scale(${1 + Math.sin(t * .4 + i) * .06 + pulse * .12})`; });
-  topEl.style.opacity = ease(seg(t, S[2].a - .2, S[2].a + .2)) * (1 - ease(seg(t, S[7].a - .2, S[7].a + .15)));
+  topEl.style.opacity = ease(seg(t, S[2].a - .2, S[2].a + .2)) * (1 - ease(seg(t, S[7].a - .2, S[7].a + .15))) * (1 - eio(seg(CAMZ, 1.2, 1.7)));
   topEl.style.transform = `scale(${(1 + kick(t) * .05).toFixed(3)})`;
   await Promise.all(pending);
 }
@@ -277,7 +325,7 @@ function fit() {
   st.style.transform = `scale(${k})`; st.style.left = (innerWidth - 1080 * k) / 2 + "px"; st.style.top = (innerHeight - 1920 * k) / 2 + "px";
 }
 fit(); addEventListener("resize", fit);
-window.ready = Promise.all([document.fonts.load("700 100px 'Familjen Grotesk'"), document.fonts.load("500 40px 'Familjen Grotesk'"), document.fonts.load("500 26px 'IBM Plex Mono'")]).then(() => document.fonts.ready).then(async () => {
+window.ready = Promise.all([new Promise((res) => { if (LYRC !== "lyrics" && LYRC !== "ioslyrics") return res(); const sc = document.createElement("script"); sc.src = CLIPS + "/" + LYRC + "/track.js"; sc.onload = sc.onerror = res; document.head.append(sc); }), document.fonts.load("700 100px 'Familjen Grotesk'"), document.fonts.load("500 40px 'Familjen Grotesk'"), document.fonts.load("500 26px 'IBM Plex Mono'")]).then(() => document.fonts.ready).then(async () => {
   await seek(IN_START + IN_DUR); restW = 0; await seek(0);
   if (capture) return;
   const t0 = performance.now(); let busy = false;

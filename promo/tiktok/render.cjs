@@ -6,14 +6,14 @@ const path = require("node:path"), fs = require("node:fs");
   fs.mkdirSync(dir, { recursive: true });
   const b = await chromium.launch();
   const probe = await b.newPage({ viewport: { width: 1080, height: 1920 } });
-  await probe.goto("file://" + path.resolve(page_) + "?capture"); await probe.evaluate(() => window.ready);
+  await probe.goto("file://" + path.resolve(page_) + "?capture" + (process.env.EXTRA || "")); await probe.evaluate(() => window.ready);
   const total = Math.round((await probe.evaluate(() => window.DURATION)) * fps) + Math.round(fps * 0.5); // 0,5 s de fin sur le dernier plan
   await probe.close();
   console.log("frames:", total);
   let done = 0; const t0 = Date.now();
   await Promise.all(Array.from({ length: W }, async (_, w) => {
     const p = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
-    await p.goto("file://" + path.resolve(page_) + "?capture"); await p.evaluate(() => window.ready);
+    await p.goto("file://" + path.resolve(page_) + "?capture" + (process.env.EXTRA || "")); await p.evaluate(() => window.ready);
     const from = +process.env.FROM || 0, to = Math.min(total, +process.env.TO || total); // FROM/TO : ne refaire qu'une plage d'images
     for (let i = from + ((w - from) % W + W) % W; i < to; i += W) {
       await p.evaluate((t) => window.seek(Math.min(t, window.DURATION - 0.001)), i / fps);

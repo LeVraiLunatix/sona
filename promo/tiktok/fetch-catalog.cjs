@@ -11,14 +11,17 @@ const slim = (t) => ({ id: String(t.id), title: t.title_short || t.title, artist
 
 // 1) rap français : le titre vedette (Ninho, « Goutte d'eau », 137,8 BPM) puis le titre phare d'artistes très connus
 const HERO = get("https://api.deezer.com/track/652380182");
-const ARTISTS = ["Jul", "PNL", "SCH", "Booba", "Orelsan", "Nekfeu", "Damso", "Naps", "Gazo", "Tiakola", "Lomepal", "Soolking", "Werenoi", "Hamza", "Josman", "Kaaris", "Freeze Corleone"];
+// PNL en n°2 (« Au DD »), puis d'autres rappeurs très connus ; (pas de Jul)
+const ARTISTS = [{ name: "PNL", track: 653159322 }, "SCH", "Booba", "Orelsan", "Nekfeu", "Damso", "Naps", "Gazo", "Tiakola", "Lomepal", "Soolking", "Werenoi", "Hamza", "Josman", "Kaaris", "Alonzo", "Freeze Corleone"];
 const tracks = [slim(HERO)], seenAlbum = new Set([String(HERO.album.id)]);
-for (const name of ARTISTS) {
+for (const entry of ARTISTS) {
   if (tracks.length >= 18) break;
-  const found = get("https://api.deezer.com/search/artist?q=" + encodeURIComponent(name) + "&limit=1").data[0];
-  if (!found) continue;
-  const top = get(`https://api.deezer.com/artist/${found.id}/top?limit=10`).data.find((t) => !seenAlbum.has(String(t.album.id)));
-  if (String(found.id) === String(HERO.artist.id)) continue;
+  const name = entry.name || entry;
+  if (entry.track) { const t = get(`https://api.deezer.com/track/${entry.track}`); if (!seenAlbum.has(String(t.album.id))) { seenAlbum.add(String(t.album.id)); tracks.push(slim(t)); } continue; }
+  const norm = (x) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const found = get("https://api.deezer.com/search/artist?q=" + encodeURIComponent(name) + "&limit=5").data.find((a) => norm(a.name) === norm(name)); // nom EXACT, pas d'homonyme approximatif
+  if (!found || String(found.id) === String(HERO.artist.id) || /^jul$/i.test(found.name)) continue;
+  const top = get(`https://api.deezer.com/artist/${found.id}/top?limit=25`).data.find((t) => String(t.artist.id) === String(found.id) && !seenAlbum.has(String(t.album.id))); // ses propres titres, pas ceux où il est invité
   if (!top) continue; seenAlbum.add(String(top.album.id));
   tracks.push(slim(top));
 }

@@ -7,7 +7,7 @@ const path = require("node:path");
   const p = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
   p.on("pageerror", (e) => console.log("PAGEERROR", e.message));
   p.on("requestfailed", (r) => console.log("FAILED", r.url().slice(-60)));
-  await p.goto("file://" + path.resolve(page_) + "?capture" + (process.env.GUIDES ? "&guides" : ""));
+  await p.goto("file://" + path.resolve(page_) + "?capture" + (process.env.GUIDES ? "&guides" : "") + (process.env.EXTRA || ""));
   await p.evaluate(() => window.ready);
   for (const t of ts) { await p.evaluate((t) => window.seek(+t), t); await p.screenshot({ path: `${out}/m${String(t).replace(".", "_")}.png` }); }
   await b.close();

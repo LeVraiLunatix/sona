@@ -3,10 +3,10 @@ const { chromium } = require("playwright");
 const fs = require("node:fs");
 const URL = "http://localhost:8765/web/";
 
-async function open({ mode = "mobile", look = {}, hash = "#/" } = {}) {
+async function open({ mode = "mobile", look = {}, hash = "#/", dsf } = {}) {
   const b = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required", "--disable-gpu-vsync"] });
   const mobile = mode === "mobile";
-  const ctx = await b.newContext({ viewport: mobile ? { width: 430, height: 932 } : { width: 1440, height: 900 }, deviceScaleFactor: mobile ? 2 : 1.5,
+  const ctx = await b.newContext({ viewport: mobile ? { width: 430, height: 932 } : { width: 1440, height: 900 }, deviceScaleFactor: dsf || (mobile ? 2 : 1.5),
     serviceWorkers: "block", isMobile: mobile, hasTouch: mobile, locale: "fr-FR", timezoneId: "Europe/Paris", colorScheme: "dark" });
   await ctx.addInitScript((look) => { localStorage.setItem("sona.token", "demo"); localStorage.setItem("sona.look", JSON.stringify(look)); }, { menu: "ouvert", ...look });
   const page = await ctx.newPage();
