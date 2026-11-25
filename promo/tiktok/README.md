@@ -2,15 +2,22 @@
 
 | Fichier | Contenu |
 |---|---|
-| `sona-tiktok-v7.mp4` *(non versionné : il contient le morceau)* | **v7** : le vrai morceau (« Goutte d'eau », Ninho — fichier fourni par toi, 138 BPM) comme musique, montage calé sur ses temps (le drop tombe sur la lueur du logo), **caméra en travelling avant** qui **suit le mot chanté**, **lecteur iOS** avec les **vraies paroles synchronisées** (récupérées par le code de Sona : LRCLIB / NetEase), vraies interfaces de Sona (accueil, Appareils, récap) et rap français réel. |
-| `sona-tiktok-v7-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
+| `sona-tiktok-v8.mp4` *(non versionné : il contient le morceau)* | **v8** : le vrai morceau (« Goutte d'eau », Ninho — fichier fourni par toi) démarre dans la montée, la scène des paroles tombe sur « Défoncé d'après les analyses » (27,9 s) et le **drop** sur le cut suivant ; mouvements de caméra, mots, rebonds et lueurs partent sur les **vrais kicks/basses** détectés dans l'audio ; caméra **très fluide** (suivi du mot chanté), **plans en profondeur** (parallaxe, profondeur de champ), orbite, reflets qui suivent l'orientation. |
+| `sona-tiktok-v8-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
 | `demo-paroles-camera.mp4` | Démo (muette) de la caméra qui suit les paroles mot par mot, avec des paroles du domaine public. |
 | `sona-tiktok-v1.mp4` | v1 : version sobre, 100 % typographique. |
 
 Le morceau (`_assets/song/`), les paroles et les pochettes ne sont **jamais** dans le dépôt (`.gitignore`).
 
+## Synchro sur les kicks et les basses
+`analyze-song.py` analyse le morceau que tu fournis : énergie des basses à chaque image vidéo et instants exacts des kicks/808 (attaque repérée à quelques ms) → `_assets/song/audio.js` (non versionné). `motion.html` s'en sert pour les rebonds des appareils, les lueurs, les plans flottants, et **cale sur un vrai kick** le départ de chaque mouvement de caméra (`bk()`) et de chaque mot des légendes (`snapRel()`). Sans analyse, retour à la grille de tempo.
+Le début du son (`song_start` dans `timeline.js`) est choisi pour que la scène des paroles tombe sur le passage voulu et que le drop coïncide avec un cut ; il reste sur un temps du morceau (grille de tempo conservée).
+
 ## La caméra
-`motion.html` : `camera([[temps, zoom, cx, cy, durée], …])` — chaque cible est un point de l'écran (en fraction) vers lequel la caméra avance. Ce n'est pas l'image qui grossit dans l'écran : tout l'appareil se rapproche sous la perspective (translation en profondeur), le point visé vient au centre, l'appareil se redresse face à l'objectif, les légendes s'effacent, léger flou de mouvement. Les mouvements claquent sur les temps (`timeline.js`).
+`camera([[temps, zoom, cx, cy, durée], …])` : chaque cible est un point de l'écran (en fraction) vers lequel la caméra avance, par une courbe très douce (smootherstep) ; les mouvements s'additionnent (continus même s'ils se chevauchent), l'état est lissé par une moyenne gaussienne (±0,12 s) et le flou de mouvement suit la vitesse réelle. Ce n'est pas l'image qui grossit dans l'écran : tout le « monde » se rapproche sous la perspective (translation en profondeur), le point visé vient au centre, l'appareil se redresse face à l'objectif, les légendes et les plans flottants s'effacent. Sur les paroles, la caméra suit le mot chanté (`followRaw`, glissement gaussien).
+
+## La 3D
+Appareil qui orbite lentement, reflets qui suivent son orientation, lueur des bords qui bat avec les basses, **plans flottants** (pochettes et bokehs à différentes profondeurs, flou de profondeur de champ, orbite, gonflement sur les basses) qui reçoivent le même mouvement de caméra que l'appareil — d'où la parallaxe —, cuts qui filent en avant avec de la profondeur.
 
 ## Le lecteur iOS
 `ios-player.html` reproduit le lecteur plein écran de l'app iOS (`ios/Encre/Sources/Features/Player/FullPlayerView.swift`) : pochette immersive qui se fond dans le fond « vivant » (maillage 4×4 calculé comme `ArtworkPalette.meshColors`), qui respire sur le tempo, barre de progression, gros boutons, et la vue **paroles** (lignes floues autour de la ligne chantée, remplissage mot à mot). Police : Inter (SF Pro n'existe pas hors Apple). La page est pilotée par `setT(temps du morceau)` : chaque image est reproductible, et la position affichée suit la vraie position dans le morceau.
@@ -41,9 +48,10 @@ node fetch-catalog.cjs
 node clips.cjs _clips ioslyrics,home,devices,recap              # ≈ 25 min en haute résolution
 mkdir -p _covers   # _covers/0.jpg … 8.jpg = 9 premières pochettes de _assets/catalog.json
 python3 beat.py fx.wav --fx-only
+python3 analyze-song.py                                         # kicks et basses réels → _assets/song/audio.js
 node mixaudio.cjs _assets/song/song.m4a fx.wav audio.m4a       # le morceau est celui que tu fournis
 node render.cjs motion.html _frames 60 3                        # ≈ 10 min  (FROM=… TO=… : une plage d'images)
 ffmpeg -framerate 60 -i _frames/f%05d.png -i audio.m4a -c:v libx264 -preset slow -crf 15 -pix_fmt yuv420p \
-  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v7.mp4
+  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v8.mp4
 ```
 Les textes sont dans `motion.html` ; « Lien en bio » est à adapter ou retirer.
