@@ -10,7 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 src = open(os.path.join(HERE, "timeline.js")).read()
 tl = json.loads(re.sub(r"//[^\n]*", "", src[src.index("window.TIMELINE =") + len("window.TIMELINE ="):src.rindex(";")]))
 BPM, START = tl["bpm"], tl["song_start"]
-HB, HS = tl.get("hook_beats", 0), tl.get("hook_song_start", 0); HDUR = HB * 60 / BPM   # teaser : les premiers temps jouent un autre extrait
+HB, HS = tl.get("hook_beats", 0), tl.get("hook_song_start", 0); HDUR = HB * 60 / BPM if HS else 0   # teaser : les premiers temps jouent un autre extrait
 BEATS = max(s["b0"] + s["beats"] for s in tl["scenes"]); DUR = BEATS * 60 / BPM + 0.6; FPS = 60
 
 w = wave.open(os.path.join(HERE, "_assets/song/song.wav")); sr = w.getframerate()

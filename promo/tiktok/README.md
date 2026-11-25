@@ -2,15 +2,15 @@
 
 | Fichier | Contenu |
 |---|---|
-| `sona-tiktok-v12.mp4` *(non versionné : il contient le morceau)* | **v12** : nouvelle **accroche** de 4,3 s — les vrais logos des cinq apps de streaming (Apple Music, Spotify, Deezer, SoundCloud, YouTube Music) arrivent **un à un** au centre sur les kicks, **partent en haut**, puis un **trou noir** apparaît et les **aspire en spirale** ; la caméra plonge dedans (transition « swallow ») et **l'animation d'intro du site : Sona apparaît**. Ensuite le montage allégé, une transition différente à chaque coupe, calé sur les vrais kicks (« Goutte d'eau », Ninho — fichier fourni par toi). |
-| `sona-tiktok-v12-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
+| `sona-tiktok-v13.mp4` *(non versionné : il contient le morceau)* | **v13** : accroche (logos des cinq apps → trou noir → intro de Sona), puis le **morceau joue d'une traite** depuis sa montée instrumentale : la voix n'arrive qu'à la scène des paroles. Dans cette scène la caméra suit **deux lignes**, descend au **curseur de volume** que le doigt tire à fond (le volume du morceau monte avec lui) et plonge dedans : le curseur devient l'**iris** qui s'ouvre sur le plan suivant, au moment du drop. Logo de l'intro recentré (bug de mesure corrigé). |
+| `sona-tiktok-v13-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
 | `demo-paroles-camera.mp4` | Démo (muette) de la caméra qui suit les paroles mot par mot, avec des paroles du domaine public. |
 | `sona-tiktok-v1.mp4` | v1 : version sobre, 100 % typographique. |
 
 Le morceau (`_assets/song/`), les paroles et les pochettes ne sont **jamais** dans le dépôt (`.gitignore`).
 
 ## L'accroche (logos → trou noir → Sona)
-Les 10 premiers temps (`hook_beats` dans `timeline.js`) jouent **le drop** du morceau (`hook_song_start`). `paintHook()` : un logo par temps apparaît au centre (pop sur un vrai kick, `snapRel`), puis file vers une rangée en haut ; au 5ᵉ temps un trou noir (cœur noir, anneau de photons, disque d'accrétion incliné qui tourne, tout en CSS) surgit et aspire les logos en spirale, de plus en plus vite, aplatis dans le plan du disque. La transition `swallow` (zoom dans le trou, flash) amène l'animation d'intro de Sona ; le son « rembobine » alors vers le début du morceau. `analyze-song.py` et `mixaudio.cjs` gèrent ces deux extraits.
+Les 10 premiers temps (`hook_beats` dans `timeline.js`) jouent la montée instrumentale du morceau (le morceau joue d'une traite, `hook_song_start: 0`). `paintHook()` : un logo par temps apparaît au centre (pop sur un vrai kick, `snapRel`), puis file vers une rangée en haut ; au 5ᵉ temps un trou noir (cœur noir, anneau de photons, disque d'accrétion incliné qui tourne, tout en CSS) surgit et aspire les logos en spirale, de plus en plus vite, aplatis dans le plan du disque. La transition `swallow` (zoom dans le trou, flash) amène l'animation d'intro de Sona. (Si `hook_song_start` est > 0, l'accroche joue cet instant du morceau puis « rembobine » ; `analyze-song.py` et `mixaudio.cjs` gèrent les deux cas.)
 
 **Logos** : `node fetch-logos.cjs` les télécharge depuis **Wikimedia Commons** (`upload.wikimedia.org`, une requête à la fois : le site répond 429 si on va trop vite) dans `_assets/brands/` (non versionné) :
 `Apple_Music_icon.svg`, `Spotify_logo_without_text.svg`, `Deezer_New_Icon.svg`, `Antu_soundcloud.svg` (icône SoundCloud du jeu d'icônes Antu), `Youtube_Music_icon.svg`.
@@ -18,7 +18,7 @@ Ce sont des **marques déposées** de leurs propriétaires, et la vidéo est une
 
 ## Synchro sur les kicks et les basses
 `analyze-song.py` analyse le morceau que tu fournis : énergie des basses à chaque image vidéo et instants exacts des kicks/808 (attaque repérée à quelques ms) → `_assets/song/audio.js` (non versionné). `motion.html` s'en sert pour les rebonds des appareils, les lueurs, les plans flottants, et **cale sur un vrai kick** le départ de chaque mouvement de caméra (`bk()`) et de chaque mot des légendes (`snapRel()`). Sans analyse, retour à la grille de tempo.
-Le début du son (`song_start` dans `timeline.js`) est choisi pour que la scène des paroles tombe sur le passage voulu et que le drop coïncide avec un cut ; il reste sur un temps du morceau (grille de tempo conservée).
+Le début du son (`song_start` dans `timeline.js`, ici le 36ᵉ temps du morceau) est choisi pour que tout le début soit instrumental, que la 1ʳᵉ ligne chantée arrive juste après le début de la scène des paroles et que le drop (33,69 s) tombe sur la coupe suivante ; il reste sur un temps du morceau (grille de tempo conservée).
 
 ## La caméra
 `camera([[temps, zoom, cx, cy, durée], …])` : chaque cible est un point de l'écran (en fraction) vers lequel la caméra avance, par une courbe très douce (smootherstep) ; les mouvements s'additionnent (continus même s'ils se chevauchent), l'état est lissé par une moyenne gaussienne (±0,12 s) et le flou de mouvement suit la vitesse réelle. Ce n'est pas l'image qui grossit dans l'écran : tout le « monde » se rapproche sous la perspective (translation en profondeur), le point visé vient au centre, l'appareil se redresse face à l'objectif, les légendes et les plans flottants s'effacent. Sur les paroles, la caméra suit le mot chanté (`followRaw`, glissement gaussien).
@@ -41,7 +41,7 @@ python3 fetch-lyrics.py "Goutte d'eau" "Ninho" "Destin" 157 # → mock/lyrics.lo
 node clips.cjs _clips ioslyrics                             # filme la vue paroles iOS + relève la position du mot chanté (track.js)
 ```
 Le script interroge LRCLIB et NetEase (accès réseau à `lrclib.net` et `music.163.com` nécessaire), garde la source la plus fine et recale les temps de `LYRICS_SHIFT` secondes (0,15 par défaut, mesuré sur l'audio). Avec des lignes horodatées seulement, la page iOS estime le remplissage mot à mot comme le fait l'app. Un `.lrc` fourni à la main marche aussi : `node lrc2json.cjs paroles.lrc`.
-La caméra suit le mot en cours de chant (`followLyrics`). Les paroles ne sont jamais dans le dépôt. `LYRICS_TITLE="Amazing Grace" node clips.cjs …` filme avec des paroles du domaine public (démo).
+La caméra suit le mot en cours de chant pendant deux lignes (`lyCamRaw`), puis le curseur de volume (`ioslyrics` est filmé avec les commandes du lecteur : `view=lyrics&ctl=1`, un doigt tire le volume de 68 % à 100 %, `ly_volume` dans `timeline.js`). `track.js` contient aussi la position du curseur : elle sert de centre à la transition `iris` (cercle qui s'ouvre sur la scène suivante) ; le volume du morceau suit la même courbe dans `mixaudio.cjs`. Les paroles ne sont jamais dans le dépôt. `LYRICS_TITLE="Amazing Grace" node clips.cjs …` filme avec des paroles du domaine public (démo).
 
 ## Comment c'est fabriqué
 0. `fetch-catalog.cjs` : vrai catalogue de rap français (Deezer) + pochettes + photos dans `_assets/`.
@@ -62,6 +62,6 @@ python3 analyze-song.py                                         # kicks et basse
 node mixaudio.cjs _assets/song/song.m4a fx.wav audio.m4a       # le morceau est celui que tu fournis
 node render.cjs motion.html _frames 60 3                        # ≈ 10 min  (FROM=… TO=… : une plage d'images)
 ffmpeg -framerate 60 -i _frames/f%05d.png -i audio.m4a -c:v libx264 -preset slow -crf 15 -pix_fmt yuv420p \
-  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v12.mp4
+  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v13.mp4
 ```
 Les textes sont dans `motion.html` ; « Lien en bio » est à adapter ou retirer.

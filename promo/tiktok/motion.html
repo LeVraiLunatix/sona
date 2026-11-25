@@ -92,6 +92,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #hook .core { position: absolute; left: -150px; top: -150px; width: 300px; height: 300px; border-radius: 50%; background: #000; box-shadow: 0 0 90px 30px rgba(0, 0, 0, .95); }
 #hook .photon { position: absolute; left: -158px; top: -158px; width: 316px; height: 316px; border-radius: 50%; border: 5px solid rgba(255, 236, 200, .96); box-shadow: 0 0 36px rgba(255, 170, 80, .95), 0 0 120px rgba(255, 120, 40, .6), inset 0 0 46px rgba(255, 150, 60, .55); }
 #hook .lg img { position: absolute; left: 540px; top: 0; width: 440px; height: 440px; margin: -220px 0 0 -220px; object-fit: contain; will-change: transform, filter; opacity: 0; }
+#kmark { position: absolute; width: 65px; height: 65px; margin: -32px 0 0 -32px; border-radius: 50%; visibility: hidden; }
+#irisring { position: absolute; left: 0; top: 0; z-index: 7; border-radius: 50%; pointer-events: none; opacity: 0; border: 6px solid rgba(255, 255, 255, .92); box-shadow: 0 0 46px rgba(255, 255, 255, .65), inset 0 0 46px rgba(255, 255, 255, .35); }
 #flash { position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0; mix-blend-mode: screen; background: radial-gradient(circle at 50% 46%, #fff 0%, rgba(255, 255, 255, .65) 28%, rgba(255, 255, 255, 0) 68%); }
 #ring { position: absolute; left: 50%; top: 46%; width: 1100px; height: 1100px; margin: -550px 0 0 -550px; z-index: 7; pointer-events: none; opacity: 0; border-radius: 50%; background: radial-gradient(circle closest-side, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, .95) 89%, rgba(255, 255, 255, .25) 95%, rgba(255, 255, 255, 0) 100%); }
 #guides { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 9; }
@@ -127,7 +129,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 
 <!-- 01 Paroles (téléphone) -->
 <section class="sc" id="s_ly"><div class="cap" data-t="Paroles |mot à mot.|" style="top:330px"></div>
-  <div class="p3d"><div class="obj phone" id="ph_ly"><div class="scr"><img alt=""></div><div class="gloss"></div></div></div></section>
+  <div class="p3d"><div class="obj phone" id="ph_ly"><div class="scr"><img alt=""><i id="kmark"></i></div><div class="gloss"></div></div></div></section>
 
 <!-- 02 Arc de pochettes -->
 <section class="sc" id="s_arc"><div class="cap" data-t="Tes |mix|, faits |pour toi.|" style="top:1080px"></div><div class="arc" id="arc"></div></section>
@@ -147,7 +149,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 <section class="sc" id="outro"><div class="in"><svg class="icon" aria-hidden="true"><use href="#s"/></svg><p class="name">Sona</p><p class="tag">Ta musique, en clair.</p><span class="plats">Gratuit · Windows · iPhone · Android</span><span class="pill">Lien en bio</span></div></section>
 
 <div id="top"><div class="row"><svg aria-hidden="true"><use href="#s"/></svg><b>Sona</b></div><p>Disponible. <em>Gratuit.</em></p></div>
-<div id="flash"></div><div id="ring"></div>
+<div id="flash"></div><div id="ring"></div><i id="irisring"></i>
 <div id="guides"><b style="left:0;top:0;width:1080px;height:150px"></b><b style="left:0;top:1560px;width:1080px;height:360px"></b><b style="left:960px;top:850px;width:120px;height:710px"></b></div>
 </div>
 
@@ -189,7 +191,8 @@ const TINT2 = { grey: "#6e6d7a", ly: "#8a2a6e", arc: "#3b2aa8", home: "#0e6a68",
 const intro = $("#intro"), word = $(".logo-word", intro), letters = $$("i", intro);
 let restW = 0;
 function paintIntro(p) {
-  if (!restW) { restW = $(".rest > span", word).getBoundingClientRect().width; word.style.setProperty("--w", restW + "px"); }
+  if (!restW) { restW = $(".rest > span", word).offsetWidth;   // largeur de mise en page : insensible au zoom de la transition (mesurée, elle décentrait le logo)
+    word.style.setProperty("--w", restW + "px"); }
   const draw = ease(seg(p, 0, .42)), fill = seg(p, .4, .5), pulse = seg(p, .42, .5) * (1 - seg(p, .5, .66));
   const glow = Math.min(1, pulse * 1.6 + .25 * fill * (1 - seg(p, .66, 1)));
   word.style.setProperty("--dash", 1 - draw); word.style.setProperty("--fill", fill); word.style.setProperty("--glow", glow); intro.style.setProperty("--glow", glow);
@@ -218,7 +221,7 @@ function paintCap(sc, lt, delay = -.12, vis = 1) {
 
 /* ───────── Images des écrans réels (séquences filmées) ───────── */
 const pending = [];
-const CL = { iosplayer: 360, ioslyrics: 384, lyrics: 360, player: 360, home: 288, devices: 288, recap: 288 };
+const CL = { iosplayer: 360, ioslyrics: 438, lyrics: 360, player: 360, home: 288, devices: 288, recap: 288 };
 function setFrame(img, clip, time) {
   const i = Math.max(0, Math.min(CL[clip] - 1, Math.floor(time * FPS)));
   const url = `${CLIPS}/${clip}/f${String(i).padStart(4, "0")}.jpg`;
@@ -312,18 +315,42 @@ function followRaw(lt, clipT) {
   return { z: lerp(1, 2.3, zoom), cx: lerp(.5, cx, zoom), cy: lerp(.5, cy, zoom) };
 }
 
+/** Paroles (lecteur iOS) : la caméra suit le mot chanté pendant DEUX lignes, descend au curseur de volume quand la 2ᵉ ligne se termine,
+ *  suit le doigt qui le tire à fond, puis plonge dans le curseur (c'est de là que s'ouvre l'iris vers le plan suivant). */
+function trackAvg(arr, clipT, k0, sig, pick) {
+  let sx = 0, sy = 0, sw = 0; const i0 = Math.floor(clipT * FPS) + 3;
+  for (let k = -k0; k <= k0; k++) { const r = arr[Math.max(0, Math.min(arr.length - 1, i0 + k))]; if (!r) continue; const w = Math.exp(-(k * k) / (2 * sig * sig)), p = pick(r); sx += p[0] * w; sy += p[1] * w; sw += w; }
+  return sw ? [sx / sw, sy / sw] : null;
+}
+function lyCamRaw(lt) {
+  const T = window.TRACKS && window.TRACKS[LYRC]; if (!T) return { z: 1, cx: .5, cy: .5 };
+  const [vw, vh] = T.viewport, clipT = lt - .3, tLeave = bk(10.0);
+  const wc = trackAvg(T.rects, Math.min(clipT, tLeave - .3), 18, 8, (r) => [r[0] + r[2] / 2, r[1] + r[3] / 2]) || [vw / 2, vh * .4];
+  const kc = trackAvg(T.knob, clipT, 6, 3, (r) => [r[0], r[1]]) || [vw * .64, vh * .88];
+  const zi = smoother(seg(lt, bk(1.5), bk(1.5) + .85)), g = smoother(seg(lt, tLeave, bk(11.3))), dive = smoother(seg(lt, bk(13.0), bk(15.4)));
+  const cx = lerp(lerp(.5, wc[0] / vw, zi), kc[0] / vw, g), cy = lerp(lerp(.5, wc[1] / vh, zi), kc[1] / vh, g);
+  return { z: lerp(lerp(1, 2.3, zi), 2.8, g) + 1.0 * dive, cx, cy };
+}
+/** Position (px de la scène) et rayon du curseur de volume tel qu'il est projeté à l'écran : centre de l'iris du raccord. */
+function irisCenter() {
+  const r = $("#kmark").getBoundingClientRect(), sr = $("#stage").getBoundingClientRect(), k = sr.width / 1080 || 1;
+  return { x: (r.x + r.width / 2 - sr.x) / k, y: (r.y + r.height / 2 - sr.y) / k, r: Math.max(40, r.width / 2 / k) };
+}
+
 /* ───────── Scènes ───────── */
 const topEl = $("#top");
 function sceneLyrics(lt, dur) {
   if (!sceneLyrics.done) { sceneLyrics.done = 1; $("#s_ly .cap").dataset.t = (LYRC === "lyrics" || LYRC === "ioslyrics") ? "Paroles |mot à mot.|" : "Ton |son|, en |grand.|"; buildCap($("#s_ly .cap")); }
   const el = $("#ph_ly"); el.style.top = "500px";
-  const c = (LYRC === "lyrics" || LYRC === "ioslyrics") ? camFrom((l) => followRaw(l, l - .3), lt)
+  const c = LYRC === "ioslyrics" ? camFrom(lyCamRaw, lt) : LYRC === "lyrics" ? camFrom((l) => followRaw(l, l - .3), lt)
     : camera(LYRC === "iosplayer" ? [[bk(1.5), 1.5, .5, .30, .85], [bk(4), 2.3, .27, .68, .85], [bk(7), 1.9, .5, .80, .85], [bk(13), 1, .5, .5, .95]]
                                      : [[bk(1.5), 1.55, .5, .37, .85], [bk(4), 2.3, .23, .71, .85], [bk(7), 1.9, .5, .80, .85], [bk(13), 1, .5, .5, .95]], lt);
   paintCap($("#s_ly"), lt, -.14, camVis(c));
   panel(el, lt, dur, P(90, 260, -260, 16, -38, -9, .84), P(10, 0, 0, 7, -17, -3, 1), P(-18, -22, 40, 4, -8, -1.5, 1.05), c, GEO_PHONE);
   floaters("s_ly", lt, c);
   setFrame($("img", el), LYRC, lt - .3);
+  const T = window.TRACKS && window.TRACKS[LYRC], kn = T && T.knob && T.knob[Math.max(0, Math.min(T.knob.length - 1, Math.floor((lt - .3) * FPS)))];
+  if (kn) { const m = $("#kmark"); m.style.left = (kn[0] / 430 * 480).toFixed(1) + "px"; m.style.top = (kn[1] / 932 * 1040).toFixed(1) + "px"; }
 }
 function sceneHome(lt, dur) {
   const el = $("#wn_home"); el.style.top = "620px";
@@ -408,10 +435,11 @@ const DURATION = S[S.length - 1].b, TW = { a: .30, b: .40 };   // chaque transit
 window.TIMELINE_CUTS = S.map((s) => s.a);
 /** Une transition par coupe, toutes continues : le plan qui sort et celui qui entre bougent ensemble, floutés par la vitesse.
  *  zoomthrough : la caméra traverse le plan sortant · cube : rotation 3D autour d'un axe commun · slideUp : poussée verticale · drop : choc au drop. */
-const sm = smoother, TRANS = { 1: "swallow", 2: "zoomthrough", 3: "cube", 4: "drop", 5: "zoomthrough", 6: "cube", 7: "slideUp", 8: "zoomthrough" }, CUBE_DIR = { 3: -1, 6: 1 };
+const sm = smoother, TRANS = { 1: "swallow", 2: "zoomthrough", 3: "cube", 4: "iris", 5: "zoomthrough", 6: "cube", 7: "slideUp", 8: "zoomthrough" }, CUBE_DIR = { 3: -1, 6: 1 };
 function trOut(type, p, i) {
   const bl = 36 * p, fade = 1 - sm(seg(p, .4, 1));
   if (type === "zoomthrough") return { tf: `scale(${(1 + 2.6 * p * p).toFixed(4)})`, bl, op: fade };
+  if (type === "iris") return { tf: "", bl: 0, op: 1 };   // le plan sortant reste en place (la caméra plonge dans le curseur) : c'est le suivant qui s'ouvre en cercle
   if (type === "swallow") return { tf: `translate(0, ${HY - 960}px) scale(${(1 + 8 * p * p).toFixed(4)}) translate(0, ${960 - HY}px)`, bl: 8 * p, op: 1 - sm(seg(p, .6, 1)) };   // la caméra plonge dans le trou noir
   if (type === "cube") { const d = CUBE_DIR[i] || -1; return { tf: `perspective(2600px) translateZ(-540px) rotateY(${(-d * 90 * p).toFixed(3)}deg) translateZ(540px)`, bl: 16 * Math.sin(Math.PI * p), op: 1 - seg(p, .75, 1) }; }
   if (type === "slideUp") return { tf: `translate3d(0, ${(-1920 * p).toFixed(1)}px, 0) scale(${(1 - .12 * p).toFixed(4)})`, bl: 22 * Math.sin(Math.PI * p), op: 1 - seg(p, .8, 1) };
@@ -420,6 +448,7 @@ function trOut(type, p, i) {
 function trIn(type, p, i) {
   const bl = 34 * (1 - p);
   if (type === "zoomthrough") return { tf: `scale(${(.5 + .5 * p).toFixed(4)})`, bl, op: sm(seg(p, 0, .55)) };
+  if (type === "iris") return { tf: "", bl: 0, op: 1 };
   if (type === "swallow") return { tf: `scale(${(1.5 - .5 * p).toFixed(4)})`, bl: 26 * (1 - p), op: sm(seg(p, .3, .8)) };   // Sona jaillit de l'autre côté
   if (type === "cube") { const d = CUBE_DIR[i] || -1; return { tf: `perspective(2600px) translateZ(-540px) rotateY(${(d * 90 * (1 - p)).toFixed(3)}deg) translateZ(540px)`, bl: 16 * Math.sin(Math.PI * p), op: seg(p, 0, .25) }; }
   if (type === "slideUp") return { tf: `translate3d(0, ${(1920 * (1 - p)).toFixed(1)}px, 0) scale(${(1.1 - .1 * p).toFixed(4)})`, bl: 22 * Math.sin(Math.PI * p), op: seg(p, 0, .2) };
@@ -427,7 +456,7 @@ function trIn(type, p, i) {
 }
 async function seek(t) {
   NOW = t; CAMZ = 1; pending.length = 0;
-  let cur = S[0], flash = 0, ring = 0;
+  let cur = S[0], flash = 0, ring = 0, IRIS = null;
   for (const s of S) {
     const on = t >= (s.i ? s.a - TW.a : 0) && t < (s.i < S.length - 1 ? s.b + TW.b : 1e9);
     s.el.style.display = on ? "block" : "none";
@@ -436,16 +465,24 @@ async function seek(t) {
     const pin = s.i ? sm(seg(t, s.a - TW.a, s.a + TW.b)) : 1, nx = S[s.i + 1], pout = nx ? sm(seg(t, nx.a - TW.a, nx.a + TW.b)) : 0;
     const I = s.i && pin < 1 ? trIn(TRANS[s.i], pin, s.i) : null, O = nx && pout > 0 ? trOut(TRANS[nx.i], pout, nx.i) : null, T = I || O;
     // petit « coup » de caméra à chaque cut ; vrai choc (secousse) au drop
-    const dt = t - s.a, punch = s.i && dt >= 0 ? 1 + .018 * Math.exp(-dt / .14) : 1, shake = TRANS[s.i] === "drop" && dt >= 0 && dt < .8 ? Math.exp(-dt / .2) : 0;
+    const dt = t - s.a, punch = s.i && dt >= 0 && TRANS[s.i] !== "iris" ? 1 + .018 * Math.exp(-dt / .14) : 1, shake = (TRANS[s.i] === "drop" || TRANS[s.i] === "iris") && dt >= 0 && dt < .8 ? Math.exp(-dt / .2) : 0;
     const shx = shake * 16 * Math.sin(t * 95), shy = shake * 12 * Math.cos(t * 81);
     s.el.style.transform = `translate3d(${shx.toFixed(1)}px, ${shy.toFixed(1)}px, 0) scale(${punch.toFixed(4)}) ${T ? T.tf : ""}`;
     s.el.style.filter = T && T.bl > .3 ? `blur(${T.bl.toFixed(1)}px)` : "none"; s.el.style.opacity = T ? T.op.toFixed(3) : 1;
     CURA = s.a; s.paint(t - s.a, s.b - s.a);
-    if (s.i && TRANS[s.i] === "drop") { flash = Math.max(flash, t >= s.a - .03 ? Math.exp(-(t - s.a) / .11) * .9 : 0); const r = (t - s.a) / .75; if (r >= 0 && r <= 1) ring = r; }
+    if (s.i && TRANS[s.i] === "iris") {   // cercle centré sur le curseur de volume (tel que la caméra le montre), qui s'agrandit jusqu'à tout révéler
+      const ic = irisCenter(), R = Math.pow(pin, 2.3) * 1500 + ic.r * 1.15 * seg(pin, 0, .2); IRIS = { x: ic.x, y: ic.y };
+      s.el.style.clipPath = pin < 1 ? `circle(${R.toFixed(1)}px at ${ic.x.toFixed(1)}px ${ic.y.toFixed(1)}px)` : "none";
+      const ba = pin < 1 ? 1 : 0; s.el.style.background = ba > 0 ? `radial-gradient(ellipse 75% 34% at 30% 92%, rgba(125, 95, 235, ${(.6 * ba).toFixed(3)}), rgba(125, 95, 235, 0) 72%), radial-gradient(ellipse 70% 28% at 82% 100%, rgba(70, 50, 190, ${(.5 * ba).toFixed(3)}), rgba(70, 50, 190, 0) 72%), rgba(7, 7, 10, ${ba.toFixed(3)})` : "";   // fond opaque dans le cercle : on ne voit plus le téléphone à travers
+      const ir = $("#irisring"); ir.style.opacity = pin > 0 && pin < .92 ? (1 - seg(pin, .55, .92)).toFixed(3) : 0;
+      ir.style.width = ir.style.height = (2 * R).toFixed(1) + "px"; ir.style.left = (ic.x - R).toFixed(1) + "px"; ir.style.top = (ic.y - R).toFixed(1) + "px";
+    } else if (s.i) { s.el.style.clipPath = "none"; s.el.style.background = ""; }
+    if (s.i && (TRANS[s.i] === "drop" || TRANS[s.i] === "iris")) { flash = Math.max(flash, t >= s.a - .03 ? Math.exp(-(t - s.a) / .11) * .9 : 0); const r = (t - s.a) / .75; if (r >= 0 && r <= 1) ring = r; }
     if (s.i && TRANS[s.i] === "swallow" && pin < 1) flash = Math.max(flash, .5 * Math.sin(Math.PI * pin));
     if (s.i && TRANS[s.i] === "zoomthrough" && pin < 1) flash = Math.max(flash, .26 * Math.sin(Math.PI * pin));   // halo lumineux au milieu de la traversée
   }
   $("#flash").style.opacity = flash.toFixed(3); const R = $("#ring");
+  R.style.left = IRIS && ring > 0 ? IRIS.x + "px" : "50%"; R.style.top = IRIS && ring > 0 ? IRIS.y + "px" : "46%";
   R.style.opacity = ring > 0 ? ((1 - ring) * .9).toFixed(3) : 0; R.style.transform = `scale(${(.1 + 1.5 * ease(ring)).toFixed(3)})`;
   const prev = S[Math.max(0, cur.i - 1)], k = cur.i ? sm(seg(t, cur.a - TW.a, cur.a + TW.b)) : 1, st = $("#stage").style;
   st.setProperty("--tint", mixc(TINT[prev.tint], TINT[cur.tint], k)); st.setProperty("--tint2", mixc(TINT2[prev.tint], TINT2[cur.tint], k));

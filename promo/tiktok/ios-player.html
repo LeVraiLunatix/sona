@@ -46,6 +46,10 @@ body { font-family: var(--font); color: #fff; -webkit-font-smoothing: antialiase
 .bare #status, .bare #top, .bare #lyview .head { display: none; }
 .bare #ly { top: 0; height: 932px; }
 .v-lyrics #art, .v-lyrics #title, .v-lyrics #scrub, .v-lyrics #transport, .v-lyrics #vol, .v-lyrics #bottom { display: none; }
+.v-lyrics.ctl #scrub, .v-lyrics.ctl #transport, .v-lyrics.ctl #vol, .v-lyrics.ctl #bottom { display: block; }
+.ctl #ly { top: 200px; height: 420px; }
+#vol .track { transition: none; }
+#touch { position: absolute; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(255, 255, 255, .26); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .5), 0 6px 22px rgba(0, 0, 0, .35); opacity: 0; pointer-events: none; z-index: 5; }
 #lyview .head { position: absolute; left: 26px; right: 26px; top: 121px; height: 62px; }
 #lyview .head img { position: absolute; left: 0; top: 0; width: 62px; height: 62px; border-radius: 8px; object-fit: cover; box-shadow: 0 5px 10px rgba(0, 0, 0, .3); }
 #lyview .head b { position: absolute; left: 76px; top: 10px; max-width: 250px; font: 700 17px/21px var(--font); letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -98,6 +102,7 @@ body { font-family: var(--font); color: #fff; -webkit-font-smoothing: antialiase
   <svg style="right:0;left:auto" width="22" height="12" viewBox="0 0 22 12" fill="rgba(255,255,255,.35)"><path d="M1 4h2.6L7.6.8v10.4L3.6 8H1z"/><path d="M10 3.4a3.8 3.8 0 0 1 0 5.2M12.6 1.2a7 7 0 0 1 0 9.6M15.2-.4a9.6 9.6 0 0 1 0 12.8" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.4" stroke-linecap="round" transform="translate(1.6 0)"/></svg>
 </div>
 
+<i id="touch"></i>
 <div id="bottom">
   <!-- quote.bubble · airplayaudio · list.bullet -->
   <svg style="left:67px;top:862px" width="24" height="22" viewBox="0 0 24 22" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M4 2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-7l-5 4v-4H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M7 7.2h10M7 10.8h6.5"/></svg>
@@ -148,7 +153,7 @@ function paintMesh(t, energy) {
 }
 
 /* ───── paroles : ligne active pleine, voisines floues et atténuées, mot qui se remplit (LyricsView) ───── */
-const VIEW = q.get("view") || "player", BARE = q.has("bare"); document.body.className = "v-" + VIEW + (BARE ? " bare" : "");
+const VIEW = q.get("view") || "player", BARE = q.has("bare"), CTL = q.has("ctl"); document.body.className = "v-" + VIEW + (BARE ? " bare" : "") + (CTL ? " ctl" : "");
 const cl = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => cl((p - a) / (b - a)), ease = (t) => 1 - Math.pow(1 - t, 3), lerp = (a, b, t) => a + (b - a) * t;
 let LY = null, LINES = [], CY = [];
 async function loadLyrics() {
@@ -173,7 +178,7 @@ async function loadLyrics() {
 let CURW = null;
 function paintLyrics(st) {
   if (!LINES.length) return;
-  const H = BARE ? 932 : 690, t0 = LINES[0].start; let fa = -.7 * (1 - ease(seg(st, t0 - .35, t0 + .05)));
+  const H = BARE ? 932 : CTL ? 420 : 690, t0 = LINES[0].start; let fa = -.7 * (1 - ease(seg(st, t0 - .35, t0 + .05)));
   for (let i = 1; i < LINES.length; i++) fa += ease(seg(st, LINES[i].start - .3, LINES[i].start + .22));
   const fc = Math.max(0, Math.min(LINES.length - 1, fa)), i0 = Math.floor(fc), i1 = Math.min(LINES.length - 1, i0 + 1);
   $("#ly .track").style.transform = `translateY(${(H * .34 - lerp(CY[i0], CY[i1], fc - i0)).toFixed(2)}px)`;
@@ -191,6 +196,21 @@ function paintLyrics(st) {
     if (on > .5 && !CURW) { const done = L.ws.filter((w) => st >= w.e).pop() || L.ws[0]; CURW = done.el; }
   });
 }
+/* ───── volume : un doigt attrape le curseur (à partir de vs, durée vd) et le tire à fond ───── */
+const VS = q.has("vs") ? +q.get("vs") : null, VD = +q.get("vd") || 1, V0 = +q.get("v0") || .68;
+const VOL_X0 = 26 + 24, VOL_W = 378 - 48, VOL_Y = 808 + 15;
+let KNOB = null;
+function paintVolume(st) {
+  if (VS == null) return;
+  const hold = seg(st, VS - .22, VS), drag = ease(seg(st, VS, VS + VD)), v = lerp(V0, 1, drag), rel = 1 - seg(st, VS + VD + .35, VS + VD + .6);   // le doigt se lève juste après
+  const touched = hold * rel, th = 4 + 7 * touched, x = VOL_X0 + VOL_W * v;
+  const tr = $("#vol .track"); tr.style.top = (15 - th / 2) + "px"; tr.style.height = th + "px"; tr.style.borderRadius = th / 2 + "px";
+  $("#vol .track i").style.width = (v * 100).toFixed(2) + "%"; $("#vol .track i").style.background = `rgba(255,255,255,${(.72 + .28 * touched).toFixed(3)})`;
+  const ri = $("#vol svg:last-of-type"); ri.style.opacity = String(.35 + .65 * drag * 1); ri.setAttribute("fill", `rgba(255,255,255,${(.35 + .65 * drag).toFixed(2)})`); ri.querySelectorAll("path").forEach((p, k) => { if (k) p.setAttribute("stroke", `rgba(255,255,255,${(.35 + .65 * drag).toFixed(2)})`); });
+  const t = $("#touch"); t.style.left = (26 + x) + "px"; t.style.top = VOL_Y + "px"; t.style.opacity = touched.toFixed(3); t.style.transform = `scale(${(.6 + .4 * ease(hold) - .08 * Math.sin(Math.PI * drag)).toFixed(3)})`;
+  KNOB = [26 + x, VOL_Y, touched];
+}
+window.knobPos = () => KNOB;
 /** Rectangle (px CSS) du mot en cours de chant : sert à guider la caméra. */
 window.wordRect = () => { if (!CURW) return null; const r = CURW.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 10) / 10); };
 
@@ -204,7 +224,7 @@ window.setT = (st) => {
   // image « vivante » : zoom et dérive lents (jamais sous 1,05), gonflement sur les temps forts
   const sc = 1.07 + .02 * Math.sin(st * .35) + .035 * energy;
   $("#cover").style.transform = `translate(${(6 * Math.sin(st * .23)).toFixed(2)}px, ${(5 * Math.cos(st * .19)).toFixed(2)}px) scale(${sc.toFixed(4)})`;
-  paintLyrics(st);
+  paintLyrics(st); paintVolume(st);
   const f = Math.min(1, st / DUR);
   $("#fill").style.width = (f * 100).toFixed(3) + "%"; $("#t-cur").textContent = fmt(st); $("#t-rem").textContent = "-" + fmt(DUR - st);
 };
