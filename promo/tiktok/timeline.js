@@ -12,9 +12,9 @@ window.TIMELINE = {
     { "id": "hero", "b0": 12, "beats": 4 },
     { "id": "s_ly", "b0": 16, "beats": 15 },
     { "id": "s_arc", "b0": 31, "beats": 4 },
-    { "id": "s_home", "b0": 35, "beats": 8 },
-    { "id": "s_dev", "b0": 43, "beats": 8 },
-    { "id": "s_rc", "b0": 51, "beats": 8 },
-    { "id": "outro", "b0": 59, "beats": 16 }
+    { "id": "s_home", "b0": 35, "beats": 10 },
+    { "id": "s_dev", "b0": 45, "beats": 10 },
+    { "id": "s_rc", "b0": 55, "beats": 10 },
+    { "id": "outro", "b0": 65, "beats": 16 }
   ]
 };

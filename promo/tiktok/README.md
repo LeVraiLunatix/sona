@@ -2,8 +2,8 @@
 
 | Fichier | Contenu |
 |---|---|
-| `sona-tiktok-v8.mp4` *(non versionné : il contient le morceau)* | **v8** : le vrai morceau (« Goutte d'eau », Ninho — fichier fourni par toi) démarre dans la montée, la scène des paroles tombe sur « Défoncé d'après les analyses » (27,9 s) et le **drop** sur le cut suivant ; mouvements de caméra, mots, rebonds et lueurs partent sur les **vrais kicks/basses** détectés dans l'audio ; caméra **très fluide** (suivi du mot chanté), **plans en profondeur** (parallaxe, profondeur de champ), orbite, reflets qui suivent l'orientation. |
-| `sona-tiktok-v8-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
+| `sona-tiktok-v9.mp4` *(non versionné : il contient le morceau)* | **v9** : montage **allégé** (plus d'en-tête permanent, moins de plans flottants, un seul mouvement de caméra par scène, écrans plus lents) avec **une transition différente à chaque coupe** (zoom à travers, cube 3D, poussée verticale, choc au drop avec flash, onde de choc et secousse), le tout calé sur les vrais kicks du morceau (« Goutte d'eau », Ninho — fichier fourni par toi) ; paroles sur « Défoncé d'après les analyses ». |
+| `sona-tiktok-v9-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
 | `demo-paroles-camera.mp4` | Démo (muette) de la caméra qui suit les paroles mot par mot, avec des paroles du domaine public. |
 | `sona-tiktok-v1.mp4` | v1 : version sobre, 100 % typographique. |
 
@@ -15,6 +15,9 @@ Le début du son (`song_start` dans `timeline.js`) est choisi pour que la scène
 
 ## La caméra
 `camera([[temps, zoom, cx, cy, durée], …])` : chaque cible est un point de l'écran (en fraction) vers lequel la caméra avance, par une courbe très douce (smootherstep) ; les mouvements s'additionnent (continus même s'ils se chevauchent), l'état est lissé par une moyenne gaussienne (±0,12 s) et le flou de mouvement suit la vitesse réelle. Ce n'est pas l'image qui grossit dans l'écran : tout le « monde » se rapproche sous la perspective (translation en profondeur), le point visé vient au centre, l'appareil se redresse face à l'objectif, les légendes et les plans flottants s'effacent. Sur les paroles, la caméra suit le mot chanté (`followRaw`, glissement gaussien).
+
+## Les transitions
+Chaque coupe a sa transition (`TRANS` dans `motion.html`), de 0,7 s, centrée sur un kick : le plan sortant et le plan entrant bougent **ensemble**, floutés par la vitesse, et les éléments du plan entrant ont déjà commencé à s'animer (temps négatif) au lieu d'attendre la fin du fondu. `zoomthrough` : la caméra traverse le plan sortant (avec un halo) · `cube` : rotation 3D autour d'un axe commun · `slideUp` : poussée verticale · `drop` : au drop, le plan sortant est projeté en avant, flash, onde de choc, secousse de caméra, et le nouveau plan arrive en force. Le son (`beat.py --fx-only`) place un whoosh au départ de chaque transition.
 
 ## La 3D
 Appareil qui orbite lentement, reflets qui suivent son orientation, lueur des bords qui bat avec les basses, **plans flottants** (pochettes et bokehs à différentes profondeurs, flou de profondeur de champ, orbite, gonflement sur les basses) qui reçoivent le même mouvement de caméra que l'appareil — d'où la parallaxe —, cuts qui filent en avant avec de la profondeur.
@@ -52,6 +55,6 @@ python3 analyze-song.py                                         # kicks et basse
 node mixaudio.cjs _assets/song/song.m4a fx.wav audio.m4a       # le morceau est celui que tu fournis
 node render.cjs motion.html _frames 60 3                        # ≈ 10 min  (FROM=… TO=… : une plage d'images)
 ffmpeg -framerate 60 -i _frames/f%05d.png -i audio.m4a -c:v libx264 -preset slow -crf 15 -pix_fmt yuv420p \
-  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v8.mp4
+  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v9.mp4
 ```
 Les textes sont dans `motion.html` ; « Lien en bio » est à adapter ou retirer.

@@ -24,14 +24,14 @@ const CLIPS = {
     await p.evaluate(() => openNowPlaying("art")); await p.mouse.move(2, 2); await p.waitForTimeout(2500); return { audio: LY_AT };
   } },
   // Accueil sur ordinateur, défilement doux
-  home: { mode: "desktop", dsf: 2, secs: 3.6, async setup(p) { await p.mouse.move(2, 2); await p.waitForTimeout(800); },
-    async frame(p, i, n) { const y = 520 * ease(Math.min(1, Math.max(0, (i - 80) / (n - 100)))); await p.evaluate((y) => { document.querySelector("#content").scrollTop = y; }, y); } },
+  home: { mode: "desktop", dsf: 2, secs: 4.8, async setup(p) { await p.mouse.move(2, 2); await p.waitForTimeout(800); },
+    async frame(p, i, n) { const y = 520 * ease(Math.min(1, Math.max(0, (i - 130) / (n - 150)))); await p.evaluate((y) => { document.querySelector("#content").scrollTop = y; }, y); } },
   // Appareils : on pilote l'iPhone depuis l'ordinateur
-  devices: { mode: "desktop", dsf: 2, connect: true, secs: 3.6, hash: "#/devices", async setup(p) { await p.mouse.move(2, 2); await p.waitForTimeout(800); },
-    async frame(p, i) { if (i === 50) await p.evaluate(() => pickDevice("iph1")); } },
+  devices: { mode: "desktop", dsf: 2, connect: true, secs: 4.8, hash: "#/devices", async setup(p) { await p.mouse.move(2, 2); await p.waitForTimeout(800); },
+    async frame(p, i) { if (i === 60) await p.evaluate(() => pickDevice("iph1")); } },
   // Récap du mois (stories), téléphone
-  recap: { mode: "mobile", dsf: 3, secs: 4.2, hash: "#/stats", async setup(p) { await p.mouse.move(2, 2); await p.waitForTimeout(800); await p.evaluate(() => openRecap("month", -1)); await p.waitForTimeout(900); },
-    async frame(p, i) { if (i === 55 || i === 120 || i === 185) await p.evaluate(() => document.querySelector(".recap-tap.right")?.click()); } },
+  recap: { mode: "mobile", dsf: 3, secs: 4.8, hash: "#/stats", async setup(p) { await p.mouse.move(2, 2); await p.waitForTimeout(800); await p.evaluate(() => openRecap("month", -1)); await p.waitForTimeout(900); },
+    async frame(p, i) { if (i === 80 || i === 170 || i === 250) await p.evaluate(() => document.querySelector(".recap-tap.right")?.click()); } },
 };
 
 /** Lecteur iOS : pas de faux temps à gérer, la page est pilotée par setT(temps du morceau). */

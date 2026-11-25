@@ -81,6 +81,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #outro .tag { margin: 22px 0 0; font: 500 52px/1.2 var(--font); color: var(--mid); letter-spacing: -.02em; }
 #outro .plats { margin-top: 84px; font: 500 30px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 #outro .pill { margin-top: 48px; display: inline-flex; align-items: center; justify-content: center; height: 112px; padding: 0 64px; border-radius: 56px; font: 700 44px/1 var(--font); color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .08)); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .28), 0 24px 60px rgba(0, 0, 0, .4); }
+#flash { position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0; mix-blend-mode: screen; background: radial-gradient(circle at 50% 46%, #fff 0%, rgba(255, 255, 255, .65) 28%, rgba(255, 255, 255, 0) 68%); }
+#ring { position: absolute; left: 50%; top: 46%; width: 1100px; height: 1100px; margin: -550px 0 0 -550px; z-index: 7; pointer-events: none; opacity: 0; border-radius: 50%; background: radial-gradient(circle closest-side, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, .95) 89%, rgba(255, 255, 255, .25) 95%, rgba(255, 255, 255, 0) 100%); }
 #guides { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 9; }
 #guides b { position: absolute; background: rgba(255, 0, 80, .16); outline: 2px dashed rgba(255, 0, 80, .7); }
 </style>
@@ -104,7 +106,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   <div class="p3d"><div class="obj phone" id="ph_ly"><div class="scr"><img alt=""></div><div class="gloss"></div></div></div></section>
 
 <!-- 02 Arc de pochettes -->
-<section class="sc" id="s_arc"><div class="cap" data-t="Tes |mix|, faits |pour toi.|" style="top:1080px"></div><p class="sub" data-sub style="top:1390px">Chaque jour, de nouveaux mix à écouter.</p><div class="arc" id="arc"></div></section>
+<section class="sc" id="s_arc"><div class="cap" data-t="Tes |mix|, faits |pour toi.|" style="top:1080px"></div><div class="arc" id="arc"></div></section>
 
 <!-- 03 Accueil (ordinateur) -->
 <section class="sc" id="s_home"><div class="cap" data-t="Tout au même |endroit.|" style="top:330px"></div>
@@ -121,6 +123,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 <section class="sc" id="outro"><div class="in"><svg class="icon" aria-hidden="true"><use href="#s"/></svg><p class="name">Sona</p><p class="tag">Ta musique, en clair.</p><span class="plats">Gratuit · Windows · iPhone · Android</span><span class="pill">Lien en bio</span></div></section>
 
 <div id="top"><div class="row"><svg aria-hidden="true"><use href="#s"/></svg><b>Sona</b></div><p>Disponible. <em>Gratuit.</em></p></div>
+<div id="flash"></div><div id="ring"></div>
 <div id="guides"><b style="left:0;top:0;width:1080px;height:150px"></b><b style="left:0;top:1560px;width:1080px;height:360px"></b><b style="left:960px;top:850px;width:120px;height:710px"></b></div>
 </div>
 
@@ -171,7 +174,7 @@ function paintIntro(p) {
 }
 const heroWords = $$("#hero .lw");
 function paintHero(lt) {
-  $("#hero h1").style.opacity = ease(seg(lt, 0, .25));
+  $("#hero h1").style.opacity = ease(seg(lt, -.34, -.04));
   heroWords.forEach((w, k) => { // un mot par temps, avec un petit coup de poing
     const at = snapRel(k * BEAT), l = ease(seg(lt, at - .02, at + .16)), punch = lt >= at ? Math.exp(-(lt - at) / .14) : 0;
     w.style.color = `rgba(236,235,240,${(.3 + .7 * l).toFixed(3)})`; w.style.transform = `scale(${(1 + punch * .09).toFixed(4)})`;
@@ -181,7 +184,7 @@ function paintHero(lt) {
 /* ───────── Légendes : « Paroles |mot à mot.| » (entre barres : mot coloré) ───────── */
 const buildCap = (c) => { c.innerHTML = c.dataset.t.split("|").map((part, i) => part.split(/(\s+)/).filter(Boolean).map((w) => /^\s+$/.test(w) ? " " : `<span class="w${i % 2 ? " ac" : ""}">${w}</span>`).join("")).join(""); };
 $$(".cap").forEach(buildCap);
-function paintCap(sc, lt, delay = .12, vis = 1) {
+function paintCap(sc, lt, delay = -.12, vis = 1) {
   $$(".cap .w", sc).forEach((w, k) => { // les mots tombent sur les demi-temps
     const t0 = snapRel(delay + k * BEAT / 2), p = seg(lt, t0, t0 + .34), e = easeBack(p);
     w.style.opacity = clamp(p * 2.2) * vis; w.style.transform = `translateY(${((1 - e) * 60).toFixed(1)}px) scale(${(1 + (1 - e) * .3).toFixed(3)})`; w.style.filter = p >= 1 ? "none" : `blur(${((1 - p) * 16).toFixed(1)}px)`;
@@ -191,7 +194,7 @@ function paintCap(sc, lt, delay = .12, vis = 1) {
 
 /* ───────── Images des écrans réels (séquences filmées) ───────── */
 const pending = [];
-const CL = { iosplayer: 360, ioslyrics: 384, lyrics: 360, player: 360, home: 216, devices: 216, recap: 252 };
+const CL = { iosplayer: 360, ioslyrics: 384, lyrics: 360, player: 360, home: 288, devices: 288, recap: 288 };
 function setFrame(img, clip, time) {
   const i = Math.max(0, Math.min(CL[clip] - 1, Math.floor(time * FPS)));
   const url = `${CLIPS}/${clip}/f${String(i).padStart(4, "0")}.jpg`;
@@ -204,7 +207,7 @@ const P = (x, y, z, rx, ry, rz, s) => ({ x, y, z, rx, ry, rz, s });
 const PERSP = 2200, PO = { x: 540, y: 1920 * .46 }, TARGET = { x: 540, y: 900 };
 const GEO_PHONE = { W: 508, H: 1068, pad: 14, sw: 480, sh: 1040 }, GEO_WIN = { W: 1160, H: 725, pad: 0, sw: 1160, sh: 725 };
 function panel(el, lt, dur, from, mid, to, c, g) {
-  const inK = easeBack(seg(lt, .06, .62)), drift = eio(seg(lt, .4, dur)), cur = {};
+  const inK = easeBack(seg(lt, -.24, .42)), drift = eio(seg(lt, .4, dur)), cur = {};
   for (const key in from) cur[key] = lerp(lerp(from[key], mid[key], inK), to[key], drift);
   const kk = kick(NOW), dd = down(NOW), bs = bassAt(NOW), flip = Math.floor(NOW / BAR) % 2 ? -1 : 1, zkk = clamp((c.z - 1) / 1.1), calm = 1 - .65 * zkk;
   const flat = 1 - .8 * zkk; cur.rx *= flat; cur.ry *= flat; cur.rz *= flat;                        // face à la caméra quand elle plonge
@@ -220,7 +223,7 @@ function panel(el, lt, dur, from, mid, to, c, g) {
   const sx = ((TARGET.x - PO.x) / f - (C0.x - PO.x) - p.x) * w, sy = ((TARGET.y - PO.y) / f - (C0.y - PO.y) - p.y) * w;
   cur.x += sx; cur.y += sy; CAMD = { x: sx, y: sy, z: dz };                                           // même décalage pour les plans flottants : parallaxe
   el.style.transform = `translate3d(${cur.x.toFixed(2)}px, ${cur.y.toFixed(2)}px, ${cur.z.toFixed(2)}px) rotateX(${cur.rx.toFixed(3)}deg) rotateY(${cur.ry.toFixed(3)}deg) rotateZ(${cur.rz.toFixed(3)}deg) scale(${cur.s.toFixed(4)})`;
-  el.style.opacity = ease(seg(lt, .04, .3));
+  el.style.opacity = ease(seg(lt, -.28, -.02));
   el.style.filter = c.blur > .3 ? `blur(${c.blur.toFixed(1)}px)` : "none";                           // flou de mouvement proportionnel à la vitesse de la caméra
   el.style.setProperty("--gx", (30 + cur.ry * 2.6 + 12 * Math.sin(NOW * .5)).toFixed(1) + "%"); el.style.setProperty("--gy", (16 - cur.rx * 1.6).toFixed(1) + "%");
   el.style.setProperty("--ga", (115 + cur.ry * 2.2).toFixed(1) + "deg"); el.style.setProperty("--bs", (bs * .6 + kk * .5).toFixed(3));   // reflet qui suit l'orientation, lueur qui bat
@@ -230,16 +233,16 @@ function panel(el, lt, dur, from, mid, to, c, g) {
 /** Plans en profondeur autour de l'appareil : pochettes et bokehs à différentes distances, flou de profondeur de champ,
  *  orbite lente, gonflement sur les basses, et parallaxe quand la caméra avance (ils reçoivent le même mouvement de monde). */
 const FLS = {};
-function buildFloaters(id, seed, cy, cov, wide = false) {
+function buildFloaters(id, seed, cy, cov, wide = false, count = 4) {
   const host = $(".p3d", $("#" + id)); let r = seed; const R = () => ((r = (r * 16807) % 2147483647) / 2147483647), items = [];
-  for (let i = 0; i < 11; i++) {
-    const isCov = i < 6, size = isCov ? lerp(150, 250, R()) : lerp(90, 220, R()), side = i % 2 ? 1 : -1;
+  for (let i = 0; i < count; i++) {
+    const isCov = true, size = isCov ? lerp(150, 250, R()) : lerp(90, 220, R()), side = i % 2 ? 1 : -1;
     const z = isCov ? lerp(-480, 380, R()) : lerp(-700, 160, R());
     // fenêtres larges : plans au-dessus et au-dessous (jamais devant l'écran) ; téléphones : de chaque côté
-    const x = wide ? lerp(-520, 520, R()) : side * lerp(330, 640, R()), y = wide ? cy + (i % 2 ? 1 : -1) * lerp(470, 760, R()) : cy + lerp(-640, 700, R());
+    const x = wide ? side * lerp(240, 470, R()) : side * lerp(330, 640, R()), y = wide ? cy + lerp(440, 560, R()) : cy + lerp(-640, 700, R());   // fenêtres larges : sous la fenêtre, jamais sur la légende
     const el = document.createElement("div"); el.className = "fl " + (isCov ? "cv" : "bk"); el.style.width = el.style.height = size + "px"; el.style.marginLeft = -size / 2 + "px"; el.style.top = y - size / 2 + "px";
     if (isCov) el.innerHTML = `<img src="_covers/${(cov + i) % 9}.jpg" alt="">`;
-    host.append(el); items.push({ el, z, x, y, size, ph: R() * 6.28, w: lerp(.25, .6, R()), amp: lerp(18, 54, R()), t0: .12 + i * .07, isCov });
+    host.append(el); items.push({ el, z, x, y, size, ph: R() * 6.28, w: lerp(.25, .6, R()), amp: lerp(14, 38, R()), t0: -.12 + i * .08, isCov });
   }
   FLS[id] = items;
 }
@@ -248,11 +251,11 @@ function floaters(id, lt, c) {
   for (const f of FLS[id]) {
     const p = easeBack(seg(lt, f.t0, f.t0 + .55)), zt = f.z + CAMD.z, bs = bassAt(NOW), kk = kick(NOW);
     const near = zt > PERSP * .74;                                                  // passé derrière la caméra : on le retire
-    const o = near ? 0 : clamp(p * 2) * clamp(1 - zkk * 2.1) * (f.isCov ? 1 : .8);   // disparaissent quand la caméra plonge : ils ne masquent jamais l'interface
+    const o = near ? 0 : clamp(p * 2) * clamp(1 - zkk * 2.1) * .78;   // disparaissent quand la caméra plonge : ils ne masquent jamais l'interface
     const ox = f.amp * Math.sin(NOW * f.w + f.ph), oy = f.amp * .8 * Math.cos(NOW * f.w * .8 + f.ph);
     f.el.style.opacity = o.toFixed(3); if (!o) continue;
     f.el.style.transform = `translate3d(${(f.x + ox + CAMD.x).toFixed(1)}px, ${(oy + CAMD.y).toFixed(1)}px, ${zt.toFixed(1)}px) rotateY(${(Math.sin(NOW * f.w + f.ph) * 22).toFixed(1)}deg) rotateZ(${(Math.sin(NOW * .4 + f.ph) * 9).toFixed(1)}deg) scale(${(p * (1 + bs * .08 + kk * .05)).toFixed(3)})`;
-    const dof = Math.min(11, Math.abs(f.z) / 70 + (f.isCov ? 0 : 3)); f.el.style.filter = `blur(${dof.toFixed(1)}px)`;   // profondeur de champ : net au plan de l'appareil
+    const dof = Math.min(12, 2 + Math.abs(f.z) / 60); f.el.style.filter = `blur(${dof.toFixed(1)}px)`;   // profondeur de champ : net au plan de l'appareil
   }
 }
 
@@ -293,54 +296,54 @@ function sceneLyrics(lt, dur) {
   const c = (LYRC === "lyrics" || LYRC === "ioslyrics") ? camFrom((l) => followRaw(l, l - .3), lt)
     : camera(LYRC === "iosplayer" ? [[bk(1.5), 1.5, .5, .30, .85], [bk(4), 2.3, .27, .68, .85], [bk(7), 1.9, .5, .80, .85], [bk(13), 1, .5, .5, .95]]
                                      : [[bk(1.5), 1.55, .5, .37, .85], [bk(4), 2.3, .23, .71, .85], [bk(7), 1.9, .5, .80, .85], [bk(13), 1, .5, .5, .95]], lt);
-  paintCap($("#s_ly"), lt, .12, camVis(c));
+  paintCap($("#s_ly"), lt, -.14, camVis(c));
   panel(el, lt, dur, P(90, 260, -260, 16, -38, -9, .84), P(10, 0, 0, 7, -17, -3, 1), P(-18, -22, 40, 4, -8, -1.5, 1.05), c, GEO_PHONE);
   floaters("s_ly", lt, c);
   setFrame($("img", el), LYRC, lt - .3);
 }
 function sceneHome(lt, dur) {
   const el = $("#wn_home"); el.style.top = "620px";
-  const c = camera([[bk(.8), 2.0, .77, .31, .85], [bk(4), 1, .5, .5, .9]], lt);
-  paintCap($("#s_home"), lt, .12, camVis(c));
+  const c = camera([[bk(1.2), 2.0, .77, .31, 1.0], [bk(7), 1, .5, .5, 1.0]], lt);
+  paintCap($("#s_home"), lt, -.14, camVis(c));
   panel(el, lt, dur, P(180, 240, -320, 22, 22, 6, .78), P(40, 0, 0, 11, 10, 2, 1), P(-10, -30, 30, 6, 5, 0, 1.07), c, GEO_WIN);
   floaters("s_home", lt, c);
   setFrame($("img", el), "home", lt - .25);
 }
 function sceneDev(lt, dur) {
   const el = $("#wn_dev"); el.style.top = "790px";
-  const c = camera([[bk(3), 2.0, .58, .52, .85], [bk(5.5), 2.4, .59, .93, .85], [bk(7.2), 1, .5, .5, .6]], lt);
-  paintCap($("#s_dev"), lt, .12, camVis(c));
+  const c = camera([[bk(2.8), 1.95, .59, .70, 1.0], [bk(9), 1, .5, .5, .7]], lt);
+  paintCap($("#s_dev"), lt, -.14, camVis(c));
   panel(el, lt, dur, P(-180, 240, -320, 22, -22, -6, .78), P(-40, 0, 0, 11, -10, -2, 1), P(10, -30, 30, 6, -5, 0, 1.07), c, GEO_WIN);
   floaters("s_dev", lt, c);
   setFrame($("img", el), "devices", lt - .25);
 }
 function sceneRecap(lt, dur) {
   const el = $("#ph_rc"); el.style.top = "500px";
-  const c = camera([[bk(.6), 1.5, .5, .5, .85], [bk(2.4), 2.3, .5, .5, .85], [bk(5), 1.9, .5, .47, .85], [bk(7), 1, .5, .5, .6]], lt);
-  paintCap($("#s_rc"), lt, .12, camVis(c));
+  const c = camera([[bk(.9), 1.55, .5, .5, 1.0], [bk(9), 1, .5, .5, .7]], lt);
+  paintCap($("#s_rc"), lt, -.14, camVis(c));
   panel(el, lt, dur, P(-90, 260, -260, 16, 38, 9, .84), P(-6, 0, 0, 7, 16, 3, 1), P(14, -22, 40, 4, 8, 1.5, 1.05), c, GEO_PHONE);
   floaters("s_rc", lt, c);
   setFrame($("img", el), "recap", lt - .25);
 }
-buildFloaters("s_ly", 11, 1034, 0); buildFloaters("s_home", 23, 982, 3, true); buildFloaters("s_dev", 37, 1152, 5, true); buildFloaters("s_rc", 53, 1034, 7);
+buildFloaters("s_ly", 11, 1034, 0, false, 3); buildFloaters("s_home", 23, 982, 3, true, 2); buildFloaters("s_dev", 37, 1152, 5, true, 2); buildFloaters("s_rc", 53, 1034, 7, false, 3);
 // Arc de pochettes : elles claquent l'une après l'autre sur le rythme, puis l'arc tourne.
 const arc = $("#arc"), N_COV = 9;
 arc.innerHTML = Array.from({ length: N_COV }, (_, i) => `<div class="cov"><img src="_covers/${i}.jpg" alt=""></div>`).join("");
 const covs = $$(".cov", arc);
 function sceneArc(lt, dur) {
-  paintCap($("#s_arc"), lt, .1);
+  paintCap($("#s_arc"), lt, -.12);
   const spin = (lt / dur - .5) * 24 + (1 - ease(seg(lt, 0, .9))) * 14;
   covs.forEach((c, i) => {
     const f = i / (N_COV - 1) - .5, a = (f * 104 + spin) * Math.PI / 180, R = 560, cx = 540, cy = 1040;
-    const p = seg(lt, i * BEAT / 3, i * BEAT / 3 + .38), k = easeBack(p);
+    const p = seg(lt, -.34 + i * BEAT / 4.2, -.34 + i * BEAT / 4.2 + .42), k = easeBack(p);
     const x = cx + Math.sin(a) * R, y = cy - Math.cos(a) * R + (1 - k) * 520, hit = kick(NOW) * .06;
     c.style.opacity = clamp(p * 3); c.style.filter = p >= 1 ? "none" : `blur(${(1 - p) * 12}px)`;
     c.style.transform = `translate3d(${x - 540}px, ${y}px, ${-Math.abs(f) * 160}px) rotateZ(${a * 180 / Math.PI * .9}deg) rotateY(${-f * 26}deg) scale(${(.5 + .5 * k + hit).toFixed(3)})`;
   });
 }
 function paintOutro(lt) {
-  const g = easeBack(seg(lt, 0, .5)), icon = $("#outro .icon"), pulse = kick(NOW, .2) * .5 + down(NOW) * .5;
-  icon.style.opacity = clamp(seg(lt, 0, .15) * 3); icon.style.transform = `scale(${(.6 + .4 * g + pulse * .05).toFixed(4)})`;
+  const g = easeBack(seg(lt, -.24, .4)), icon = $("#outro .icon"), pulse = kick(NOW, .2) * .5 + down(NOW) * .5;
+  icon.style.opacity = clamp(seg(lt, -.26, -.06) * 3); icon.style.transform = `scale(${(.6 + .4 * g + pulse * .05).toFixed(4)})`;
   icon.style.filter = `drop-shadow(0 0 ${(pulse * 70).toFixed(1)}px rgba(236,236,244,${(pulse * .6).toFixed(3)}))`;
   const at = (n) => ease(seg(lt, n * BEAT, n * BEAT + .4));
   reveal($("#outro .name"), at(1), 50, 16); reveal($("#outro .tag"), at(2), 28, 8); reveal($("#outro .plats"), at(3), 18, 4); reveal($("#outro .pill"), at(4), 24, 4);
@@ -351,31 +354,52 @@ const IN_START = TL.intro_start, IN_DUR = TL.intro_dur; // l'animation du site, 
 const PAINT = { intro: (lt) => paintIntro(clamp((lt - IN_START) / IN_DUR)), hero: paintHero, s_ly: sceneLyrics, s_arc: sceneArc, s_home: sceneHome, s_dev: sceneDev, s_rc: sceneRecap, outro: paintOutro };
 const TINTS = { intro: "grey", hero: "grey", s_ly: "ly", s_arc: "arc", s_home: "home", s_dev: "dev", s_rc: "rc", outro: "out" };
 const S = TL.scenes.map((s, i) => ({ ...s, i, a: s.b0 * BEAT, b: (s.b0 + s.beats) * BEAT, el: $("#" + s.id), tint: TINTS[s.id], paint: PAINT[s.id] }));
-const DURATION = S[S.length - 1].b, WHIP = { a: .13, b: .24 }; // le cut se fait autour du temps : un coup de fouet de 0,37 s
+const DURATION = S[S.length - 1].b, TW = { a: .30, b: .40 };   // chaque transition dure 0,7 s, centrée sur un kick (le départ est à a − 0,30 s)
 window.TIMELINE_CUTS = S.map((s) => s.a);
+/** Une transition par coupe, toutes continues : le plan qui sort et celui qui entre bougent ensemble, floutés par la vitesse.
+ *  zoomthrough : la caméra traverse le plan sortant · cube : rotation 3D autour d'un axe commun · slideUp : poussée verticale · drop : choc au drop. */
+const sm = smoother, TRANS = { 1: "zoomthrough", 2: "cube", 3: "drop", 4: "zoomthrough", 5: "cube", 6: "slideUp", 7: "zoomthrough" }, CUBE_DIR = { 2: -1, 5: 1 };
+function trOut(type, p, i) {
+  const bl = 36 * p, fade = 1 - sm(seg(p, .4, 1));
+  if (type === "zoomthrough") return { tf: `scale(${(1 + 2.6 * p * p).toFixed(4)})`, bl, op: fade };
+  if (type === "cube") { const d = CUBE_DIR[i] || -1; return { tf: `perspective(2600px) translateZ(-540px) rotateY(${(-d * 90 * p).toFixed(3)}deg) translateZ(540px)`, bl: 16 * Math.sin(Math.PI * p), op: 1 - seg(p, .75, 1) }; }
+  if (type === "slideUp") return { tf: `translate3d(0, ${(-1920 * p).toFixed(1)}px, 0) scale(${(1 - .12 * p).toFixed(4)})`, bl: 22 * Math.sin(Math.PI * p), op: 1 - seg(p, .8, 1) };
+  return { tf: `scale(${(1 + .5 * p).toFixed(4)})`, bl: 30 * p, op: 1 - sm(seg(p, .35, .8)) };   // drop
+}
+function trIn(type, p, i) {
+  const bl = 34 * (1 - p);
+  if (type === "zoomthrough") return { tf: `scale(${(.5 + .5 * p).toFixed(4)})`, bl, op: sm(seg(p, 0, .55)) };
+  if (type === "cube") { const d = CUBE_DIR[i] || -1; return { tf: `perspective(2600px) translateZ(-540px) rotateY(${(d * 90 * (1 - p)).toFixed(3)}deg) translateZ(540px)`, bl: 16 * Math.sin(Math.PI * p), op: seg(p, 0, .25) }; }
+  if (type === "slideUp") return { tf: `translate3d(0, ${(1920 * (1 - p)).toFixed(1)}px, 0) scale(${(1.1 - .1 * p).toFixed(4)})`, bl: 22 * Math.sin(Math.PI * p), op: seg(p, 0, .2) };
+  return { tf: `scale(${(1.6 - .6 * p).toFixed(4)})`, bl: 28 * (1 - p), op: sm(seg(p, .25, .7)) };   // drop : le nouveau plan arrive en force
+}
 async function seek(t) {
   NOW = t; CAMZ = 1; pending.length = 0;
-  let cur = S[0];
+  let cur = S[0], flash = 0, ring = 0;
   for (const s of S) {
-    const inP = s.i ? ease(seg(t, s.a - WHIP.a, s.a + WHIP.b)) : 1, outP = s.i < S.length - 1 ? ease(seg(t, s.b - WHIP.a, s.b + WHIP.b)) : 0;
-    const on = t >= s.a - WHIP.a && t < s.b + WHIP.b;
+    const on = t >= (s.i ? s.a - TW.a : 0) && t < (s.i < S.length - 1 ? s.b + TW.b : 1e9);
     s.el.style.display = on ? "block" : "none";
-    if (t >= s.a - WHIP.a) cur = s;
+    if (t >= s.a - TW.a) cur = s;
     if (!on) continue;
-    // coup de fouet : la scène qui sort file à gauche en se floutant, celle qui entre arrive de la droite
-    const x = (1 - inP) * 1150 - outP * 1150, bl = (1 - inP) * 26 + outP * 26, sc = 1 + outP * .16 - (1 - inP) * .12;   // le cut file en avant : profondeur
-    s.el.style.transform = x || sc !== 1 ? `translate3d(${x.toFixed(1)}px,0,0) scale(${sc.toFixed(4)})` : "none";
-    s.el.style.filter = bl > .3 ? `blur(${bl.toFixed(1)}px)` : "none";
-    CURA = s.a;
-    s.paint(Math.max(0, t - s.a), s.b - s.a);
+    const pin = s.i ? sm(seg(t, s.a - TW.a, s.a + TW.b)) : 1, nx = S[s.i + 1], pout = nx ? sm(seg(t, nx.a - TW.a, nx.a + TW.b)) : 0;
+    const I = s.i && pin < 1 ? trIn(TRANS[s.i], pin, s.i) : null, O = nx && pout > 0 ? trOut(TRANS[nx.i], pout, nx.i) : null, T = I || O;
+    // petit « coup » de caméra à chaque cut ; vrai choc (secousse) au drop
+    const dt = t - s.a, punch = s.i && dt >= 0 ? 1 + .018 * Math.exp(-dt / .14) : 1, shake = TRANS[s.i] === "drop" && dt >= 0 && dt < .8 ? Math.exp(-dt / .2) : 0;
+    const shx = shake * 16 * Math.sin(t * 95), shy = shake * 12 * Math.cos(t * 81);
+    s.el.style.transform = `translate3d(${shx.toFixed(1)}px, ${shy.toFixed(1)}px, 0) scale(${punch.toFixed(4)}) ${T ? T.tf : ""}`;
+    s.el.style.filter = T && T.bl > .3 ? `blur(${T.bl.toFixed(1)}px)` : "none"; s.el.style.opacity = T ? T.op.toFixed(3) : 1;
+    CURA = s.a; s.paint(t - s.a, s.b - s.a);
+    if (s.i && TRANS[s.i] === "drop") { flash = Math.max(flash, t >= s.a - .03 ? Math.exp(-(t - s.a) / .11) * .9 : 0); const r = (t - s.a) / .75; if (r >= 0 && r <= 1) ring = r; }
+    if (s.i && TRANS[s.i] === "zoomthrough" && pin < 1) flash = Math.max(flash, .26 * Math.sin(Math.PI * pin));   // halo lumineux au milieu de la traversée
   }
-  const prev = S[Math.max(0, cur.i - 1)], k = cur.i ? ease(seg(t, cur.a - WHIP.a, cur.a + .3)) : 1, st = $("#stage").style;
+  $("#flash").style.opacity = flash.toFixed(3); const R = $("#ring");
+  R.style.opacity = ring > 0 ? ((1 - ring) * .9).toFixed(3) : 0; R.style.transform = `scale(${(.1 + 1.5 * ease(ring)).toFixed(3)})`;
+  const prev = S[Math.max(0, cur.i - 1)], k = cur.i ? sm(seg(t, cur.a - TW.a, cur.a + TW.b)) : 1, st = $("#stage").style;
   st.setProperty("--tint", mixc(TINT[prev.tint], TINT[cur.tint], k)); st.setProperty("--tint2", mixc(TINT2[prev.tint], TINT2[cur.tint], k));
   const pulse = bassAt(t) * .34 + kick(t, .16) * .2 + down(t) * .28;   // les lueurs battent avec les basses réelles
-  st.setProperty("--amb", String(ease(seg(t, 1.6, 4.6)) * (.78 + pulse)));  // les lueurs pulsent avec le kick
+  st.setProperty("--amb", String(ease(seg(t, 1.6, 4.6)) * (.78 + pulse)));
   $$("#amb i").forEach((el, i) => { el.style.transform = `translate(${Math.sin(t * .5 + i * 2) * 90}px, ${Math.cos(t * .4 + i) * 60}px) scale(${1 + Math.sin(t * .4 + i) * .06 + pulse * .12})`; });
-  topEl.style.opacity = ease(seg(t, S[2].a - .2, S[2].a + .2)) * (1 - ease(seg(t, S[7].a - .2, S[7].a + .15))) * (1 - eio(seg(CAMZ, 1.2, 1.7)));
-  topEl.style.transform = `scale(${(1 + kick(t) * .05).toFixed(3)})`;
+  topEl.style.opacity = 0;   // plus d'en-tête permanent : moins de choses à l'écran
   await Promise.all(pending);
 }
 window.seek = seek; window.DURATION = DURATION;
