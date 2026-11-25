@@ -2,12 +2,15 @@
 
 | Fichier | Contenu |
 |---|---|
-| `sona-tiktok-v9.mp4` *(non versionné : il contient le morceau)* | **v9** : montage **allégé** (plus d'en-tête permanent, moins de plans flottants, un seul mouvement de caméra par scène, écrans plus lents) avec **une transition différente à chaque coupe** (zoom à travers, cube 3D, poussée verticale, choc au drop avec flash, onde de choc et secousse), le tout calé sur les vrais kicks du morceau (« Goutte d'eau », Ninho — fichier fourni par toi) ; paroles sur « Défoncé d'après les analyses ». |
-| `sona-tiktok-v9-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
+| `sona-tiktok-v10.mp4` *(non versionné : il contient le morceau)* | **v10** : une **accroche** de 1,7 s ouvre la vidéo (le drop du morceau, paroles en très gros qui s'allument mot à mot, « Tu connais vraiment les paroles ? »), puis un choc mène à l'**animation d'intro du site** ; ensuite le montage allégé avec une transition différente à chaque coupe, calé sur les vrais kicks (« Goutte d'eau », Ninho — fichier fourni par toi). |
+| `sona-tiktok-v10-sans-son.mp4` | Même vidéo sans son : pour ajouter le morceau depuis la bibliothèque de sons de TikTok (un son du commerce incrusté dans un fichier peut être coupé ou bloqué). |
 | `demo-paroles-camera.mp4` | Démo (muette) de la caméra qui suit les paroles mot par mot, avec des paroles du domaine public. |
 | `sona-tiktok-v1.mp4` | v1 : version sobre, 100 % typographique. |
 
 Le morceau (`_assets/song/`), les paroles et les pochettes ne sont **jamais** dans le dépôt (`.gitignore`).
+
+## L'accroche
+Les 4 premiers temps (`hook_beats` dans `timeline.js`) jouent **le drop** du morceau (`hook_song_start`) : `ios-player.html?bare` filme l'écran des paroles plein cadre (clip `ioshook`), `paintHook()` pousse la caméra sur le mot chanté et affiche la phrase d'accroche. Le son « rembobine » ensuite (fondu court) vers le début du morceau, et le drop revient comme point d'orgue au cut des pochettes. `analyze-song.py` et `mixaudio.cjs` gèrent ces deux extraits.
 
 ## Synchro sur les kicks et les basses
 `analyze-song.py` analyse le morceau que tu fournis : énergie des basses à chaque image vidéo et instants exacts des kicks/808 (attaque repérée à quelques ms) → `_assets/song/audio.js` (non versionné). `motion.html` s'en sert pour les rebonds des appareils, les lueurs, les plans flottants, et **cale sur un vrai kick** le départ de chaque mouvement de caméra (`bk()`) et de chaque mot des légendes (`snapRel()`). Sans analyse, retour à la grille de tempo.
@@ -48,13 +51,13 @@ La caméra suit le mot en cours de chant (`followLyrics`). Les paroles ne sont j
 ```bash
 node fetch-catalog.cjs
 (cd mock && node server.cjs &)                                  # http://localhost:8765
-node clips.cjs _clips ioslyrics,home,devices,recap              # ≈ 25 min en haute résolution
+node clips.cjs _clips ioshook,ioslyrics,home,devices,recap              # ≈ 25 min en haute résolution
 mkdir -p _covers   # _covers/0.jpg … 8.jpg = 9 premières pochettes de _assets/catalog.json
 python3 beat.py fx.wav --fx-only
 python3 analyze-song.py                                         # kicks et basses réels → _assets/song/audio.js
 node mixaudio.cjs _assets/song/song.m4a fx.wav audio.m4a       # le morceau est celui que tu fournis
 node render.cjs motion.html _frames 60 3                        # ≈ 10 min  (FROM=… TO=… : une plage d'images)
 ffmpeg -framerate 60 -i _frames/f%05d.png -i audio.m4a -c:v libx264 -preset slow -crf 15 -pix_fmt yuv420p \
-  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v9.mp4
+  -vf "noise=alls=2:allf=t" -colorspace bt709 -color_primaries bt709 -color_trc bt709 -c:a copy -shortest -movflags +faststart sona-tiktok-v10.mp4
 ```
 Les textes sont dans `motion.html` ; « Lien en bio » est à adapter ou retirer.

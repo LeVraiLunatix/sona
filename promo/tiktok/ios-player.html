@@ -43,6 +43,8 @@ body { font-family: var(--font); color: #fff; -webkit-font-smoothing: antialiase
 /* vue paroles (compactPanel + LyricsView) */
 #lyview { display: none; }
 .v-lyrics #lyview { display: block; }
+.bare #status, .bare #top, .bare #lyview .head { display: none; }
+.bare #ly { top: 0; height: 932px; }
 .v-lyrics #art, .v-lyrics #title, .v-lyrics #scrub, .v-lyrics #transport, .v-lyrics #vol, .v-lyrics #bottom { display: none; }
 #lyview .head { position: absolute; left: 26px; right: 26px; top: 121px; height: 62px; }
 #lyview .head img { position: absolute; left: 0; top: 0; width: 62px; height: 62px; border-radius: 8px; object-fit: cover; box-shadow: 0 5px 10px rgba(0, 0, 0, .3); }
@@ -146,7 +148,7 @@ function paintMesh(t, energy) {
 }
 
 /* ───── paroles : ligne active pleine, voisines floues et atténuées, mot qui se remplit (LyricsView) ───── */
-const VIEW = q.get("view") || "player"; document.body.className = "v-" + VIEW;
+const VIEW = q.get("view") || "player", BARE = q.has("bare"); document.body.className = "v-" + VIEW + (BARE ? " bare" : "");
 const cl = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => cl((p - a) / (b - a)), ease = (t) => 1 - Math.pow(1 - t, 3), lerp = (a, b, t) => a + (b - a) * t;
 let LY = null, LINES = [], CY = [];
 async function loadLyrics() {
@@ -171,7 +173,7 @@ async function loadLyrics() {
 let CURW = null;
 function paintLyrics(st) {
   if (!LINES.length) return;
-  const H = 690, t0 = LINES[0].start; let fa = -.7 * (1 - ease(seg(st, t0 - .35, t0 + .05)));
+  const H = BARE ? 932 : 690, t0 = LINES[0].start; let fa = -.7 * (1 - ease(seg(st, t0 - .35, t0 + .05)));
   for (let i = 1; i < LINES.length; i++) fa += ease(seg(st, LINES[i].start - .3, LINES[i].start + .22));
   const fc = Math.max(0, Math.min(LINES.length - 1, fa)), i0 = Math.floor(fc), i1 = Math.min(LINES.length - 1, i0 + 1);
   $("#ly .track").style.transform = `translateY(${(H * .34 - lerp(CY[i0], CY[i1], fc - i0)).toFixed(2)}px)`;

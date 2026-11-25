@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 src = open(os.path.join(HERE, "timeline.js")).read()
 tl = json.loads(re.sub(r"//[^\n]*", "", src[src.index("window.TIMELINE =") + len("window.TIMELINE ="):src.rindex(";")]))
 BPM, START = tl["bpm"], tl["song_start"]
+HB, HS = tl.get("hook_beats", 0), tl.get("hook_song_start", 0); HDUR = HB * 60 / BPM   # teaser : les premiers temps jouent un autre extrait
 BEATS = max(s["b0"] + s["beats"] for s in tl["scenes"]); DUR = BEATS * 60 / BPM + 0.6; FPS = 60
 
 w = wave.open(os.path.join(HERE, "_assets/song/song.wav")); sr = w.getframerate()
@@ -50,11 +51,16 @@ kick_t = [k[0] for k in kicks]; kick_s = [min(1, k[2] / kmax) for k in kicks]
 Es = np.convolve(E, np.ones(6) / 6, "same"); lo, hi = np.percentile(Es, 20), np.percentile(Es, 97)
 def bass_at(t): return float(np.clip((np.interp(t, tt, Es) - lo) / (hi - lo), 0, 1))
 N = int(DUR * FPS)
-bass = [round(bass_at(START + i / FPS), 3) for i in range(N)]
-vk = [(round(t - START, 3), round(s, 2)) for t, s in zip(kick_t, kick_s) if START - 0.05 <= t <= START + DUR]
+def song_t(t): return HS + t if t < HDUR else START + (t - HDUR)            # temps de la vidéo → temps du morceau
+bass = [round(bass_at(song_t(i / FPS)), 3) for i in range(N)]
+vk = []
+for t, s in zip(kick_t, kick_s):
+    if HDUR and HS - 0.05 <= t < HS + HDUR: vk.append((round(t - HS, 3), round(s, 2)))
+    elif START - 0.05 <= t <= START + DUR - HDUR: vk.append((round(t - START + HDUR, 3), round(s, 2)))
+vk.sort()
 
 # cohérence avec la grille de tempo (1er temps du morceau à 0,209 s)
-beat = 60 / BPM; off = [((t - 0.209) / beat) % 1 for t, _ in vk]; on_grid = sum(1 for o in off if min(o, 1 - o) * beat < 0.045)
+beat = 60 / BPM; off = [((song_t(t) - 0.209) / beat) % 1 for t, _ in vk]; on_grid = sum(1 for o in off if min(o, 1 - o) * beat < 0.045)
 print(f"kicks détectés dans la vidéo : {len(vk)} (sur {len(kicks)} dans tout le morceau) · {on_grid} sont à ±45 ms de la grille de {BPM} BPM")
 print("premiers kicks (s vidéo) :", [t for t, _ in vk[:10]])
 out = os.path.join(HERE, "_assets/song/audio.js")

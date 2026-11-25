@@ -6,7 +6,8 @@ const FPS = 60, DT = 1000 / FPS;
 // Position du morceau au début du clip de la scène « s_ly » : song_start + instant de la scène + 0,3 s (même décalage que motion.html).
 const TLSRC = fs.readFileSync(path.join(__dirname, "timeline.js"), "utf8").replace(/\/\/[^\n]*/g, "");
 const TL = JSON.parse(TLSRC.slice(TLSRC.indexOf("{"), TLSRC.lastIndexOf("}") + 1));
-const LY_AT = TL.song_start + TL.scenes.find((s) => s.id === "s_ly").b0 * 60 / TL.bpm + 0.3;
+const LY_AT = TL.song_start + (TL.scenes.find((s) => s.id === "s_ly").b0 - (TL.hook_beats || 0)) * 60 / TL.bpm + 0.3;   // le teaser décale la vidéo, pas le morceau
+const HOOK_AT = TL.hook_song_start || 0;
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 
 const CLIPS = {
@@ -18,6 +19,8 @@ const CLIPS = {
   // Lecteur plein écran de l'app iOS (réplique ios-player.html), image par image à la position réelle dans le morceau
   iosplayer: { custom: "ios", view: "player", dsf: 3, secs: 6.0 },
   ioslyrics: { custom: "ios", view: "lyrics", dsf: 3, secs: 6.4, track: true },
+  // Teaser d'ouverture : paroles plein cadre sur le drop
+  ioshook: { custom: "ios", view: "lyrics", bare: true, dsf: 3, secs: 2.1, track: true, start: HOOK_AT },
   // Lecteur plein écran du titre vedette (quand il n'y a pas de paroles à montrer)
   player: { mode: "mobile", dsf: 3, secs: 6.0, async setup(p) {
     await p.evaluate(async () => { const t = await api("/__track/hero"); playList([t], 0, "Rap français"); }); await p.waitForTimeout(1200);
@@ -38,13 +41,13 @@ const CLIPS = {
 async function captureIos(name, c, dir, only) {
   const { chromium } = require("playwright");
   const cat = JSON.parse(fs.readFileSync(path.join(__dirname, "_assets/catalog.json"), "utf8")), h = process.env.LYRICS_TITLE ? cat.lyrics : cat.tracks[0]; // démo : titre aux paroles du domaine public
-  const url = `http://localhost:8765/promo/ios-player.html?view=${c.view}&cover=${encodeURIComponent("/asset/" + h.cover)}&title=${encodeURIComponent(h.title)}&artist=${encodeURIComponent(h.artist)}&bpm=${TL.bpm}&beat0=0.209&dur=${h.duration}&shift=${process.env.LYRICS_TITLE ? (LY_AT + 0.8 - 5.0) : 0}&lyrics=${encodeURIComponent("/lyrics?title=" + (process.env.LYRICS_TITLE || h.title) + "&artist=" + h.artist)}`;
+  const url = `http://localhost:8765/promo/ios-player.html?view=${c.view}&cover=${encodeURIComponent("/asset/" + h.cover)}&title=${encodeURIComponent(h.title)}&artist=${encodeURIComponent(h.artist)}${c.bare ? "&bare=1" : ""}&bpm=${TL.bpm}&beat0=0.209&dur=${h.duration}&shift=${process.env.LYRICS_TITLE ? (LY_AT + 0.8 - 5.0) : 0}&lyrics=${encodeURIComponent("/lyrics?title=" + (process.env.LYRICS_TITLE || h.title) + "&artist=" + h.artist)}`;
   const b = await chromium.launch(), p = await b.newPage({ viewport: { width: 430, height: 932 }, deviceScaleFactor: c.dsf });
   p.on("pageerror", (e) => console.log("PAGEERROR", e.message));
   await p.goto(url); await p.evaluate(() => window.ready);
   const n = Math.round(c.secs * FPS), rects = [], t0 = Date.now();
   for (let i = 0; i < n; i++) {
-    await p.evaluate((t) => window.setT(t), LY_AT + i / FPS);
+    await p.evaluate((t) => window.setT(t), (c.start ?? LY_AT) + i / FPS);
     if (c.track) rects.push(await p.evaluate(() => (window.wordRect ? window.wordRect() : null)));
     if (!only.length || only.includes(i)) await p.screenshot({ path: path.join(dir, `f${String(i).padStart(4, "0")}.jpg`), type: "jpeg", quality: 90 });
   }

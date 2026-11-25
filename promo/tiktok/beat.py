@@ -105,7 +105,7 @@ duck = np.ones(N)
 for i in np.nonzero(kicks)[0]:
     seglen = int(0.28 * SR); e = min(N, i + seglen); duck[i:e] = np.minimum(duck[i:e], 1 - 0.0 * np.exp(-np.arange(e - i) / (0.1 * SR)))
 # ───── effets de montage : impact sur la lueur du logo, whoosh à chaque coup de fouet, riser, impact final ─────
-glow_t = tl['intro_start'] + tl['intro_dur'] * 0.42
+glow_t = b('intro') * BEAT + tl['intro_start'] + tl['intro_dur'] * 0.42
 if not FX_ONLY: both(K, glow_t, 1.0); both(s808(43.65, 2.2), glow_t, 0.9)
 both(whoosh(0.9)[::-1], glow_t - 0.9, 0.5)
 both(riser(at(2)), at(b("hero") - 2), 0.5)                   # ça monte vers « Ta musique, en clair. »
