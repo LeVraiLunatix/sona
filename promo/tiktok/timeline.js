@@ -5,7 +5,7 @@
 window.TIMELINE = {
   "bpm": 138.0,
   "song_start": 31.513,   // instant du morceau (s) joué à t = 0 de la vidéo : le 72e temps du morceau (1er temps à 0,209 s) ; le drop (77e temps, 33,69 s) tombe sur la lueur du logo
-  "lyrics_clip": "iosplayer", // "ioslyrics" = paroles mot à mot dans le lecteur iOS (il faut des paroles fournies : mock/lyrics.local.json) ; "iosplayer" = lecteur iOS plein écran ; "lyrics"/"player" = lecteur web
+  "lyrics_clip": "ioslyrics", // "ioslyrics" = paroles mot à mot dans le lecteur iOS (il faut des paroles fournies : mock/lyrics.local.json) ; "iosplayer" = lecteur iOS plein écran ; "lyrics"/"player" = lecteur web
   "intro_start": 0.35, "intro_dur": 4.4,   // animation du site : le trait se remplit (lueur) à 0,35 + 4,4 × 0,42 ≈ 2,2 s = le 5e temps
   "scenes": [
     { "id": "intro", "b0": 0, "beats": 12 },

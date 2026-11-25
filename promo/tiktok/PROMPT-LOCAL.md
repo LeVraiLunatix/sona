@@ -4,7 +4,7 @@
 
 ```text
 Contexte : dans ce dépôt, promo/tiktok/ contient un motion design TikTok de Sona (1080×1920, 60 i/s). Lis d'abord promo/tiktok/README.md, puis timeline.js, motion.html (la caméra : camera(), panel(), followLyrics()), clips.cjs, ios-player.html (réplique du lecteur plein écran de l'app iOS, vue « player » et vue « lyrics »), mock/server.cjs, mixaudio.cjs et beat.py.
-Aujourd'hui (sona-tiktok-v6.mp4) : le VRAI morceau « Goutte d'eau » (Ninho, 138 BPM, fichier fourni par moi) est la musique ; le montage est calé sur ses temps ; la caméra fait un travelling avant dans l'appareil entier ; la scène « s_ly » montre le lecteur iOS plein écran SANS paroles (je n'avais pas de paroles).
+Aujourd'hui (sona-tiktok-v7.mp4) : le VRAI morceau « Goutte d'eau » (Ninho, 138 BPM, fichier fourni par moi) est la musique ; le montage est calé sur ses temps ; la caméra fait un travelling avant dans l'appareil entier ; la scène « s_ly » montre le lecteur iOS plein écran SANS paroles (je n'avais pas de paroles).
 
 OBJECTIF : produire sona-tiktok-v7.mp4 où la scène « Paroles mot à mot » montre, dans la vue paroles du lecteur iOS (ios-player.html?view=lyrics), les VRAIES paroles du morceau remplies mot à mot et EXACTEMENT synchronisées avec l'audio entendu, avec la caméra qui se rapproche puis SUIT le mot chanté (followLyrics lit le fichier track.js écrit par clips.cjs : position du mot en cours à chaque image).
 
