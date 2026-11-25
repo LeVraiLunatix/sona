@@ -8,7 +8,7 @@ const ease = (t) => 1 - Math.pow(1 - t, 3);
 const CLIPS = {
   // Lecteur plein écran, paroles mot à mot (téléphone)
   lyrics: { mode: "mobile", secs: 7.6, async setup(p) {
-    await p.click(".home-hero"); await p.waitForTimeout(1200);
+    await p.evaluate(async () => { const t = await api("/__track/lyrics"); playList([t], 0, "Comptines"); }); await p.waitForTimeout(1200);
     await p.evaluate(() => openNowPlaying("lyrics")); await p.mouse.move(2, 2); await p.waitForTimeout(2500); return { audio: 5.0 };
   } },
   // Accueil sur ordinateur, défilement doux

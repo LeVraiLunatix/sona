@@ -206,7 +206,7 @@ function sceneRecap(lt, dur) {
 }
 // Arc de pochettes, comme dans la référence : elles montent en éventail puis l'arc tourne doucement.
 const arc = $("#arc"), N_COV = 9;
-arc.innerHTML = Array.from({ length: N_COV }, (_, i) => `<div class="cov"><img src="_covers/${i % 8}.svg" alt=""></div>`).join("");
+arc.innerHTML = Array.from({ length: N_COV }, (_, i) => `<div class="cov"><img src="_covers/${i}.jpg" alt=""></div>`).join("");
 const covs = $$(".cov", arc);
 function sceneArc(lt, dur) {
   paintCap($("#s_arc"), lt, .2);
