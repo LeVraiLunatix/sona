@@ -1759,6 +1759,8 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .app { grid-template-columns: var(--sidebar-w) 1fr; }
   .content { grid-column: 2; }
 
+  /* Le S (38 px) tombe au milieu du rail : 22 de marge + 3 + 19 = 44, comme les icônes. */
+  .app .sidebar .brand { margin-left: 3px; }
   .sidebar .brand .wordmark { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: opacity .15s ease, max-width .28s ease; }
   .sidebar:hover .brand .wordmark, .sidebar:has(:focus-visible) .brand .wordmark, html[data-menu="ouvert"] .sidebar .brand .wordmark { max-width: 160px; opacity: 1; transition-delay: .1s; }
 
