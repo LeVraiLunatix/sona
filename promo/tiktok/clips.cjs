@@ -19,8 +19,6 @@ const CLIPS = {
   // Lecteur plein écran de l'app iOS (réplique ios-player.html), image par image à la position réelle dans le morceau
   iosplayer: { custom: "ios", view: "player", dsf: 3, secs: 6.0 },
   ioslyrics: { custom: "ios", view: "lyrics", dsf: 3, secs: 6.4, track: true },
-  // Teaser d'ouverture : paroles plein cadre sur le drop
-  ioshook: { custom: "ios", view: "lyrics", bare: true, dsf: 3, secs: 2.1, track: true, start: HOOK_AT },
   // Lecteur plein écran du titre vedette (quand il n'y a pas de paroles à montrer)
   player: { mode: "mobile", dsf: 3, secs: 6.0, async setup(p) {
     await p.evaluate(async () => { const t = await api("/__track/hero"); playList([t], 0, "Rap français"); }); await p.waitForTimeout(1200);

@@ -81,9 +81,15 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #outro .tag { margin: 22px 0 0; font: 500 52px/1.2 var(--font); color: var(--mid); letter-spacing: -.02em; }
 #outro .plats { margin-top: 84px; font: 500 30px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 #outro .pill { margin-top: 48px; display: inline-flex; align-items: center; justify-content: center; height: 112px; padding: 0 64px; border-radius: 56px; font: 700 44px/1 var(--font); color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .08)); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .28), 0 24px 60px rgba(0, 0, 0, .4); }
-#hook .hk { position: absolute; inset: 0; overflow: hidden; background: #06090c; }
-#hook .hk img { position: absolute; left: 0; top: 0; width: 1290px; height: 2796px; will-change: transform; }
-#hook .hkv { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 62% at 50% 46%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, .55) 100%); }
+#hook .hk { position: absolute; inset: 0; background: radial-gradient(ellipse 90% 55% at 50% 52%, #12141a 0%, #07080b 70%); overflow: hidden; }
+#hook .alarm { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse 85% 50% at 50% 54%, rgba(255, 60, 60, .30), rgba(255, 60, 60, 0) 70%); }
+#hook .deck { position: absolute; inset: 0; perspective: 2200px; perspective-origin: 50% 50%; }
+#hook .chip { position: absolute; left: 50%; top: 0; width: 900px; height: 150px; margin-left: -450px; border-radius: 42px; display: flex; align-items: center; gap: 32px; padding: 0 36px; will-change: transform, filter;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .15), rgba(255, 255, 255, .05)); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .2), 0 40px 90px rgba(0, 0, 0, .6); }
+#hook .chip .orb { width: 92px; height: 92px; flex: none; border-radius: 50%; background: var(--c); box-shadow: 0 0 60px rgba(255, 255, 255, .18), inset 0 0 0 2px rgba(255, 255, 255, .25); }
+#hook .chip b { font: 700 62px/1 var(--font); letter-spacing: -.035em; white-space: nowrap; }
+#hook .chip u { margin-left: auto; text-decoration: none; font: 700 30px/1 var(--font); letter-spacing: -.01em; padding: 15px 24px; border-radius: 22px; color: #ff7878; background: rgba(255, 70, 70, .15); box-shadow: inset 0 0 0 1.6px rgba(255, 95, 95, .55); white-space: nowrap; transform-origin: 100% 50%; }
+#hook .chip .x { position: absolute; left: 26px; right: 26px; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: #ff4d4d; box-shadow: 0 0 30px rgba(255, 70, 70, .7); transform-origin: 0 50%; transform: scaleX(0) rotate(-2.2deg); }
 #flash { position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0; mix-blend-mode: screen; background: radial-gradient(circle at 50% 46%, #fff 0%, rgba(255, 255, 255, .65) 28%, rgba(255, 255, 255, 0) 68%); }
 #ring { position: absolute; left: 50%; top: 46%; width: 1100px; height: 1100px; margin: -550px 0 0 -550px; z-index: 7; pointer-events: none; opacity: 0; border-radius: 50%; background: radial-gradient(circle closest-side, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, .95) 89%, rgba(255, 255, 255, .25) 95%, rgba(255, 255, 255, 0) 100%); }
 #guides { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 9; }
@@ -98,8 +104,16 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 
 <div id="amb"><i class="a"></i><i class="b"></i><i class="c"></i></div>
 
-<!-- Teaser : le drop, paroles en très gros -->
-<section class="sc" id="hook"><div class="hk"><img alt=""></div><div class="hkv"></div><div class="cap" data-t="Tu connais |vraiment| les paroles ?" style="top:420px; font-size: 104px; text-shadow: 0 6px 40px rgba(0, 0, 0, .55)"></div></section>
+<!-- Accroche : cinq apps de streaming, leur problème, puis Sona -->
+<section class="sc" id="hook"><div class="hk"><i class="alarm"></i></div>
+  <div class="cap" data-t="Tous ont le même |problème.|" style="top:300px"></div>
+  <div class="deck">
+    <div class="chip" style="--c: linear-gradient(135deg, #ff7a8c, #fa243c)"><i class="orb"></i><b>Apple Music</b><u>Payant</u><span class="x"></span></div>
+    <div class="chip" style="--c: linear-gradient(135deg, #4ff08e, #1db954)"><i class="orb"></i><b>Spotify</b><u>Payant ou pubs</u><span class="x"></span></div>
+    <div class="chip" style="--c: conic-gradient(from 200deg, #40ab5d, #fdaa01, #ef5466, #7a5af8, #40ab5d)"><i class="orb"></i><b>Deezer</b><u>Payant ou pubs</u><span class="x"></span></div>
+    <div class="chip" style="--c: linear-gradient(135deg, #ff8a3d, #ff5500)"><i class="orb"></i><b>SoundCloud</b><u>Payant ou pubs</u><span class="x"></span></div>
+    <div class="chip" style="--c: linear-gradient(135deg, #ff5a4d, #e60000)"><i class="orb"></i><b>YouTube Music</b><u>Payant ou pubs</u><span class="x"></span></div>
+  </div></section>
 
 <section class="sc" id="intro"><div class="stage"><div class="logo-word">
   <svg viewBox="118 120 163 160" aria-hidden="true"><path class="glyph" pathLength="1" d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z"/></svg>
@@ -200,7 +214,7 @@ function paintCap(sc, lt, delay = -.12, vis = 1) {
 
 /* ───────── Images des écrans réels (séquences filmées) ───────── */
 const pending = [];
-const CL = { ioshook: 126, iosplayer: 360, ioslyrics: 384, lyrics: 360, player: 360, home: 288, devices: 288, recap: 288 };
+const CL = { iosplayer: 360, ioslyrics: 384, lyrics: 360, player: 360, home: 288, devices: 288, recap: 288 };
 function setFrame(img, clip, time) {
   const i = Math.max(0, Math.min(CL[clip] - 1, Math.floor(time * FPS)));
   const url = `${CLIPS}/${clip}/f${String(i).padStart(4, "0")}.jpg`;
@@ -356,16 +370,24 @@ function paintOutro(lt) {
 }
 
 
-/** Teaser : l'écran des paroles (vue iOS, sans en-tête) plein cadre sur le drop. Les mots s'allument, la caméra reste sur le mot chanté et pousse. */
+/** Accroche : cinq apps de streaming claquent à l'écran sur les kicks, on leur colle leur problème (payant ou pubs), puis tout part vers la caméra : Sona. */
+const chips = $$("#hook .chip");
 function paintHook(lt) {
-  const img = $("#hook img"); setFrame(img, "ioshook", lt);
-  paintCap($("#hook"), lt, .02, 1 - smoother(seg(lt, 1.35, 1.7)));   // l'accroche s'efface juste avant le choc de transition
-  const T = window.TRACKS && window.TRACKS.ioshook, B = 3, VW = 430, VH = 932; let wx = VW / 2, wy = VH * .34, sw = 0, sx = 0, sy = 0;
-  if (T) { const i0 = Math.floor(lt * FPS) + 2; for (let k = -12; k <= 12; k++) { const r = T.rects[Math.max(0, Math.min(T.rects.length - 1, i0 + k))]; if (!r) continue; const w = Math.exp(-(k * k) / (2 * 5 * 5)); sx += (r[0] + r[2] / 2) * w; sy += (r[1] + r[3] / 2) * w; sw += w; } if (sw) { wx = sx / sw; wy = sy / sw; } }
-  const push = 1 + .12 * smoother(seg(lt, 0, 1.75)) + kick(NOW) * .03 + down(NOW) * .025;                       // lente poussée + coup à chaque kick
-  const tx = Math.min(0, Math.max(1080 - VW * B, 540 - wx * B)), ty = Math.min(0, Math.max(1920 - VH * B, 900 - wy * B));
-  img.style.transformOrigin = `${(wx * B + tx).toFixed(1)}px ${(wy * B + ty).toFixed(1)}px`;                    // la poussée se fait autour du mot chanté
-  img.style.transform = `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0) scale(${push.toFixed(4)})`;
+  const slam = [0, 1, 2, 3, 4].map((i) => snapRel(i * BEAT)), stampT = snapRel(5 * BEAT), crossT = snapRel(6.1 * BEAT), outT = snapRel(7 * BEAT);
+  const stamp = ease(seg(lt, stampT, stampT + .3)), out = smoother(seg(lt, outT, outT + .5)), kk = kick(NOW), shake = Math.exp(-Math.max(0, lt - stampT) / .16) * (lt >= stampT ? 1 : 0);
+  chips.forEach((c, i) => {
+    const side = i % 2 ? 1 : -1, p = easeBack(seg(lt, slam[i], slam[i] + .4)), pin = seg(lt, slam[i], slam[i] + .12);
+    const x = side * (1 - p) * 1000 + side * 24 + Math.sin(NOW * 38 + i) * shake * 14, y = 610 + i * 192 + (1 - p) * -60 + Math.cos(NOW * 33 + i) * shake * 8;
+    const ry = side * (8 + (1 - p) * 46) * (1 - out * .6), rz = -side * (1 + (1 - p) * 6), sc = (.72 + .28 * p) * (1 + kk * .012 + stamp * .01) * (1 + out * .5);
+    const gray = seg(lt, crossT + i * .05, crossT + i * .05 + .3);
+    c.style.opacity = (clamp(pin * 1.4) * (1 - seg(out, .55, 1))).toFixed(3);
+    c.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${(out * 1600).toFixed(0)}px) rotateY(${ry.toFixed(2)}deg) rotateZ(${rz.toFixed(2)}deg) scale(${sc.toFixed(4)})`;
+    c.style.filter = `blur(${((1 - Math.min(1, p)) * 12 + out * 14).toFixed(1)}px) saturate(${(1 - gray * .85).toFixed(2)}) brightness(${(1 - gray * .3).toFixed(2)})`;
+    const u = $("u", c); u.style.opacity = stamp.toFixed(3); u.style.transform = `scale(${(1.5 - .5 * easeBack(seg(lt, stampT + i * .035, stampT + i * .035 + .3))).toFixed(3)}) rotate(${(-6 * (1 - stamp)).toFixed(2)}deg)`;
+    $(".x", c).style.transform = `scaleX(${smoother(seg(lt, crossT + i * .05, crossT + i * .05 + .22)).toFixed(3)}) rotate(-2.2deg)`;
+  });
+  $("#hook .alarm").style.opacity = (stamp * (.6 + .4 * kk) * (1 - out)).toFixed(3);
+  paintCap($("#hook"), lt, .0, 1 - smoother(seg(lt, outT - .1, outT + .25)));
 }
 
 /* ───────── Montage (en temps) ───────── */
@@ -429,7 +451,7 @@ function fit() {
   st.style.transform = `scale(${k})`; st.style.left = (innerWidth - 1080 * k) / 2 + "px"; st.style.top = (innerHeight - 1920 * k) / 2 + "px";
 }
 fit(); addEventListener("resize", fit);
-window.ready = Promise.all([new Promise((res) => { let n = 0; const done = () => ++n === 2 && res(); for (const name of [LYRC === "ioslyrics" || LYRC === "lyrics" ? LYRC : "ioshook", "ioshook"]) { const sc = document.createElement("script"); sc.src = CLIPS + "/" + name + "/track.js"; sc.onload = sc.onerror = done; document.head.append(sc); } }), document.fonts.load("700 100px 'Familjen Grotesk'"), document.fonts.load("500 40px 'Familjen Grotesk'"), document.fonts.load("500 26px 'IBM Plex Mono'")]).then(() => document.fonts.ready).then(async () => {
+window.ready = Promise.all([new Promise((res) => { if (LYRC !== "lyrics" && LYRC !== "ioslyrics") return res(); const sc = document.createElement("script"); sc.src = CLIPS + "/" + LYRC + "/track.js"; sc.onload = sc.onerror = res; document.head.append(sc); }), document.fonts.load("700 100px 'Familjen Grotesk'"), document.fonts.load("500 40px 'Familjen Grotesk'"), document.fonts.load("500 26px 'IBM Plex Mono'")]).then(() => document.fonts.ready).then(async () => {
   await seek(IN_START + IN_DUR); restW = 0; await seek(0);
   if (capture) return;
   const t0 = performance.now(); let busy = false;
