@@ -81,6 +81,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 </style>
 </head>
 <body>
+<script src="timeline.js"></script>
 <div id="stage">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="s" viewBox="0 0 64 64"><rect width="64" height="64" rx="14.4" fill="#000"/><g transform="translate(32 32) scale(0.24145) translate(-200.169 -200)"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></g></symbol></svg>
 
@@ -121,7 +122,14 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v) => Math.max(0, Math.min(1, v)), seg = (p, a, b) => clamp((p - a) / (b - a));
 const ease = (t) => 1 - Math.pow(1 - t, 3), eio = (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), lerp = (a, b, t) => a + (b - a) * t;
+const easeBack = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // dépasse un peu puis se pose
 const q = new URLSearchParams(location.search), capture = q.has("capture"), CLIPS = q.get("clips") || "_clips", FPS = 60;
+
+/* ───────── Le tempo ───────── */
+const TL = window.TIMELINE, BEAT = 60 / TL.bpm, BAR = BEAT * 4;
+const kick = (t, d = .13) => Math.exp(-(((t % BEAT) + BEAT) % BEAT) / d);        // 1 sur chaque temps, retombe vite
+const down = (t, d = .22) => Math.exp(-(((t % BAR) + BAR) % BAR) / d);           // accent sur le premier temps de chaque mesure
+let NOW = 0;
 const reveal = (el, p, dy = 34, blur = 12) => { el.style.opacity = p; el.style.transform = `translateY(${(1 - p) * dy}px)`; el.style.filter = p >= 1 ? "none" : `blur(${(1 - p) * blur}px)`; };
 
 /* ───────── Couleurs ───────── */
@@ -143,39 +151,42 @@ function paintIntro(p) {
 }
 const heroWords = $$("#hero .lw");
 function paintHero(lt) {
-  $("#hero h1").style.opacity = ease(seg(lt, .05, .5));
-  heroWords.forEach((w, k) => { const l = ease(seg(lt, .55 + k * .34, 1.05 + k * .34)); w.style.color = `rgba(236,235,240,${(.3 + .7 * l).toFixed(3)})`; });
+  $("#hero h1").style.opacity = ease(seg(lt, 0, .25));
+  heroWords.forEach((w, k) => { // un mot par temps, avec un petit coup de poing
+    const at = k * BEAT, l = ease(seg(lt, at - .02, at + .16)), punch = lt >= at ? Math.exp(-(lt - at) / .14) : 0;
+    w.style.color = `rgba(236,235,240,${(.3 + .7 * l).toFixed(3)})`; w.style.transform = `scale(${(1 + punch * .09).toFixed(4)})`;
+  });
 }
 
 /* ───────── Légendes : « Paroles |mot à mot.| » (entre barres : mot coloré) ───────── */
 $$(".cap").forEach((c) => {
   c.innerHTML = c.dataset.t.split("|").map((part, i) => part.split(/(\s+)/).filter(Boolean).map((w) => /^\s+$/.test(w) ? " " : `<span class="w${i % 2 ? " ac" : ""}">${w}</span>`).join("")).join("");
 });
-function paintCap(sc, lt, delay = .15) {
-  const ws = $$(".cap .w", sc);
-  ws.forEach((w, k) => reveal(w, ease(seg(lt, delay + k * .075, delay + .6 + k * .075)), 36, 14));
-  const sub = $("[data-sub]", sc); if (sub) reveal(sub, ease(seg(lt, delay + .6, delay + 1.2)), 20, 6);
+function paintCap(sc, lt, delay = .12) {
+  $$(".cap .w", sc).forEach((w, k) => { // les mots tombent sur les demi-temps
+    const p = seg(lt, delay + k * BEAT / 2, delay + k * BEAT / 2 + .34), e = easeBack(p);
+    w.style.opacity = clamp(p * 2.2); w.style.transform = `translateY(${((1 - e) * 60).toFixed(1)}px) scale(${(1 + (1 - e) * .3).toFixed(3)})`; w.style.filter = p >= 1 ? "none" : `blur(${((1 - p) * 16).toFixed(1)}px)`;
+  });
+  const sub = $("[data-sub]", sc); if (sub) reveal(sub, ease(seg(lt, delay + BEAT * 1.5, delay + BEAT * 1.5 + .4)), 20, 6);
 }
 
 /* ───────── Images des écrans réels (séquences filmées) ───────── */
 const pending = [];
-const CL = { lyrics: 456, home: 252, devices: 276, recap: 324 };
+const CL = { lyrics: 360, home: 216, devices: 216, recap: 252 };
 function setFrame(img, clip, time) {
   const i = Math.max(0, Math.min(CL[clip] - 1, Math.floor(time * FPS)));
   const url = `${CLIPS}/${clip}/f${String(i).padStart(4, "0")}.jpg`;
   if (img._u === url) return; img._u = url; img.src = url; pending.push(img.decode().catch(() => {}));
 }
-/** Pose 3D : interpolée entre deux positions, avec une légère flottaison. */
-function pose(el, k, a, b, t) {
-  const m = (key) => lerp(a[key], b[key], k);
-  el.style.transform = `translate3d(${m("x") + Math.sin(t * .9) * 6}px, ${m("y") + Math.sin(t * 1.1 + 1) * 8}px, ${m("z")}px) rotateX(${m("rx")}deg) rotateY(${m("ry")}deg) rotateZ(${m("rz")}deg) scale(${m("s")})`;
-}
 const P = (x, y, z, rx, ry, rz, s) => ({ x, y, z, rx, ry, rz, s });
-function panel(el, lt, dur, from, mid, to, opts = {}) {
-  const in0 = opts.in0 ?? .25, inK = ease(seg(lt, in0, in0 + .95)), drift = eio(seg(lt, in0 + .4, dur)), cur = {};
-  for (const key in from) cur[key] = lerp(lerp(from[key], mid[key], inK), to[key], drift); // entrée : from → mid, puis dérive lente vers to
-  pose(el, 1, cur, cur, lt);
-  el.style.opacity = ease(seg(lt, in0, in0 + .6));
+/** Panneau 3D : entrée avec rebond, dérive lente, et un coup de grosse caisse à chaque temps. */
+function panel(el, lt, dur, from, mid, to) {
+  const inK = easeBack(seg(lt, .06, .62)), drift = eio(seg(lt, .4, dur)), cur = {};
+  for (const key in from) cur[key] = lerp(lerp(from[key], mid[key], inK), to[key], drift);
+  const k = kick(NOW), d = down(NOW), flip = Math.floor(NOW / BAR) % 2 ? -1 : 1;
+  cur.s *= 1 + k * .012 + d * .02; cur.rz += flip * (k * .35 + d * .5); cur.y -= k * 6 + d * 10;
+  el.style.transform = `translate3d(${cur.x + Math.sin(NOW * .9) * 6}px, ${cur.y + Math.sin(NOW * 1.1 + 1) * 8}px, ${cur.z}px) rotateX(${cur.rx}deg) rotateY(${cur.ry}deg) rotateZ(${cur.rz}deg) scale(${cur.s})`;
+  el.style.opacity = ease(seg(lt, .04, .3));
 }
 
 /* ───────── Scènes ───────── */
@@ -183,86 +194,79 @@ const topEl = $("#top");
 function sceneLyrics(lt, dur) {
   paintCap($("#s_ly"), lt);
   const el = $("#ph_ly"); el.style.top = "500px";
-  panel(el, lt, dur, P(80, 220, -240, 14, -34, -8, .86), P(10, 0, 0, 7, -17, -3, 1), P(-14, -18, 30, 5, -9, -1.5, 1.03));
-  setFrame($("img", el), "lyrics", lt - .55);
+  panel(el, lt, dur, P(90, 260, -260, 16, -38, -9, .84), P(10, 0, 0, 7, -17, -3, 1), P(-18, -22, 40, 4, -8, -1.5, 1.05));
+  setFrame($("img", el), "lyrics", lt - .3);
 }
 function sceneHome(lt, dur) {
   paintCap($("#s_home"), lt);
   const el = $("#wn_home"); el.style.top = "620px";
-  panel(el, lt, dur, P(150, 220, -300, 20, 18, 5, .8), P(40, 0, 0, 11, 10, 2, 1), P(0, -26, 24, 6, 5, 0, 1.05));
-  setFrame($("img", el), "home", lt - .5);
+  panel(el, lt, dur, P(180, 240, -320, 22, 22, 6, .78), P(40, 0, 0, 11, 10, 2, 1), P(-10, -30, 30, 6, 5, 0, 1.07));
+  setFrame($("img", el), "home", lt - .25);
 }
 function sceneDev(lt, dur) {
   paintCap($("#s_dev"), lt);
   const el = $("#wn_dev"); el.style.top = "790px";
-  panel(el, lt, dur, P(-150, 220, -300, 20, -18, -5, .8), P(-40, 0, 0, 11, -10, -2, 1), P(0, -26, 24, 6, -5, 0, 1.05));
-  setFrame($("img", el), "devices", lt - .45);
+  panel(el, lt, dur, P(-180, 240, -320, 22, -22, -6, .78), P(-40, 0, 0, 11, -10, -2, 1), P(10, -30, 30, 6, -5, 0, 1.07));
+  setFrame($("img", el), "devices", lt - .25);
 }
 function sceneRecap(lt, dur) {
   paintCap($("#s_rc"), lt);
   const el = $("#ph_rc"); el.style.top = "500px";
-  panel(el, lt, dur, P(-80, 220, -240, 14, 34, 8, .86), P(-6, 0, 0, 7, 16, 3, 1), P(12, -18, 30, 5, 9, 1.5, 1.03));
-  setFrame($("img", el), "recap", lt - .5);
+  panel(el, lt, dur, P(-90, 260, -260, 16, 38, 9, .84), P(-6, 0, 0, 7, 16, 3, 1), P(14, -22, 40, 4, 8, 1.5, 1.05));
+  setFrame($("img", el), "recap", lt - .25);
 }
-// Arc de pochettes, comme dans la référence : elles montent en éventail puis l'arc tourne doucement.
+// Arc de pochettes : elles claquent l'une après l'autre sur le rythme, puis l'arc tourne.
 const arc = $("#arc"), N_COV = 9;
 arc.innerHTML = Array.from({ length: N_COV }, (_, i) => `<div class="cov"><img src="_covers/${i}.jpg" alt=""></div>`).join("");
 const covs = $$(".cov", arc);
 function sceneArc(lt, dur) {
-  paintCap($("#s_arc"), lt, .2);
-  const spin = (lt / dur - .5) * 14;
+  paintCap($("#s_arc"), lt, .1);
+  const spin = (lt / dur - .5) * 24 + (1 - ease(seg(lt, 0, .9))) * 14;
   covs.forEach((c, i) => {
     const f = i / (N_COV - 1) - .5, a = (f * 104 + spin) * Math.PI / 180, R = 560, cx = 540, cy = 1040;
-    const k = ease(seg(lt, .25 + i * .06, 1.05 + i * .06));
-    const x = cx + Math.sin(a) * R, y = cy - Math.cos(a) * R + (1 - k) * 420;
-    c.style.opacity = k; c.style.filter = k >= 1 ? "none" : `blur(${(1 - k) * 10}px)`;
-    c.style.transform = `translate3d(${x - 540}px, ${y}px, ${-Math.abs(f) * 160}px) rotateZ(${a * 180 / Math.PI * .9}deg) rotateY(${-f * 26}deg)`;
+    const p = seg(lt, i * BEAT / 3, i * BEAT / 3 + .38), k = easeBack(p);
+    const x = cx + Math.sin(a) * R, y = cy - Math.cos(a) * R + (1 - k) * 520, hit = kick(NOW) * .06;
+    c.style.opacity = clamp(p * 3); c.style.filter = p >= 1 ? "none" : `blur(${(1 - p) * 12}px)`;
+    c.style.transform = `translate3d(${x - 540}px, ${y}px, ${-Math.abs(f) * 160}px) rotateZ(${a * 180 / Math.PI * .9}deg) rotateY(${-f * 26}deg) scale(${(.5 + .5 * k + hit).toFixed(3)})`;
   });
 }
 function paintOutro(lt) {
-  const g = ease(seg(lt, .15, .95)), pulse = seg(lt, .3, .8) * (1 - seg(lt, .8, 1.6)), icon = $("#outro .icon");
-  icon.style.opacity = g; icon.style.transform = `scale(${(.92 + .08 * g).toFixed(4)})`;
-  icon.style.filter = `drop-shadow(0 0 ${(pulse * 60).toFixed(1)}px rgba(236,236,244,${(pulse * .55).toFixed(3)}))`;
-  reveal($("#outro .name"), ease(seg(lt, .55, 1.25)), 40, 14); reveal($("#outro .tag"), ease(seg(lt, .95, 1.55)), 24, 8);
-  reveal($("#outro .plats"), ease(seg(lt, 1.5, 2.1)), 16, 4); reveal($("#outro .pill"), ease(seg(lt, 1.8, 2.4)), 20, 4);
+  const g = easeBack(seg(lt, 0, .5)), icon = $("#outro .icon"), pulse = kick(NOW, .2) * .5 + down(NOW) * .5;
+  icon.style.opacity = clamp(seg(lt, 0, .15) * 3); icon.style.transform = `scale(${(.6 + .4 * g + pulse * .05).toFixed(4)})`;
+  icon.style.filter = `drop-shadow(0 0 ${(pulse * 70).toFixed(1)}px rgba(236,236,244,${(pulse * .6).toFixed(3)}))`;
+  const at = (n) => ease(seg(lt, n * BEAT, n * BEAT + .4));
+  reveal($("#outro .name"), at(1), 50, 16); reveal($("#outro .tag"), at(2), 28, 8); reveal($("#outro .plats"), at(3), 18, 4); reveal($("#outro .pill"), at(4), 24, 4);
 }
 
-/* ───────── Montage ───────── */
-const IN_START = .35, IN_DUR = 4.4;
-const S = [
-  { id: "intro", a: 0, b: 5.6, noIn: 1, tint: "grey", paint: (lt) => paintIntro(clamp((lt - IN_START) / IN_DUR)) },
-  { id: "hero", a: 5.3, b: 8.6, tint: "grey", paint: paintHero },
-  { id: "s_ly", a: 8.3, b: 15.4, tint: "ly", paint: sceneLyrics },
-  { id: "s_arc", a: 15.1, b: 18.6, tint: "arc", paint: sceneArc },
-  { id: "s_home", a: 18.3, b: 23.0, tint: "home", paint: sceneHome },
-  { id: "s_dev", a: 22.7, b: 27.9, tint: "dev", paint: sceneDev },
-  { id: "s_rc", a: 27.6, b: 33.0, tint: "rc", paint: sceneRecap },
-  { id: "outro", a: 32.7, b: 38.4, noOut: 1, tint: "out", paint: paintOutro },
-];
-const DURATION = S[S.length - 1].b;
-S.forEach((s) => (s.el = $("#" + s.id)));
+/* ───────── Montage (en temps) ───────── */
+const IN_START = .1, IN_DUR = 3.9;
+const PAINT = { intro: (lt) => paintIntro(clamp((lt - IN_START) / IN_DUR)), hero: paintHero, s_ly: sceneLyrics, s_arc: sceneArc, s_home: sceneHome, s_dev: sceneDev, s_rc: sceneRecap, outro: paintOutro };
+const TINTS = { intro: "grey", hero: "grey", s_ly: "ly", s_arc: "arc", s_home: "home", s_dev: "dev", s_rc: "rc", outro: "out" };
+const S = TL.scenes.map((s, i) => ({ ...s, i, a: s.b0 * BEAT, b: (s.b0 + s.beats) * BEAT, el: $("#" + s.id), tint: TINTS[s.id], paint: PAINT[s.id] }));
+const DURATION = S[S.length - 1].b, WHIP = { a: .13, b: .24 }; // le cut se fait autour du temps : un coup de fouet de 0,37 s
+window.TIMELINE_CUTS = S.map((s) => s.a);
 async function seek(t) {
-  pending.length = 0;
-  let tint = null, k = 0;
+  NOW = t; pending.length = 0;
+  let cur = S[0];
   for (const s of S) {
-    const on = t >= s.a && t < s.b;
+    const inP = s.i ? ease(seg(t, s.a - WHIP.a, s.a + WHIP.b)) : 1, outP = s.i < S.length - 1 ? ease(seg(t, s.b - WHIP.a, s.b + WHIP.b)) : 0;
+    const on = t >= s.a - WHIP.a && t < s.b + WHIP.b;
     s.el.style.display = on ? "block" : "none";
+    if (t >= s.a - WHIP.a) cur = s;
     if (!on) continue;
-    const lt = t - s.a, dur = s.b - s.a, out = s.noOut ? 0 : ease(seg(lt, dur - .45, dur));
-    s.el.style.opacity = 1 - out;
-    s.paint(lt, dur);
-    // couleur d'ambiance : celle de la scène qui entre prend la place de la précédente
-    const inK = s.noIn ? 1 : ease(seg(lt, 0, .6));
-    if (!tint || inK > k) { tint = s; k = inK; }
+    // coup de fouet : la scène qui sort file à gauche en se floutant, celle qui entre arrive de la droite
+    const x = (1 - inP) * 1150 - outP * 1150, bl = (1 - inP) * 26 + outP * 26;
+    s.el.style.transform = x ? `translate3d(${x.toFixed(1)}px,0,0)` : "none";
+    s.el.style.filter = bl > .3 ? `blur(${bl.toFixed(1)}px)` : "none";
+    s.paint(Math.max(0, t - s.a), s.b - s.a);
   }
-  // fondu enchaîné des couleurs
-  const idx = S.indexOf(tint), prev = S[idx - 1];
-  const c1 = TINT[tint.tint], c2 = TINT2[tint.tint], pc1 = prev ? TINT[prev.tint] : c1, pc2 = prev ? TINT2[prev.tint] : c2;
-  const st = $("#stage").style;
-  st.setProperty("--tint", mixc(pc1, c1, k)); st.setProperty("--tint2", mixc(pc2, c2, k));
-  st.setProperty("--amb", String(ease(seg(t, 3.6, 7.2)))); // les lueurs s'allument après l'intro
-  $$("#amb i").forEach((el, i) => { el.style.transform = `translate(${Math.sin(t * .35 + i * 2) * 70}px, ${Math.cos(t * .28 + i) * 50}px) scale(${1 + Math.sin(t * .4 + i) * .06})`; });
-  topEl.style.opacity = ease(seg(t, 8.5, 9.2)) * (1 - ease(seg(t, 32.2, 32.9)));
+  const prev = S[Math.max(0, cur.i - 1)], k = cur.i ? ease(seg(t, cur.a - WHIP.a, cur.a + .3)) : 1, st = $("#stage").style;
+  st.setProperty("--tint", mixc(TINT[prev.tint], TINT[cur.tint], k)); st.setProperty("--tint2", mixc(TINT2[prev.tint], TINT2[cur.tint], k));
+  const pulse = kick(t, .16) * .22 + down(t) * .3;
+  st.setProperty("--amb", String(ease(seg(t, 1.6, 4.6)) * (.78 + pulse)));  // les lueurs pulsent avec le kick
+  $$("#amb i").forEach((el, i) => { el.style.transform = `translate(${Math.sin(t * .5 + i * 2) * 90}px, ${Math.cos(t * .4 + i) * 60}px) scale(${1 + Math.sin(t * .4 + i) * .06 + pulse * .12})`; });
+  topEl.style.opacity = ease(seg(t, S[2].a - .2, S[2].a + .2)) * (1 - ease(seg(t, S[7].a - .2, S[7].a + .15)));
+  topEl.style.transform = `scale(${(1 + kick(t) * .05).toFixed(3)})`;
   await Promise.all(pending);
 }
 window.seek = seek; window.DURATION = DURATION;

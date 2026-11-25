@@ -11,7 +11,11 @@ let CAT; try { CAT = JSON.parse(fs.readFileSync(path.join(ASSETS, "catalog.json"
 const asset = (f) => (f ? `${ORIGIN}/asset/${f}` : null);
 const mk = (t) => ({ source: "deezer", source_id: t.id, title: t.title, artist: t.artist, artist_source_id: t.artist_id, album: t.album, album_source_id: t.album_id, year: 2025,
   duration_seconds: t.duration, cover_url: asset(t.cover), artists: [{ name: t.artist, source_id: t.artist_id, role: "main" }] });
-const TRACKS = CAT.tracks.map(mk), LYR_TRACK = mk(CAT.lyrics);
+const TRACKS = CAT.tracks.map(mk);
+// Paroles : si tu fournis les tiennes (mock/lyrics.local.json, voir lrc2json.cjs), elles s'affichent sur le titre vedette ;
+// sinon, une chanson dont les paroles sont dans le domaine public (Amazing Grace) sert de démo.
+let LOCAL = null; try { LOCAL = JSON.parse(fs.readFileSync(path.join(__dirname, "lyrics.local.json"), "utf8")); } catch { /* pas de paroles fournies */ }
+const LYR_TRACK = LOCAL ? TRACKS[0] : mk(CAT.lyrics);
 const ARTISTS = []; CAT.tracks.forEach((t) => { if (!ARTISTS.find((a) => a[0] === t.artist_id)) ARTISTS.push([t.artist_id, t.artist, asset(t.picture)]); });
 const cover = (i) => TRACKS[((i % TRACKS.length) + TRACKS.length) % TRACKS.length].cover_url;
 const tr = (...ix) => ix.map((i) => TRACKS[i]);
@@ -20,6 +24,7 @@ const names = (ts) => [...new Set(ts.map((t) => t.artist))].slice(0, 3).join(", 
 // ───────── Paroles mot par mot : « Amazing Grace » (John Newton, 1779 : domaine public) ─────────
 const LYR = ["Amazing grace, how sweet the sound,", "That saved a wretch like me.", "I once was lost, but now am found,", "Was blind, but now I see.", "'Twas grace that taught my heart to fear,", "And grace my fears relieved;", "How precious did that grace appear", "The hour I first believed.", "Through many dangers, toils and snares,", "I have already come;", "'Tis grace hath brought me safe thus far,", "And grace will lead me home."];
 function lyrics() {
+  if (LOCAL) return { synced: true, sync: "line", source: "Sona", approximate: false, instrumental: false, lines: LOCAL.lines.map((l) => ({ time: l.time, text: l.text })) };
   let t = 5.0; const lines = [];
   LYR.forEach((text) => {
     const toks = text.split(" "), start = t, w = [];
@@ -77,7 +82,7 @@ function stats(period) {
     personality: { emoji: "🌙", title: "Oiseau de nuit", description: "Ta musique prend vie quand la ville s'endort." },
     biggest_day: { label: "samedi 14 novembre", minutes: 214 }, discovered_count: 12, first_track: TRACKS[6], friends_rank: { rank: 1, total: 6 } };
 }
-const phoneTrack = TRACKS[2];
+const phoneTrack = TRACKS[0];
 let CONNECT_ON = true;
 const connect = () => CONNECT_ON ? ({
   devices: [

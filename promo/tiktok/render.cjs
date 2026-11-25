@@ -14,7 +14,8 @@ const path = require("node:path"), fs = require("node:fs");
   await Promise.all(Array.from({ length: W }, async (_, w) => {
     const p = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
     await p.goto("file://" + path.resolve(page_) + "?capture"); await p.evaluate(() => window.ready);
-    for (let i = w; i < total; i += W) {
+    const from = +process.env.FROM || 0, to = Math.min(total, +process.env.TO || total); // FROM/TO : ne refaire qu'une plage d'images
+    for (let i = from + ((w - from) % W + W) % W; i < to; i += W) {
       await p.evaluate((t) => window.seek(Math.min(t, window.DURATION - 0.001)), i / fps);
       await p.screenshot({ path: path.join(dir, `f${String(i).padStart(5, "0")}.png`) });
       if (++done % 120 === 0) console.log(done, "/", total, ((Date.now() - t0) / 1000).toFixed(0) + "s");
