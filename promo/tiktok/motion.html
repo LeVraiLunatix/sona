@@ -239,7 +239,7 @@ function paintOutro(lt) {
 }
 
 /* ───────── Montage (en temps) ───────── */
-const IN_START = .1, IN_DUR = 3.9;
+const IN_START = TL.intro_start, IN_DUR = TL.intro_dur; // l'animation du site, à son rythme d'origine
 const PAINT = { intro: (lt) => paintIntro(clamp((lt - IN_START) / IN_DUR)), hero: paintHero, s_ly: sceneLyrics, s_arc: sceneArc, s_home: sceneHome, s_dev: sceneDev, s_rc: sceneRecap, outro: paintOutro };
 const TINTS = { intro: "grey", hero: "grey", s_ly: "ly", s_arc: "arc", s_home: "home", s_dev: "dev", s_rc: "rc", outro: "out" };
 const S = TL.scenes.map((s, i) => ({ ...s, i, a: s.b0 * BEAT, b: (s.b0 + s.beats) * BEAT, el: $("#" + s.id), tint: TINTS[s.id], paint: PAINT[s.id] }));

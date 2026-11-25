@@ -4,7 +4,8 @@ import json, re, sys, numpy as np
 
 SR = 44100
 src = open("timeline.js").read()
-tl = json.loads(src[src.index("window.TIMELINE =") + len("window.TIMELINE ="):src.rindex(";")])
+import re as _re
+tl = json.loads(_re.sub(r"//[^\n]*", "", src[src.index("window.TIMELINE =") + len("window.TIMELINE ="):src.rindex(";")]))
 BPM = tl["bpm"]; BEAT = 60 / BPM
 scenes = {s["id"]: s for s in tl["scenes"]}
 total_beats = max(s["b0"] + s["beats"] for s in tl["scenes"])
@@ -102,9 +103,9 @@ duck = np.ones(N)
 for i in np.nonzero(kicks)[0]:
     seglen = int(0.28 * SR); e = min(N, i + seglen); duck[i:e] = np.minimum(duck[i:e], 1 - 0.0 * np.exp(-np.arange(e - i) / (0.1 * SR)))
 # ───── effets de montage : impact sur la lueur du logo, whoosh à chaque coup de fouet, riser, impact final ─────
-glow_t = 0.1 + 3.9 * 0.42
+glow_t = tl['intro_start'] + tl['intro_dur'] * 0.42
 both(K, glow_t, 1.0); both(s808(43.65, 2.2), glow_t, 0.9); both(whoosh(0.9)[::-1], glow_t - 0.9, 0.5)
-both(riser(at(2)), at(b("intro") + 6) , 0.5)                   # ça monte vers « Ta musique, en clair. »
+both(riser(at(2)), at(b("hero") - 2), 0.5)                   # ça monte vers « Ta musique, en clair. »
 for sid, sc in scenes.items():
     if sc["b0"] == 0: continue
     t = sc["b0"] * BEAT; both(whoosh(0.5), t - 0.32, 0.9 if sid != "outro" else 1.0, pan=0.0)
