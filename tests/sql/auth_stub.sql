@@ -54,3 +54,13 @@ grant select on auth.users to service_role;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+
+-- Imitation minimale de Supabase Storage, pour appliquer et tester les règles des photos de profil.
+create schema storage;
+create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (bucket_id text, name text, updated_at timestamptz, unique (bucket_id, name));
+alter table storage.objects enable row level security;
+create function storage.foldername(name text) returns text[] language sql immutable as
+  $$ select (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1] $$;
+grant usage on schema storage to anon, authenticated, service_role;
+grant all on all tables in schema storage to anon, authenticated, service_role;
