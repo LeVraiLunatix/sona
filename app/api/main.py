@@ -247,6 +247,13 @@ def create_app() -> FastAPI:
                  # Appli installable (écran d'accueil du téléphone).
                  "sw.js": ("sw.js", "application/javascript"),
                  "manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
+    # Comptes (Supabase) : scripts et styles de l'interface.
+    for script in ("accounts.js", "accounts-ui.js", "accounts-settings.js", "accounts-social.js", "accounts-admin.js", "sidebar.js"):
+        web_files[script] = (script, "application/javascript")
+    web_files["accounts.css"] = ("accounts.css", "text/css")
+    web_files["sidebar.css"] = ("sidebar.css", "text/css")
+    web_files["vendor/supabase.js"] = ("vendor/supabase.js", "application/javascript")
+    web_files["vendor/qrcode.js"] = ("vendor/qrcode.js", "application/javascript")
     for icon in ("icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png", "favicon-64.png"):
         web_files[f"icons/{icon}"] = (f"icons/{icon}", "image/png")
     web_files["icons/favicon.svg"] = ("icons/favicon.svg", "image/svg+xml")

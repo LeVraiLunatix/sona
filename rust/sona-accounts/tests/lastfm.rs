@@ -293,3 +293,28 @@ async fn disconnecting_drops_pending_items_and_the_lastfm_username_is_exposed_to
     assert_eq!(api.db.su_scalar("select count(*) from private.scrobble_queue").await, "0");
     assert_eq!(sona_accounts::lastfm::tick(&api.state).await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn installed_apps_use_a_server_side_token_instead_of_a_redirect() {
+    let Some((api, server)) = api_with_gotoken().await else { return };
+    let u = api.db.named("alice").await;
+    let (st, b) = api.call("POST", "/lastfm/start", Some(&api.token(u)), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    let url = b["auth_url"].as_str().unwrap();
+    assert!(url.contains("api_key=clefake") && url.contains("token=0123456789abcdef0123456789abcdef"), "{url}");
+    assert!(!url.contains("cb="), "pas d'adresse de retour dans ce flux");
+    assert_eq!(b["token"], "0123456789abcdef0123456789abcdef");
+    assert_eq!(params_of(&server.requests()[0])["method"], "auth.getToken");
+    // Tant que l'utilisateur n'a pas autorisé, la connexion répond « pas encore » (l'app réessaie).
+    let (st, b) = api.call("POST", "/lastfm/connect", Some(&api.token(u)), Some(json!({ "token": "0123456789abcdef0123456789abcdef" }))).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    assert!(b["message"].as_str().unwrap().contains("Autorise d'abord"));
+}
+
+async fn api_with_gotoken() -> Option<(Api, mock::Server)> {
+    api_with(|s| match params_of(s).get("method").map(String::as_str) {
+        Some("auth.getToken") => (200, json!({ "token": "0123456789abcdef0123456789abcdef" }).to_string()),
+        _ => (403, json!({ "error": 14, "message": "Unauthorized Token - This token has not been authorized" }).to_string()),
+    })
+    .await
+}

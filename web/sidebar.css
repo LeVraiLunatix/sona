@@ -1,0 +1,155 @@
+/* Sona : menu latéral « Rail ↔ Panneau » (variante A « Pilule », voir docs/sidebar-variants/).
+
+   Fermé : rail de 72 px, icônes de 24 px dans des zones de 48 × 48. Ouvert : panneau
+   de 264 px. Le panneau a TOUJOURS sa largeur ouverte ; ce qu'on voit est découpé par
+   `clip-path` : aucune largeur animée, donc aucun recalcul de mise en page, aucun texte
+   écrasé (les libellés ont leur place entière, ils apparaissent en fondu une fois le
+   panneau commencé à s'ouvrir et disparaissent avant qu'il ne se referme).
+   Les icônes ne bougent jamais : même colonne de 48 px dans les deux états. */
+
+:root {
+  --sb-rail: 72px;
+  --sb-open: 264px;
+  --sb-dur: 230ms;
+  --sb-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --sb-line: rgba(255, 255, 255, 0.08);
+}
+
+.sb-spacer { display: none; }
+
+@media (min-width: 761px) {
+  :root { --sidebar-w: var(--sb-rail); }
+  html[data-menu="ouvert"] { --sidebar-w: var(--sb-open); }
+  .app { grid-template-columns: var(--sidebar-w) 1fr; }
+  .sb-spacer { display: block; grid-row: 1 / -1; grid-column: 1; }
+  .content { grid-column: 2; }
+
+  .sb {
+    position: fixed; z-index: 30; inset: 0 auto 0 0; width: var(--sb-open);
+    display: flex; flex-direction: column;
+    padding: max(14px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    background: #000; color: var(--text);
+    /* Fermé : on ne montre que les 72 premiers pixels (aussi pour les clics). */
+    clip-path: inset(0 calc(var(--sb-open) - var(--sb-rail)) 0 0);
+    /* Fermeture : les libellés s'effacent d'abord (70 ms), puis le panneau se replie. */
+    transition: clip-path var(--sb-dur) var(--sb-ease) 70ms;
+    contain: layout paint;
+    user-select: none; -webkit-user-select: none;
+  }
+  .sb[data-open="true"] { clip-path: inset(0 0 0 0); transition-delay: 0ms; }
+
+  /* Filet de séparation : suit le bord visible (transform, pas de largeur). */
+  .sb-edge {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--sb-line); pointer-events: none;
+    transform: translateX(calc(var(--sb-rail) - 1px));
+    transition: transform var(--sb-dur) var(--sb-ease) 70ms;
+  }
+  .sb[data-open="true"] .sb-edge { transform: translateX(calc(var(--sb-open) - 1px)); transition-delay: 0ms; }
+}
+
+/* ── Contenu : mêmes dimensions fermé et ouvert ───────────────────────── */
+
+.sb-top { display: flex; align-items: center; height: 48px; flex: none; }
+.sb-logo { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; color: var(--accent); flex: none; }
+.sb-logo svg { width: 28px; height: 28px; }
+.sb-word { margin-left: 2px; font-size: 22px; font-weight: 700; letter-spacing: -0.04em; opacity: 0; transition: opacity 90ms; }
+.sb[data-open="true"] .sb-word { opacity: 1; transition: opacity 150ms 100ms; }
+
+.sb-scroll {
+  flex: 1; min-height: 0; margin: 0 -12px; padding: 4px 12px 8px;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+}
+.sb-scroll::-webkit-scrollbar { display: none; }
+
+.sb-title {
+  display: flex; align-items: flex-end; height: 36px; margin: 0; padding: 0 14px 6px; flex: none;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3);
+  white-space: nowrap; position: relative;
+}
+.sb-title span { opacity: 0; transition: opacity 90ms; }
+.sb[data-open="true"] .sb-title span { opacity: 1; transition: opacity 150ms 100ms; }
+/* Au repos, un petit trait tient la place du titre. */
+.sb-title::after { content: ""; position: absolute; left: 26px; bottom: 12px; width: 20px; height: 1px; background: var(--sb-line); opacity: 1; transition: opacity 90ms; }
+.sb[data-open="true"] .sb-title::after { opacity: 0; }
+
+.sb-link {
+  position: relative; display: flex; align-items: center; width: 100%; height: 48px; margin: 0 0 4px; border-radius: 16px; flex: none;
+  color: var(--text-2); font-size: 14.5px; font-weight: 500; text-align: left; line-height: 1.2;
+  transition: background 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease);
+}
+.sb-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.sb-link:active { transform: scale(0.98); }
+.sb-link:focus-visible, .sb-toggle:focus-visible, .sb-profile:focus-visible, .sb-logo:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sb-link.active { background: rgba(255, 255, 255, 0.1); color: var(--accent); }
+/* Petit indicateur discret, au bord du rail. */
+.sb-link.active::before { content: ""; position: absolute; left: -9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--accent); }
+
+.sb-ico { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: none; font-size: 24px; }
+.sb-ico .icon { width: 24px; height: 24px; }
+.sb-label {
+  flex: 1; min-width: 0; padding-right: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; transform: translateX(-4px); pointer-events: none;
+  transition: opacity 90ms, transform 90ms;
+}
+.sb[data-open="true"] .sb-label { opacity: 1; transform: none; transition: opacity 150ms 100ms, transform 150ms 100ms; }
+
+/* Pastille de notification : point ou compteur sur l'icône. */
+.sb-badge {
+  position: absolute; top: 6px; right: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--text); color: var(--bg); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 3px #000;
+}
+.sb-badge.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 10px; right: 10px; }
+.sb-badge[hidden] { display: none; }
+
+/* Playlists : seulement ouvert, défilement interne. */
+.sb-pl { display: none; }
+@media (min-width: 761px) {
+  .sb-pl { display: block; visibility: hidden; opacity: 0; transition: opacity 90ms, visibility 0s 90ms; }
+  .sb[data-open="true"] .sb-pl { visibility: visible; opacity: 1; transition: opacity 150ms 100ms; }
+}
+.sb-pl .sb-link { height: 44px; margin-bottom: 2px; }
+.sb-pl .thumb { width: 32px; height: 32px; border-radius: 9px; object-fit: cover; background: var(--fill); margin: 0 8px 0 8px; flex: none; }
+.sb-pl .sb-label { opacity: 1; transform: none; padding-left: 0; }
+.sb-empty { margin: 0; padding: 8px 14px; font-size: 13px; color: var(--text-3); }
+
+.sb-foot { flex: none; padding-top: 8px; }
+.sb-profile { display: flex; align-items: center; width: 100%; height: 56px; border-radius: 16px; text-align: left; transition: background 150ms; }
+.sb-profile:hover { background: rgba(255, 255, 255, 0.06); }
+.sb-profile .sb-ico { position: relative; }
+.sb-profile .avatar { width: 36px; height: 36px; font-size: 15px; }
+.sb-name { flex: 1; min-width: 0; padding-right: 4px; line-height: 1.25; opacity: 0; transform: translateX(-4px); transition: opacity 90ms, transform 90ms; }
+.sb[data-open="true"] .sb-name { opacity: 1; transform: none; transition: opacity 150ms 100ms, transform 150ms 100ms; }
+.sb-name b { display: block; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-name small { display: block; font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-gear { flex: none; width: 44px; height: 44px; margin-right: 4px; display: grid; place-items: center; border-radius: 14px; color: var(--text-3); font-size: 20px; opacity: 0; transition: opacity 90ms, color 150ms, background 150ms; }
+.sb[data-open="true"] .sb-gear { opacity: 1; transition: opacity 150ms 100ms, color 150ms, background 150ms; }
+.sb-gear:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+
+/* Info-bulle du rail : nom de la page et raccourci, après un léger délai. */
+.sb-tip {
+  position: fixed; z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px;
+  background: #1a1a1d; color: var(--text); border: 1px solid var(--sb-line); font-size: 13px; font-weight: 500; white-space: nowrap;
+  pointer-events: none; opacity: 0; transform: translateX(-4px); transition: opacity 120ms, transform 120ms; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.sb-tip.show { opacity: 1; transform: none; }
+.sb-tip kbd { font: 600 11px/1 var(--font, system-ui); color: var(--text-2); background: rgba(255, 255, 255, 0.08); padding: 3px 6px; border-radius: 6px; }
+
+/* ── Mobile : pas de menu latéral, barre du bas + « Plus » ──────────────── */
+@media (max-width: 760px) {
+  .sb { display: none; }
+  .tabbar button { min-height: 48px; }
+  .tabbar button[aria-current="page"], .tabbar button.active { color: var(--accent); }
+}
+.more-sheet .sb-link { height: 52px; color: var(--text); }
+.more-sheet .sb-title { height: 32px; }
+.more-sheet .sb-title::after { display: none; }
+.more-sheet .sb-title span { opacity: 1; }
+.more-sheet .sb-label { opacity: 1; transform: none; pointer-events: auto; }
+.more-sheet .sb-pl { display: block; visibility: visible; opacity: 1; }
+.more-sheet .sb-link.active::before { display: none; }
+.more-sheet .more-profile { display: flex; align-items: center; gap: 12px; padding: 12px 8px; margin-bottom: 4px; }
+.more-sheet .more-profile .avatar { width: 44px; height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb, .sb-edge, .sb-label, .sb-name, .sb-title span, .sb-title::after, .sb-gear, .sb-word, .sb-pl, .sb-tip, .sb-link { transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+}

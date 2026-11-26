@@ -108,19 +108,34 @@ fn client(s: &AppState) -> Result<Client<'_>> {
 
 #[derive(Deserialize)]
 pub struct StartIn {
-    pub return_to: String,
+    /// Site web : adresse où Last.fm renvoie l'utilisateur avec `?token=…` (doit être
+    /// dans la liste autorisée). Absente : flux « application installée » — le service
+    /// obtient lui-même un jeton, l'application ouvre la page Last.fm et attend.
+    #[serde(default)]
+    pub return_to: Option<String>,
 }
 
-/// Adresse d'autorisation Last.fm. L'adresse de retour doit être dans la liste
-/// autorisée (pas de redirection ouverte).
+/// Adresse d'autorisation Last.fm. Jamais de redirection ouverte : l'adresse de
+/// retour doit figurer dans ALLOWED_RETURN_URLS.
 pub async fn start(State(s): State<AppState>, AuthUser(p): AuthUser, Json(body): Json<StartIn>) -> Result<Json<Value>> {
     ratelimit::check(&s.pool, &format!("lastfm_start:{}", p.id), 10, 60).await?;
     let key = s.cfg.lastfm_api_key.as_deref().ok_or(AppError::NotConfigured("LASTFM_API_KEY"))?;
-    if !is_allowed_return_url(&body.return_to, &s.cfg.allowed_return_urls) {
-        return Err(AppError::bad("Adresse de retour non autorisée."));
+    match body.return_to.as_deref() {
+        Some(back) => {
+            if !is_allowed_return_url(back, &s.cfg.allowed_return_urls) {
+                return Err(AppError::bad("Adresse de retour non autorisée."));
+            }
+            let url = url::Url::parse_with_params(AUTH_URL, [("api_key", key), ("cb", back)]).expect("URL Last.fm");
+            Ok(Json(json!({ "auth_url": url.as_str() })))
+        }
+        None => {
+            let api = client(&s)?;
+            let res = api.call("auth.getToken", BTreeMap::new(), false).await?;
+            let token = res["token"].as_str().filter(|t| valid_token(t)).ok_or_else(|| AppError::Upstream("Réponse Last.fm inattendue.".into()))?;
+            let url = url::Url::parse_with_params(AUTH_URL, [("api_key", key), ("token", token)]).expect("URL Last.fm");
+            Ok(Json(json!({ "auth_url": url.as_str(), "token": token })))
+        }
     }
-    let url = url::Url::parse_with_params(AUTH_URL, [("api_key", key), ("cb", body.return_to.as_str())]).expect("URL Last.fm");
-    Ok(Json(json!({ "auth_url": url.as_str() })))
 }
 
 #[derive(Deserialize)]

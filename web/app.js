@@ -1,6 +1,7 @@
 /* Sona web : même compte, mêmes playlists, mêmes stats que l'app.
-   Connexion Last.fm, puis tout passe par l'API du serveur Sona (jeton de
-   session gardé dans le navigateur). Servi par le serveur lui-même (/web/)
+   Connexion par compte Sona (Supabase : e-mail, Google, Discord, GitHub, lien
+   magique, clé d'accès) ; les écrans de compte sont dans accounts*.js. Tout
+   passe ensuite par l'API du serveur Sona avec le jeton d'accès Supabase. Servi par le serveur lui-même (/web/)
    ou par Vercel : dans ce cas l'API est appelée à l'adresse de la balise
    <meta name="sona-server">.
 
@@ -49,7 +50,7 @@ function syncGta(track) {
   if (want) toast("Bienvenue à Leonida 🌴");
 }
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
-const LOOK_DEFAULT = { accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: "rail", lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
+const LOOK_DEFAULT = { accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: null, hover: true, lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
 let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
 function applyLook() {
   const root = document.documentElement;
@@ -65,7 +66,8 @@ function applyLook() {
   root.dataset.tint = look.tint ? "on" : "off";
   root.dataset.lyrblur = look.lyrBlur ? "on" : "off";
   root.dataset.shape = look.shape;
-  root.dataset.menu = look.menu;
+  root.dataset.menu = look.menu || (innerWidth >= 1200 ? "ouvert" : "rail");
+  if (typeof Sidebar !== "undefined") Sidebar.applyMode?.();
 }
 function setLook(patch) {
   look = { ...look, ...patch };
@@ -150,7 +152,9 @@ const SERVER = ((desktop && desktop.server) || $('meta[name="sona-server"]')?.co
 const onServer = !SERVER || location.pathname.startsWith("/web") || (() => { try { return new URL(SERVER).origin === location.origin; } catch { return true; } })();
 const BASE = onServer ? "" : SERVER;
 
-let token = store.get("sona.token");
+/** Jeton d'accès Supabase courant : tenu à jour à chaque renouvellement (le lecteur audio
+    l'utilise dans l'adresse du flux, qui ne peut pas porter d'en-tête). */
+let token = null;
 let account = null;
 const audio = $("#audio");
 const state = {
@@ -165,11 +169,18 @@ const state = {
 };
 
 async function api(path, options = {}) {
+  // Jeton renouvelé automatiquement par supabase-js : toujours valable ici.
+  token = (await Sona.auth.accessToken()) || token;
   const res = await fetch(BASE + path, {
     ...options,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(options.headers || {}) },
   });
-  if (res.status === 401) { signOut(); throw new Error("Session expirée"); }
+  if (res.status === 401) { signOutLocal(); throw new Error("Session expirée"); }
+  if (res.status === 403) {
+    // Compte suspendu ou banni PENDANT la session : le serveur le sait à chaque requête.
+    const body = await res.clone().json().catch(() => ({}));
+    if (body.error === "sanctioned") { SonaUI.sanctionScreen(body); throw new Error("Compte sanctionné"); }
+  }
   if (!res.ok) {
     let msg = `Erreur ${res.status}`;
     try { msg = (await res.json()).detail || msg; } catch {}
@@ -269,11 +280,12 @@ const bars = () => `<span class="bars ${audio.paused ? "paused" : ""}"><i></i><i
 
 /** Sona ne s'utilise plus dans un onglet : il faut l'installer (app Windows, ou ajout à l'écran d'accueil).
     Passent quand même : l'app installée et l'app Windows, le développement local, et les liens techniques
-    dont les apps ont besoin (retour Last.fm, jumelage d'une TV). Sans page de présentation à cette adresse
-    (serveur de l'API), rien ne change. */
+    dont les apps ont besoin (retour d'un fournisseur de connexion, lien de confirmation, jumelage d'une TV,
+    lien d'ami). Sans page de présentation à cette adresse (serveur de l'API), rien ne change. */
 async function webClosed(params) {
   if (standalone || desktop || ["localhost", "127.0.0.1"].includes(location.hostname)) return false;
-  if (params.has("token") || params.has("handoff") || params.has("link")) return false;
+  if (["token", "handoff", "link", "code", "error", "error_code", "ami", "connexion", "party"].some((k) => params.has(k))) return false;
+  if (/access_token|type=recovery|type=signup|type=magiclink/.test(location.hash)) return false;
   try {
     const res = await fetch("presentation", { method: "HEAD", cache: "no-store" });
     if (res.ok) { location.replace("presentation"); return true; }
@@ -285,43 +297,46 @@ async function boot() {
   registerServiceWorker();
   const params = new URLSearchParams(location.search);
   if (await webClosed(params)) return;
+  if (params.get("party")) store.set("sona.joinParty", params.get("party").toUpperCase());
+  // QR code d'une TV : le code survit à la connexion.
+  if (params.get("link")) store.set("sona.linkCode", params.get("link").toUpperCase());
+  SonaSocial.rememberInvite(params);
+  // Retour de Last.fm (flux web) : le jeton est échangé une fois connecté.
   const lastfmToken = params.get("token");
-  const handoff = params.get("handoff");
-  if (lastfmToken || params.has("source") || params.has("party") || params.has("link")) {
-    if (params.get("party")) store.set("sona.joinParty", params.get("party").toUpperCase());
-    // QR code d'une TV : le code survit à la connexion (Last.fm nous ramène ici sans la requête).
-    if (params.get("link")) store.set("sona.linkCode", params.get("link").toUpperCase());
-    history.replaceState(null, "", location.pathname + location.hash);
-  }
-  if (lastfmToken) {
-    const pending = store.get("sona.pendingLastfm");
-    // Page d'autorisation ouverte depuis l'appli installée, dans un autre
-    // navigateur (iPhone) : c'est l'appli qui échangera le jeton.
-    if (handoff && pending !== lastfmToken) return renderLoginDone();
-    const ok = await exchangeLastfm(lastfmToken);
-    if (!ok) return;
-  }
-  if (!token && store.get("sona.pendingLastfm")) {
-    if (await exchangeLastfm(store.get("sona.pendingLastfm"), true)) return startApp();
-    return renderLogin(null, true);
-  }
-  if (!token) return landing();
+  if (lastfmToken && store.get("sona.lastfmPending")) store.set("sona.lastfmToken", lastfmToken);
+  if (params.has("party") || params.has("link") || params.has("ami") || lastfmToken) history.replaceState(null, "", location.pathname + location.hash);
+
+  if (!Sona.auth.init()) return SonaUI.authScreen();
+  Sona.onSanction((info) => SonaUI.sanctionScreen(info));
+  Sona.auth.onChange((event) => {
+    if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") Sona.auth.session().then((s) => { if (s) token = s.access_token; });
+    if (event === "PASSWORD_RECOVERY") SonaUI.authScreen({ step: "newpass" });
+    // Connexion obtenue (formulaire, lien, fournisseur, clé d'accès) quand l'app n'est pas encore lancée.
+    if (event === "SIGNED_IN" && !account && !startApp.running) { SonaUI.cleanUrl(); startApp(); }
+    if (event === "SIGNED_OUT" && account) signOutLocal(true);
+  });
+  // Application Windows : retour d'un fournisseur par lien profond.
+  desktop?.onDeepLink?.((url) => Sona.auth.handleDeepLink(url).catch((e) => toast(e.message)));
+
+  const session = await Sona.auth.session();
+  if (!session) return landing();
+  token = session.access_token;
   startApp();
 }
 
 /** Pas connecté, sur le site : la page de présentation d'abord (on s'y connecte ou on y crée son compte).
     Directement la connexion pour : l'app installée, l'app Windows, `?connexion` (bouton de la présentation),
-    et un lien de soirée en attente (l'invité doit se connecter pour rejoindre). Sans page de présentation à
-    cette adresse (serveur de l'API, test local), on garde la connexion. */
+    et un lien de soirée ou d'ami en attente. Sans page de présentation à cette adresse (serveur de l'API,
+    test local), on garde la connexion. */
 async function landing() {
-  const direct = standalone || desktop || new URLSearchParams(location.search).has("connexion") || store.get("sona.joinParty");
+  const direct = standalone || desktop || new URLSearchParams(location.search).has("connexion") || store.get("sona.joinParty") || store.get("sona.friendCode");
   if (!direct) {
     try {
       const res = await fetch("presentation", { method: "HEAD", cache: "no-store" });
       if (res.ok) { location.replace("presentation"); return; }
     } catch { /* réseau coupé : la connexion */ }
   }
-  renderLogin();
+  SonaUI.authScreen({ mode: store.get("sona.friendCode") ? "signup" : "signin" });
 }
 
 /** Sans réseau : la page « Téléchargés », et la lecture de ce qui est sur l'appareil. */
@@ -336,126 +351,52 @@ function startOffline() {
 }
 
 async function startApp() {
+  if (startApp.running) return;
+  startApp.running = true;
   try {
-    account = await api("/auth/me");
-  } catch (e) {
-    // Serveur injoignable (pas de réseau) mais des titres téléchargés : on reste dans l'app.
-    if (token && !e.status && offline.meta.length) return startOffline();
-    return renderLogin(token ? e.message : null);
-  }
-  if (account.status !== "approved") {
-    return renderLogin(account.status === "rejected" ? "Accès refusé par un administrateur." : "Ton compte attend la validation d'un administrateur.");
-  }
-  document.body.style.overflow = "";
-  renderShell();
-  bindDrawer();
-  restoreResume();
-  startConnect();
-  loadSidebar();
-  loadLiked();
-  loadSettings();
-  route();
-  const linkCode = store.get("sona.linkCode");
-  if (linkCode) { store.set("sona.linkCode", null); location.hash = `#/link/${encodeURIComponent(linkCode)}`; return; }
-  const joinCode = store.get("sona.joinParty");
-  if (joinCode) { store.set("sona.joinParty", null); location.hash = `#/party/${joinCode}`; }
-  else partyRestore();
-}
-
-/** Échange un jeton Last.fm autorisé contre une session Sona. `quiet` :
-    jeton pas encore autorisé (on revient dans l'appli trop tôt) — pas d'erreur. */
-async function exchangeLastfm(lastfmToken, quiet = false) {
-  try {
-    const res = await fetch(BASE + "/auth/lastfm", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: lastfmToken }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (!quiet) { store.set("sona.pendingLastfm", null); renderLogin(body.detail || "Connexion refusée."); }
-      return false;
+    let acc;
+    try { acc = await SonaUI.prepare(); }
+    catch (e) {
+      // Serveur injoignable (pas de réseau) mais des titres téléchargés : on reste dans l'app.
+      if (offline.meta.length) return startOffline();
+      return SonaUI.authScreen({ error: e.message });
     }
-    store.set("sona.pendingLastfm", null);
-    token = body.session_token;
-    store.set("sona.token", token);
-    return true;
-  } catch {
-    if (!quiet) renderLogin("Serveur Sona injoignable.");
-    return false;
-  }
+    if (!acc) return; // écran de sanction, d'inscription ou de bienvenue déjà affiché
+    account = acc;
+    token = (await Sona.auth.accessToken()) || token;
+    document.body.style.overflow = "";
+    renderShell();
+    bindDrawer();
+    restoreResume();
+    startConnect();
+    loadSidebar();
+    loadLiked();
+    loadSettings();
+    route();
+    SonaSettings.startNotifications();
+    SonaSettings.enforce(acc.profile);
+    SonaSocial.redeemPendingInvite();
+    const lfm = store.get("sona.lastfmToken");
+    if (lfm) { store.set("sona.lastfmToken", null); SonaSettings.finishLastfm(lfm); }
+    const linkCode = store.get("sona.linkCode");
+    if (linkCode) { store.set("sona.linkCode", null); location.hash = `#/link/${encodeURIComponent(linkCode)}`; return; }
+    const joinCode = store.get("sona.joinParty");
+    if (joinCode) { store.set("sona.joinParty", null); location.hash = `#/party/${joinCode}`; }
+    else partyRestore();
+  } finally { startApp.running = false; }
 }
 
-async function renderLogin(error, waiting = false) {
-  document.body.style.overflow = "hidden";
-  const config = await fetch(BASE + "/auth/config").then((r) => r.json()).catch(() => ({}));
-  // App d'ordinateur : la page n'a pas d'adresse web, Last.fm revient sur Sona web du serveur.
-  const cb = desktop ? `${SERVER}/web/` : location.origin + location.pathname;
-  const url = config.api_key ? `https://www.last.fm/api/auth/?api_key=${encodeURIComponent(config.api_key)}&cb=${encodeURIComponent(cb)}` : null;
-  $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
-    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>
-    <h1>Sona</h1>
-    <p>ta musique, en clair.</p>
-    ${url ? `<a class="btn" id="login-btn" href="${esc(url)}">se connecter avec last.fm.</a>` : '<p class="error">Serveur injoignable ou connexion Last.fm non configurée.</p>'}
-    ${waiting ? `<p class="fine wait">Autorise Sona sur la page Last.fm, puis reviens ici.<br><button class="link-btn" id="login-check">J'ai autorisé, continuer</button></p>` : ""}
-    ${error ? `<p class="error">${esc(error)}</p>` : ""}
-    <p class="fine">Le même compte que dans l'app Sona.</p>
-    ${desktop ? `<p class="fine">Une fenêtre Last.fm s'ouvre : autorise Sona, elle se ferme toute seule.</p>` : ""}
-    ${!standalone && !desktop && isMobile() ? `<p class="fine">${isIOS ? "Astuce : touche Partager puis « Sur l'écran d'accueil » pour installer Sona comme une app." : "Astuce : installe Sona depuis le menu du navigateur (« Installer l'appli »)."}</p>` : ""}
-  </div></div>`;
-  const btn = $("#login-btn");
-  // Appli installée : la page Last.fm s'ouvre dans un navigateur à part, d'où
-  // le retour ne revient pas ici — jeton demandé au serveur, échangé au retour.
-  if (btn && (standalone || desktop)) {
-    btn.onclick = async (e) => {
-      e.preventDefault();
-      try {
-        const res = await fetch(BASE + "/auth/lastfm/token", { method: "POST" });
-        if (!res.ok) throw new Error();
-        const got = await res.json();
-        store.set("sona.pendingLastfm", got.token);
-        const authUrl = `${got.auth_url}&cb=${encodeURIComponent(`${cb}?handoff=1`)}`;
-        if (desktop) desktop.openAuth(authUrl);
-        else if (!window.open(authUrl, "_blank")) location.href = authUrl;
-        renderLogin(null, true);
-      } catch { if (!desktop) location.href = btn.href; else renderLogin("Serveur Sona injoignable."); }
-    };
-  }
-  const check = $("#login-check");
-  if (check) check.onclick = () => retryPendingLogin(false);
-}
-
-async function retryPendingLogin(quiet = true) {
-  const pending = store.get("sona.pendingLastfm");
-  if (token && !account) return startApp();
-  if (!pending || account) return;
-  if (await exchangeLastfm(pending, true)) return startApp();
-  if (!quiet) toast("Pas encore autorisé sur Last.fm");
-}
-
-// Retour dans l'appli après l'autorisation Last.fm.
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && !account) {
-    token = token || store.get("sona.token");
-    retryPendingLogin();
-  }
-});
-
-function renderLoginDone() {
-  document.body.style.overflow = "hidden";
-  $("#root").innerHTML = `<div class="login"><div class="login-bg"></div><div class="login-card">
-    <img class="login-icon" src="icons/icon-192.png" alt="">
-    <h1>C'est autorisé ✓</h1>
-    <p>Tu peux fermer cette page et revenir dans l'appli Sona : la connexion se termine toute seule.</p>
-  </div></div>`;
-}
-
-function signOut() {
+/** Déconnexion locale : le jeton est déjà invalide ou supprimé. */
+function signOutLocal(silent) {
   token = null;
   account = null;
-  store.set("sona.token", null);
+  Sona.auth.signOut().catch(() => {});
   audio.pause();
   partyLeave(true);
+  if (!silent) toast("Déconnecté");
   landing();
 }
+const signOut = signOutLocal;
 
 function registerServiceWorker() {
   if (location.protocol === "file:" || desktop) return;
@@ -550,49 +491,13 @@ const TABS = [
   ["friends", "Amis", icons.friends],
   ["stats", "Stats", icons.stats],
   ["search", "Rechercher", icons.search],
-];
-const SIDE_NAV = [
-  ["home", "Écouter", icons.listen],
-  ["search", "Rechercher", icons.search],
-  ["library", "Bibliothèque", icons.library],
-  ["friends", "Amis", icons.friends],
-  ["stats", "Stats", icons.stats],
-  ["devices", "Appareils", icons.devices],
-];
-const SIDE_MORE = [
+  ["party", "Sessions", icons.headphones],
   ["radios", "Radios", icons.radio],
-  ["exclusives", "Exclus", icons.sparkles],
-  ["party", "Écoute ensemble", icons.headphones],
 ];
-
 function renderShell() {
   const name = account.display_name || account.username;
   $("#root").innerHTML = `<div class="app">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="wordmark" aria-label="Sona">ona</span></div>
-      <label class="side-search">${icons.search}<input id="side-q" type="search" placeholder="Rechercher" autocomplete="off"></label>
-      <div class="side-list scroll">
-        ${SIDE_NAV.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
-        <div class="side-section">Découvrir et jouer</div>
-        ${SIDE_MORE.map(([id, label, icon]) => `<a class="side-link" href="#/${id}" data-nav="${id}">${icon}${label}</a>`).join("")}
-        ${desktop ? `<div class="side-section">Sur ce PC</div>
-        <a class="side-link" href="#/iphone" data-nav="iphone">${icons.phone}Sona sur l'iPhone<span class="side-badge" id="iph-badge"></span></a>`
-        : `<div class="side-section">Sur ton PC</div>
-        <a class="side-link" href="${WINDOWS_PAGE}" target="_blank" rel="noopener">${icons.download}Installer Sona pour Windows</a>`}
-        <div class="side-section">Faites pour toi</div>
-        <div id="side-smart"></div>
-        <div class="side-section">Playlists</div>
-        <div id="side-playlists"></div>
-        ${account.is_admin ? `<div class="side-section">Administration</div>
-        <a class="side-link" href="#/health" data-nav="health">${icons.pulse}Santé de la lecture</a>
-        <a class="side-link" href="#/admin" data-nav="admin">${icons.lock}Accès à l'app</a>` : ""}
-      </div>
-      <a class="side-user" href="#/settings" title="Réglages">
-        ${avatar(account.avatar_url, name)}
-        <span class="name">${esc(name)}</span>
-        <span class="gear">${icons.gear}</span>
-      </a>
-    </aside>
+    ${Sidebar.html()}
     <header class="topbar" id="topbar"></header>
     <header class="mhead" id="mhead"></header>
     <main class="content scroll" id="content"></main>
@@ -601,14 +506,11 @@ function renderShell() {
         <button class="tbtn small" data-dfull title="Lecteur plein écran">${icons.miniPlayer}</button><button class="tbtn small" data-dclose title="Fermer">${icons.close}</button></div>
       <div class="drawer-body" id="drawer-body"></div></aside>` : ""}
     <div class="mp" id="mp"></div>
-    <nav class="tabbar">${TABS.map(([id, label, icon]) => `<button data-tab="${id}">${icon}<span>${label}</span></button>`).join("")}</nav>
+    <nav class="tabbar" aria-label="Navigation">${Sidebar.tabbarHtml()}</nav>
   </div>
   <section class="np" id="np" aria-label="Lecture en cours"></section>`;
-  $("#side-q").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") location.hash = `#/search/${encodeURIComponent(e.target.value.trim())}`;
-  });
-  $("#side-q").addEventListener("focus", () => { if (!location.hash.startsWith("#/search")) location.hash = "#/search"; });
-  $$(".tabbar button").forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
+  Sidebar.mount();
+  Sidebar.bindTabbar();
   const content = $("#content");
   content.addEventListener("scroll", () => {
     const head = $("#mhead");
@@ -639,17 +541,6 @@ async function loadSidebar() {
   renderSidebarLists();
 }
 
-function renderSidebarLists() {
-  const smartBox = $("#side-smart");
-  if (!smartBox) return;
-  smartBox.innerHTML = state.smart.map((s) => `<a class="side-link" href="#/smart/${esc(s.id)}" data-nav="smart/${esc(s.id)}">
-    <img class="thumb" src="${esc(s.covers[0] || "")}" alt="">${esc(s.title)}</a>`).join("");
-  $("#side-playlists").innerHTML = state.playlists.map((p) => `<a class="side-link" href="#/playlist/${p.id}" data-nav="playlist/${p.id}">
-    <img class="thumb" src="${esc(p.cover_url || (p.covers || [])[0] || "")}" alt="">${esc(p.name)}</a>`).join("")
-    || '<p class="side-link" style="color:var(--text-3)">Aucune playlist</p>';
-  markNav();
-}
-
 async function loadLiked() {
   const [tracks, albums, artists] = await Promise.all(["track", "album", "artist"].map((kind) =>
     api(`/library/${kind}?limit=500`).catch(() => ({ items: [] }))));
@@ -664,11 +555,7 @@ async function loadSettings() {
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Paris";
 
-function markNav() {
-  const current = location.hash.replace(/^#\//, "") || "home";
-  $$("[data-nav]").forEach((a) => a.classList.toggle("active", current === a.dataset.nav || current.startsWith(`${a.dataset.nav}/`)));
-  $$("[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === nav.tab));
-}
+function markNav() { Sidebar.mark(); }
 
 // ── Routes ────────────────────────────────────────────────────────────────
 // Comme les onglets de l'app : chaque onglet garde sa pile de pages (album,
@@ -849,9 +736,9 @@ async function route() {
     xrelease: () => viewXRelease(parts[1], parts[2], parts[3], parts[4]),
     playlist: () => viewUserPlaylist(parts[1]), dplaylist: () => viewAlbum(parts[1], parts[2], true),
     smart: () => viewSmart(parts[1]), mix: () => viewMix(parts[1]),
-    friends: viewFriends, friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
+    friends: () => SonaSocial.viewFriends(), friend: () => viewFriend(parts[1]), blend: () => viewBlend(parts[1]),
     stats: viewStats, recent: viewRecent, radios: viewRadios, exclusives: () => viewExclusives(parts[1]), party: () => viewParty(parts[1]),
-    settings: viewSettings, appearance: viewAppearance, link: () => viewLink(parts[1]), admin: viewAdmin, s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
+    settings: () => settingsRoute(parts[1]), appearance: viewAppearance, link: () => viewLink(parts[1]), admin: () => SonaAdmin.view(parts[1]), s: () => viewShared(parts[1]), health: viewHealth, devices: viewDevices, status: viewStatus,
     ...(desktop ? { iphone: viewIphone } : {}),
   };
   const view = views[parts[0]] || viewHome;
@@ -870,6 +757,11 @@ async function route() {
     if (pageEl && direction !== "none" && isMobile()) pageEl.classList.add(direction === "push" ? "push" : "pop");
     else if (pageEl && opened && !isMobile()) pageEl.classList.add(coverFlight.active() || pageEl.querySelector(".pa") ? "no-enter" : direction === "back" ? "enter-back" : "enter");
     bindPage(content);
+    // Mode invité : invitation discrète à créer un compte.
+    if (account?.guest && !["settings"].includes(parts[0])) {
+      const banner = SonaUI.guestBanner();
+      if (banner) { $(".page", content)?.insertAdjacentHTML("afterbegin", banner); SonaUI.bindGuestBanner(content); }
+    }
     if (direction === "back" && nav.scroll[hash]) content.scrollTop = nav.scroll[hash];
     syncContentGlow(content);
     coverFlight.land();
@@ -6560,49 +6452,13 @@ async function djAnnounce(t, previous) {
 
 const playTrackFrom = (t) => t && t.source && t.source_id ? playList([t], 0, "") : toast("Titre introuvable");
 
-async function viewFriends() {
-  $("#content").innerHTML = skeleton("Amis");
-  const [friends, parties] = await Promise.all([
-    api("/friends"), api("/party/active").catch(() => []),
-  ]);
-  // Rafraîchi toutes les 15 s, comme l'onglet de l'app.
-  const timer = setInterval(async () => {
-    const fresh = await api("/friends").catch(() => null);
-    const box = $("#friends-list");
-    if (fresh && box) box.innerHTML = friendRows(fresh);
-  }, 15000);
-  onLeave(() => clearInterval(timer));
-  setTimeout(() => {
-    $("#friends-list")?.addEventListener("click", (e) => {
-      const play = e.target.closest("[data-fplay]");
-      if (play) { e.preventDefault(); e.stopPropagation(); const f = friends.find((x) => String(x.account_id) === play.dataset.fplay); playTrackFrom(f?.now_playing?.track || f?.last_play); }
-    });
-  });
-  const live = [
-    ...parties.filter((p) => !p.joined).map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} <b>${esc(p.host_name || "Un ami")}</b> écoute en groupe (${p.members}) — rejoindre</a>`),
-  ].join("");
-  return page(`<h1 class="page-title">Amis</h1><p class="page-sub">Ce qu'écoutent tes amis en ce moment.</p>
-    ${live}
-    ${friends.length ? `<div class="friend-list" id="friends-list">${friendRows(friends)}</div>`
-      : empty("👋", "Personne pour l'instant", "Les autres comptes Sona qui partagent leur écoute apparaîtront ici.")}`);
-}
-
-function friendRows(friends) {
-  return friends.map((f) => {
-    const name = f.display_name || f.username;
-    const t = f.now_playing?.track || f.last_play;
-    return `<a class="friend" href="#/friend/${f.account_id}">
-      <span class="friend-avatar">${avatar(f.avatar_url, name)}${f.now_playing ? '<i class="live-dot"></i>' : ""}</span>
-      <span class="friend-text"><span class="n">${esc(name)}${f.compatibility != null ? ` <span class="compat">${f.compatibility} %</span>` : ""}</span>
-        ${t ? `<span class="s">${f.now_playing ? `${bars()} ` : ""}${esc(t.title)} · ${esc(t.artist)}</span>
-          <span class="w">${f.now_playing ? "En train d'écouter" : since(f.last_play.played_at)}</span>` : `<span class="s">Pas encore d'écoute</span>`}</span>
-      ${t?.cover_url ? `<span class="friend-cover" data-fplay="${f.account_id}"><img src="${esc(big(t.cover_url, 120))}" alt="">${icons.play}</span>` : ""}</a>`;
-  }).join("");
-}
-
 async function viewFriend(id) {
   $("#content").innerHTML = skeleton("");
-  const f = await api(`/friends/${encodeURIComponent(id)}`);
+  // Ses goûts, écoutes et playlists viennent du serveur musique, qui ne répond que pour un ami accepté
+  // dont les réglages de confidentialité l'autorisent. Sinon : seulement ce que son profil laisse voir.
+  let f;
+  try { f = await api(`/friends/${encodeURIComponent(id)}`); } catch { return SonaSocial.viewProfileOnly(id); }
+  setTimeout(() => $("[data-pmenu]")?.addEventListener("click", () => SonaSocial.profileMenu(String(id), f.username)));
   const name = f.display_name || f.username;
   const recent = f.recent.filter((p) => p.source && p.source_id);
   const tops = f.top_tracks.filter((t) => t.source && t.source_id).map((t) => ({ source: t.source, source_id: t.source_id, title: t.name, artist: t.subtitle || "", cover_url: t.cover_url }));
@@ -6612,7 +6468,7 @@ async function viewFriend(id) {
       ${avatar(f.avatar_url, name, "profile-avatar")}
       <h1>${esc(name)}</h1><div class="muted">@${esc(f.username)}</div>
       ${f.compatibility != null ? `<div class="compat-big"><b>${f.compatibility} %</b> d'affinité musicale</div>` : `<div class="muted">Pas encore assez d'écoutes pour comparer.</div>`}
-      <div class="pill-row center"><a class="btn" href="#/blend/${f.account_id}">${icons.sparkles} Blend</a></div>
+      <div class="pill-row center"><a class="btn" href="#/blend/${f.account_id ?? id}">${icons.sparkles} Blend</a><button class="btn ghost" data-pmenu>${icons.more}</button></div>
     </div>
     ${f.now_playing ? `<button class="now-card" data-fnow><img src="${esc(big(f.now_playing.track.cover_url, 200))}" alt="">
       <span><span class="eyebrow">${bars()} En train d'écouter</span><span class="t">${esc(f.now_playing.track.title)}</span><span class="s">${esc(f.now_playing.track.artist)}</span></span>${icons.play}</button>` : ""}
@@ -7515,7 +7371,8 @@ function viewAppearance() {
       <label class="switch-row"><span><b>Thème GTA VI</b><small>Sur la page de Grand Theft Auto VI, et quand un titre de l'album joue, Sona devient Vice City.</small></span><input type="checkbox" data-look-gtavi ${look.gtavi !== false ? "checked" : ""}><i></i></label>
       <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
       <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
-      <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Un rail d'icônes qui s'ouvre au survol, ou toujours ouvert.</small></span><span class="chips">${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
+      <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Rail d'icônes ou panneau ouvert, retenu sur cet appareil (Ctrl/⌘ + B). Auto : ouvert sur grand écran.</small></span><span class="chips">${chip("menu", "auto", "Auto", !look.menu)}${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
+      <label class="switch-row"><span><b>Déplier au survol</b><small>Menu en rail : passer la souris dessus le déplie par-dessus la page, sans la décaler.</small></span><input type="checkbox" data-look-hover ${look.hover !== false ? "checked" : ""}><i></i></label>
     </div>
     <h3 class="set-head">Paroles</h3><div class="set-group">
       <label class="switch-row"><span><b>Défilement automatique</b><small>Les paroles suivent le titre et se recentrent toutes seules.</small></span><input type="checkbox" data-look-lyrauto ${look.lyrAuto ? "checked" : ""}><i></i></label>
@@ -7532,7 +7389,9 @@ function bindAppearance() {
   const mark = () => {
     $$("[data-accent]", root).forEach((b) => b.classList.toggle("on", b.dataset.accent === look.accent));
     $$("[data-shape]", root).forEach((b) => b.classList.toggle("on", b.dataset.shape === look.shape));
-    $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === look.menu));
+    $$("[data-menu]", root).forEach((b) => b.classList.toggle("on", b.dataset.menu === (look.menu || "auto")));
+    const hov = $("[data-look-hover]", root);
+    if (hov) hov.checked = look.hover !== false;
     const tint = $("[data-look-tint]", root);
     if (tint) tint.checked = look.tint;
     const gtaBox = $("[data-look-gtavi]", root);
@@ -7551,10 +7410,11 @@ function bindAppearance() {
     if (b.dataset.lookReset !== undefined) setLook({ ...LOOK_DEFAULT });
     else if (b.dataset.accent) setLook({ accent: b.dataset.accent });
     else if (b.dataset.shape) setLook({ shape: b.dataset.shape });
-    else if (b.dataset.menu) setLook({ menu: b.dataset.menu });
+    else if (b.dataset.menu) setLook({ menu: b.dataset.menu === "auto" ? null : b.dataset.menu });
     mark();
   });
   $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
+  $("[data-look-hover]", root)?.addEventListener("change", (e) => setLook({ hover: e.target.checked }));
   $("[data-look-gtavi]", root)?.addEventListener("change", (e) => { setLook({ gtavi: e.target.checked }); syncGta(); });
   $("[data-look-lyrauto]", root)?.addEventListener("change", (e) => setLook({ lyrAuto: e.target.checked }));
   $("[data-look-lyrblur]", root)?.addEventListener("change", (e) => setLook({ lyrBlur: e.target.checked }));
@@ -7566,18 +7426,25 @@ function bindAppearance() {
   }));
 }
 
+/** Sous-pages des réglages : #/settings/account, /privacy, /services. */
+function settingsRoute(sub) {
+  if (sub === "account") return SonaSettings.viewAccount();
+  if (sub === "privacy") return SonaSettings.viewPrivacy();
+  if (sub === "services") return SonaSettings.viewServices();
+  return viewSettings();
+}
+
 async function viewSettings() {
   $("#content").innerHTML = skeleton("Réglages");
-  const [me, settings, health, loved] = await Promise.all([
-    api("/auth/me"), api("/settings").catch(() => state.settings), fetch(`${BASE}/health`).then((r) => r.json()).catch(() => null),
-    api("/library/lastfm-loved/import").catch(() => null),
+  const [settings, health] = await Promise.all([
+    api("/settings").catch(() => state.settings), fetch(`${BASE}/health`).then((r) => r.json()).catch(() => null),
   ]);
-  account = me;
+  const me = account;
   state.settings = settings;
   const name = me.display_name || me.username;
   setTimeout(bindSettings);
   return page(`<h1 class="page-title">Réglages</h1>
-    <div class="set-account">${avatar(me.avatar_url, name, "profile-avatar small")}<div><b>${esc(name)}</b><small>Last.fm · ${esc(me.username)}</small></div></div>
+    <a class="set-account" href="#/settings/account">${avatar(me.avatar_url, name, "profile-avatar small")}<div><b>${esc(name)}</b><small>${me.guest ? "Sans compte · crée-en un" : `@${esc(me.username)}`}</small></div></a>
 
     <h3 class="set-head">Lecture</h3><div class="set-group">
       ${settings ? toggleRow("autoplay", "Lecture automatique", "Des morceaux similaires seront lus quand la file se termine.", settings.autoplay) : ""}
@@ -7591,12 +7458,11 @@ async function viewSettings() {
     </div>
 
     <h3 class="set-head">Compte</h3><div class="set-group">
-      ${toggleRow("share_listening", "Partager mon écoute", "Tes amis voient ce que tu écoutes en direct et tes dernières écoutes.", me.share_listening)}
+      ${linkRow('href="#/settings/account"', icons.user, "Compte", me.guest ? "Créer ton compte pour garder tes données" : "Pseudo, photo, connexion, clés d'accès, données")}
+      ${linkRow('href="#/settings/privacy"', icons.lock, "Confidentialité", "Qui voit ton profil, ce que tu écoutes, tes playlists")}
+      ${linkRow('href="#/settings/services"', icons.share, "Services connectés", "Last.fm, import de playlists")}
       ${linkRow("data-public-link", icons.globe, "Page « J'écoute » publique", "Un lien qui montre en direct ce que tu écoutes")}
       ${linkRow("data-share-links", icons.share, "Liens de partage", "Tes liens publics, leurs vues ; les révoquer")}
-      ${toggleRow("scrobble_to_lastfm", "Scrobbler sur Last.fm", "Chaque morceau écouté au moins à moitié est ajouté à ton profil Last.fm ; un titre aimé devient ♥ sur Last.fm.", me.scrobble_to_lastfm)}
-      <a class="set-row" data-loved><span class="mi-icon">${icons.heart}</span><span class="set-text"><b>Importer mes titres aimés Last.fm</b><small id="loved-status">${loved?.running ? `Import en cours… ${loved.done ?? 0} / ${loved.total ?? "?"}` : "Dans ta bibliothèque Sona"}</small></span>${icons.right}</a>
-      <a class="set-row" data-history><span class="mi-icon">${icons.download}</span><span class="set-text"><b>Importer mon historique Last.fm</b><small id="history-status">Pour des stats complètes</small></span>${icons.right}</a>
       <a class="set-row" data-clear-history><span class="mi-icon">${icons.clock}</span><span class="set-text"><b>Effacer l'historique de navigation</b><small>Les fiches consultées récemment</small></span>${icons.right}</a>
     </div>
 
@@ -7613,9 +7479,9 @@ async function viewSettings() {
       ${linkRow('href="#/recent"', icons.clock, "Écoutes récentes")}
     </div>
 
-    ${me.is_admin ? `<h3 class="set-head">Administration</h3><div class="set-group">
-      ${linkRow('href="#/admin"', icons.lock, "Accès à l'app", "Valider les nouveaux comptes")}
-      ${linkRow('href="#/health"', icons.pulse, "Santé de la lecture", "Cookies YouTube, yt-dlp")}
+    ${me.is_staff ? `<h3 class="set-head">Administration</h3><div class="set-group">
+      ${linkRow('href="#/admin"', icons.lock, "Modération", "Signalements, utilisateurs, sanctions")}
+      ${me.is_admin ? linkRow('href="#/health"', icons.pulse, "Santé de la lecture", "Cookies YouTube, yt-dlp") : ""}
     </div>` : ""}
 
     <h3 class="set-head">Serveur</h3><div class="set-group">
@@ -7634,7 +7500,7 @@ function bindSettings() {
     try {
       if (key === "autoplay") state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ autoplay: on }) });
       else if (key === "dj") store.set("sona.dj", on ? "1" : null);
-      else account = await api("/auth/me", { method: "PUT", body: JSON.stringify({ [key]: on }) });
+      // (les réglages de compte sont dans Réglages › Compte, Confidentialité et Services connectés)
     } catch (e) { input.checked = !on; toast(e.message); }
   }));
   $("[data-dj-voice]")?.addEventListener("click", () => actionSheet("Voix du DJ", [["remy", "Rémy"], ["vivienne", "Vivienne"], ["henri", "Henri"], ["denise", "Denise"]].map(([id, label]) => ({
@@ -7643,31 +7509,6 @@ function bindSettings() {
   $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers et exclus)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
     label, checked: state.settings?.quality === q, run: async () => { state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ quality: q }) }); route(); },
   }))));
-  $("[data-loved]")?.addEventListener("click", async () => {
-    const line = $("#loved-status");
-    try {
-      let st = await api("/library/lastfm-loved/import", { method: "POST" });
-      while (st.running && $("#loved-status")) {
-        $("#loved-status").textContent = `Import en cours… ${st.done ?? 0} / ${st.total ?? "?"}`;
-        await new Promise((r) => setTimeout(r, 2000));
-        st = await api("/library/lastfm-loved/import");
-      }
-      if ($("#loved-status")) $("#loved-status").textContent = st.error || "Import terminé ✓";
-      loadLiked();
-    } catch (e) { if (line) line.textContent = e.message; }
-  });
-  $("[data-history]")?.addEventListener("click", async () => {
-    const line = $("#history-status");
-    try {
-      let st = await api("/stats/import/lastfm", { method: "POST" });
-      while (st.running && $("#history-status")) {
-        $("#history-status").textContent = `Import en cours… ${plural(st.imported, "écoute")}`;
-        await new Promise((r) => setTimeout(r, 2000));
-        st = await api("/stats/import/lastfm");
-      }
-      if ($("#history-status")) $("#history-status").textContent = st.error || `Terminé : ${plural(st.imported, "écoute")} ajoutée${st.imported > 1 ? "s" : ""}`;
-    } catch (e) { if (line) line.textContent = e.message; }
-  });
   $("[data-clear-history]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Effacer l'historique de navigation ?", "Effacer"))) return;
     await api("/history", { method: "DELETE" }).then(() => toast("Historique effacé")).catch((e) => toast(e.message));
@@ -7679,8 +7520,8 @@ function bindSettings() {
   if (desktop) { renderDesktopSettings(); renderUpdates(); }
   $("[data-signout]")?.addEventListener("click", async () => {
     if (!(await confirmSheet("Se déconnecter de Sona ?", "Se déconnecter"))) return;
-    try { await api("/auth/logout", { method: "POST" }); } catch {}
-    signOut();
+    await Sona.auth.signOut();
+    signOutLocal(true);
   });
 }
 
@@ -7716,23 +7557,6 @@ async function publicLinkSheet() {
       toast("Page supprimée");
     } },
   ], { header: `<h2 class="sheet-title">Page « J'écoute »</h2><p class="muted">Ce que tu écoutes en direct, sinon ta dernière écoute. Rien n'apparaît quand « Partager mon écoute » est coupé.</p>` });
-}
-
-async function viewAdmin() {
-  $("#content").innerHTML = skeleton("Accès à l'app");
-  const accounts = await api("/admin/accounts");
-  const groups = [["pending", "En attente"], ["approved", "Acceptés"], ["rejected", "Refusés"]];
-  setTimeout(() => $$("[data-decide]").forEach((b) => (b.onclick = async () => {
-    try { await api(`/admin/accounts/${b.dataset.id}/${b.dataset.decide}`, { method: "POST" }); toast("C'est fait"); route(); } catch (e) { toast(e.message); }
-  })));
-  return page(`<h1 class="page-title">Accès à l'app</h1><p class="page-sub">Chaque nouveau compte attend ta validation.</p>
-    ${groups.map(([status, label]) => {
-      const list = accounts.filter((a) => a.status === status);
-      if (!list.length) return "";
-      return `<section class="section"><div class="section-head"><h2>${label} (${list.length})</h2></div><div class="set-group">${list.map((a) => `<div class="set-row">
-        ${avatar(a.avatar_url, a.display_name || a.username)}<span class="set-text"><b>${esc(a.display_name || a.username)}${a.is_admin ? " · admin" : ""}</b><small>@${esc(a.username)}${a.created_at ? ` · ${since(a.created_at)}` : ""}</small></span>
-        ${a.id != null && !a.is_admin ? `<span class="pill-row tight">${status !== "approved" ? `<button class="btn small" data-decide="approve" data-id="${a.id}">Accepter</button>` : ""}${status !== "rejected" ? `<button class="btn small ghost" data-decide="reject" data-id="${a.id}">Refuser</button>` : ""}</span>` : ""}</div>`).join("")}</div></section>`;
-    }).join("")}`);
 }
 
 // ── Événements audio ─────────────────────────────────────────────────────
