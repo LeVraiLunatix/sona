@@ -191,12 +191,14 @@
 
   /* Trait épaissi : posé sur le bord gauche de la page, rogné pile à ce bord (aucun débordement vers le menu). */
   .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 24px;
-    left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px 0);
+    left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px calc(var(--sb-gap) * -1));
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
   .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open)); transition-delay: 0ms, 0ms, 0ms, 0ms; }
   /* lentille : 5 px d'épaisseur au milieu, qui s'effile aux deux bouts */
   .sb-bridge b { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); transform-origin: left center;
     border-radius: 0 5px 5px 0 / 0 50% 50% 0; box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+  /* jonction : comble l'espace entre la pastille (collée au bord droit de la carte) et le trait de la page, pour que les deux n'en fassent qu'un */
+  .sb-bridge i { position: absolute; left: calc(var(--sb-gap) * -1 - 1px); width: calc(var(--sb-gap) + 6px); top: 36px; bottom: 36px; background: var(--accent); }
   /* voile le long de la bordure : plus vif à la hauteur de la pastille, éteint à ~130 px */
   .sb-bridge u { position: absolute; left: 0; width: 7px; top: -130px; bottom: -130px; filter: blur(3px); opacity: .9;
     background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--accent) 6%, transparent) 14%, color-mix(in srgb, var(--accent) 36%, transparent) 38%, color-mix(in srgb, var(--accent) 50%, transparent) 50%, color-mix(in srgb, var(--accent) 36%, transparent) 62%, color-mix(in srgb, var(--accent) 6%, transparent) 86%, transparent 100%); }

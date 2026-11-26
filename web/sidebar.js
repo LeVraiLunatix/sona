@@ -197,7 +197,7 @@ const Sidebar = (() => {
         ${profileHtml()}
       </div>
     </nav>
-    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><b></b></div>
+    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><b></b><i></i></div>
     <div class="sb-glow" id="sb-glow" aria-hidden="true"></div>`;
   }
 
