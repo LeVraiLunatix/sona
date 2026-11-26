@@ -1,8 +1,8 @@
 <div align="center">
 
-[English](README.md) · **Français**
+<img src="https://raw.githubusercontent.com/trysona/sona/master/.github/assets/banner.svg" alt="Sona" width="100%">
 
-# Sona
+[English](README.md) · **Français** · [Español](README.es.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md)
 
 **Ta musique, en clair.**
 

@@ -1,14 +1,14 @@
 <div align="center">
 
-**English** · [Français](README.fr.md)
+<img src="https://raw.githubusercontent.com/trysona/sona/master/.github/assets/banner.svg" alt="Sona" width="100%">
 
-# Sona
+**English** · [Français](README.fr.md) · [Español](README.es.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md)
 
-**Your music, clear.**
+### Your music, clear.
 
 Word-by-word lyrics, your own lossless files, listening together, and playback that follows you from phone to PC to TV.
 
-### [**Get Sona →**](https://trysona.fr/presentation)
+## [**Get Sona →**](https://trysona.fr/presentation)
 
 [![Tests](https://github.com/trysona/sona/actions/workflows/tests.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/tests.yml)
 [![iOS](https://github.com/trysona/sona/actions/workflows/ios.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/ios.yml)
@@ -28,21 +28,21 @@ Sign-in uses a Last.fm account. On the hosted server, new accounts wait for an a
 
 ## Features
 
-**Listen**
+### 🎧 Listen
 - Synced lyrics, AI karaoke (vocal / instrumental split) and song recognition
 - Your own FLAC, ALAC and WAV files served as they are
-- 5-band equalizer, volume levelling, crossfade, smart sleep timer, music alarm
+- 5-band equalizer, volume levelling, crossfade, sleep timer, music alarm
 - Audio is checked against the official preview before it plays
 
-**Mix**
+### 🎛️ Mix
 - AutoMix: beat-matched transitions using tempo, bar and key analysis
 - Radios, daily mix, DJ radio with a DJ voice
 
-**Share**
+### 🤝 Share
 - Sona Connect: control playback on any of your devices
 - Listen together, friends and Blend, collaborative playlists, weekly charts
 
-**Discover**
+### ✨ Discover
 - Upcoming releases with a countdown, listening stats, a map of your plays, story-style recaps
 
 ## Self-host
@@ -58,7 +58,7 @@ cp .env.example .env                          # then set API_TOKEN
 .venv/bin/python run_api.py                   # API + web app on http://127.0.0.1:8000/web/
 ```
 
-Tests: `pip install pytest && python -m pytest tests -q` (no network calls).
+Tests (no network calls): `pip install pytest && python -m pytest tests -q`
 
 More, in French: [full guide](docs/GUIDE.md) · [deployment](docs/DEPLOIEMENT.md) · [Windows app](desktop/README.md) · [iPhone app](ios/Encre/README.md)
 
