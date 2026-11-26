@@ -114,7 +114,8 @@ enabled = false
 # si le hook n'est pas branché. Le secret est de la forme `v1,whsec_<base64>`.
 [auth.hook.before_user_created]
 enabled = true
-uri = "env(ACCOUNTS_URL)/hooks/before-user-created"
+# Le CLI ne remplace env(...) que s'il forme TOUTE la valeur : exporter l'adresse complète du hook.
+uri = "env(AUTH_HOOK_URL)"
 secrets = "env(AUTH_HOOK_SECRET)"
 
 [storage]

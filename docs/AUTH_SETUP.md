@@ -175,7 +175,7 @@ Utilise le *pooler* Supabase (mode session) si ta connexion directe est en IPv6 
 |---|---|---|
 | Site (`index.html`, **publiques**) | `sona-supabase-url`, `sona-supabase-key`, `sona-accounts`, `sona-turnstile-sitekey` | configuration du client |
 | Vercel | *aucune requise* (site statique) | — |
-| Supabase (`config push` / tableau de bord) | `GOOGLE_CLIENT_ID/SECRET`, `DISCORD_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`, `SMTP_HOST/USER/PASS/FROM`, `TURNSTILE_SECRET`, `AUTH_HOOK_SECRET`, `ACCOUNTS_URL` | fournisseurs, e-mails, anti-robot, hook |
+| Supabase (`config push` / tableau de bord) | `GOOGLE_CLIENT_ID/SECRET`, `DISCORD_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`, `SMTP_HOST/USER/PASS/FROM`, `TURNSTILE_SECRET`, `AUTH_HOOK_SECRET`, `AUTH_HOOK_URL` (adresse complète : `https://<ton-accounts>/hooks/before-user-created`) | fournisseurs, e-mails, anti-robot, hook |
 | VPS `sona-accounts` | voir `rust/sona-accounts/.env.example` | base, Last.fm, chiffrement, alertes, passkeys |
 | VPS serveur musique (`.env`) | `SONA_ACCOUNTS_URL` (adresse interne de `sona-accounts`), `INTERNAL_API_SECRET` (le **même** que celui du service), `SUPABASE_URL` + `SUPABASE_ANON_KEY` (valeurs **publiques**, pour l'app iPhone) | jetons Supabase, amis, scrobbling, export / suppression |
 | VPS `sona-accounts` | `MUSIC_INTERNAL_URL` | adresse du serveur musique, pour l'export, la suppression et la modération |
