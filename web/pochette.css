@@ -1,0 +1,75 @@
+/* ═══ Sona « Pochette » : réglages, menus ⋯, popups ══════════════════════════════════════════════════
+   Direction retenue (voir la planche de directions) : de très gros titres, aucun cadre, le « S » du logo en filigrane,
+   des menus teintés par la pochette du titre, des popups qui montent du bas, des interrupteurs blancs.
+   Ce fichier vient après app.css, accounts.css et sidebar.css : il ne reprend que des variables du thème (donc les
+   thèmes « archive » et « GTA VI », plus précis, gardent la main). */
+
+/* ── Interrupteurs : blancs, plus de vert ── */
+.switch-row input:checked + i { background: var(--accent); }
+.switch-row input:checked + i::after { background: var(--on-accent, #0a0a0b); }
+
+/* ── Titres et réglages : sans boîtes ── */
+.page-title { font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.045em; line-height: 1.02; }
+.set-head { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: .02em; color: var(--text-3); margin: 34px 0 2px; }
+.set-group, .set-account { background: none; border-radius: 0; max-width: 720px; overflow: visible; }
+.set-group > * + * { border-top: 1px solid var(--hairline); }
+.set-group > :first-child { border-top: 1px solid var(--hairline); }
+.set-row { padding: 14px 0; min-height: 0; gap: 14px; border-radius: 0; }
+.set-row .mi-icon { display: none; }
+.set-text b { font-size: 19px; font-weight: 600; letter-spacing: -.02em; line-height: 1.25; }
+.set-text small { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+.set-row > .icon, .set-row > svg:last-child { color: var(--text-3); }
+.switch-row { padding: 14px 0; }
+.switch-row > span b { font-size: 17px; font-weight: 600; letter-spacing: -.015em; }
+.set-account { display: flex; align-items: center; gap: 14px; padding: 6px 0 4px; color: var(--text-2); text-decoration: none; }
+.set-account b { color: var(--text); font-size: 17px; }
+.set-account .profile-avatar { width: 44px; height: 44px; }
+.btn.wide.danger { background: rgba(255, 107, 107, .12); color: #ff6b6b; }
+
+/* Le « S » du logo en filigrane, en haut à droite des pages de réglages. */
+.page:has(.set-group, .set-account) { position: relative; isolation: isolate; }
+.page:has(.set-group, .set-account)::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none; right: -70px; top: -50px; width: 280px; height: 280px; opacity: .05;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='88.42 88.25 223.5 223.5'%3E%3Cpath fill='%23d2d1d8' d='M271.23,120 L133,120 A15,15 0 0 0 118,135 L118,146.83 A15,15 0 0 0 121.19,156.07 L173.56,222.99 A13,13 0 0 1 163.32,244 L133,244 A15,15 0 0 0 118,259 L118,265 A15,15 0 0 0 133,280 L260.23,280 A15,15 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13,13 0 0 1 236.77,156 L259.97,156 A15,15 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120 Z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+@media (max-width: 760px) { .page:has(.set-group, .set-account)::before { right: -90px; top: -30px; width: 230px; height: 230px; } }
+
+/* ── Feuilles et popups ── */
+.sheet { border-radius: 32px; }
+.sheet-title { font-size: 28px; font-weight: 700; letter-spacing: -.035em; line-height: 1.08; margin: 8px 0 12px; }
+.sheet .muted { font-size: 15px; color: var(--text-2); }
+@media (max-width: 760px) {
+  .sheet { border-radius: 32px 32px 0 0; }
+}
+
+/* Confirmation : grand titre, boutons pleine largeur l'un sous l'autre (le geste destructeur en rouge doux). */
+.confirm-sheet .sheet-title { font-size: 30px; margin: 10px 0 22px; }
+.confirm-sheet .pill-row { flex-direction: column-reverse; gap: 8px; margin: 0; }
+.confirm-sheet .pill-row .btn { flex: none; width: 100%; height: 52px; font-size: 16px; }
+.confirm-sheet .btn.danger:not(.ghost) { background: rgba(255, 107, 107, .14); color: #ff6b6b; }
+.confirm-sheet .btn.ghost { background: var(--fill-strong); color: var(--text); }
+
+/* Menus d'actions : texte large, séparés par un simple filet, icône à droite. */
+.menu-item { grid-template-columns: 1fr auto; padding: 13px 2px; font-size: 17.5px; font-weight: 600; letter-spacing: -.01em; }
+.menu-item .mi-icon { order: 3; font-size: 20px; color: var(--text-3); }
+.menu-item .mi-text { order: 1; }
+.menu-item .mi-check { order: 2; }
+.menu-item .mi-sub { font-weight: 500; font-size: 13px; color: var(--text-3); }
+.menu-item.danger, .menu-item.danger .mi-icon { color: #ff7b7b; }
+
+/* Menu d'un titre : teinté par la pochette (--tint = couleur dominante, calculée par app.js). */
+.sheet-wrap.tinted { --tint: 120, 32, 40; }
+.sheet-wrap.tinted .sheet {
+  background: linear-gradient(180deg, rgba(var(--tint), .8), rgba(10, 7, 9, .97) 64%), var(--bg-elevated);
+  -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); border-color: rgba(var(--tint), .35);
+}
+.sheet-wrap.tinted .menu-head { grid-template-columns: 1fr; gap: 0; padding: 10px 2px 14px; border-bottom: 0; }
+.sheet-wrap.tinted .menu-head img { width: 118px; height: 118px; border-radius: 18px; box-shadow: 0 24px 50px rgba(0, 0, 0, .5); margin-bottom: 14px; }
+.sheet-wrap.tinted .menu-head .t { font-size: 24px; letter-spacing: -.03em; line-height: 1.1; }
+.sheet-wrap.tinted .menu-head .s { font-size: 15px; color: rgba(255, 255, 255, .62); margin-top: 2px; white-space: normal; }
+.sheet-wrap.tinted .menu-item { border-bottom: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
+.sheet-wrap.tinted .menu-item .mi-icon { color: rgba(255, 255, 255, .55); }
+.sheet-wrap.tinted .menu .menu-item:first-child { color: color-mix(in srgb, rgb(var(--tint)) 40%, #fff); }
+.sheet-wrap.tinted .menu .menu-item:first-child .mi-icon { color: inherit; }
+.sheet-wrap.tinted .menu-item.danger, .sheet-wrap.tinted .menu-item.danger .mi-icon { color: #ff8a8a; }
+@media (min-width: 761px) { .sheet-wrap.tinted .sheet { width: min(420px, 92vw); } }

@@ -6049,11 +6049,11 @@ function openSheet(html, { cls = "", onClose } = {}) {
 }
 
 /** Menu d'actions : [{ icon, label, sub, run, danger, checked }]. */
-function actionSheet(title, items, { header = "" } = {}) {
+function actionSheet(title, items, { header = "", cls = "" } = {}) {
   const wrap = openSheet(`${header || (title ? `<h2 class="sheet-title">${esc(title)}</h2>` : "")}
     <div class="menu">${items.filter(Boolean).map((item, i) => `<button class="menu-item ${item.danger ? "danger" : ""}" data-mi="${i}">
       <span class="mi-icon">${item.icon || ""}</span><span class="mi-text"><span class="mi-label">${esc(item.label)}</span>${item.sub ? `<span class="mi-sub">${esc(item.sub)}</span>` : ""}</span>
-      ${item.checked ? `<span class="mi-check">${icons.check}</span>` : ""}</button>`).join("")}</div>`);
+      ${item.checked ? `<span class="mi-check">${icons.check}</span>` : ""}</button>`).join("")}</div>`, { cls });
   const list = items.filter(Boolean);
   $$("[data-mi]", wrap).forEach((b) => (b.onclick = async () => {
     haptic();
@@ -6084,7 +6084,7 @@ function confirmSheet(text, confirm = "Confirmer") {
     let done = false;
     const wrap = openSheet(`<h2 class="sheet-title">${esc(text)}</h2>
       <div class="pill-row"><button class="btn ghost" data-no>Annuler</button><button class="btn danger" data-yes>${esc(confirm)}</button></div>`,
-      { onClose: () => { if (!done) { done = true; resolve(false); } } });
+      { cls: "confirm-sheet", onClose: () => { if (!done) { done = true; resolve(false); } } });
     $("[data-yes]", wrap).onclick = () => { done = true; resolve(true); wrap.close(); };
     $("[data-no]", wrap).onclick = () => { done = true; resolve(false); wrap.close(); };
   });
@@ -6098,7 +6098,7 @@ function trackMenu(t, ctx = null, index = -1) {
   const playing = sameTrack(t, state.queue[state.index]);
   const entry = ctx?.entries?.[index];
   const header = `<div class="menu-head"><img src="${esc(big(t.cover_url, 200))}" alt=""><div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc([t.artist, t.album].filter(Boolean).join(" · "))}</div></div></div>`;
-  actionSheet("", [
+  const sheet = actionSheet("", [
     !playing && { icon: icons.nextUp, label: "Lire ensuite", run: () => playNext(t) },
     !playing && { icon: icons.queue, label: "Ajouter à la file d'attente", run: () => addToQueue(t) },
     { icon: icons.plus, label: "Ajouter à une playlist…", run: () => addToPlaylistSheet([t]) },
@@ -6131,7 +6131,60 @@ function trackMenu(t, ctx = null, index = -1) {
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
     { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
     { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
-  ], { header });
+  ], { header, cls: "tinted" });
+  tintSheet(sheet, t);
+}
+
+// Menu teinté par la pochette : couleur dominante lue dans l'image quand le serveur d'images l'autorise (canvas),
+// sinon une teinte stable tirée du titre (jamais un gris neutre, jamais une erreur).
+const tintCache = new Map();
+
+function hslToRgb(h, s, l) {
+  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+
+function seedTint(seed) {
+  let h = 0;
+  for (const c of String(seed || "sona")) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return hslToRgb(h, 0.55, 0.3);
+}
+
+function coverTint(t) {
+  const key = t.cover_url || `${t.title}|${t.artist}`;
+  if (tintCache.has(key)) return Promise.resolve(tintCache.get(key));
+  const done = (rgb) => { tintCache.set(key, rgb); return rgb; };
+  if (!t.cover_url) return Promise.resolve(done(seedTint(key)));
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = c.height = 24;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        g.drawImage(img, 0, 0, 24, 24);
+        const px = g.getImageData(0, 0, 24, 24).data;
+        let r = 0, gr = 0, b = 0, w = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          const mx = Math.max(px[i], px[i + 1], px[i + 2]), mn = Math.min(px[i], px[i + 1], px[i + 2]);
+          const weight = 0.15 + (mx - mn) / 255; // les couleurs vives pèsent plus que les gris
+          r += px[i] * weight; gr += px[i + 1] * weight; b += px[i + 2] * weight; w += weight;
+        }
+        const k = 0.8; // un peu assombri : le menu doit rester posé
+        resolve(done([Math.round((r / w) * k), Math.round((gr / w) * k), Math.round((b / w) * k)]));
+      } catch { resolve(done(seedTint(key))); }
+    };
+    img.onerror = () => resolve(done(seedTint(key)));
+    img.src = big(t.cover_url, 60);
+  });
+}
+
+function tintSheet(wrap, t) {
+  const apply = (rgb) => wrap.style.setProperty("--tint", rgb.join(", "));
+  apply(seedTint(t.cover_url || `${t.title}|${t.artist}`)); // tout de suite, puis la vraie couleur quand elle est lue
+  coverTint(t).then(apply);
 }
 
 /** Lance des titres sur un autre appareil (Relais) et le pilote. */

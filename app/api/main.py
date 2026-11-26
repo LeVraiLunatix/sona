@@ -269,6 +269,7 @@ def create_app() -> FastAPI:
         web_files[script] = (script, "application/javascript")
     web_files["accounts.css"] = ("accounts.css", "text/css")
     web_files["sidebar.css"] = ("sidebar.css", "text/css")
+    web_files["pochette.css"] = ("pochette.css", "text/css")
     web_files["vendor/supabase.js"] = ("vendor/supabase.js", "application/javascript")
     web_files["vendor/qrcode.js"] = ("vendor/qrcode.js", "application/javascript")
     for icon in ("icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png", "favicon-64.png"):
