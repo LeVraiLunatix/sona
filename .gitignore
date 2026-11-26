@@ -17,3 +17,6 @@ data/karaoke/
 data/models/
 desktop/node_modules/
 desktop/dist/
+
+# Scripts locaux de déploiement
+*-oracle.bat
