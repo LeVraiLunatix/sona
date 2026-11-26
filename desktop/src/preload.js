@@ -48,6 +48,8 @@ if (location.protocol === "app:" && location.host === "sona") {
     updates: (action, value) => ipcRenderer.invoke("desktop:updates", action, value),
     onUpdates: on("desktop:updates"),
     onOpen: on("desktop:open"),
+    /** Retour d'une connexion Google / Discord / GitHub : `sona://auth/callback?code=…`. */
+    onDeepLink: on("desktop:deeplink"),
     /** Enregistre un titre en vrai fichier dans Musique\Sona. */
     saveTrack: (name, mime, bytes) => ipcRenderer.invoke("desktop:save-track", name, mime, bytes),
     openExternal: (url) => ipcRenderer.send("desktop:external", url),

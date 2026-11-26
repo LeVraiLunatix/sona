@@ -24,7 +24,7 @@ Wort-für-Wort-Lyrics, deine eigenen verlustfreien Dateien, gemeinsames Hören u
 | **iPhone / iPad** | [Die Seite](https://trysona.fr/presentation) in Safari öffnen, **Teilen**, **Zum Home-Bildschirm** (eine native `.ipa` zum Sideloaden liegt unter [Releases](https://github.com/trysona/sona/releases)) |
 | **Windows** | [Installer herunterladen](https://github.com/trysona/sona/releases/tag/windows) |
 
-Die Anmeldung läuft über ein Last.fm-Konto. Auf dem gehosteten Server muss ein Admin neue Konten freigeben.
+Offen für alle: Konto mit E-Mail, Google, Discord oder GitHub (oder Passkey) erstellen, oder ohne Konto ausprobieren. Last.fm ist optional. Standardmäßig ist niemand mit niemandem befreundet. Einrichtung: [docs/AUTH_SETUP.md](docs/AUTH_SETUP.md).
 
 ## Funktionen
 

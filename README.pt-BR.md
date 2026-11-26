@@ -24,7 +24,7 @@ Letras palavra por palavra, seus próprios arquivos sem perdas, escuta em grupo 
 | **iPhone / iPad** | Abra [o site](https://trysona.fr/presentation) no Safari, **Compartilhar**, **Adicionar à Tela de Início** (há um `.ipa` nativo para sideload em [Releases](https://github.com/trysona/sona/releases)) |
 | **Windows** | [Baixe o instalador](https://github.com/trysona/sona/releases/tag/windows) |
 
-O login usa uma conta Last.fm. No servidor hospedado, contas novas aguardam a aprovação de um administrador.
+Aberto a todos: crie uma conta com e-mail, Google, Discord ou GitHub (ou passkey), ou teste sem conta. O Last.fm é opcional. Por padrão ninguém é amigo de ninguém. Configuração: [docs/AUTH_SETUP.md](docs/AUTH_SETUP.md).
 
 ## Recursos
 

@@ -84,7 +84,28 @@ const remote = new RemoteServer({
 
 // ── Démarrage ───────────────────────────────────────────────────────────
 
-app.on("second-instance", (_e, argv) => { if (!runJumpAction(argv)) showWindow(); });
+// ── Lien profond sona:// (retour de Google / Discord / GitHub, ouvert dans le navigateur du système) ──
+// Jamais de WebView pour se connecter : le navigateur ouvre le fournisseur, puis revient ici avec
+// `sona://auth/callback?code=…`. Seul le chemin d'authentification est accepté ; la page échange
+// le code (PKCE : le secret de l'échange est resté dans la page).
+const DEEP_LINK = /^sona:\/\/auth\/callback(\?[^\s]{0,2000})?$/;
+let pendingDeepLink = null;
+function deepLinkFrom(argv) { return argv.find((a) => DEEP_LINK.test(String(a))) || null; }
+function deliverDeepLink(url) {
+  if (!DEEP_LINK.test(String(url))) return;
+  if (!win || win.isDestroyed() || win.webContents.isLoading()) { pendingDeepLink = url; return; }
+  showWindow();
+  send("desktop:deeplink", url);
+}
+if (process.defaultApp && process.argv.length >= 2) app.setAsDefaultProtocolClient("sona", process.execPath, [path.resolve(process.argv[1])]);
+else app.setAsDefaultProtocolClient("sona");
+app.on("open-url", (e, url) => { e.preventDefault(); deliverDeepLink(url); });   // macOS
+
+app.on("second-instance", (_e, argv) => {
+  const link = deepLinkFrom(argv);
+  if (link) return deliverDeepLink(link);
+  if (!runJumpAction(argv)) showWindow();
+});
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
@@ -106,6 +127,9 @@ app.whenReady().then(async () => {
   wallpaper.setEnabled(settings.get("coverWallpaper")).catch(() => {});
   setJumpList();
   // Lancé depuis la liste de la barre des tâches : l'action, une fois la page prête.
+  // Lancé par un lien sona:// (application fermée) : livré une fois la page chargée.
+  pendingDeepLink = pendingDeepLink || deepLinkFrom(process.argv);
+  win.webContents.on("did-finish-load", () => { if (pendingDeepLink) { const l = pendingDeepLink; pendingDeepLink = null; setTimeout(() => deliverDeepLink(l), 600); } });
   if (process.argv.some((a) => a.startsWith("--sona-action="))) win.webContents.once("did-finish-load", () => setTimeout(() => runJumpAction(process.argv), 2500));
   for (const ev of ["display-metrics-changed", "display-added", "display-removed"]) screen.on(ev, fitMinimumSize);
   watchPower();
