@@ -109,7 +109,20 @@ begin
   end if;
 end $$;
 
--- Pour les Edge Functions (service role) : même compteur.
+-- Première adresse de X-Forwarded-For (PostgREST expose les en-têtes), pour
+-- limiter les appels anonymes par visiteur plutôt qu'en bloc.
+create function private.client_ip() returns text
+language plpgsql stable set search_path = '' as $$
+declare
+  v text;
+begin
+  v := nullif(btrim(split_part(coalesce((nullif(current_setting('request.headers', true), '')::json) ->> 'x-forwarded-for', ''), ',', 1)), '');
+  return v;
+exception when others then
+  return null;
+end $$;
+
+-- Pour les services Rust (rôle serveur) : même compteur.
 create function public.rate_limit_check(p_key text, p_max int, p_window_seconds int) returns boolean
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -163,7 +176,7 @@ language plpgsql security definer set search_path = '' as $$
 declare
   v_problem text;
 begin
-  perform private.rate_limit('username_check:' || coalesce(auth.uid()::text, 'anon'), 40, interval '1 minute');
+  perform private.rate_limit('username_check:' || coalesce(auth.uid()::text, private.client_ip(), 'anon'), 40, interval '1 minute');
   v_problem := private.name_problem(p_name);
   if v_problem is not null then
     return jsonb_build_object('available', false, 'reason', v_problem);
