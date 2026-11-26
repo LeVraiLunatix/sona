@@ -121,7 +121,7 @@
 .ob-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
 .ob-actions .btn { margin-left: auto; min-width: 150px; height: 52px; justify-content: center; border-radius: 16px; }
 .ob-group { margin-bottom: 14px; }
-.ob-group select.field.small { height: 40px; max-width: 170px; }
+.ob-group select.field.small { height: 40px; max-width: 170px; flex: none; }
 .soon { font-size: 12px; font-weight: 600; color: var(--text-3); background: var(--fill); padding: 5px 11px; border-radius: 999px; }
 .ob-done { text-align: center; padding: 14px 0 4px; }
 .ob-check-big { width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 50%; background: #30d158; color: #fff; font-size: 40px; display: grid; place-items: center; animation: pop .5s var(--spring); }
@@ -239,3 +239,13 @@ form[data-note] .field { margin: 0; flex: 1; }
 .page.compact .live-pill { max-width: 760px; margin: 0 0 14px; border-radius: 18px; }
 .guest-banner { max-width: 760px; }
 @media (max-width: 760px) { .page.compact .page-title { font-size: 34px; } .page.compact .friend-list { border-radius: 18px; } }
+
+/* Bienvenue : lignes compactes, titres de groupe alignés sur leur contenu. */
+.auth .ob-group { border-radius: 18px; }
+.auth .ob-group .set-row, .auth .ob-group .switch-row { min-height: 60px; padding: 11px 16px; gap: 16px; }
+.auth .ob-group .set-row { cursor: default; }
+.auth .ob-group b { font-weight: 600; }
+.auth .ob-group small { font-size: 12.5px; line-height: 1.35; text-wrap: balance; }
+.auth .ob-group select.field.small { min-width: 140px; }
+.auth .set-head { margin: 20px 0 8px 16px; }
+.auth .ob-group + .auth-hint { font-size: 12.5px; margin: 0 4px; }
