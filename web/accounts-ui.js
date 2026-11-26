@@ -31,20 +31,103 @@ const SonaUI = (() => {
     paintAuth();
   }
 
-  /** Coque commune (connexion, bienvenue, sanction) : panneau de marque à gauche sur grand écran, carte à droite. */
+  // ── Les cordes ───────────────────────────────────────────────────────────
+  // Signature de l'écran : six cordes qu'on pince (pointeur, doigt, frappe, envoi).
+  const strings = (() => {
+    const N = 6, still = matchMedia("(prefers-reduced-motion: reduce)");
+    const cv = document.createElement("canvas");
+    cv.className = "auth-strings";
+    cv.setAttribute("aria-hidden", "true");
+    let plucks = [], raf = 0, born = 0, errorAt = -1e9, last = null, W = 0, H = 0;
+
+    const lineY = (i) => (W >= 960 ? H * (0.6 + i * 0.055) : 70 + i * 17);
+
+    function pluck(i, x = 0.5, amp = 14, delay = 0) {
+      if (still.matches) return;
+      plucks.push({ i: ((i % N) + N) % N, x: Math.min(0.95, Math.max(0.05, x)), amp, t: performance.now() + delay });
+      if (plucks.length > 60) plucks.shift();
+    }
+    const strum = (amp = 16, gap = 55) => { for (let i = 0; i < N; i++) pluck(i, 0.18 + i * 0.07, amp, i * gap); };
+
+    function draw(now) {
+      raf = 0;
+      if (!cv.isConnected) return;
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = cv.clientWidth, h = cv.clientHeight;
+      if (w !== W || h !== H || cv.width !== Math.round(w * dpr)) { W = w; H = h; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      const g = cv.getContext("2d");
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, W, H);
+      const reveal = still.matches ? 1 : 1 - Math.pow(1 - Math.min(1, (now - born) / 1400), 3);
+      const red = Math.max(0, 1 - (now - errorAt) / 1600);
+      plucks = plucks.filter((p) => now - p.t < 3200);
+      for (let i = 0; i < N; i++) {
+        const y0 = lineY(i), mine = plucks.filter((p) => p.i === i && now >= p.t);
+        let energy = 0;
+        g.beginPath();
+        for (let px = 0; px <= W * reveal; px += 6) {
+          const x = px / W;
+          let d = still.matches ? 0 : Math.sin(x * 7 + now / 1100 + i * 1.3) * Math.sin(Math.PI * x) * 1.6;
+          for (const p of mine) {
+            const dt = (now - p.t) / 1000, decay = Math.exp(-dt * 2.1) * p.amp;
+            // Corde pincée : triangle centré sur le doigt, plus une harmonique.
+            const shape = x < p.x ? x / p.x : (1 - x) / (1 - p.x);
+            d += decay * (shape * shape * (3 - 2 * shape) * Math.cos(dt * (19 + i * 3.2)) + 0.22 * Math.sin(3 * Math.PI * x) * Math.sin(dt * (47 + i * 5)));
+          }
+          px ? g.lineTo(px, y0 + d) : g.moveTo(px, y0 + d);
+        }
+        for (const p of mine) energy += Math.exp(-(now - p.t) / 520) * (p.amp / 16);
+        const a = Math.min(0.95, 0.3 + i * 0.025 + energy * 0.55);
+        g.strokeStyle = `rgba(${Math.round(236 + 19 * red)}, ${Math.round(237 - 130 * red)}, ${Math.round(242 - 145 * red)}, ${Math.max(a, red * 0.7)})`;
+        g.lineWidth = 0.8 + (N - i) * 0.16 + Math.min(1, energy) * 0.7;
+        g.stroke();
+      }
+      if (!still.matches) raf = requestAnimationFrame(draw);
+    }
+
+    /** Passer sur une corde la pince ; la vitesse du geste donne la force. */
+    function move(e) {
+      const r = cv.getBoundingClientRect();
+      const pt = { x: e.clientX - r.left, y: e.clientY - r.top };
+      if (last) {
+        for (let i = 0; i < N; i++) {
+          const y = lineY(i);
+          if ((last.y - y) * (pt.y - y) < 0) pluck(i, pt.x / (r.width || 1), Math.min(28, 6 + Math.abs(pt.y - last.y) * 0.7));
+        }
+      }
+      last = pt;
+    }
+
+    function mount() {
+      const host = document.querySelector(".auth-layout");
+      if (!host) return;
+      host.prepend(cv);
+      const screen = host.closest(".auth");
+      screen.onpointermove = move;
+      screen.onpointerdown = (e) => { last = null; move(e); };
+      screen.onpointerleave = () => { last = null; };
+      if (!born) { born = performance.now(); strum(11, 90); }
+      if (!raf) raf = requestAnimationFrame(draw);
+    }
+
+    return { mount, pluck, strum, error: () => { errorAt = performance.now(); strum(22, 20); } };
+  })();
+
+  /** Coque commune (connexion, bienvenue, sanction) : titre et cordes d'un côté, contenu de l'autre. */
+  let shown = false;
   function shell(inner, cls = "") {
-    const points = [[icons.quote, "Paroles mot à mot", "Synchronisées, même en karaoké."], [icons.headphones, "Écoute ensemble", "Avec tes amis, selon tes règles."], [icons.lock, "Ta vie privée d'abord", "Rien n'est partagé tant que tu ne le décides pas."]];
-    return `<div class="login auth"><div class="auth-glow" aria-hidden="true"></div>
+    const intro = shown ? "" : "intro";
+    shown = true;
+    queueMicrotask(strings.mount);
+    return `<div class="login auth ${intro}">
       <div class="auth-layout">
         <aside class="auth-brand" aria-hidden="true">
-          <span class="brand-tile"><svg viewBox="0 0 64 64"><use href="#sona-mark"/></svg></span>
-          <h1>Ta musique,<br>en clair.</h1>
-          <p class="brand-sub">Paroles, playlists, stats et écoute ensemble. Ouvert à tout le monde, sans pub.</p>
-          <ul class="brand-points">${points.map(([i, t, d]) => `<li><span class="bp-ico">${i}</span><span><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
-          <div class="brand-eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <span class="auth-logo"><svg viewBox="0 0 64 64"><use href="#sona-mark"/></svg>Sona</span>
+          <h1><span><i>Ta musique,</i></span><span><i>en clair.</i></span></h1>
+          <p class="brand-sub">Paroles mot à mot, stats et écoute entre amis. Sans pub.</p>
         </aside>
         <main class="auth-card ${cls}">
-          <div class="auth-top"><span class="brand-tile small"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="auth-name">Sona</span></div>
+          <div class="auth-top"><span class="auth-logo"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>Sona</span></div>
           ${inner}
         </main>
       </div></div>`;
@@ -96,9 +179,7 @@ const SonaUI = (() => {
           <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>`;
     } else {
-      const [g, ...others] = PROVIDERS;
-      const pbtn = ([id, name, svg], full) => `<button class="provider ${full ? "full" : ""}" data-provider="${id}" ${busy}>${svg}<span>${full ? `Continuer avec ${name}` : name}</span></button>`;
-      const oauth = `<div class="auth-providers">${pbtn(g, true)}<div class="auth-pair">${others.map((o) => pbtn(o, false)).join("")}</div></div>`;
+      const oauth = `<div class="auth-providers">${PROVIDERS.map(([id, name, svg]) => `<button class="provider" data-provider="${id}" aria-label="Continuer avec ${name}" ${busy}>${svg}<span>${name}</span></button>`).join("")}</div>`;
       body = `${head(signup ? "Crée ton compte" : "Content de te revoir", signup ? "Gratuit, sans pub, ouvert à tout le monde." : "Connecte-toi pour retrouver ta musique.")}
         ${isIOSStandalone()
           ? `<details class="auth-more"><summary>Google, Discord, GitHub</summary><p class="auth-hint">Dans l'app installée sur iPhone, ces connexions s'ouvrent dans Safari et ne reviennent pas ici. Choisis plutôt le code par e-mail ou une clé d'accès.</p>${oauth}</details>`
@@ -118,12 +199,16 @@ const SonaUI = (() => {
         <div class="auth-alt">
           <button class="pill-btn" data-code>Recevoir un code par e-mail</button>${signup ? "" : `<button class="pill-btn" data-forgot>Mot de passe oublié</button>`}
         </div>
-        ${guestOk ? `<button class="guest" data-guest>Essayer sans compte <span aria-hidden="true">→</span></button>` : ""}`;
+        ${guestOk ? `<button class="guest" data-guest>Essayer sans compte</button>` : ""}`;
     }
     root().innerHTML = shell(`${body}
       <div class="auth-msg" role="status" aria-live="polite">${ui.notice ? `<p class="notice">${h(ui.notice)}</p>` : ""}${ui.error ? `<p class="error" role="alert">${h(ui.error)}</p>` : ""}</div>
       <p class="fine legal">En continuant, tu acceptes les <a href="conditions" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="confidentialite" target="_blank" rel="noopener">politique de confidentialité</a>.</p>`);
+    // Le message reste sous le formulaire, visible sans défiler.
+    const form = document.querySelector(".auth-card form");
+    if (form) form.after(document.querySelector(".auth-msg"));
     bindAuth();
+    if (ui.error) strings.error();
   }
 
   const meter = () => `<div class="pw-meter" id="pw-meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -146,6 +231,11 @@ const SonaUI = (() => {
 
   function bindAuth() {
     const $r = (s) => document.querySelector(s);
+    document.querySelectorAll(".auth .fi").forEach((input) => input.addEventListener("input", (e) => {
+      const n = input.value.length, c = (e.data || "a").charCodeAt(0);
+      strings.pluck(c + n, 0.12 + ((n * 0.061) % 0.76), 9);
+    }));
+    document.querySelectorAll(".auth form").forEach((form) => form.addEventListener("submit", () => strings.strum(18, 35)));
     $r("[data-back]")?.addEventListener("click", () => authScreen({ step: "form" }));
     document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => { ui.mode = b.dataset.mode; ui.error = ""; ui.notice = ""; paintAuth(); }));
     document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => attempt(() => auth.oauth(b.dataset.provider))));

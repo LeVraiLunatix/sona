@@ -2854,3 +2854,4 @@ select.field option { background: var(--bg-elevated); color: var(--text); }
   select.field option:checked { background: var(--accent-soft); }
   select.field option::checkmark { order: 1; margin-left: auto; color: var(--accent); }
 }
+@font-face { font-family: "Familjen Grotesk"; font-weight: 700; font-display: swap; src: url("fonts/FamiljenGrotesk-700.woff2") format("woff2"); }
