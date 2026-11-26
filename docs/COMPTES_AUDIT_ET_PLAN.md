@@ -83,7 +83,7 @@ Le cahier des charges suppose Supabase partout (Auth, Postgres + RLS, Edge Funct
 6. **Visibilité du profil à 4 niveaux** (public, minimal par défaut, amis, privé) pour tenir « pseudo + photo seulement » par défaut.
 7. **Modérateur** : avertit, suspend 7 jours au plus, traite les signalements ; **ban, rôles, suppression, listes de blocage : admins**. Un rôle ne peut agir que sur un rôle inférieur.
 8. **Mots interdits** : liste de départ volontairement courte (évite les faux positifs sur des prénoms), à compléter depuis `/admin › Règles`.
-9. **Sidebar** : variante A « Pilule » (voir `docs/sidebar-variants/README.md`) ; raccourcis Ctrl/⌘+B et Alt+1…7 (les lettres seules sont déjà prises par le lecteur).
+9. **Sidebar** : variante B « Flottante », choisie par Lunatix après que j'avais retenu A (voir `docs/sidebar-variants/README.md`) ; raccourcis Ctrl/⌘+B et Alt+1…7 (les lettres seules sont déjà prises par le lecteur).
 10. `library`, `playlists`, `playlist_tracks`, `listening_history` **restent dans le serveur musique** (écart avec la section 4 du cahier des charges, expliqué plus haut).
 
 ### Reste à faire

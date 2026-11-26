@@ -1,5 +1,5 @@
 /* Sona : menu latéral « Rail ↔ Panneau » et barre de navigation mobile.
-   Styles : sidebar.css. Variante retenue : A « Pilule » (docs/sidebar-variants/).
+   Styles : sidebar.css. Variante retenue : B « Flottante » (docs/sidebar-variants/).
 
    - État ouvert / fermé mémorisé PAR APPAREIL (réglage `look.menu`, ouvert par défaut
      seulement sur grand écran) ; Ctrl/Cmd + B pour basculer.
@@ -88,6 +88,9 @@ const Sidebar = (() => {
       return t.animate([{ transform: from }, { transform: to }], { duration: 230, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
     }).filter(Boolean);
     Promise.all(anims.map((a) => a.finished.catch(() => {}))).then(settle);
+    // Bascules enchaînées : une animation annulée ne doit pas laisser le halo mal placé.
+    clearTimeout(toggle.settleTimer);
+    toggle.settleTimer = setTimeout(settle, 300);
   }
 
   // ── Survol et clavier ────────────────────────────────────────────────────
@@ -180,7 +183,7 @@ const Sidebar = (() => {
   function html() {
     return `<div class="sb-spacer" aria-hidden="true"></div>
     <nav class="sb" id="sb" aria-label="Navigation principale" data-open="false">
-      <div class="sb-edge" aria-hidden="true"></div>
+      <div class="sb-face" aria-hidden="true"></div>
       <div class="sb-top"><a class="sb-logo" href="#/home" aria-label="Sona, accueil"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></a><span class="sb-word" aria-hidden="true">ona</span></div>
       <button class="sb-link sb-toggle" id="sb-toggle" type="button" aria-expanded="false" aria-controls="sb-scroll" data-tip="Menu" data-key="" style="margin-top:6px">
         <span class="sb-ico"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h3.5V6zm5.500 0v12H19V6z"/></svg></span><span class="sb-label">Réduire le menu</span></button>

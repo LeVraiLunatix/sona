@@ -37,7 +37,7 @@ const SonaSocial = (() => {
   async function viewFriends() {
     $("#content").innerHTML = skeleton("Amis");
     if (auth.isGuest()) {
-      return page(`<h1 class="page-title">Amis</h1><p class="page-sub">Crée un compte pour ajouter des amis et écouter ensemble.</p>
+      return cpage(`<h1 class="page-title">Amis</h1><p class="page-sub">Crée un compte pour ajouter des amis et écouter ensemble.</p>
         <div class="pill-row"><button class="btn" data-upgrade>Créer mon compte</button></div>`);
     }
     const [friends, reqs, music, parties] = await Promise.all([
@@ -53,7 +53,7 @@ const SonaSocial = (() => {
     onLeave(() => clearInterval(timer));
     setTimeout(() => bindFriends(friends, music));
     const live = (parties || []).filter((p) => !p.joined).map((p) => `<a class="live-pill" href="#/party/${h(p.code)}">${icons.headphones} <b>${h(p.host_name || "Un ami")}</b> écoute en groupe (${p.members}) — rejoindre</a>`).join("");
-    return page(`<div class="friends-head"><div><h1 class="page-title">Amis</h1><p class="page-sub">Ce qu'écoutent tes amis, s'ils le partagent.</p></div>
+    return cpage(`<div class="friends-head"><div><h1 class="page-title">Amis</h1><p class="page-sub">Ce qu'écoutent tes amis, s'ils le partagent.</p></div>
       <div class="pill-row tight"><button class="btn" data-add>${icons.plus} Ajouter</button><button class="btn ghost" data-mycode>Mon code</button></div></div>
       ${live}
       <div id="requests">${requestRows(reqs)}</div>
@@ -166,9 +166,9 @@ const SonaSocial = (() => {
   /** Profil minimal quand le serveur musique n'a rien à montrer (ou est injoignable). */
   async function viewProfileOnly(userId) {
     const p = await social.profileOf(userId);
-    if (!p) return page(empty("🔒", "Profil introuvable ou privé", "Ce profil n'existe pas ou n'est pas visible pour toi."));
+    if (!p) return cpage(empty("🔒", "Profil introuvable ou privé", "Ce profil n'existe pas ou n'est pas visible pour toi."));
     setTimeout(() => $("[data-pmenu]")?.addEventListener("click", () => profileMenu(userId, p.username)));
-    return page(`<div class="profile-head">${avatar(p.avatar_url, p.username, "profile-avatar")}<h1>${h(p.display_name || p.username)}</h1><div class="muted">@${h(p.username)}</div>
+    return cpage(`<div class="profile-head">${avatar(p.avatar_url, p.username, "profile-avatar")}<h1>${h(p.display_name || p.username)}</h1><div class="muted">@${h(p.username)}</div>
       ${p.bio ? `<p class="muted">${h(p.bio)}</p>` : ""}
       <div class="pill-row center"><button class="btn ghost" data-pmenu>${icons.more} Plus</button></div></div>`);
   }

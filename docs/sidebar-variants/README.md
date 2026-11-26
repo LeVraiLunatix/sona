@@ -8,16 +8,15 @@ Les trois maquettes (HTML autonome + capture) montrent le même contenu, fermé 
 | ![B](variante-B-flottante.png) | B — Flottante | carte arrondie détachée du bord, léger flou, pastille pleine claire |
 | ![C](variante-C-filet.png) | C — Filet | comme A, rayons plus francs, trait d'accent sur le bord gauche |
 
-## Choix : A « Pilule »
+## Choix final : B « Flottante » (décision de Lunatix)
 
-Critères du cahier des charges, dans l'ordre :
+J'avais d'abord retenu A (noir pur collé au bord, le plus simple à animer proprement). Tu as préféré B : une carte arrondie détachée des bords, qui donne
+plus de caractère. C'est elle qui est implémentée (`web/sidebar.css`, `web/sidebar.js`), avec ce qu'il a fallu régler pour qu'elle reste sans défaut :
 
-1. **Fond noir pur, bordure très fine** : A et C le font ; B pose une carte grise sur le fond, ce qui crée une seconde surface et mange de la largeur utile.
-2. **Élément actif : pastille douce + petit indicateur discret, « sans bordure agressive »** : B utilise une pastille blanche pleine (très contrastée, trop présente quand elle est sur chaque page) ;
-   C ajoute une barre verticale qui ressemble à une bordure ; A garde une pastille translucide et un simple point de 4 px.
-3. **Formes douces, rayons généreux** : A et B (16 px) ; C (10 px) est plus sec.
-4. **Aucun bug visuel possible** : A est la plus simple à animer proprement : un seul rectangle noir rogné par `clip-path`, un filet qui glisse, des icônes qui ne bougent jamais (même colonne de 48 px dans les deux états).
-   B demande de faire grandir une carte avec ses marges et ses ombres (l'ombre serait rognée) ; C ajoute un indicateur qui déborde du rail.
-5. **Cohérence avec l'app** : le contenu de Sona est déjà un grand panneau arrondi sur fond sombre ; une carte flottante de plus (B) alourdit l'ensemble.
-
-Implémentation : `web/sidebar.css` et `web/sidebar.js` (voir leurs commentaires), testée dans `tests/ui/accounts.mjs`.
+- **Contour qui suit le repli** : deux calques (un anneau de 1 px et la face) rognés ensemble par `clip-path` avec le même rayon et la même courbe ;
+  la carte se replie de 264 à 72 px sans jamais animer sa largeur.
+- **Pastille de la page active** : pleine, de la couleur d'accent (la seule chose colorée du menu) ; au repos elle est rognée à 48 × 48 px pour ne pas
+  être coupée net au bord de la carte.
+- **Marge de 12 px** autour de la carte : la colonne de la grille vaut 84 px (rail) ou 276 px (ouvert) et le contenu garde 12 px d'écart.
+- **Au survol** (rail) : la carte se déplie par-dessus la page sans la pousser.
+- Liste des playlists qui se fond en bas au lieu d'être coupée net.

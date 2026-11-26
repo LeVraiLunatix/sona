@@ -28,11 +28,11 @@ const SonaSettings = (() => {
     const linked = new Set(identities.map((i) => i.provider));
     setTimeout(() => bindAccount(profile, identities));
     if (guest) {
-      return page(`<h1 class="page-title">Compte</h1>${sub("Tu utilises Sona sans compte.")}
+      return cpage(`<h1 class="page-title">Compte</h1>${sub("Tu utilises Sona sans compte.")}
         <div class="set-group">${row("Crée ton compte", "Ta bibliothèque, tes playlists et ton historique sont conservés.", `<button class="btn small" data-upgrade>Créer</button>`)}</div>
         <h3 class="set-head">Mes données</h3><div class="set-group">${linkRow("data-export", icons.download, "Exporter mes données", "Un fichier JSON")}${linkRow("data-delete", icons.trash, "Supprimer mes données", "Efface tout, définitivement")}</div>`);
     }
-    return page(`<h1 class="page-title">Compte</h1>${sub("Ton profil, tes méthodes de connexion et tes données.")}
+    return cpage(`<h1 class="page-title">Compte</h1>${sub("Ton profil, tes méthodes de connexion et tes données.")}
       <h3 class="set-head">Profil</h3><div class="set-group">
         <div class="set-row"><button class="acc-photo" data-photo aria-label="Changer de photo">${avatar(profile.avatar_url, profile.username, "profile-avatar small")}</button><span class="set-text"><b>Photo</b><small>${profile.force_avatar_change ? "À changer : la précédente a été retirée" : "Touche pour changer"}</small></span>
           ${profile.avatar_url ? `<button class="btn small ghost" data-photo-remove>Retirer</button>` : ""}<input type="file" accept="image/*" hidden data-file></div>
@@ -204,10 +204,10 @@ const SonaSettings = (() => {
 
   async function viewPrivacy() {
     $("#content").innerHTML = skeleton("Confidentialité");
-    if (auth.isGuest()) return page(`<h1 class="page-title">Confidentialité</h1>${sub("Sans compte, personne ne te voit : tu n'apparais nulle part.")}`);
+    if (auth.isGuest()) return cpage(`<h1 class="page-title">Confidentialité</h1>${sub("Sans compte, personne ne te voit : tu n'apparais nulle part.")}`);
     const [p, blocked] = await Promise.all([social.privacy(), social.blocked().catch(() => [])]);
     setTimeout(() => bindPrivacy(p));
-    return page(`<h1 class="page-title">Confidentialité</h1>${sub("Par défaut, tout est réservé à tes amis. Ces règles sont appliquées par le serveur, pas seulement par l'interface.")}
+    return cpage(`<h1 class="page-title">Confidentialité</h1>${sub("Par défaut, tout est réservé à tes amis. Ces règles sont appliquées par le serveur, pas seulement par l'interface.")}
       <h3 class="set-head">Profil</h3><div class="set-group">
         ${row("Visibilité du profil", "", select("profile_visibility", p.profile_visibility, [["public", "Public"], ["minimal", "Pseudo et photo seulement"], ["friends", "Amis seulement"], ["private", "Privé"]]))}
         ${row("Qui peut m'envoyer une demande d'ami", "", select("who_can_request", p.who_can_request, [["everyone", "Tout le monde"], ["friends_of_friends", "Amis d'amis"], ["nobody", "Personne"]]))}
@@ -241,14 +241,14 @@ const SonaSettings = (() => {
 
   async function viewServices() {
     $("#content").innerHTML = skeleton("Services connectés");
-    if (auth.isGuest()) return page(`<h1 class="page-title">Services connectés</h1>${sub("Crée un compte pour connecter tes services.")}`);
+    if (auth.isGuest()) return cpage(`<h1 class="page-title">Services connectés</h1>${sub("Crée un compte pour connecter tes services.")}`);
     const [services, settings] = await Promise.all([social.services().catch(() => []), social.settings().catch(() => ({ scrobbling_enabled: true }))]);
     const lfm = services.find((s) => s.provider === "lastfm");
     let status = lfm ? { connected: true, ...lfm } : { connected: false };
     // Une clé révoquée laisse une ligne sans secret : on la présente comme non connectée avec son message.
     try { status = await window.Sona.svc("/lastfm/status"); } catch { /* service indisponible : on garde la lecture directe */ }
     setTimeout(() => bindServices(status));
-    return page(`<h1 class="page-title">Services connectés</h1>${sub("Tout est facultatif. Sona garde lui-même ton historique d'écoute : se connecter à Last.fm sert seulement à y envoyer tes écoutes.")}
+    return cpage(`<h1 class="page-title">Services connectés</h1>${sub("Tout est facultatif. Sona garde lui-même ton historique d'écoute : se connecter à Last.fm sert seulement à y envoyer tes écoutes.")}
       <h3 class="set-head">Last.fm</h3><div class="set-group">
         ${status.connected
           ? `${row(`Connecté : ${status.username || ""}`, status.last_sync_at ? `Dernier envoi : ${new Date(status.last_sync_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}` : "Aucun envoi pour l'instant")}

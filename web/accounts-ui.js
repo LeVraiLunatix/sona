@@ -31,75 +31,98 @@ const SonaUI = (() => {
     paintAuth();
   }
 
+  /** Coque commune (connexion, bienvenue, sanction) : panneau de marque à gauche sur grand écran, carte à droite. */
+  function shell(inner, cls = "") {
+    const points = [[icons.quote, "Paroles mot à mot", "Synchronisées, même en karaoké."], [icons.headphones, "Écoute ensemble", "Avec tes amis, selon tes règles."], [icons.lock, "Ta vie privée d'abord", "Rien n'est partagé tant que tu ne le décides pas."]];
+    return `<div class="login auth"><div class="auth-glow" aria-hidden="true"></div>
+      <div class="auth-layout">
+        <aside class="auth-brand" aria-hidden="true">
+          <span class="brand-tile"><svg viewBox="0 0 64 64"><use href="#sona-mark"/></svg></span>
+          <h1>Ta musique,<br>en clair.</h1>
+          <p class="brand-sub">Paroles, playlists, stats et écoute ensemble. Ouvert à tout le monde, sans pub.</p>
+          <ul class="brand-points">${points.map(([i, t, d]) => `<li><span class="bp-ico">${i}</span><span><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
+          <div class="brand-eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </aside>
+        <main class="auth-card ${cls}">
+          <div class="auth-top"><span class="brand-tile small"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span><span class="auth-name">Sona</span></div>
+          ${inner}
+        </main>
+      </div></div>`;
+  }
+
+  const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>';
+
+  /** Champ à étiquette flottante. */
+  function fld(name, label, { type = "text", value = "", auto = "", mode = "", extra = "", eye = false, cls = "" } = {}) {
+    return `<div class="fld ${cls}"><input class="fi" id="f-${name}" name="${name}" type="${type}" value="${h(value)}" placeholder=" " ${auto ? `autocomplete="${auto}"` : ""} ${mode ? `inputmode="${mode}"` : ""} ${extra}>
+      <label for="f-${name}">${h(label)}</label>${eye ? `<button type="button" class="eye" data-eye aria-label="Afficher le mot de passe">${EYE}</button>` : ""}</div>`;
+  }
+
+  const head = (title, sub = "") => `<h2 class="auth-h2">${h(title)}</h2>${sub ? `<p class="auth-hint">${sub}</p>` : ""}`;
+
   function paintAuth() {
     const guestOk = !!window.Sona.configured;
     const passkeyOk = window.Sona.passkeys.supported() && !!window.Sona.config.accountsUrl;
     const signup = ui.mode === "signup";
+    const busy = ui.busy ? "disabled" : "";
     let body;
     if (!window.Sona.configured) {
-      body = `<p class="error" role="alert">Les comptes ne sont pas encore configurés sur ce site. Voir docs/AUTH_SETUP.md.</p>`;
+      body = `${head("Bientôt prêt")}<p class="error" role="alert">Les comptes ne sont pas encore configurés sur ce site. Voir docs/AUTH_SETUP.md.</p>`;
     } else if (ui.step === "code") {
-      body = `<h2 class="auth-h2">Entre le code reçu</h2>
-        <p class="auth-hint">Un code à 6 chiffres vient d'être envoyé à <b>${h(ui.email)}</b>. Il est valable quelques minutes.</p>
+      body = `${head("Entre le code reçu", `Un code à 6 chiffres vient d'être envoyé à <b>${h(ui.email)}</b>. Il est valable quelques minutes.`)}
         <form id="auth-code" novalidate>
-          <input class="field code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" aria-label="Code reçu par e-mail" required>
-          <button class="btn big wide-btn" ${ui.busy ? "disabled" : ""}>Continuer</button>
+          ${fld("code", "Code à 6 chiffres", { auto: "one-time-code", mode: "numeric", extra: 'maxlength="8"', cls: "code" })}
+          <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>
-        <p class="auth-links"><button class="link-btn" data-back>Changer d'adresse</button> · <button class="link-btn" data-resend>Renvoyer le code</button></p>`;
+        <p class="auth-links"><button class="link-btn" data-back>Changer d'adresse</button><button class="link-btn" data-resend>Renvoyer le code</button></p>`;
     } else if (ui.step === "forgot") {
-      body = `<h2 class="auth-h2">Mot de passe oublié</h2>
-        <p class="auth-hint">Entre ton adresse : on t'envoie un code (et un lien) pour choisir un nouveau mot de passe.</p>
+      body = `${head("Mot de passe oublié", "Entre ton adresse : on t'envoie un code (et un lien) pour choisir un nouveau mot de passe.")}
         <form id="auth-forgot" novalidate>
-          <input class="field" name="email" type="email" autocomplete="email" inputmode="email" placeholder="Adresse e-mail" value="${h(ui.email)}" aria-label="Adresse e-mail" required>
-          <button class="btn big wide-btn" ${ui.busy ? "disabled" : ""}>Envoyer</button>
+          ${fld("email", "Adresse e-mail", { type: "email", value: ui.email, auto: "email", mode: "email" })}
+          <button class="btn big wide-btn" ${busy}>Envoyer</button>
         </form>
         <p class="auth-links"><button class="link-btn" data-back>Retour</button></p>`;
     } else if (ui.step === "newpass") {
-      body = `<h2 class="auth-h2">Nouveau mot de passe</h2>
+      body = `${head("Nouveau mot de passe")}
         <form id="auth-newpass" novalidate>
-          <input class="field" name="password" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe" aria-label="Nouveau mot de passe" required>
+          ${fld("password", "Nouveau mot de passe", { type: "password", auto: "new-password", eye: true })}
           ${meter()}
-          <button class="btn big wide-btn" ${ui.busy ? "disabled" : ""}>Enregistrer</button>
+          <button class="btn big wide-btn" ${busy}>Enregistrer</button>
         </form>`;
     } else if (ui.step === "reset-code") {
-      body = `<h2 class="auth-h2">Entre le code reçu</h2>
-        <p class="auth-hint">Code envoyé à <b>${h(ui.email)}</b>.</p>
+      body = `${head("Entre le code reçu", `Code envoyé à <b>${h(ui.email)}</b>.`)}
         <form id="auth-reset-code" novalidate>
-          <input class="field code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" aria-label="Code reçu par e-mail" required>
-          <button class="btn big wide-btn" ${ui.busy ? "disabled" : ""}>Continuer</button>
+          ${fld("code", "Code à 6 chiffres", { auto: "one-time-code", mode: "numeric", extra: 'maxlength="8"', cls: "code" })}
+          <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>`;
     } else {
-      const oauth = `<div class="auth-providers">${PROVIDERS.map(([id, name, svg]) =>
-        `<button class="provider" data-provider="${id}" ${ui.busy ? "disabled" : ""}>${svg}<span>${name}</span></button>`).join("")}</div>`;
-      body = `
+      const [g, ...others] = PROVIDERS;
+      const pbtn = ([id, name, svg], full) => `<button class="provider ${full ? "full" : ""}" data-provider="${id}" ${busy}>${svg}<span>${full ? `Continuer avec ${name}` : name}</span></button>`;
+      const oauth = `<div class="auth-providers">${pbtn(g, true)}<div class="auth-pair">${others.map((o) => pbtn(o, false)).join("")}</div></div>`;
+      body = `${head(signup ? "Crée ton compte" : "Content de te revoir", signup ? "Gratuit, sans pub, ouvert à tout le monde." : "Connecte-toi pour retrouver ta musique.")}
         ${isIOSStandalone()
           ? `<details class="auth-more"><summary>Google, Discord, GitHub</summary><p class="auth-hint">Dans l'app installée sur iPhone, ces connexions s'ouvrent dans Safari et ne reviennent pas ici. Choisis plutôt le code par e-mail ou une clé d'accès.</p>${oauth}</details>`
           : oauth}
-        ${passkeyOk ? `<button class="provider passkey" data-passkey ${ui.busy ? "disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 12h9m-3 0v4m-3-4v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Clé d'accès (Face ID, Touch ID…)</span></button>` : ""}
+        ${passkeyOk ? `<button class="provider passkey full" data-passkey ${busy}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 12h9m-3 0v4m-3-4v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Clé d'accès (Face ID, Touch ID…)</span></button>` : ""}
         <div class="auth-or"><span>ou avec ton e-mail</span></div>
         <div class="segmented auth-tabs" role="tablist">
           <button role="tab" aria-selected="${!signup}" class="${!signup ? "on" : ""}" data-mode="signin">Connexion</button>
           <button role="tab" aria-selected="${signup}" class="${signup ? "on" : ""}" data-mode="signup">Créer un compte</button>
         </div>
         <form id="auth-form" novalidate>
-          <input class="field" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="Adresse e-mail" value="${h(ui.email)}" aria-label="Adresse e-mail" required>
-          <input class="field" name="password" type="password" autocomplete="${signup ? "new-password" : "current-password"}" placeholder="Mot de passe" aria-label="Mot de passe">
+          ${fld("email", "Adresse e-mail", { type: "email", value: ui.email, auto: "email", mode: "email", extra: 'autocapitalize="none" spellcheck="false"' })}
+          ${fld("password", "Mot de passe", { type: "password", auto: signup ? "new-password" : "current-password", eye: true })}
           ${signup ? meter() : ""}
-          <button class="btn big wide-btn" ${ui.busy ? "disabled" : ""}>${signup ? "Créer mon compte" : "Se connecter"}</button>
+          <button class="btn big wide-btn" ${busy}>${signup ? "Créer mon compte" : "Se connecter"}</button>
         </form>
-        <p class="auth-links">
-          <button class="link-btn" data-code>Recevoir un code par e-mail</button>${signup ? "" : ` · <button class="link-btn" data-forgot>Mot de passe oublié ?</button>`}
-        </p>
-        ${guestOk ? `<button class="link-btn guest" data-guest>Essayer sans compte</button>` : ""}`;
+        <div class="auth-alt">
+          <button class="pill-btn" data-code>Recevoir un code par e-mail</button>${signup ? "" : `<button class="pill-btn" data-forgot>Mot de passe oublié</button>`}
+        </div>
+        ${guestOk ? `<button class="guest" data-guest>Essayer sans compte <span aria-hidden="true">→</span></button>` : ""}`;
     }
-    root().innerHTML = `<div class="login auth"><div class="login-bg"></div><main class="login-card auth-card">
-      <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>
-      <h1>Sona</h1>
-      <p class="auth-tag">ta musique, en clair.</p>
-      ${body}
+    root().innerHTML = shell(`${body}
       <div class="auth-msg" role="status" aria-live="polite">${ui.notice ? `<p class="notice">${h(ui.notice)}</p>` : ""}${ui.error ? `<p class="error" role="alert">${h(ui.error)}</p>` : ""}</div>
-      <p class="fine legal">En continuant, tu acceptes les <a href="conditions" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="confidentialite" target="_blank" rel="noopener">politique de confidentialité</a>.</p>
-    </main></div>`;
+      <p class="fine legal">En continuant, tu acceptes les <a href="conditions" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="confidentialite" target="_blank" rel="noopener">politique de confidentialité</a>.</p>`);
     bindAuth();
   }
 
@@ -188,6 +211,13 @@ const SonaUI = (() => {
       const pass = String(new FormData(e.target).get("password"));
       if (await attempt(() => auth.updatePassword(pass))) { toast("Mot de passe changé ✓"); await entry(); }
     });
+    document.querySelectorAll("[data-eye]").forEach((btn) => (btn.onclick = () => {
+      const input = btn.parentElement.querySelector("input");
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+      btn.classList.toggle("on", show);
+    }));
     document.querySelector("#auth-form [name=email], #auth-code [name=code], #auth-forgot [name=email]")?.focus({ preventScroll: true });
   }
 
@@ -204,16 +234,14 @@ const SonaUI = (() => {
     const untilText = banned ? "Définitif" : until ? `Jusqu'au ${new Date(until).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}` : "Durée non précisée";
     const appealed = active && (await social.table("appeals").select("id,status,response").eq("sanction_id", active.id).then((r) => r.data || []).catch(() => []));
     const pending = appealed?.find((a) => a.status === "open");
-    root().innerHTML = `<div class="login auth"><div class="login-bg"></div><main class="login-card auth-card sanction">
-      <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>
-      <h1>${banned ? "Compte banni" : "Compte suspendu"}</h1>
+    root().innerHTML = shell(`<div class="sanction-badge ${banned ? "ban" : "susp"}" aria-hidden="true">${banned ? "⛔" : "⏸"}</div>
+      <h2 class="auth-h2">${banned ? "Compte banni" : "Compte suspendu"}</h2>
       <dl class="sanction-facts"><div><dt>Raison</dt><dd>${h(reason)}</dd></div><div><dt>Durée</dt><dd>${h(untilText)}</dd></div></dl>
       ${active ? (pending
         ? `<p class="notice">Ta contestation est en cours d'examen. Tu seras prévenu de la réponse.</p>`
         : `<button class="btn big wide-btn" data-appeal>Contester cette décision</button>`) : ""}
-      <p class="auth-links"><button class="link-btn" data-export>Exporter mes données</button> · <button class="link-btn" data-delete>Supprimer mon compte</button> · <button class="link-btn" data-out>Se déconnecter</button></p>
-      <p class="fine">Tu peux toujours exporter ou supprimer tes données, quelle que soit la sanction.</p>
-    </main></div>`;
+      <div class="auth-alt"><button class="pill-btn" data-export>Exporter mes données</button><button class="pill-btn" data-delete>Supprimer mon compte</button><button class="pill-btn" data-out>Se déconnecter</button></div>
+      <p class="fine legal">Tu peux toujours exporter ou supprimer tes données, quelle que soit la sanction.</p>`, "sanction");
     const $r = (s) => document.querySelector(s);
     $r("[data-out]").onclick = () => signOut();
     $r("[data-export]").onclick = () => exportData();
@@ -315,10 +343,9 @@ const SonaUI = (() => {
       const body = () => {
         if (steps[i] === "profile") return `<h2 class="auth-h2">Ton profil</h2>
           <p class="auth-hint">Comment tes amis te retrouvent. Tu pourras tout changer plus tard.</p>
-          <div class="ob-avatar"><button type="button" class="ob-photo" data-photo aria-label="Choisir une photo">${avatar(data.avatar, data.username || "?", "profile-avatar")}<span>Photo</span></button>
+          <div class="ob-avatar"><button type="button" class="ob-photo" data-photo aria-label="Choisir une photo">${avatar(data.avatar, data.username || "?", "profile-avatar")}<em class="ob-photo-label">Photo</em></button>
             <input type="file" accept="image/*" hidden data-file></div>
-          <label class="ob-label" for="ob-name">Pseudo</label>
-          <input class="field" id="ob-name" value="${h(data.username)}" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ex. alice_92">
+          <div class="fld"><input class="fi" id="ob-name" value="${h(data.username)}" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder=" "><label for="ob-name">Pseudo</label></div>
           <p class="ob-check ${check.ok === true ? "ok" : check.ok === false ? "bad" : ""}" id="ob-check" role="status" aria-live="polite">${h(check.text || "3 à 20 caractères : lettres, chiffres, _ . -")}</p>
           <div class="ob-actions"><button class="btn big" data-next ${check.ok ? "" : "disabled"}>Continuer</button></div>`;
         if (steps[i] === "services") return `<h2 class="auth-h2">Connecter tes services</h2>
@@ -349,7 +376,7 @@ const SonaUI = (() => {
       };
 
       const paint = () => {
-        root().innerHTML = `<div class="login auth"><div class="login-bg"></div><main class="login-card auth-card onboarding">${progress()}${body()}<div class="auth-msg" id="ob-msg" role="alert"></div></main></div>`;
+        root().innerHTML = shell(`${progress()}${body()}<div class="auth-msg" id="ob-msg" role="alert"></div>`, "onboarding");
         bind();
       };
 

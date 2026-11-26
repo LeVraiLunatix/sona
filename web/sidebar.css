@@ -1,7 +1,7 @@
-/* Sona : menu latéral « Rail ↔ Panneau » (variante A « Pilule », voir docs/sidebar-variants/).
+/* Sona : menu latéral « Rail ↔ Panneau » (variante B « Flottante », voir docs/sidebar-variants/).
 
-   Fermé : rail de 72 px, icônes de 24 px dans des zones de 48 × 48. Ouvert : panneau
-   de 264 px. Le panneau a TOUJOURS sa largeur ouverte ; ce qu'on voit est découpé par
+   Carte arrondie flottante, à 12 px des bords. Fermé : rail de 72 px, icônes de 24 px dans des zones
+   de 48 × 48. Ouvert : panneau de 264 px. Le panneau a TOUJOURS sa largeur ouverte ; ce qu'on voit est découpé par
    `clip-path` : aucune largeur animée, donc aucun recalcul de mise en page, aucun texte
    écrasé (les libellés ont leur place entière, ils apparaissent en fondu une fois le
    panneau commencé à s'ouvrir et disparaissent avant qu'il ne se referme).
@@ -10,41 +10,42 @@
 :root {
   --sb-rail: 72px;
   --sb-open: 264px;
+  --sb-gap: 12px;            /* marge autour de la carte flottante */
   --sb-dur: 230ms;
   --sb-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  --sb-line: rgba(255, 255, 255, 0.08);
+  --sb-line: rgba(255, 255, 255, 0.1);
+  --sb-face: #0e0e10;
 }
 
 .sb-spacer { display: none; }
 
 @media (min-width: 761px) {
-  :root { --sidebar-w: var(--sb-rail); }
-  html[data-menu="ouvert"] { --sidebar-w: var(--sb-open); }
+  :root { --sidebar-w: calc(var(--sb-rail) + var(--sb-gap)); }
+  html[data-menu="ouvert"] { --sidebar-w: calc(var(--sb-open) + var(--sb-gap)); }
   .app { grid-template-columns: var(--sidebar-w) 1fr; }
   .sb-spacer { display: block; grid-row: 1 / -1; grid-column: 1; }
-  .content { grid-column: 2; }
+  .content { grid-column: 2; margin-left: var(--s-3, 12px); }
 
+  /* Carte flottante, détachée des bords. Deux calques rognés ensemble : l'anneau (1 px, couleur de
+     bordure) et la face (fond). Ils se replient de la même façon, donc le contour suit le bord visible. */
   .sb {
-    position: fixed; z-index: 30; inset: 0 auto 0 0; width: var(--sb-open);
-    display: flex; flex-direction: column;
-    padding: max(14px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
-    background: #000; color: var(--text);
-    /* Fermé : on ne montre que les 72 premiers pixels (aussi pour les clics). */
-    clip-path: inset(0 calc(var(--sb-open) - var(--sb-rail)) 0 0);
-    /* Fermeture : les libellés s'effacent d'abord (70 ms), puis le panneau se replie. */
+    position: fixed; z-index: 30; width: var(--sb-open); border-radius: 28px;
+    top: max(var(--sb-gap), env(safe-area-inset-top)); bottom: max(var(--sb-gap), env(safe-area-inset-bottom)); left: var(--sb-gap);
+    display: flex; flex-direction: column; padding: 12px; color: var(--text);
+    background: var(--sb-line);
+    clip-path: inset(0 calc(var(--sb-open) - var(--sb-rail)) 0 0 round 28px);
+    /* Fermeture : les libellés s'effacent d'abord (70 ms), puis la carte se replie. */
     transition: clip-path var(--sb-dur) var(--sb-ease) 70ms;
-    contain: layout paint;
-    user-select: none; -webkit-user-select: none;
+    contain: layout paint; user-select: none; -webkit-user-select: none;
   }
-  .sb[data-open="true"] { clip-path: inset(0 0 0 0); transition-delay: 0ms; }
-
-  /* Filet de séparation : suit le bord visible (transform, pas de largeur). */
-  .sb-edge {
-    position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--sb-line); pointer-events: none;
-    transform: translateX(calc(var(--sb-rail) - 1px));
-    transition: transform var(--sb-dur) var(--sb-ease) 70ms;
+  .sb-face {
+    position: absolute; inset: 1px; border-radius: 27px; background: var(--sb-face); pointer-events: none;
+    clip-path: inset(0 calc(var(--sb-open) - var(--sb-rail)) 0 0 round 27px);
+    transition: clip-path var(--sb-dur) var(--sb-ease) 70ms;
   }
-  .sb[data-open="true"] .sb-edge { transform: translateX(calc(var(--sb-open) - 1px)); transition-delay: 0ms; }
+  .sb[data-open="true"] { clip-path: inset(0 0 0 0 round 28px); transition-delay: 0ms; }
+  .sb[data-open="true"] .sb-face { clip-path: inset(0 0 0 0 round 27px); transition-delay: 0ms; }
+  .sb > *:not(.sb-face) { position: relative; }
 }
 
 /* ── Contenu : mêmes dimensions fermé et ouvert ───────────────────────── */
@@ -77,12 +78,12 @@
   color: var(--text-2); font-size: 14.5px; font-weight: 500; text-align: left; line-height: 1.2;
   transition: background 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease);
 }
-.sb-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.sb-link:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
 .sb-link:active { transform: scale(0.98); }
 .sb-link:focus-visible, .sb-toggle:focus-visible, .sb-profile:focus-visible, .sb-logo:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.sb-link.active { background: rgba(255, 255, 255, 0.1); color: var(--accent); }
-/* Petit indicateur discret, au bord du rail. */
-.sb-link.active::before { content: ""; position: absolute; left: -9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--accent); }
+/* Page active : pastille pleine de la couleur d'accent (la seule chose colorée du menu). */
+.sb-link.active { background: var(--accent); color: var(--on-accent, #0a0a0b); }
+.sb-link.active:hover { background: var(--accent); color: var(--on-accent, #0a0a0b); }
 
 .sb-ico { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: none; font-size: 24px; }
 .sb-ico .icon { width: 24px; height: 24px; }
@@ -96,7 +97,7 @@
 /* Pastille de notification : point ou compteur sur l'icône. */
 .sb-badge {
   position: absolute; top: 6px; right: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--text); color: var(--bg); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 3px #000;
+  background: #ff453a; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 3px var(--sb-face);
 }
 .sb-badge.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 10px; right: 10px; }
 .sb-badge[hidden] { display: none; }
@@ -114,7 +115,7 @@
 
 .sb-foot { flex: none; padding-top: 8px; }
 .sb-profile { display: flex; align-items: center; width: 100%; height: 56px; border-radius: 16px; text-align: left; transition: background 150ms; }
-.sb-profile:hover { background: rgba(255, 255, 255, 0.06); }
+.sb-profile:hover { background: rgba(255, 255, 255, 0.07); }
 .sb-profile .sb-ico { position: relative; }
 .sb-profile .avatar { width: 36px; height: 36px; font-size: 15px; }
 .sb-name { flex: 1; min-width: 0; padding-right: 4px; line-height: 1.25; opacity: 0; transform: translateX(-4px); transition: opacity 90ms, transform 90ms; }
@@ -151,5 +152,20 @@
 .more-sheet .more-profile .avatar { width: 44px; height: 44px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sb, .sb-edge, .sb-label, .sb-name, .sb-title span, .sb-title::after, .sb-gear, .sb-word, .sb-pl, .sb-tip, .sb-link { transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+  .sb, .sb-face, .sb-label, .sb-name, .sb-title span, .sb-title::after, .sb-gear, .sb-word, .sb-pl, .sb-tip, .sb-link { transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+}
+
+/* Le halo de couleur des pages dépasse de quelques pixels : on le rogne à la fenêtre (aucun défilement horizontal). */
+.app { overflow: clip; }
+
+/* Rail : la pastille d'une page ne dépasse pas la zone de 48 px (sinon elle serait coupée net au bord de la carte).
+   Même courbe et même délai que la carte : elle s'élargit avec elle. */
+@media (min-width: 761px) {
+  .sb-link:not(.sb-pl .sb-link), .sb-profile {
+    clip-path: inset(0 calc(100% - 48px) 0 0 round 16px);
+    transition: background 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease), clip-path var(--sb-dur) var(--sb-ease) 70ms;
+  }
+  .sb[data-open="true"] .sb-link, .sb[data-open="true"] .sb-profile { clip-path: inset(0 0 0 0 round 16px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  /* Liste des playlists : se fond en bas plutôt que d'être coupée net. */
+  .sb-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
 }

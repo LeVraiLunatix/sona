@@ -449,6 +449,9 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
+  /** Page de l'app à l'espacement resserré (mêmes composants, moins de vide). */
+  window.cpage = (inner) => `<div class="page compact">${inner}</div>`;
+
   window.Sona = {
     configured, auth, passkeys, social, svc, download, b64,
     config: { accountsUrl: ACCOUNTS_URL, turnstile: !!TURNSTILE_KEY },

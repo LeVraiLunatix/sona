@@ -19,12 +19,12 @@ const SonaAdmin = (() => {
   const list = { search: "", role: "", status: "", provider: "", offset: 0 };
 
   async function view(tab = "dashboard") {
-    if (!account?.is_staff) return page(empty("🔒", "Accès réservé", "Cette page est réservée à l'équipe de Sona."));
+    if (!account?.is_staff) return cpage(empty("🔒", "Accès réservé", "Cette page est réservée à l'équipe de Sona."));
     if (!TABS.some(([t]) => t === tab) || (tab === "audit" && !isAdmin())) tab = "dashboard";
     $("#content").innerHTML = skeleton("Administration");
     const tabs = `<nav class="admin-tabs" aria-label="Sections de l'administration">${TABS.filter(([t]) => t !== "audit" || isAdmin()).map(([t, l]) => `<a href="#/admin/${t}" class="${t === tab ? "on" : ""}" ${t === tab ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
     const body = await ({ dashboard, users, reports, appeals, content, rules, audit }[tab])();
-    return page(`<h1 class="page-title">Administration</h1>${tabs}<div class="admin">${body}</div>`);
+    return cpage(`<h1 class="page-title">Administration</h1>${tabs}<div class="admin">${body}</div>`);
   }
 
   // ── Tableau de bord ──────────────────────────────────────────────────────

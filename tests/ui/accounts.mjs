@@ -202,7 +202,7 @@ const contentLeft = (page) => page.evaluate(() => document.getElementById("conte
   const geo = await t.page.evaluate(() => [...document.querySelectorAll("#sb a.sb-link[data-nav]")].filter((a) => !a.dataset.nav.startsWith("playlist")).map((a) => { const r = a.getBoundingClientRect(); const i = a.querySelector(".sb-ico").getBoundingClientRect(); return { h: r.height, iw: i.width, ih: i.height }; }));
   ok("zones cliquables ≥ 48 px, icônes dans 48 × 48", geo.every((g) => g.h >= 44 && g.iw >= 48 && g.ih >= 48), JSON.stringify(geo[0]));
   const openLeft = await contentLeft(t.page);
-  ok("ouvert : le contenu commence après 264 px", openLeft >= 264 && openLeft < 290, String(openLeft));
+  ok("ouvert : le contenu commence après la carte (276 px + marge)", openLeft >= 276 && openLeft < 310, String(openLeft));
   ok("pas de scroll horizontal (menu ouvert)", !(await hasScrollX(t.page)));
   const labels = await t.page.evaluate(() => [...document.querySelectorAll("#sb .sb-link .sb-label")].filter((l) => l.scrollWidth > l.clientWidth + 1 && getComputedStyle(l).textOverflow !== "ellipsis").length);
   ok("aucun libellé tronqué sans ellipsis", labels === 0);
@@ -225,7 +225,7 @@ const contentLeft = (page) => page.evaluate(() => document.getElementById("conte
   await wait(t.page, 450);
   ok("bouton : rail (aria-expanded=false, data-menu=rail)", (await openState(t.page)) === "false" && (await t.page.getAttribute("#sb-toggle", "aria-expanded")) === "false" && (await t.page.getAttribute("html", "data-menu")) === "rail");
   const railLeft = await contentLeft(t.page);
-  ok("rail : le contenu commence après 72 px", railLeft >= 72 && railLeft < 100, String(railLeft));
+  ok("rail : le contenu commence après la carte (84 px + marge)", railLeft >= 84 && railLeft < 110, String(railLeft));
   const vis = await t.page.evaluate(() => { const sb = document.getElementById("sb"); const r = sb.getBoundingClientRect(); return { clip: getComputedStyle(sb).clipPath, w: r.width }; });
   ok("rail : largeur ouverte conservée, rognée par clip-path (pas de largeur animée)", vis.w === 264 && /inset/.test(vis.clip), JSON.stringify(vis));
   const op = await t.page.evaluate(() => getComputedStyle(document.querySelector('#sb [data-nav="home"] .sb-label')).opacity);
