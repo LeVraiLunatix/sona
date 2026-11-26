@@ -4,27 +4,28 @@
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ── Connexion, bienvenue, sanction : une seule coque ───────────────────
-   Noir, une grotesque, et le logo qui résonne (accounts-ui.js). Rien d'autre. */
-.login.auth { display: block; height: 100vh; height: 100dvh; padding: 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; container-type: inline-size; text-align: left; -webkit-overflow-scrolling: touch; background: #000; color-scheme: dark;
+   Noir, une grotesque, et des plis de satin (silk.js). Rien d'autre. */
+.login.auth { display: block; height: 100vh; height: 100dvh; padding: 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; text-align: left; -webkit-overflow-scrolling: touch; background: #000; color-scheme: dark;
   --text: #f4f4f5; --text-2: #a1a1a9; --text-3: #74747d; --hairline: rgba(255, 255, 255, .13); --fill: rgba(255, 255, 255, .06); --fill-strong: #101012; --bg: #000; --bg-elevated: #151517; color: var(--text);
   --display: "Familjen Grotesk", var(--font, system-ui); --out: cubic-bezier(.16, 1, .3, 1); }
 .auth-layout {
   position: relative; min-height: 100vh; min-height: 100dvh; display: grid; align-content: start; justify-items: center;
   padding: max(20px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
 }
-.auth-echo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.auth-silk { position: fixed; inset: 0; pointer-events: none; }
+.auth-silk canvas { display: block; width: 100%; height: 100%; }
+/* Voile : le fond reste visible à gauche et s'assombrit sous le formulaire. */
+.auth-silk::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .1), rgba(0, 0, 0, .85) 26%); }
 .auth-brand { display: none; }
 .auth-card { position: relative; width: min(400px, 100%); padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; text-align: left; }
-.auth-top { display: flex; height: 168px; align-items: flex-start; margin-bottom: 8px; padding-top: 4px; }
-.auth-top .auth-logo { display: none; }
-.auth-card.onboarding .auth-top .auth-logo { display: inline-flex; }
+.auth-top { display: flex; align-items: center; margin: 12px 0 56px; }
+.auth-top .auth-logo { position: relative; }
 .auth-logo { display: inline-flex; align-items: center; gap: 10px; font: 700 21px/1 var(--display); letter-spacing: -.02em; }
 .auth-logo svg { width: 26px; height: 26px; }
 
 @media (min-width: 960px) {
   .auth-layout { grid-template-columns: minmax(0, 1fr) 400px; align-content: stretch; align-items: center; justify-items: stretch; gap: 80px; max-width: 1280px; margin: 0 auto; padding: 48px 56px; }
-  /* Les échos débordent sur toute la fenêtre et s'effacent avant le formulaire. */
-  .auth-echo { left: calc(50% - 50cqw); width: 100cqw; -webkit-mask: linear-gradient(90deg, #000 46%, transparent 60%); mask: linear-gradient(90deg, #000 46%, transparent 60%); }
+  .auth-silk::after { background: linear-gradient(90deg, rgba(0, 0, 0, .15), rgba(0, 0, 0, .35) 45%, rgba(0, 0, 0, .85) 62%); }
   .auth-brand { position: relative; display: flex; flex-direction: column; align-self: start; height: calc(100dvh - 96px); min-height: 560px; gap: 22px; pointer-events: none; padding-bottom: 2vh; }
   .auth-brand .auth-logo { margin-bottom: auto; }
   .auth-top { display: none; }
@@ -38,7 +39,7 @@
 /* Bienvenue et sanction gardent un panneau pour la lisibilité. */
 .auth-card.onboarding { padding: 22px; background: rgba(14, 14, 16, .88); border: 1px solid var(--hairline); border-radius: 24px; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 
-.auth-card.onboarding .auth-top { height: auto; margin-bottom: 20px; }
+.auth-card.onboarding .auth-top { margin: 0 0 20px; }
 .auth-card.onboarding { width: min(440px, 100%); align-self: start; }
 
 /* Une seule mise en scène, à la première ouverture. */
