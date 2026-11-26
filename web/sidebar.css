@@ -45,7 +45,7 @@
   }
   .sb[data-open="true"] { clip-path: inset(0 0 0 0 round 28px); transition-delay: 0ms; }
   .sb[data-open="true"] .sb-face { clip-path: inset(0 0 0 0 round 27px); transition-delay: 0ms; }
-  .sb > *:not(.sb-face) { position: relative; }
+  .sb > *:not(.sb-face):not(.sb-liquid) { position: relative; }
 }
 
 /* ── Contenu : mêmes dimensions fermé et ouvert ───────────────────────── */
@@ -172,4 +172,18 @@
   .sb[data-open="true"] .sb-link, .sb[data-open="true"] .sb-profile { clip-path: inset(0 0 0 0 round 16px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
   /* Liste des playlists : se fond en bas plutôt que d'être coupée net. */
   .sb-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
+}
+
+/* ── Pastille « liquide » ─────────────────────────────────────────────────
+   Collée au bord gauche de la carte et arrondie vers la droite (une goutte). Quand on change de page, elle
+   glisse en s'étirant (un bord part avant l'autre) puis rebondit légèrement vers la droite (voir sidebar.js).
+   Elle est dans la carte, sous les libellés : le texte de la page active passe en sombre. */
+.sb-liquid { display: none; }
+@media (min-width: 761px) {
+  .sb-liquid { display: block; position: absolute; left: 1px; top: 0; bottom: 0; width: 64px; opacity: 0; pointer-events: none;
+    transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), width var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
+  .sb[data-open="true"] .sb-liquid { width: calc(var(--sb-open) - 13px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 0 24px 24px 0; transform-origin: left center; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+  .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
+  .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
 }

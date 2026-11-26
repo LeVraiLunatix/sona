@@ -218,6 +218,16 @@ const contentLeft = (page) => page.evaluate(() => document.getElementById("conte
   ok("animation : 200–250 ms, sur clip-path (jamais width)", /clip-path/.test(timing.open.prop) && !/width/.test(timing.open.prop) && parseFloat(timing.open.clipDur) >= 0.2 && parseFloat(timing.open.clipDur) <= 0.25, JSON.stringify(timing.open));
   ok("ouverture : libellés en fondu APRÈS le début de l'agrandissement", parseFloat(timing.open.labelDelay) >= 0.08 && parseFloat(timing.open.clipDelay) === 0, JSON.stringify(timing));
   ok("fermeture : libellés effacés AVANT le repli", parseFloat(timing.closed.clipDelay) >= 0.06 && parseFloat(timing.closed.labelDelay) === 0, JSON.stringify(timing));
+  const liq = async () => t.page.evaluate(() => { const l = document.getElementById("sb-liquid").getBoundingClientRect(); const a = document.querySelector("#sb .sb-link.active").getBoundingClientRect(); const sb = document.getElementById("sb").getBoundingClientRect(); return { lt: l.top, at: a.top, lh: l.height, ah: a.height, ll: l.left - sb.left, lw: l.width, op: getComputedStyle(document.getElementById("sb-liquid")).opacity, tc: getComputedStyle(document.querySelector("#sb .sb-link.active")).color }; });
+  const l1 = await liq();
+  ok("pastille liquide : sous la page active, collée au bord gauche", Math.abs(l1.lt - l1.at) < 2 && Math.abs(l1.lh - l1.ah) < 2 && l1.ll <= 2 && l1.op === "1", JSON.stringify(l1));
+  await t.page.evaluate(() => { location.hash = "#/friends"; });
+  await wait(t.page, 700);
+  const l2 = await liq();
+  ok("pastille liquide : glisse sous la nouvelle page", Math.abs(l2.lt - l2.at) < 2 && l2.lt > l1.lt + 100, JSON.stringify([l1.lt, l2]));
+  ok("texte de la page active lisible sur la pastille (sombre)", /rgb\(\s*(\d{1,2}),\s*(\d{1,2}),\s*(\d{1,2})\)/.test(l2.tc) && Number(l2.tc.match(/\d+/)[0]) < 60, l2.tc);
+  await t.page.evaluate(() => { location.hash = "#/home"; });
+  await wait(t.page, 700);
   await t.page.screenshot({ path: "/tmp/claude-0/sidebar-open.png" });
 
   // Fermer : bouton, puis Ctrl+B.

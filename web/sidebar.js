@@ -184,6 +184,7 @@ const Sidebar = (() => {
     return `<div class="sb-spacer" aria-hidden="true"></div>
     <nav class="sb" id="sb" aria-label="Navigation principale" data-open="false">
       <div class="sb-face" aria-hidden="true"></div>
+      <div class="sb-liquid" id="sb-liquid" aria-hidden="true"><i></i></div>
       <div class="sb-top"><a class="sb-logo" href="#/home" aria-label="Sona, accueil"><span class="sb-brand"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg><span class="sb-word" aria-hidden="true">ona</span></span></a></div>
       <button class="sb-link sb-toggle" id="sb-toggle" type="button" aria-expanded="false" aria-controls="sb-scroll" data-tip="Menu" data-key="" style="margin-top:6px">
         <span class="sb-ico"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h3.5V6zm5.500 0v12H19V6z"/></svg></span><span class="sb-label">Réduire le menu</span></button>
@@ -212,7 +213,8 @@ const Sidebar = (() => {
     el.addEventListener("focusin", (e) => { const l = e.target.closest("[data-tip]"); if (l && e.target.matches(":focus-visible")) showTip(l); });
     el.addEventListener("focusout", hideTip);
     el.addEventListener("click", hideTip);
-    el.addEventListener("scroll", hideTip, true);
+    el.addEventListener("scroll", () => { hideTip(); placeLiquid(false); }, true);
+    liquid.top = null;
     mark();
     paintBadges();
   }
@@ -230,6 +232,50 @@ const Sidebar = (() => {
     document.querySelectorAll(".tabbar [data-tab]").forEach((b) => { if (b.dataset.tab === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     const more = document.querySelector(".tabbar [data-more]");
     if (more) more.classList.toggle("active", !BAR.some(([id]) => id === tab));
+    placeLiquid(true);
+  }
+
+  // ── Pastille « liquide » : collée au bord gauche de la carte, elle glisse d'une page à l'autre en s'étirant ──
+
+  const liquid = { top: null, bottom: null };
+
+  /** Place la pastille sous la page active. `animate` : étirement (le bord avant file, l'autre suit) puis petit rebond vers la droite. */
+  function placeLiquid(animate = true) {
+    const sb = root();
+    const el = document.getElementById("sb-liquid");
+    if (!sb || !el || !mq.matches) return;
+    const link = sb.querySelector(".sb-link.active:not(.sb-toggle), .sb-profile.active");
+    const box = sb.getBoundingClientRect();
+    let r = link?.getBoundingClientRect();
+    // Lien rangé dans la liste qui défile : caché s'il sort de la zone visible.
+    const scroller = link?.closest(".sb-scroll")?.getBoundingClientRect();
+    if (r && scroller && (r.bottom < scroller.top + 6 || r.top > scroller.bottom - 6)) r = null;
+    if (!r || !r.height) { el.style.opacity = "0"; sb.dataset.liquid = "off"; return; }
+    sb.dataset.liquid = "on";
+    const top = r.top - box.top;
+    const bottom = box.bottom - r.bottom;
+    const first = liquid.top == null || el.style.opacity !== "1";
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (first || !animate || reduce) {
+      el.style.transition = "none";
+      el.style.top = `${top}px`;
+      el.style.bottom = `${bottom}px`;
+      el.style.opacity = "1";
+      void el.offsetHeight;
+      el.style.transition = "";
+    } else if (top !== liquid.top) {
+      // Descendre : le bord du bas part le premier, celui du haut le rattrape (et inversement) : ça s'étire comme du liquide.
+      const down = top > liquid.top;
+      const lead = "180ms cubic-bezier(0.3, 0.9, 0.4, 1)";
+      const trail = "420ms cubic-bezier(0.34, 1.45, 0.5, 1)";
+      el.style.transition = `top ${down ? trail : lead}, bottom ${down ? lead : trail}, width var(--sb-dur) var(--sb-ease), opacity 150ms`;
+      el.style.top = `${top}px`;
+      el.style.bottom = `${bottom}px`;
+      // Petit coup vers la droite à l'arrivée.
+      el.firstElementChild?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.055)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 480, easing: "ease-out", delay: 60 });
+    }
+    liquid.top = top;
+    liquid.bottom = bottom;
   }
 
   function renderLists() {
@@ -339,10 +385,11 @@ const Sidebar = (() => {
     const wide = innerWidth >= WIDE;
     if (wide !== lastWide) { lastWide = wide; if (root()) applyMode(); }
     hideTip();
+    placeLiquid(false);
   });
   mq.addEventListener?.("change", () => { if (root()) applyMode(); });
 
-  return { html, mount, mark, renderLists, renderAccount, tabbarHtml, bindTabbar, toggle, moreSheet, applyMode, BAR };
+  return { html, mount, mark, placeLiquid, renderLists, renderAccount, tabbarHtml, bindTabbar, toggle, moreSheet, applyMode, BAR };
 })();
 
 // Noms attendus par app.js et par les réglages.
