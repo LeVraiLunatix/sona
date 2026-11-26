@@ -70,6 +70,11 @@ pub async fn register_start(State(s): State<AppState>, AuthUser(p): AuthUser) ->
     let exclude: Vec<CredentialID> = existing.iter().filter_map(|c| URL_SAFE_NO_PAD.decode(c).ok()).map(CredentialID::from).collect();
     let (options, state) = w.start_passkey_registration(p.id, &p.username, &p.username, Some(exclude)).map_err(bad_passkey)?;
     let id = save_state(&s, Some(p.id), "register", &state).await?;
+    let mut options = serde_json::to_value(&options).map_err(|e| AppError::Internal(e.to_string()))?;
+    // Connexion sans e-mail : la clé doit être « découvrable » (stockée sur l'appareil).
+    // La bibliothèque la laisse « déconseillée » ; la vérification côté serveur n'en dépend pas.
+    options["publicKey"]["authenticatorSelection"]["residentKey"] = json!("required");
+    options["publicKey"]["authenticatorSelection"]["requireResidentKey"] = json!(true);
     Ok(Json(json!({ "challenge_id": id, "options": options })))
 }
 
