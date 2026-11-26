@@ -198,7 +198,7 @@
   .sb-bridge b { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); transform-origin: left center;
     border-radius: 0 5px 5px 0 / 0 50% 50% 0; box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 55%, transparent); }
   /* jonction : comble l'espace entre la pastille (collée au bord droit de la carte) et le trait de la page, pour que les deux n'en fassent qu'un */
-  .sb-bridge i { position: absolute; left: calc(var(--sb-gap) * -1 - 1px); width: calc(var(--sb-gap) + 6px); top: 36px; bottom: 36px; background: var(--accent); }
+  .sb-bridge i { position: absolute; left: calc(var(--sb-gap) * -1 - 1px); width: calc(var(--sb-gap) + 6px); top: 36px; bottom: 36px; background: var(--accent); transform-origin: left center; }
   /* raccords arrondis (concaves) : le col étroit s'évase vers le trait de la page, comme une goutte de liquide qui s'étire */
   .sb-bridge i::before, .sb-bridge i::after { content: ""; position: absolute; left: 1px; width: var(--sb-gap); height: var(--sb-gap); }
   .sb-bridge i::before { bottom: 100%; background: radial-gradient(circle at 0 0, transparent calc(var(--sb-gap) - .5px), var(--accent) var(--sb-gap)); }

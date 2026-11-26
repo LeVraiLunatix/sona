@@ -289,6 +289,7 @@ const Sidebar = (() => {
       set();
       // À l'arrivée : le trait de la bordure s'épaissit un peu plus, et la lueur s'enfle puis retombe.
       bump.querySelector("b")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.9)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 560, easing: "ease-out", delay: 120 });
+      bump.querySelector("i")?.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 420, easing: "cubic-bezier(0.32, 0.72, 0, 1)", delay: 60, fill: "backwards" });  // le chemin se creuse de la pastille vers la page
       glow.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.18)", opacity: 1, offset: 0.45 }, { transform: "scale(1)", opacity: 1 }], { duration: 560, easing: "ease-out", delay: 120 });
       clearTimeout(placeLiquid.t);
       placeLiquid.t = setTimeout(() => parts.forEach((n) => (n.style.transition = "")), 640);
