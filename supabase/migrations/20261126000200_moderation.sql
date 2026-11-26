@@ -64,9 +64,7 @@ $$;
 create function public.service_notify(p_user uuid, p_kind text, p_payload jsonb) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
-  if auth.role() <> 'service_role' and current_user not in ('postgres', 'service_role', 'supabase_admin') then
-    raise exception 'forbidden' using errcode = '42501';
-  end if;
+  perform private.only_service();
   if p_kind not in ('session_invite') then raise exception 'kind_not_allowed'; end if;
   perform private.notify(p_user, p_kind, p_payload);
 end $$;
@@ -274,9 +272,7 @@ language plpgsql security definer set search_path = '' as $$
 declare
   v_reason text;
 begin
-  if auth.role() <> 'service_role' and current_user not in ('postgres', 'service_role', 'supabase_admin') then
-    raise exception 'forbidden' using errcode = '42501';
-  end if;
+  perform private.only_service();
   v_reason := private.check_signup(p_email, p_provider, p_subject, p_ip);
   insert into private.signup_events (ip, email_domain, outcome)
   values (p_ip, lower(split_part(coalesce(p_email, ''), '@', 2)), coalesce(v_reason, 'accepted'));
@@ -345,10 +341,13 @@ begin
   delete from auth.sessions where user_id = p_user;
 end $$;
 
+-- Garde de second niveau (le vrai rempart est EXECUTE, réservé au rôle serveur) :
+-- `role` est le rôle posé par SET ROLE (PostgREST) et reste visible même à
+-- l'intérieur d'une fonction SECURITY DEFINER, contrairement à current_user.
 create function private.only_service() returns void
 language plpgsql set search_path = '' as $$
 begin
-  if auth.role() <> 'service_role' and current_user not in ('postgres', 'service_role', 'supabase_admin') then
+  if coalesce(current_setting('role', true), 'none') in ('authenticated', 'anon') then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 end $$;
@@ -370,7 +369,7 @@ begin
   perform private.only_service();
   v_reason := private.require_reason(p_reason);
   v_kind := p_kind::public.sanction_kind;
-  v_role := private.require_actor(p_actor, case when v_kind = 'ban' then 'admin' else 'moderator' end);
+  v_role := private.require_actor(p_actor, (case when v_kind = 'ban' then 'admin' else 'moderator' end)::public.user_role);
   perform private.require_above(p_actor, v_role, p_target);
 
   if v_kind = 'suspension' then
@@ -565,15 +564,15 @@ declare
 begin
   if v_me is null or not private.is_active(v_me) then raise exception 'forbidden' using errcode = '42501'; end if;
   if p_target_user = v_me then raise exception 'cannot_report_self' using errcode = '22023'; end if;
-  -- Pas de spam de signalements : 3 / heure, 10 / jour.
-  perform private.rate_limit('report_h:' || v_me, 3, interval '1 hour');
-  perform private.rate_limit('report_d:' || v_me, 10, interval '1 day');
-  -- Doublon récent : on renvoie le même signalement.
+  -- Doublon récent : on renvoie le même signalement, sans consommer de quota.
   select id into v_id from public.reports
    where reporter_id = v_me and target_type = p_target_type
      and target_user_id is not distinct from p_target_user and target_ref is not distinct from p_target_ref
      and created_at > now() - interval '24 hours' limit 1;
   if v_id is not null then return v_id; end if;
+  -- Pas de spam de signalements : 3 / heure, 10 / jour.
+  perform private.rate_limit('report_h:' || v_me, 3, interval '1 hour');
+  perform private.rate_limit('report_d:' || v_me, 10, interval '1 day');
 
   insert into public.reports (reporter_id, target_type, target_user_id, target_ref, reason, details, snapshot)
   values (v_me, p_target_type, p_target_user, p_target_ref, p_reason, nullif(btrim(p_details), ''), coalesce(p_snapshot, '{}'))
