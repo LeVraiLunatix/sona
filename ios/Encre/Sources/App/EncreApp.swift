@@ -76,6 +76,8 @@ struct AppGate: View {
                 } else {
                     ServerUnreachableView(message: message).transition(.opacity)
                 }
+            case .sanctioned(let sanction):
+                SanctionView(sanction: sanction).transition(.opacity)
             case .pending(let account):
                 AccessPendingView(account: account, rejected: false).transition(.opacity)
             case .rejected(let account):

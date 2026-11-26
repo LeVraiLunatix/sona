@@ -75,6 +75,9 @@ class Settings:
     # jetons (API_TOKEN, sessions Last.fm) fonctionnent et il n'y a aucun ami.
     sona_accounts_url: str | None = None
     sona_internal_secret: str | None = None
+    # Valeurs PUBLIQUES du projet Supabase (adresse + clé « anon »), données aux apps natives via GET /auth/config.
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
     # Karaoké (app/services/karaoke.py) : pistes voix / instru séparées par
     # IA, gardées dans `karaoke_dir` (les plus anciennes supprimées au-delà
     # de la taille max), et modèle de séparation téléchargé dans
@@ -177,6 +180,8 @@ def load_settings() -> Settings:
         web_app_url=os.getenv("SONA_WEB_URL", "").strip().rstrip("/") or None,
         sona_accounts_url=os.getenv("SONA_ACCOUNTS_URL", "").strip().rstrip("/") or None,
         sona_internal_secret=os.getenv("INTERNAL_API_SECRET", "").strip() or None,
+        supabase_url=os.getenv("SUPABASE_URL", "").strip().rstrip("/") or None,
+        supabase_anon_key=os.getenv("SUPABASE_ANON_KEY", "").strip() or None,
         admin_lastfm_users=frozenset(
             name.strip().casefold()
             for name in (os.getenv("ADMIN_LASTFM_USERS") or os.getenv("LASTFM_USER") or "").split(",")

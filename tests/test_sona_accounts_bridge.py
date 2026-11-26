@@ -375,3 +375,13 @@ def test_link_waits_for_lastfm_authorisation_without_signing_out(client):
     client.deps.lastfm_auth.get_session = not_yet
     got = client.post("/auth/link-legacy", headers=person(client, "alice"), json={"token": "t"})
     assert got.status_code == 400 and got.json()["detail"].startswith("Autorise d'abord")
+
+
+def test_auth_config_gives_the_native_apps_only_public_values(client):
+    got = client.get("/auth/config").json()
+    assert got["supabase_url"] is None and got["supabase_anon_key"] is None
+    object.__setattr__(client.deps.settings, "supabase_url", "https://x.supabase.co")
+    object.__setattr__(client.deps.settings, "supabase_anon_key", "anon-publique")
+    got = client.get("/auth/config").json()
+    assert got["supabase_url"] == "https://x.supabase.co" and got["supabase_anon_key"] == "anon-publique"
+    assert SECRET not in str(got)

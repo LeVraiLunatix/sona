@@ -5,9 +5,27 @@ enum APIError: LocalizedError {
     case notConfigured
     case invalidResponse
     case server(status: Int, message: String)
+    /// Compte banni ou suspendu (403 `{"error": "sanctioned", …}`) : l'app affiche l'écran de sanction.
+    case sanctioned(Sanction)
+
+    struct Sanction: Equatable {
+        var status: String
+        var reason: String?
+        var until: String?
+    }
+
+    /// Erreur d'une réponse HTTP non réussie : une sanction est reconnue à son corps, tout le reste reste une erreur serveur.
+    static func failure(status: Int, data: Data) -> APIError {
+        if status == 403, let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], object["error"] as? String == "sanctioned" {
+            return .sanctioned(Sanction(status: object["status"] as? String ?? "banned", reason: object["reason"] as? String, until: object["until"] as? String))
+        }
+        return .server(status: status, message: serverMessage(from: data))
+    }
 
     var errorDescription: String? {
         switch self {
+        case .sanctioned(let sanction):
+            return sanction.status == "suspended" ? "Ton compte est suspendu." : "Ton compte a été banni."
         case .notConfigured:
             return "Renseigne l'adresse du serveur et le jeton dans Réglages."
         case .invalidResponse:
@@ -90,7 +108,12 @@ final class APIClient {
     /// (ou son proxy HTTPS) entre deux requêtes : iOS le découvre en
     /// réutilisant la connexion et renvoie « The network connection was
     /// lost ». Une nouvelle tentative, sur une connexion neuve, passe.
-    private func perform(_ req: URLRequest) async throws -> (Data, URLResponse) {
+    private func perform(_ original: URLRequest) async throws -> (Data, URLResponse) {
+        var req = original
+        // Compte Sona : le jeton d'accès Supabase est court ; on le renouvelle avant de l'envoyer.
+        if req.value(forHTTPHeaderField: "Authorization") != nil, let fresh = await SupabaseAuth.shared.freshAccessToken() {
+            req.setValue("Bearer \(fresh)", forHTTPHeaderField: "Authorization")
+        }
         do {
             return try await session.data(for: req)
         } catch let error as URLError where error.code == .networkConnectionLost {
@@ -103,7 +126,7 @@ final class APIClient {
         let (data, response) = try await perform(req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
+            throw APIError.failure(status: http.statusCode, data: data)
         }
         return try decoder.decode(T.self, from: data)
     }
@@ -112,7 +135,7 @@ final class APIClient {
         let (data, response) = try await perform(req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
+            throw APIError.failure(status: http.statusCode, data: data)
         }
     }
 
@@ -1062,7 +1085,7 @@ extension APIClient {
         let (data, response) = try await session.upload(for: req, fromFile: file)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError.server(status: http.statusCode, message: APIError.serverMessage(from: data))
+            throw APIError.failure(status: http.statusCode, data: data)
         }
         return try decoder.decode(Track.self, from: data)
     }

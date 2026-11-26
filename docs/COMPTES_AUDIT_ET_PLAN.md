@@ -86,10 +86,15 @@ Le cahier des charges suppose Supabase partout (Auth, Postgres + RLS, Edge Funct
 9. **Sidebar** : variante B « Flottante », choisie par Lunatix après que j'avais retenu A (voir `docs/sidebar-variants/README.md`) ; raccourcis Ctrl/⌘+B et Alt+1…7 (les lettres seules sont déjà prises par le lecteur).
 10. `library`, `playlists`, `playlist_tracks`, `listening_history` **restent dans le serveur musique** (écart avec la section 4 du cahier des charges, expliqué plus haut).
 
+### Fait ensuite (serveur musique, anciens comptes, iPhone)
+- **Serveur musique (FastAPI)** branché sur `sona-accounts` : jetons Supabase vérifiés à chaque requête, **fin du « tout le monde est ami »**, sessions d'écoute modérées (accès, invitation, verrou, limite,
+  bannissement, modérateurs, chat), routes internes (export, suppression, modération), scrobbling par le service. Détail : `docs/INTEGRATION_SERVEUR_MUSIQUE.md` §6. 25 tests (694 au total côté serveur musique).
+- **Anciens comptes** : `POST /auth/link-legacy` + écran « Récupérer mon ancien compte » (preuve par autorisation Last.fm, une seule fois, données conservées).
+- **Import Spotify / Deezer** : l'import existait déjà côté serveur ; le « Bientôt » est remplacé par le vrai bouton.
+- **App iOS native** : connexion par compte Sona (`SupabaseAuth.swift`, PKCE, Trousseau) et écran de sanction. **Non compilée ici** (pas de Swift sur Linux) : à valider par la CI macOS puis sur un iPhone.
+
 ### Reste à faire
-- **Serveur musique** : brancher `INTEGRATION_SERVEUR_MUSIQUE.md` (auth, amis réels, présence, scrobbling, sessions) et supprimer le code « tout le monde est ami ». L'interface est prête et se dégrade proprement si le serveur ne renvoie pas encore les rôles de session.
-- Rattacher les **anciens comptes** Last.fm à des comptes Supabase.
-- **App iOS native** (`ios/Encre`) : non modifiée (ASWebAuthenticationSession + PKCE à écrire sur un Mac).
-- Import de playlists **Spotify / Deezer** : marqué « Bientôt » (rien n'est simulé).
-- Tests de bout en bout contre un **vrai projet Supabase** et de vrais fournisseurs OAuth : impossible ici (réseau fermé) ; les tests d'interface utilisent un faux Supabase.
+- Porter ces routes dans le serveur musique **Rust** quand il sera prêt (le contrat est fixé).
+- Tests de bout en bout contre un **vrai projet Supabase** et de vrais fournisseurs OAuth : impossible ici (réseau fermé) ; les tests d'interface utilisent un faux Supabase et les tests du serveur musique un faux service de comptes.
+- Valider la connexion iOS sur un appareil.
 - Le test d'interface existant `tests/ui/smoke.mjs` échoue déjà sur `master` à l'étape « concerts » (indépendant de ce travail).

@@ -45,6 +45,9 @@ class AuthConfigOut(BaseModel):
     # `<serveur>/auth/lastfm/callback` : Last.fm n'accepte que des adresses
     # http(s), pas `encre://`.
     api_key: str | None = None
+    # Compte Sona (Supabase) : adresse du projet et clé PUBLIQUE (« anon ») pour les apps natives. Jamais de clé secrète ici.
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
 
 
 class LastfmLoginIn(BaseModel):
@@ -72,10 +75,12 @@ def _legacy_account(deps: ApiDeps) -> AccountOut:
 @router.get("/auth/config", response_model=AuthConfigOut)
 async def auth_config(deps: ApiDeps = Depends(get_deps)) -> AuthConfigOut:
     """Publique : l'app en a besoin avant toute connexion."""
-    if deps.lastfm_auth is None or not deps.settings.lastfm_api_key:
-        return AuthConfigOut(lastfm_enabled=False, auth_url=None)
-    url = str(httpx.URL(AUTH_URL, params={"api_key": deps.settings.lastfm_api_key, "cb": APP_CALLBACK}))
-    return AuthConfigOut(lastfm_enabled=True, auth_url=url, api_key=deps.settings.lastfm_api_key)
+    s = deps.settings
+    public = {"supabase_url": s.supabase_url, "supabase_anon_key": s.supabase_anon_key} if s.supabase_url and s.supabase_anon_key else {}
+    if deps.lastfm_auth is None or not s.lastfm_api_key:
+        return AuthConfigOut(lastfm_enabled=False, auth_url=None, **public)
+    url = str(httpx.URL(AUTH_URL, params={"api_key": s.lastfm_api_key, "cb": APP_CALLBACK}))
+    return AuthConfigOut(lastfm_enabled=True, auth_url=url, api_key=s.lastfm_api_key, **public)
 
 
 @router.get("/auth/lastfm/callback", include_in_schema=False)

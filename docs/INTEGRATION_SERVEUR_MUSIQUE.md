@@ -91,8 +91,21 @@ Contrat attendu par l'interface (`web/accounts-party.js`) : le snapshot d'une se
 
 Un blocage créé pendant une session (`Session::on_block`) retire la bonne personne ; un compte sanctionné disparaît des sessions et des listes dès la requête suivante.
 
-## 6. Ce qui reste à faire de ton côté
+## 6. État de l'intégration
 
-- Migrer les routes ci-dessus dans le serveur musique (Rust) et supprimer l'ancien code « amis = tout le monde ».
-- Rattacher les anciens comptes (`app_accounts`) à des utilisateurs Supabase.
-- `ios/Encre` : connexion native (ASWebAuthenticationSession + PKCE vers Supabase) — non traité.
+**Fait dans le serveur musique actuel (FastAPI, `app/`)**, couvert par `tests/test_sona_accounts_bridge.py` (faux service de comptes, 25 tests) :
+- `app/services/sona_accounts.py` : client du service (`/internal/verify` avec cache de 5 s, amis, relations, profils, filtre de mots, scrobbling).
+- `app/api/auth.py` : un jeton en forme de JWT est vérifié par le service ; le compte de données est créé à la première requête (`supabase_links`) ; un compte banni / suspendu reçoit
+  `403 {error: "sanctioned", …}` (écran de sanction du site) ; service injoignable → `503`. Les anciens jetons (`API_TOKEN`, sessions Last.fm) fonctionnent toujours.
+- `app/services/social.py` : **fin du « tout le monde est ami »**. Amis, classements, moments, sessions actives, récap : uniquement les amis acceptés, et chaque information suit
+  `presence` / `history` / `stats` / `playlists` calculés par la base. Service injoignable ou compte non rattaché → cercle **vide** (jamais « trop »).
+- `app/services/party.py` + `routers/party.py` : accès amis (défaut) / invitation à jeton haché qui expire / lien ouvert, verrouillage, limite de participants, expulsion, bannissement de session,
+  modérateurs, chat coupé (global ou par personne), filtre de mots, droits (ajouter, changer de titre, pause), blocage à l'entrée, refus au message **neutre**.
+- `app/api/routers/internal.py` : `/internal/users/{uid}/export`, `DELETE /internal/users/{uid}`, `/internal/content/playlist/{id}/hide|delete`, `/internal/sessions/{code}/close|kick|delete_message`
+  (secret `x-sona-internal`, comparaison en temps constant, **fermées** si aucun secret n'est configuré).
+- Scrobbling : les écoutes des comptes Sona partent par `/internal/scrobble` (clé chiffrée, file persistante) ; les anciens comptes gardent l'envoi direct.
+- **Ancien compte** : `POST /auth/link-legacy` rattache un ancien compte Last.fm (bibliothèque, playlists, historique) au compte connecté, après autorisation Last.fm. Réglages › Services connectés › « Récupérer mon ancien compte ».
+- Import de playlists (Spotify, Deezer, Apple Music, YouTube, SoundCloud) : déjà en place côté serveur ; les lignes « Bientôt » des réglages sont remplacées par le vrai bouton.
+
+**Reste, quand le serveur musique passera en Rust** : porter ces routes (le contrat ci-dessus ne change pas) ; la crate `sona_accounts` fournit déjà l'authentification et les règles de sessions
+(`sona_accounts::sessions`), le modèle Python en est une transcription.
