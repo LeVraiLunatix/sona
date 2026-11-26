@@ -182,25 +182,25 @@
    trait s'épaissit un instant et la lueur gonfle (voir sidebar.js). */
 .sb-liquid, .sb-bridge, .sb-glow { display: none; }
 @media (min-width: 761px) {
-  .sb-liquid { display: block; position: absolute; left: 0; top: 0; bottom: 0; width: var(--sb-rail); opacity: 0; pointer-events: none;
+  .sb-liquid { display: block; position: absolute; left: 12px; top: 0; bottom: 0; width: calc(var(--sb-rail) - 24px); opacity: 0; pointer-events: none;
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), width var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  .sb[data-open="true"] .sb-liquid { width: var(--sb-open); transition-delay: 0ms, 0ms, 0ms, 0ms; }
-  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 0; }
+  .sb[data-open="true"] .sb-liquid { width: calc(var(--sb-open) - 24px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 18px; }
   .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
   .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
 
   /* Trait épaissi : posé sur le bord gauche de la page, rogné pile à ce bord (aucun débordement vers le menu). */
   .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 24px;
-    left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px calc(var(--sb-gap) * -1));
+    left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px calc(var(--sb-gap) * -3 - 24px));
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
   .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open)); transition-delay: 0ms, 0ms, 0ms, 0ms; }
   /* lentille : 5 px d'épaisseur au milieu, qui s'effile aux deux bouts */
   .sb-bridge b { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); transform-origin: left center;
     border-radius: 0 5px 5px 0 / 0 50% 50% 0; box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 55%, transparent); }
   /* jonction : comble l'espace entre la pastille (collée au bord droit de la carte) et le trait de la page, pour que les deux n'en fassent qu'un */
-  .sb-bridge i { position: absolute; left: calc(var(--sb-gap) * -1 - 1px); width: calc(var(--sb-gap) + 6px); top: 36px; bottom: 36px; background: var(--accent); transform-origin: left center; }
-  /* raccords arrondis (concaves) : le col étroit s'évase vers le trait de la page, comme une goutte de liquide qui s'étire */
-  .sb-bridge i::before, .sb-bridge i::after { content: ""; position: absolute; left: 1px; width: var(--sb-gap); height: var(--sb-gap); }
+  .sb-bridge i { position: absolute; left: calc(var(--sb-gap) * -2 - 20px); width: calc(var(--sb-gap) * 2 + 26px); top: 46px; bottom: 46px; background: var(--accent); transform-origin: left center; }
+  /* raccords arrondis (concaves) côté page : le col s'évase vers le trait, comme une goutte de liquide qui s'étire */
+  .sb-bridge i::before, .sb-bridge i::after { content: ""; position: absolute; left: calc(var(--sb-gap) + 26px); width: var(--sb-gap); height: var(--sb-gap); }
   .sb-bridge i::before { bottom: 100%; background: radial-gradient(circle at 0 0, transparent calc(var(--sb-gap) - .5px), var(--accent) var(--sb-gap)); }
   .sb-bridge i::after { top: 100%; background: radial-gradient(circle at 0 100%, transparent calc(var(--sb-gap) - .5px), var(--accent) var(--sb-gap)); }
   /* voile le long de la bordure : plus vif à la hauteur de la pastille, éteint à ~130 px */
