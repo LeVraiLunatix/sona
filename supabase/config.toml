@@ -59,13 +59,13 @@ otp_expiry = 3600
 
 # E-mails en français, avec le CODE (utile dans l'app installée) et le lien.
 [auth.email.template.confirmation]
-subject = "Confirme ton adresse pour Sona"
+subject = "{{ .Token }} est ton code Sona"
 content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.magic_link]
-subject = "Ton code de connexion Sona"
+subject = "{{ .Token }} est ton code Sona"
 content_path = "./supabase/templates/magic_link.html"
 [auth.email.template.recovery]
-subject = "Réinitialise ton mot de passe Sona"
+subject = "{{ .Token }} : nouveau mot de passe Sona"
 content_path = "./supabase/templates/recovery.html"
 [auth.email.template.email_change]
 subject = "Confirme ta nouvelle adresse pour Sona"

@@ -48,7 +48,7 @@ Le plus simple : `supabase config push` (lit `supabase/config.toml`, variables `
 | Password › minimum length / requirements | **10**, minuscules + majuscules + chiffres |
 | Sessions | rotation des jetons de rafraîchissement activée ; durée du jeton d'accès 3600 s |
 | **Redirect URLs** | voir la liste ci-dessous |
-| Templates d'e-mails | collés depuis `supabase/templates/*.html` (ils affichent **le code** et le lien) |
+| Templates d'e-mails | collés depuis `supabase/templates/*.html` (**le code** seul pour la connexion ; le lien reste pour le changement d'adresse) |
 | **Attack Protection › Captcha** | activé, fournisseur **Cloudflare Turnstile** (étape 6) |
 | **SMTP Settings** | ton SMTP (étape 7) |
 | **Hooks › Before user created** | HTTP : `https://<ton-accounts>/hooks/before-user-created`, secret `v1,whsec_…` **(à vérifier : l'emplacement de ce hook dans le tableau de bord)** |
