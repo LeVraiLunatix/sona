@@ -175,13 +175,13 @@
 }
 
 /* ── Pastille « liquide » ─────────────────────────────────────────────────
-   La page active est une pastille claire qui traverse le bord droit de la carte et rejoint la page de droite
-   par un pont aux raccords concaves, comme du liquide qui relie deux surfaces. Quand on change de page, elle
-   glisse en s'étirant (un bord part avant l'autre) puis gonfle un instant (voir sidebar.js).
-   Deux pièces : la pastille, dans la carte (sous les libellés), et le pont, hors de la carte (la carte rogne
-   tout ce qui dépasse) : il est posé à cheval sur le bord, 6 px dans la carte, 12 px de vide, puis 18 px DANS la page
-   (bout arrondi) : le blanc entre visiblement dans l'écran de droite. */
-.sb-liquid, .sb-bridge { display: none; }
+   La page active est une pastille claire qui va jusqu'au bord droit de la carte. À sa hauteur, la bordure se
+   renfle un peu vers la droite, et une lueur claire l'entoure : forte au bord, elle s'éteint avec la distance
+   (autour du renflement, le long de la bordure, et dans la page). Quand on change de page, tout glisse en
+   s'étirant (un bord part avant l'autre), puis le renflement et la lueur gonflent un instant (voir sidebar.js).
+   Trois pièces : la pastille, dans la carte (sous les libellés) ; le renflement et la lueur, hors de la carte
+   (elle rogne tout ce qui dépasse). Sans la lueur de la bordure, rien ne change pour le clavier ou les lecteurs d'écran. */
+.sb-liquid, .sb-bridge, .sb-glow { display: none; }
 @media (min-width: 761px) {
   .sb-liquid { display: block; position: absolute; left: 10px; top: 0; bottom: 0; width: 61px; opacity: 0; pointer-events: none;
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), width var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
@@ -190,17 +190,22 @@
   .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
   .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
 
-  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: calc(var(--sb-gap) + 24px);
+  /* Renflement : 6 px dans la carte (recouvre la bordure), 7 px dehors, bout en ellipse. */
+  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 13px;
     left: calc(var(--sb-gap) + var(--sb-rail) - 6px);
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
   .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) + var(--sb-open) - 6px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
-  /* cou : la hauteur de la pastille ; raccords : quatre quarts de disque creusés (rayon 6 px) */
-  .sb-bridge b { position: absolute; left: 0; right: 0; top: 6px; bottom: 6px; background: var(--accent); border-radius: 0 14px 14px 0; transform-origin: left center; }
-  .sb-bridge i { position: absolute; width: 6px; height: 6px; }
-  .sb-bridge i.f1, .sb-bridge i.f2 { top: 0; } .sb-bridge i.f3, .sb-bridge i.f4 { bottom: 0; }
-  .sb-bridge i.f1, .sb-bridge i.f3 { left: 6px; } .sb-bridge i.f2, .sb-bridge i.f4 { right: 18px; }
-  .sb-bridge i.f1 { background: radial-gradient(circle at 100% 0, transparent 5.5px, var(--accent) 6px); }
-  .sb-bridge i.f2 { background: radial-gradient(circle at 0 0, transparent 5.5px, var(--accent) 6px); }
-  .sb-bridge i.f3 { background: radial-gradient(circle at 100% 100%, transparent 5.5px, var(--accent) 6px); }
-  .sb-bridge i.f4 { background: radial-gradient(circle at 0 100%, transparent 5.5px, var(--accent) 6px); }
+  .sb-bridge b { position: absolute; inset: 0; background: var(--accent); border-radius: 0 7px 7px 0 / 0 28px 28px 0; transform-origin: left center;
+    box-shadow: 0 0 14px 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+  /* Lueur de la bordure : un trait fin, vif à la hauteur de la page active, qui s'éteint en haut et en bas. */
+  .sb-bridge u { position: absolute; left: 5px; width: 3px; top: -110px; bottom: -110px; border-radius: 2px; filter: blur(1px);
+    background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 70%, transparent) 42%, color-mix(in srgb, var(--accent) 70%, transparent) 58%, transparent); }
+
+  /* Lueur autour : un disque doux centré sur le renflement. Elle passe SOUS la carte (on n'en voit que la moitié de droite) :
+     forte au contact, presque éteinte à 120 px. */
+  .sb-glow { display: block; position: fixed; z-index: 29; pointer-events: none; opacity: 0; width: 240px; height: 240px;
+    left: calc(var(--sb-gap) + var(--sb-rail) - 120px);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 34%, transparent) 0%, color-mix(in srgb, var(--accent) 14%, transparent) 42%, transparent 100%);
+    transition: top 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
+  .sb[data-open="true"] ~ .sb-glow { left: calc(var(--sb-gap) + var(--sb-open) - 120px); transition-delay: 0ms, 0ms, 0ms; }
 }

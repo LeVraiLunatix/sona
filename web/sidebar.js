@@ -197,7 +197,8 @@ const Sidebar = (() => {
         ${profileHtml()}
       </div>
     </nav>
-    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><b></b><i class="f1"></i><i class="f2"></i><i class="f3"></i><i class="f4"></i></div>`;
+    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><b></b></div>
+    <div class="sb-glow" id="sb-glow" aria-hidden="true"></div>`;
   }
 
   /** Après insertion : branche les événements. */
@@ -236,7 +237,7 @@ const Sidebar = (() => {
     placeLiquid(true);
   }
 
-  // ── Pastille « liquide » : elle traverse le bord de la carte et rejoint la page de droite par un pont ──
+  // ── Pastille « liquide » : la bordure de droite se renfle à sa hauteur, avec une lueur qui s'éteint avec la distance ──
 
   const liquid = { top: null, bottom: null };
 
@@ -244,17 +245,20 @@ const Sidebar = (() => {
   function placeLiquid(animate = true) {
     const sb = root();
     const el = document.getElementById("sb-liquid");
-    const bridge = document.getElementById("sb-bridge");
-    if (!sb || !el || !bridge || !mq.matches) return;
+    const bump = document.getElementById("sb-bridge");
+    const glow = document.getElementById("sb-glow");
+    if (!sb || !el || !bump || !glow || !mq.matches) return;
     const link = sb.querySelector(".sb-link.active:not(.sb-toggle), .sb-profile.active");
     const box = sb.getBoundingClientRect();
     let r = link?.getBoundingClientRect();
     // Lien rangé dans la liste qui défile : caché s'il sort de la zone visible.
     const scroller = link?.closest(".sb-scroll")?.getBoundingClientRect();
     if (r && scroller && (r.bottom < scroller.top + 6 || r.top > scroller.bottom - 6)) r = null;
-    if (!r || !r.height) { el.style.opacity = "0"; bridge.style.opacity = "0"; sb.dataset.liquid = "off"; return; }
+    const parts = [el, bump, glow];
+    if (!r || !r.height) { parts.forEach((n) => (n.style.opacity = "0")); sb.dataset.liquid = "off"; return; }
     sb.dataset.liquid = "on";
-    const FIL = 6; // rayon des raccords concaves du pont
+    const SWELL = 0;      // le renflement a la hauteur exacte de la pastille (pas de marche au raccord)
+    const HALO = 120;     // demi-hauteur de la lueur
     const top = r.top - box.top;
     const bottom = box.bottom - r.bottom;
     const first = liquid.top == null || el.style.opacity !== "1";
@@ -262,16 +266,17 @@ const Sidebar = (() => {
     const set = () => {
       el.style.top = `${top}px`;
       el.style.bottom = `${bottom}px`;
-      // Le pont est en coordonnées de la fenêtre (il est hors de la carte, qui rogne tout ce qui dépasse).
-      bridge.style.top = `${r.top - FIL}px`;
-      bridge.style.bottom = `${innerHeight - r.bottom - FIL}px`;
+      // Renflement et lueur sont hors de la carte (elle rogne ce qui dépasse) : coordonnées de la fenêtre.
+      bump.style.top = `${r.top - SWELL}px`;
+      bump.style.bottom = `${innerHeight - r.bottom - SWELL}px`;
+      glow.style.top = `${r.top + r.height / 2 - HALO}px`;
     };
     if (first || !animate || reduce) {
-      for (const n of [el, bridge]) n.style.transition = "none";
+      parts.forEach((n) => (n.style.transition = "none"));
       set();
-      el.style.opacity = bridge.style.opacity = "1";
+      parts.forEach((n) => (n.style.opacity = "1"));
       void el.offsetHeight;
-      for (const n of [el, bridge]) n.style.transition = "";
+      parts.forEach((n) => (n.style.transition = ""));
     } else if (top !== liquid.top) {
       // Descendre : le bord du bas part le premier, celui du haut le rattrape (et inversement) : ça s'étire comme du liquide.
       const down = top > liquid.top;
@@ -279,12 +284,14 @@ const Sidebar = (() => {
       const trail = "420ms cubic-bezier(0.34, 1.45, 0.5, 1)";
       const move = `top ${down ? trail : lead}, bottom ${down ? lead : trail}`;
       el.style.transition = `${move}, width var(--sb-dur) var(--sb-ease), opacity 150ms`;
-      bridge.style.transition = `${move}, left var(--sb-dur) var(--sb-ease), opacity 150ms`;
+      bump.style.transition = `${move}, left var(--sb-dur) var(--sb-ease), opacity 150ms`;
+      glow.style.transition = `top 420ms cubic-bezier(0.34, 1.2, 0.5, 1), left var(--sb-dur) var(--sb-ease), opacity 150ms`;
       set();
-      // Le pont gonfle un instant en arrivant : le liquide se « jette » vers l'écran de droite.
-      bridge.firstElementChild?.animate([{ transform: "scaleY(1)" }, { transform: "scaleY(1.12)", offset: 0.5 }, { transform: "scaleY(1)" }], { duration: 460, easing: "ease-out", delay: 90 });
+      // À l'arrivée : la bordure se renfle un peu plus vers la droite, et la lueur s'enfle puis retombe.
+      bump.querySelector("b")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.9)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 520, easing: "ease-out", delay: 120 });
+      glow.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.18)", opacity: 1, offset: 0.45 }, { transform: "scale(1)", opacity: 1 }], { duration: 560, easing: "ease-out", delay: 120 });
       clearTimeout(placeLiquid.t);
-      placeLiquid.t = setTimeout(() => { el.style.transition = ""; bridge.style.transition = ""; }, 560);
+      placeLiquid.t = setTimeout(() => parts.forEach((n) => (n.style.transition = "")), 640);
     }
     liquid.top = top;
     liquid.bottom = bottom;
