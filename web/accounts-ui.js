@@ -180,7 +180,7 @@ const SonaUI = (() => {
         </form>`;
     } else {
       const oauth = `<div class="auth-providers">${PROVIDERS.map(([id, name, svg]) => `<button class="provider" data-provider="${id}" aria-label="Continuer avec ${name}" ${busy}>${svg}<span>${name}</span></button>`).join("")}</div>`;
-      body = `${head(signup ? "Crée ton compte" : "Content de te revoir", signup ? "Gratuit, sans pub, ouvert à tout le monde." : "Connecte-toi pour retrouver ta musique.")}
+      body = `${head(...TITLES[ui.mode === "signup" ? "signup" : "signin"])}
         ${isIOSStandalone()
           ? `<details class="auth-more"><summary>Google, Discord, GitHub</summary><p class="auth-hint">Dans l'app installée sur iPhone, ces connexions s'ouvrent dans Safari et ne reviennent pas ici. Choisis plutôt le code par e-mail ou une clé d'accès.</p>${oauth}</details>`
           : oauth}
@@ -193,11 +193,11 @@ const SonaUI = (() => {
         <form id="auth-form" novalidate>
           ${fld("email", "Adresse e-mail", { type: "email", value: ui.email, auto: "email", mode: "email", extra: 'autocapitalize="none" spellcheck="false"' })}
           ${fld("password", "Mot de passe", { type: "password", auto: signup ? "new-password" : "current-password", eye: true })}
-          ${signup ? meter() : ""}
+          <div class="pw-extra ${signup ? "open" : ""}"><div>${meter()}</div></div>
           <button class="btn big wide-btn" ${busy}>${signup ? "Créer mon compte" : "Se connecter"}</button>
         </form>
         <div class="auth-alt">
-          <button class="pill-btn" data-code>Recevoir un code par e-mail</button>${signup ? "" : `<button class="pill-btn" data-forgot>Mot de passe oublié</button>`}
+          <button class="pill-btn" data-code>Recevoir un code par e-mail</button><button class="pill-btn" data-forgot ${signup ? "hidden" : ""}>Mot de passe oublié</button>
         </div>
         ${guestOk ? `<button class="guest" data-guest>Essayer sans compte</button>` : ""}`;
     }
@@ -209,6 +209,34 @@ const SonaUI = (() => {
     if (form) form.after(document.querySelector(".auth-msg"));
     bindAuth();
     if (ui.error) strings.error();
+  }
+
+  const TITLES = {
+    signin: ["Content de te revoir", "Connecte-toi pour retrouver ta musique."],
+    signup: ["Crée ton compte", "Gratuit, sans pub, ouvert à tout le monde."],
+  };
+
+  /** Connexion ⇄ inscription : on change sur place, sans redessiner (rien ne saute, la saisie reste). */
+  function setMode(mode) {
+    ui.mode = mode;
+    ui.error = "";
+    ui.notice = "";
+    const signup = mode === "signup";
+    const $r = (s) => document.querySelector(s);
+    const [title, subtitle] = TITLES[mode];
+    $r(".auth-card .auth-h2").textContent = title;
+    $r(".auth-card .auth-hint").textContent = subtitle;
+    document.querySelectorAll("[data-mode]").forEach((b) => {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on);
+    });
+    $r(".pw-extra").classList.toggle("open", signup);
+    $r('#auth-form [name="password"]').autocomplete = signup ? "new-password" : "current-password";
+    $r("#auth-form .wide-btn").textContent = signup ? "Créer mon compte" : "Se connecter";
+    $r("[data-forgot]").hidden = signup;
+    $r(".auth-msg").innerHTML = "";
+    strings.pluck(signup ? 4 : 1, signup ? 0.62 : 0.34, 11);
   }
 
   const meter = () => `<div class="pw-meter" id="pw-meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -237,7 +265,7 @@ const SonaUI = (() => {
     }));
     document.querySelectorAll(".auth form").forEach((form) => form.addEventListener("submit", () => strings.strum(18, 35)));
     $r("[data-back]")?.addEventListener("click", () => authScreen({ step: "form" }));
-    document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => { ui.mode = b.dataset.mode; ui.error = ""; ui.notice = ""; paintAuth(); }));
+    document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
     document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => attempt(() => auth.oauth(b.dataset.provider))));
     $r("[data-passkey]")?.addEventListener("click", () => attempt(() => window.Sona.passkeys.login()));
     $r("[data-guest]")?.addEventListener("click", () => attempt(() => auth.guest()));

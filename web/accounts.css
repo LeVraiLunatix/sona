@@ -5,7 +5,7 @@
 
 /* ── Connexion, bienvenue, sanction : une seule coque ───────────────────
    Noir, une grotesque, et six cordes jouables (accounts-ui.js). Rien d'autre. */
-.login.auth { display: block; height: 100vh; height: 100dvh; padding: 0; overflow-x: hidden; overflow-y: auto; text-align: left; -webkit-overflow-scrolling: touch; background: #000; color-scheme: dark;
+.login.auth { display: block; height: 100vh; height: 100dvh; padding: 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; text-align: left; -webkit-overflow-scrolling: touch; background: #000; color-scheme: dark;
   --text: #f4f4f5; --text-2: #a1a1a9; --text-3: #74747d; --hairline: rgba(255, 255, 255, .13); --fill: rgba(255, 255, 255, .06); --fill-strong: #101012; --bg: #000; --bg-elevated: #151517; color: var(--text);
   --display: "Familjen Grotesk", var(--font, system-ui); --out: cubic-bezier(.16, 1, .3, 1); }
 .auth-layout {
@@ -27,7 +27,7 @@
   .auth-brand { position: relative; display: flex; flex-direction: column; align-self: stretch; gap: 26px; pointer-events: none; }
   .auth-brand .auth-logo { margin-bottom: 7vh; }
   .auth-top { display: none; }
-  .auth-card { width: 100%; }
+  .auth-card { width: 100%; align-self: start; margin-top: max(0px, calc((100vh - 800px) / 2)); }
 }
 .auth-brand h1 { font: 700 clamp(60px, 7.4vw, 112px)/.95 var(--display); letter-spacing: -.045em; margin: 0; text-align: left; text-wrap: nowrap; }
 .auth-brand h1 span { display: block; overflow: hidden; padding-bottom: .09em; margin-bottom: -.09em; }
@@ -50,7 +50,7 @@
 .auth.intro .auth-card > :nth-child(6) { animation-delay: .38s; } .auth.intro .auth-card > :nth-child(7) { animation-delay: .43s; }
 .auth.intro .auth-card > :nth-child(n+8) { animation-delay: .5s; }
 /* Ensuite, seul ce qui change bouge. */
-.auth:not(.intro) .auth-h2, .auth:not(.intro) #auth-form, .auth:not(.intro) #auth-code, .auth:not(.intro) #auth-forgot { animation: auth-rise .45s var(--out) both; }
+.auth:not(.intro) #auth-code, .auth:not(.intro) #auth-forgot { animation: auth-rise .45s var(--out) both; }
 .auth-msg .error { animation: auth-shake .45s ease both; }
 @keyframes auth-line { from { transform: translateY(105%); } }
 @keyframes auth-fade { from { opacity: 0; } }
@@ -69,6 +69,13 @@
 .provider[disabled] { opacity: .5; pointer-events: none; }
 .provider svg { width: 20px; height: 20px; flex: none; }
 .provider.passkey { width: 100%; }
+.pw-extra { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows .4s var(--out), visibility .4s; }
+.pw-extra.open { grid-template-rows: 1fr; visibility: visible; }
+.pw-extra > div { overflow: hidden; min-height: 0; }
+.auth .auth-tabs { position: relative; isolation: isolate; }
+.auth .auth-tabs button.on { background: transparent; box-shadow: none; transition: color .3s; }
+.auth .auth-tabs::before { content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 9px; background: #f4f4f5; transition: transform .4s var(--out); }
+.auth .auth-tabs:has([data-mode="signup"].on)::before { transform: translateX(100%); }
 .auth-or { display: flex; align-items: center; gap: 14px; color: var(--text-3); font-size: 13px; margin: 16px 0 12px; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
 .auth-tabs { margin: 0 0 14px; max-width: none; }
@@ -90,7 +97,7 @@
 .auth .wide-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(255, 255, 255, .18); }
 .auth .wide-btn:active { transform: scale(.985); }
 .auth .segmented { background: var(--fill); }
-.auth .segmented button.on { background: #f4f4f5; color: #000; }
+.auth .segmented button.on { color: #000; }
 .auth-alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
 .pill-btn { min-height: 40px; padding: 0 14px; border-radius: 999px; background: transparent; color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: background .15s, color .15s; }
 .pill-btn:hover { background: var(--fill-strong); color: var(--text); }
