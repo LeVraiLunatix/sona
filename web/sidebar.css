@@ -182,10 +182,10 @@
    trait s'épaissit un instant et la lueur gonfle (voir sidebar.js). */
 .sb-liquid, .sb-bridge, .sb-glow { display: none; }
 @media (min-width: 761px) {
-  .sb-liquid { display: block; position: absolute; left: 0; top: 0; bottom: 0; width: 60px; opacity: 0; pointer-events: none;
+  .sb-liquid { display: block; position: absolute; left: 0; top: 0; bottom: 0; width: var(--sb-rail); opacity: 0; pointer-events: none;
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), width var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  .sb[data-open="true"] .sb-liquid { width: calc(var(--sb-open) - 12px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
-  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 0 18px 18px 0; }
+  .sb[data-open="true"] .sb-liquid { width: var(--sb-open); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 0; }
   .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
   .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
 
