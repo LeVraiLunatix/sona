@@ -138,6 +138,31 @@
 .ob-check-big { width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 50%; background: #30d158; color: #fff; font-size: 40px; display: grid; place-items: center; animation: pop .5s var(--spring); }
 @keyframes pop { from { transform: scale(.4); opacity: 0; } }
 
+/* Paramétrage : chaque étape entre par la droite, ligne après ligne, et sa barre se remplit. */
+.onboarding.step-in > :not(.auth-top, .ob-steps, .auth-msg, .set-group) { animation: ob-in .6s var(--out) both; }
+.onboarding.step-in > .auth-hint { animation-delay: .06s; }
+.onboarding.step-in > .ob-avatar { animation: ob-pop .7s var(--spring) .12s both; }
+.onboarding.step-in .set-group > * { animation: ob-in .6s var(--out) both; animation-delay: .12s; }
+.onboarding.step-in .set-group > :nth-child(2) { animation-delay: .18s; }
+.onboarding.step-in .set-group > :nth-child(3) { animation-delay: .24s; }
+.onboarding.step-in .set-group > :nth-child(4) { animation-delay: .3s; }
+.onboarding.step-in > .set-head, .onboarding.step-in > .set-head ~ * { animation-delay: .32s; }
+.onboarding.step-in > .fld { animation-delay: .2s; }
+.onboarding.step-in > .ob-check { animation-delay: .24s; }
+.onboarding.step-in > .ob-actions { animation-delay: .36s; }
+.ob-steps li.on i { position: relative; overflow: hidden; background: var(--fill-strong); }
+.ob-steps li.on i::after { content: ""; position: absolute; inset: 0; background: var(--text); transform-origin: left; }
+.onboarding.step-in .ob-steps li.on i::after { animation: ob-fill .8s var(--out) both; }
+.onboarding.step-in .ob-done > * { animation: ob-in .7s var(--out) both; }
+.onboarding.step-in .ob-done > .ob-check-big { animation: ob-pop .7s var(--spring) both, ob-ring 1.4s ease-out .35s both; }
+.onboarding.step-in .ob-done > h2 { animation-delay: .18s; }
+.onboarding.step-in .ob-done > p { animation-delay: .26s; }
+.onboarding.step-in .ob-done > .ob-actions { animation-delay: .36s; }
+@keyframes ob-in { from { opacity: 0; transform: translateX(34px); filter: blur(8px); } }
+@keyframes ob-pop { from { opacity: 0; transform: scale(.5) rotate(-12deg); } }
+@keyframes ob-fill { from { transform: scaleX(0); } }
+@keyframes ob-ring { from { box-shadow: 0 0 0 0 rgba(48, 209, 88, .55); } to { box-shadow: 0 0 0 34px rgba(48, 209, 88, 0); } }
+
 /* ── Sanction ──────────────────────────────────────────────────────────── */
 .sanction-badge { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; font-size: 30px; margin: 0 0 16px; background: rgba(255, 159, 10, .15); }
 .sanction-badge.ban { background: rgba(255, 69, 58, .15); }

@@ -85,7 +85,7 @@ const SonaUI = (() => {
     if (!window.Sona.configured) {
       body = `${head("Bientôt prêt")}<p class="error" role="alert">Les comptes ne sont pas encore configurés sur ce site. Voir docs/AUTH_SETUP.md.</p>`;
     } else if (ui.step === "code") {
-      body = `${head("Entre le code reçu", `Un code à 6 chiffres vient d'être envoyé à <b>${h(ui.email)}</b>. Il est valable quelques minutes.`)}
+      body = `${head("Entre le code reçu", `Un code à 6 chiffres vient d'être envoyé à <b>${h(ui.email)}</b>. Il te connecte, ou crée ton compte si tu n'en as pas encore.`)}
         <form id="auth-code" novalidate>
           ${fld("code", "Code à 6 chiffres", { auto: "one-time-code", mode: "numeric", extra: 'maxlength="8"', cls: "code" })}
           <button class="btn big wide-btn" ${busy}>Continuer</button>
@@ -351,6 +351,7 @@ const SonaUI = (() => {
       const labels = ["Profil", "Services", "Préférences", "Prêt"];
       const data = { username: profile.username.startsWith("sona_") ? "" : profile.username, avatar: profile.avatar_url, theme: "system", quality: "best", car: false, scrobble: true, presence: "nobody", privacyOpen: false };
       let i = 0;
+      let painted = -1; // dernière étape dessinée : seule une nouvelle étape s'anime
       let check = { ok: null, text: "" };
 
       const progress = () => `<ol class="ob-steps" aria-label="Progression">${steps.map((s, n) => `<li class="${n < i ? "done" : n === i ? "on" : ""}" ${n === i ? 'aria-current="step"' : ""}><i></i><span>${labels[n]}</span></li>`).join("")}</ol>`;
@@ -391,7 +392,9 @@ const SonaUI = (() => {
       };
 
       const paint = () => {
-        root().innerHTML = shell(`${progress()}${body()}<div class="auth-msg" id="ob-msg" role="alert"></div>`, "onboarding");
+        const entering = painted !== i;
+        painted = i;
+        root().innerHTML = shell(`${progress()}${body()}<div class="auth-msg" id="ob-msg" role="alert"></div>`, `onboarding${entering ? " step-in" : ""}`);
         bind();
       };
 
