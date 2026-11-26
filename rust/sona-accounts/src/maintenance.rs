@@ -23,17 +23,25 @@ pub async fn purge_guests(s: &AppState, days: i32) -> Result<usize> {
     Ok(deleted)
 }
 
+/// Un passage : rétention, détection d'un pic d'inscriptions, invités inactifs.
+pub async fn tick(s: &AppState) {
+    if let Err(e) = sqlx::query("select public.purge_expired()").execute(&s.pool).await {
+        tracing::warn!(error = %e, "purge");
+    }
+    // Pic anormal d'inscriptions (30 par heure ou plus) : une alerte par heure au plus.
+    if let Err(e) = sqlx::query("select private.detect_signup_spike()").execute(&s.pool).await {
+        tracing::warn!(error = %e, "détection de pic d'inscriptions");
+    }
+    match purge_guests(s, 30).await {
+        Ok(n) if n > 0 => tracing::info!(deleted = n, "invités inactifs supprimés"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = ?e.code(), "purge des invités"),
+    }
+}
+
 pub async fn run_daily(s: AppState) {
     loop {
-        match sqlx::query("select public.purge_expired()").execute(&s.pool).await {
-            Ok(_) => {}
-            Err(e) => tracing::warn!(error = %e, "purge"),
-        }
-        match purge_guests(&s, 30).await {
-            Ok(n) if n > 0 => tracing::info!(deleted = n, "invités inactifs supprimés"),
-            Ok(_) => {}
-            Err(e) => tracing::warn!(error = ?e.code(), "purge des invités"),
-        }
+        tick(&s).await;
         tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
     }
 }

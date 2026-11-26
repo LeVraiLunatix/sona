@@ -59,3 +59,37 @@ Le cahier des charges suppose Supabase partout (Auth, Postgres + RLS, Edge Funct
 3. Web : écran unique, invité, onboarding, réglages, amis, signalements, `/admin`, pages légales
 4. Sidebar (3 variantes dans `docs/sidebar-variants/`, choix motivé, implémentation, tests navigateur)
 5. Docs (`docs/AUTH_SETUP.md`), `.env.example`, CI, résumé final
+
+## 4. Bilan
+
+### Fait
+- **Base (Supabase)** : 5 migrations (profils, rôles, sanctions, appels, audit non modifiable, amis, blocages, confidentialité, signalements, anti-abus, rétention, export),
+  RLS sur toutes les tables (vérifié par un test qui parcourt le catalogue), 28 tests SQL/RLS sur un vrai Postgres 16.
+- **Service Rust `sona-accounts`** : vérification des JWT, ban / suspension appliqués à la requête suivante, actions d'administration revérifiées en base, Last.fm
+  (échange côté serveur, clé chiffrée, file persistante avec réessais), export / suppression RGPD, passkeys WebAuthn (aller-retour testé), hook anti-inscription,
+  alertes Discord, routes internes pour le serveur musique, règles de sessions d'écoute. 93 tests.
+- **Site / PWA** : écran unique de connexion et d'inscription, mode invité, parcours de bienvenue, écran de sanction avec contestation, réglages (compte, confidentialité,
+  services connectés), amis (demandes, lien, QR), signalements, panneau `/admin` utilisable sur iPhone, pages légales, **nouvelle sidebar** + barre mobile. 92 contrôles navigateur.
+- **App Windows** : lien profond `sona://auth/callback`.
+- **Docs** : `AUTH_SETUP.md`, `INTEGRATION_SERVEUR_MUSIQUE.md`, `docs/sidebar-variants/`.
+
+### Choix faits à ta place
+1. **Rust partout côté serveur** (suite à ta demande) : aucune Edge Function TypeScript, aucun nouveau code Python.
+2. **Mode invité = connexion anonyme Supabase**, pas un stockage local : toute la musique (bibliothèque, playlists, historique) vit côté serveur, la recoder en local aurait
+   été une seconde application. Avantage : créer un compte garde le même identifiant, donc **rien à migrer**. Un invité n'a aucune existence sociale et est supprimé après 30 jours d'inactivité.
+3. **Passkeys en WebAuthn maison** (`webauthn-rs`) : je n'ai pas pu vérifier le support natif de Supabase.
+4. **Connexion par code à 6 chiffres** en plus du lien magique : indispensable dans l'app installée sur iPhone (le lien s'ouvre dans Safari, pas dans l'app).
+5. **Demande d'ami** : la réponse est identique que le pseudo existe ou non (aucune énumération) ; un refus ne notifie pas l'expéditeur et bloque une nouvelle demande 30 jours.
+6. **Visibilité du profil à 4 niveaux** (public, minimal par défaut, amis, privé) pour tenir « pseudo + photo seulement » par défaut.
+7. **Modérateur** : avertit, suspend 7 jours au plus, traite les signalements ; **ban, rôles, suppression, listes de blocage : admins**. Un rôle ne peut agir que sur un rôle inférieur.
+8. **Mots interdits** : liste de départ volontairement courte (évite les faux positifs sur des prénoms), à compléter depuis `/admin › Règles`.
+9. **Sidebar** : variante A « Pilule » (voir `docs/sidebar-variants/README.md`) ; raccourcis Ctrl/⌘+B et Alt+1…7 (les lettres seules sont déjà prises par le lecteur).
+10. `library`, `playlists`, `playlist_tracks`, `listening_history` **restent dans le serveur musique** (écart avec la section 4 du cahier des charges, expliqué plus haut).
+
+### Reste à faire
+- **Serveur musique** : brancher `INTEGRATION_SERVEUR_MUSIQUE.md` (auth, amis réels, présence, scrobbling, sessions) et supprimer le code « tout le monde est ami ». L'interface est prête et se dégrade proprement si le serveur ne renvoie pas encore les rôles de session.
+- Rattacher les **anciens comptes** Last.fm à des comptes Supabase.
+- **App iOS native** (`ios/Encre`) : non modifiée (ASWebAuthenticationSession + PKCE à écrire sur un Mac).
+- Import de playlists **Spotify / Deezer** : marqué « Bientôt » (rien n'est simulé).
+- Tests de bout en bout contre un **vrai projet Supabase** et de vrais fournisseurs OAuth : impossible ici (réseau fermé) ; les tests d'interface utilisent un faux Supabase.
+- Le test d'interface existant `tests/ui/smoke.mjs` échoue déjà sur `master` à l'étape « concerts » (indépendant de ce travail).

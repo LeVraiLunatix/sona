@@ -353,3 +353,15 @@ async fn inactive_guests_are_deleted_with_their_music_data() {
     assert_eq!(api.db.su_scalar("select count(*) from auth.users").await, "2");
     assert_eq!(api.db.su_scalar(&format!("select count(*) from public.profiles where id = '{old}'")).await, "0");
 }
+
+#[tokio::test]
+async fn a_signup_spike_raises_one_alert_per_hour() {
+    let Some(api) = Api::new().await else { return };
+    api.db.su("insert into auth.users (email) select 'u' || g || '@example.test' from generate_series(1, 29) g").await;
+    sona_accounts::maintenance::tick(&api.state).await;
+    assert_eq!(api.db.su_scalar("select count(*) from public.admin_alerts where kind = 'signup_spike'").await, "0", "29 inscriptions : rien d'anormal");
+    api.db.su("insert into auth.users (email) values ('un-de-plus@example.test')").await;
+    sona_accounts::maintenance::tick(&api.state).await;
+    sona_accounts::maintenance::tick(&api.state).await;
+    assert_eq!(api.db.su_scalar("select count(*) from public.admin_alerts where kind = 'signup_spike'").await, "1");
+}
