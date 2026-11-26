@@ -27,7 +27,7 @@ brancher : [INTEGRATION_SERVEUR_MUSIQUE.md](INTEGRATION_SERVEUR_MUSIQUE.md).
    supabase link --project-ref <ref>
    supabase db push          # applique supabase/migrations/*.sql, dans l'ordre
    ```
-   (Sans CLI : colle les 5 fichiers de `supabase/migrations/` dans **SQL Editor**, dans l'ordre des noms.)
+   (Sans CLI : colle les 6 fichiers de `supabase/migrations/` dans **SQL Editor**, dans l'ordre des noms.)
 4. Vérifie : **Table Editor** montre `profiles`, `friendships`, `reports`… avec le cadenas « RLS enabled » partout. Le schéma
    `private` n'est pas exposé (il ne figure pas dans **Settings › API › Exposed schemas**).
 5. **Database › Extensions** : active **pg_cron** (optionnel mais recommandé : purge quotidienne, détection de pics d'inscriptions).

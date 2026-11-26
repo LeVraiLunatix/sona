@@ -336,3 +336,39 @@ async fn friends_limit_is_enforced() {
     let e = db.x(u(a), &format!("select public.respond_friend_request('{req}', 'accept')")).await.unwrap_err();
     assert_eq!(db_message(&e), "friends_limit");
 }
+
+#[tokio::test]
+async fn function_privileges_are_an_exact_allow_list() {
+    let db = db_or_skip!();
+    let rows = |role: &str, schema: &str| {
+        format!(
+            "select p.proname::text as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = '{schema}' and has_function_privilege('{role}', p.oid, 'execute') order by 1"
+        )
+    };
+    let names = |v: serde_json::Value| -> Vec<String> { v.as_array().unwrap().iter().map(|r| r["f"].as_str().unwrap().to_string()).collect() };
+    let mut expected: Vec<&str> = vec![
+        "is_staff", "is_admin", "me_active", "can_i_view", "send_friend_request", "redeem_friend_code", "rotate_friend_code",
+        "respond_friend_request", "cancel_friend_request", "remove_friend", "block_user", "unblock_user", "list_friends",
+        "list_friend_requests", "list_blocked", "get_profile", "create_report", "create_appeal", "admin_dashboard",
+        "admin_list_users", "admin_user_detail", "export_my_data", "username_available",
+    ];
+    expected.sort();
+    let got = names(db.q(Who::Service, &rows("authenticated", "public")).await.unwrap());
+    assert_eq!(got, expected, "fonctions ouvertes aux utilisateurs connectés");
+    let anon = names(db.q(Who::Service, &rows("anon", "public")).await.unwrap());
+    assert_eq!(anon, vec!["username_available"], "fonctions ouvertes aux anonymes");
+    // Le schéma interne est fermé : on ne peut même pas en lire le contenu.
+    let a = db.named("alice").await;
+    for sql in ["select private.effective_status(gen_random_uuid())", "select private.rate_limit('x', 1, interval '1 minute')", "select private.audit(null, 'x', null, null, null, 'x')"] {
+        assert_eq!(sqlstate(&db.x(u(a), sql).await.unwrap_err()), "42501", "{sql}");
+        assert!(db.x(Who::Anon, sql).await.is_err());
+    }
+    // Les fonctions « réservées au rôle serveur » ne sont pas exécutables par un client, avant même leur propre garde.
+    for sql in [
+        format!("select public.service_export('{a}')"), format!("select public.service_friend_ids('{a}')"),
+        "select public.purge_expired()".to_string(), "select public.rate_limit_check('k', 1, 1)".to_string(),
+    ] {
+        assert_eq!(sqlstate(&db.x(u(a), &sql).await.unwrap_err()), "42501", "{sql}");
+    }
+}

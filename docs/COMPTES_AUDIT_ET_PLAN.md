@@ -64,10 +64,10 @@ Le cahier des charges suppose Supabase partout (Auth, Postgres + RLS, Edge Funct
 
 ### Fait
 - **Base (Supabase)** : 5 migrations (profils, rôles, sanctions, appels, audit non modifiable, amis, blocages, confidentialité, signalements, anti-abus, rétention, export),
-  RLS sur toutes les tables (vérifié par un test qui parcourt le catalogue), 28 tests SQL/RLS sur un vrai Postgres 16.
+  RLS sur toutes les tables (vérifié par un test qui parcourt le catalogue), 27 tests SQL/RLS sur un vrai Postgres 16.
 - **Service Rust `sona-accounts`** : vérification des JWT, ban / suspension appliqués à la requête suivante, actions d'administration revérifiées en base, Last.fm
   (échange côté serveur, clé chiffrée, file persistante avec réessais), export / suppression RGPD, passkeys WebAuthn (aller-retour testé), hook anti-inscription,
-  alertes Discord, routes internes pour le serveur musique, règles de sessions d'écoute. 93 tests.
+  alertes Discord, routes internes pour le serveur musique, règles de sessions d'écoute. 94 tests (dont 27 SQL/RLS sur un vrai Postgres).
 - **Site / PWA** : écran unique de connexion et d'inscription, mode invité, parcours de bienvenue, écran de sanction avec contestation, réglages (compte, confidentialité,
   services connectés), amis (demandes, lien, QR), signalements, panneau `/admin` utilisable sur iPhone, pages légales, **nouvelle sidebar** + barre mobile. 92 contrôles navigateur.
 - **App Windows** : lien profond `sona://auth/callback`.

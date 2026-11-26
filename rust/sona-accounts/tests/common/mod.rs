@@ -18,6 +18,7 @@ pub const MIGRATIONS: &[&str] = &[
     include_str!("../../../../supabase/migrations/20261126000300_social.sql"),
     include_str!("../../../../supabase/migrations/20261126000400_rls.sql"),
     include_str!("../../../../supabase/migrations/20261126000500_maintenance.sql"),
+    include_str!("../../../../supabase/migrations/20261126000600_grants.sql"),
 ];
 
 #[derive(Clone, Copy)]

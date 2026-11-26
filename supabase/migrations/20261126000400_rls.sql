@@ -21,35 +21,18 @@ end $$;
 revoke all on all tables in schema public from anon, authenticated;
 revoke all on all tables in schema private from anon, authenticated;
 revoke all on all sequences in schema public from anon, authenticated;
-revoke all on all functions in schema public from public, anon, authenticated;
-revoke all on all functions in schema private from public, anon, authenticated;
-revoke usage on schema private from anon, authenticated;
-
 -- Les fonctions créées plus tard ne sont pas ouvertes d'office.
 alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
 alter default privileges in schema private revoke execute on functions from public, anon, authenticated;
 
--- ── Fonctions appelables par un utilisateur connecté ─────────────────────
+-- ── Fonction utilisée par les politiques ───────────────────────────────
 
 create function public.me_active() returns boolean
 language sql stable security definer set search_path = '' as $$
   select coalesce(private.is_active(auth.uid()), false)
 $$;
 
-grant execute on function
-  public.is_staff(), public.is_admin(), public.me_active(),
-  public.can_i_view(uuid, text),
-  public.send_friend_request(text), public.redeem_friend_code(text), public.rotate_friend_code(),
-  public.respond_friend_request(uuid, text), public.cancel_friend_request(uuid),
-  public.remove_friend(uuid), public.block_user(uuid), public.unblock_user(uuid),
-  public.list_friends(), public.list_friend_requests(), public.list_blocked(), public.get_profile(uuid),
-  public.create_report(text, uuid, text, text, text, jsonb), public.create_appeal(uuid, text),
-  public.admin_dashboard(), public.admin_list_users(text, text, text, text, timestamptz, int, int),
-  public.admin_user_detail(uuid)
-  to authenticated;
-
--- Disponibilité d'un pseudo : aussi pour qui n'a pas encore de compte (inscription).
-grant execute on function public.username_available(text) to anon, authenticated;
+-- Les droits d'exécution de TOUTES les fonctions sont posés dans la dernière migration (…600_grants.sql).
 
 -- ── Profils ──────────────────────────────────────────────────────────────
 
@@ -140,4 +123,3 @@ grant select on public.admin_alerts to authenticated;
 -- ── Le rôle serveur (sona-accounts, PostgREST service_role) ──────────────
 
 grant all on all tables in schema public to service_role;
-grant execute on all functions in schema public to service_role;

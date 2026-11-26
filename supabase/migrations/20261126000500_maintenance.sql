@@ -47,7 +47,6 @@ begin
   if auth.uid() is null then raise exception 'forbidden' using errcode = '42501'; end if;
   return private.export_data(auth.uid());
 end $$;
-grant execute on function public.export_my_data() to authenticated;
 
 create function public.service_export(p_user uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
@@ -91,7 +90,6 @@ begin
   perform set_config('sona.retention_purge', 'off', true);
   return jsonb_build_object('suspensions_expired', v_expired, 'audit_rows_purged', v_audit);
 end $$;
-grant execute on function public.purge_expired() to service_role;
 
 -- ── Domaines d'e-mails jetables courants (liste modifiable depuis l'admin) ─
 
@@ -146,7 +144,6 @@ begin
                    where u.is_anonymous and coalesce(u.last_sign_in_at, u.created_at) < now() - make_interval(days => p_days)
                    limit 500), '{}');
 end $$;
-grant execute on function public.service_expired_guests(int) to service_role;
 
 -- ── Photos de profil (Supabase Storage, seulement si le stockage existe) ─
 -- Lecture publique, écriture réservée au dossier de l'utilisateur, 200 Ko max, images seulement.
