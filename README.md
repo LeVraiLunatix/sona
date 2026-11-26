@@ -8,7 +8,7 @@
 
 Word-by-word lyrics, your own lossless files, listening together, and playback that follows you from phone to PC to TV.
 
-### [**Get Sona →**](https://soonaa.vercel.app/presentation)
+### [**Get Sona →**](https://trysona.fr/presentation)
 
 [![Tests](https://github.com/LeVraiLunatix/sona/actions/workflows/tests.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/tests.yml)
 [![iOS](https://github.com/LeVraiLunatix/sona/actions/workflows/ios.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/ios.yml)
@@ -20,8 +20,8 @@ Word-by-word lyrics, your own lossless files, listening together, and playback t
 
 | Device | How |
 |---|---|
-| **Android** | Open [the site](https://soonaa.vercel.app/presentation) in Chrome, menu ⋮, **Install app** |
-| **iPhone / iPad** | Open [the site](https://soonaa.vercel.app/presentation) in Safari, **Share**, **Add to Home Screen** (a native `.ipa` for sideloading is in [Releases](https://github.com/LeVraiLunatix/sona/releases)) |
+| **Android** | Open [the site](https://trysona.fr/presentation) in Chrome, menu ⋮, **Install app** |
+| **iPhone / iPad** | Open [the site](https://trysona.fr/presentation) in Safari, **Share**, **Add to Home Screen** (a native `.ipa` for sideloading is in [Releases](https://github.com/LeVraiLunatix/sona/releases)) |
 | **Windows** | [Download the installer](https://github.com/LeVraiLunatix/sona/releases/tag/windows) |
 
 Sign-in uses a Last.fm account. On the hosted server, new accounts wait for an admin's approval.
