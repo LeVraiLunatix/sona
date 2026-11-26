@@ -5,13 +5,13 @@
 use md5::{Digest, Md5};
 use std::collections::BTreeMap;
 
-pub fn sign(params: &BTreeMap<&str, String>, secret: &str) -> String {
+pub fn sign<K: AsRef<str> + Ord>(params: &BTreeMap<K, String>, secret: &str) -> String {
     let mut raw = String::new();
     for (k, v) in params {
-        if *k == "format" || *k == "callback" {
+        if k.as_ref() == "format" || k.as_ref() == "callback" {
             continue;
         }
-        raw.push_str(k);
+        raw.push_str(k.as_ref());
         raw.push_str(v);
     }
     raw.push_str(secret);

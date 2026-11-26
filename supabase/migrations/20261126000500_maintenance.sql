@@ -16,12 +16,9 @@ alter table private.scrobble_queue enable row level security;
 
 -- ── Export RGPD : toutes mes données, même après un avertissement ou un ban ─
 
-create function public.export_my_data() returns jsonb
+create function private.export_data(v_me uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
-declare
-  v_me uuid := auth.uid();
 begin
-  if v_me is null then raise exception 'forbidden' using errcode = '42501'; end if;
   return jsonb_build_object(
     'exported_at', now(),
     'profile', (select to_jsonb(p) - 'id' from public.profiles p where p.id = v_me),
@@ -44,7 +41,20 @@ begin
     'appeals', coalesce((select jsonb_agg(to_jsonb(a) - 'user_id') from public.appeals a where a.user_id = v_me), '[]')
   );
 end $$;
+create function public.export_my_data() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'forbidden' using errcode = '42501'; end if;
+  return private.export_data(auth.uid());
+end $$;
 grant execute on function public.export_my_data() to authenticated;
+
+create function public.service_export(p_user uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.only_service();
+  return private.export_data(p_user);
+end $$;
 
 -- ── Rétention : durées définies une fois pour toutes ─────────────────────
 --   rate_limits 2 j · signup_events 30 j · notifications lues 30 j (toutes 180 j)

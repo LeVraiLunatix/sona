@@ -517,6 +517,10 @@ begin
   if p_actor is distinct from p_target then
     perform private.require_actor(p_actor, 'admin');
     perform private.require_above(p_actor, private.role_of(p_actor), p_target);
+  elsif private.role_of(p_target) = 'admin'
+        and (select count(*) from public.profiles where role = 'admin' and status = 'active') <= 1 then
+    -- Le dernier admin ne peut pas supprimer son propre compte.
+    raise exception 'last_admin' using errcode = '42501';
   end if;
   perform private.audit(p_actor, case when p_actor = p_target then 'account.delete_self' else 'account.delete' end,
                         p_target, 'user', p_target::text, private.require_reason(p_reason));
@@ -738,4 +742,26 @@ begin
       'audit', coalesce((select jsonb_agg(to_jsonb(a) order by a.at desc) from
                           (select * from public.audit_log l where l.target_user_id = p.id order by l.at desc limit 20) a), '[]'))
     from public.profiles p join auth.users u on u.id = p.id where p.id = p_user);
+end $$;
+
+-- ── Sessions, export et suppression (appelés par sona-accounts) ──────────
+
+create function public.admin_revoke_sessions(p_actor uuid, p_target uuid, p_reason text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_role public.user_role;
+  v_reason text := private.require_reason(p_reason);
+begin
+  perform private.only_service();
+  v_role := private.require_actor(p_actor, 'moderator');
+  perform private.require_above(p_actor, v_role, p_target);
+  perform private.revoke_sessions(p_target);
+  perform private.audit(p_actor, 'sessions.revoke', p_target, 'user', p_target::text, v_reason);
+end $$;
+
+create function public.service_revoke_sessions(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.only_service();
+  perform private.revoke_sessions(p_user);
 end $$;
