@@ -222,9 +222,9 @@ const contentLeft = (page) => page.evaluate(() => document.getElementById("conte
   const l1 = await liq();
   ok("pastille liquide : sous la page active", Math.abs(l1.lt - l1.at) < 2 && Math.abs(l1.lh - l1.ah) < 2 && l1.op === "1", JSON.stringify(l1));
   const br = await t.page.evaluate(() => { const b = document.getElementById("sb-bridge").getBoundingClientRect(); const g = document.getElementById("sb-glow").getBoundingClientRect(); const c = document.getElementById("content").getBoundingClientRect(); const sb = document.getElementById("sb").getBoundingClientRect(); const a = document.querySelector("#sb .sb-link.active").getBoundingClientRect(); return { bl: b.left, br: b.right, bt: b.top, bb: b.bottom, cl: c.left, sr: sb.right, at: a.top, ab: a.bottom, gc: g.top + g.height / 2, gw: g.width, gl: g.left, op: getComputedStyle(document.getElementById("sb-glow")).opacity }; });
-  ok("renflement : la bordure de droite dépasse un peu de la carte, sans toucher la page", br.bl < br.sr && br.br > br.sr + 4 && br.br < br.cl, JSON.stringify(br));
-  ok("renflement : la bordure s'agrandit autour de la page active (+ 7 px)", Math.abs(br.bt - (br.at - 7)) < 2 && Math.abs(br.bb - (br.ab + 7)) < 2, JSON.stringify(br));
-  ok("lueur : centrée sur la page active, visible, qui s'étend autour de la bordure", Math.abs(br.gc - (br.at + br.ab) / 2) < 2 && br.op === "1" && br.gw >= 200 && Math.abs(br.gl + br.gw / 2 - br.sr) < 4, JSON.stringify(br));
+  ok("bordure de la page : s'agrandit vers le menu sans toucher la carte", br.bl < br.cl - 4 && br.bl > br.sr && br.br > br.cl, JSON.stringify(br));
+  ok("bordure de la page : agrandie autour de la page active (± 16 px)", Math.abs(br.bt - (br.at - 16)) < 2 && Math.abs(br.bb - (br.ab + 16)) < 2, JSON.stringify(br));
+  ok("lueur : centrée sur la page active, visible, autour de la bordure de la page", Math.abs(br.gc - (br.at + br.ab) / 2) < 2 && br.op === "1" && br.gw >= 200 && Math.abs(br.gl + br.gw / 2 - br.cl) < 4, JSON.stringify(br));
   await t.page.evaluate(() => { location.hash = "#/friends"; });
   await wait(t.page, 700);
   const l2 = await liq();

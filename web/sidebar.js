@@ -197,7 +197,7 @@ const Sidebar = (() => {
         ${profileHtml()}
       </div>
     </nav>
-    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><div class="sh"><svg class="cap t" viewBox="0 0 36 31" preserveAspectRatio="none"><path d="M0 7C12 7 14 0 24 0C31 0 36 9 36 20L36 31L0 31Z"/></svg><b></b><svg class="cap bt" viewBox="0 0 36 31" preserveAspectRatio="none"><path d="M0 7C12 7 14 0 24 0C31 0 36 9 36 20L36 31L0 31Z"/></svg></div></div>
+    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><div class="sh"><svg class="cap t" viewBox="0 0 12 32" preserveAspectRatio="none"><path class="f" d="M10 0C10 12 0 8 0 22L0 32L12 32L12 0Z"/><path class="l" d="M10 0C10 12 0 8 0 22L0 32"/></svg><svg class="mid" viewBox="0 0 12 1" preserveAspectRatio="none"><path class="f" d="M0 0H12V1H0Z"/><path class="l" d="M0 0V1"/></svg><svg class="cap bt" viewBox="0 0 12 32" preserveAspectRatio="none"><path class="f" d="M10 0C10 12 0 8 0 22L0 32L12 32L12 0Z"/><path class="l" d="M10 0C10 12 0 8 0 22L0 32"/></svg></div></div>
     <div class="sb-glow" id="sb-glow" aria-hidden="true"></div>`;
   }
 
@@ -237,7 +237,7 @@ const Sidebar = (() => {
     placeLiquid(true);
   }
 
-  // ── Pastille « liquide » : la bordure de droite se renfle à sa hauteur, avec une lueur qui s'éteint avec la distance ──
+  // ── Pastille « liquide » : la bordure de l'écran de droite (la page) s'agrandit vers le menu à sa hauteur, avec une lueur qui s'éteint avec la distance ──
 
   const liquid = { top: null, bottom: null };
 
@@ -257,7 +257,7 @@ const Sidebar = (() => {
     const parts = [el, bump, glow];
     if (!r || !r.height) { parts.forEach((n) => (n.style.opacity = "0")); sb.dataset.liquid = "off"; return; }
     sb.dataset.liquid = "on";
-    const SWELL = 7;      // la bordure s'agrandit : l'épaulement monte de 7 px au-dessus et au-dessous de la pastille
+    const SWELL = 16;     // la bordure de la page s'agrandit : la courbe démarre 16 px au-dessus et finit 16 px au-dessous de la pastille
     const HALO = 120;     // demi-hauteur de la lueur
     const top = r.top - box.top;
     const bottom = box.bottom - r.bottom;
@@ -266,7 +266,7 @@ const Sidebar = (() => {
     const set = () => {
       el.style.top = `${top}px`;
       el.style.bottom = `${bottom}px`;
-      // Renflement et lueur sont hors de la carte (elle rogne ce qui dépasse) : coordonnées de la fenêtre.
+      // Renflement et lueur sont posés sur la bordure de la page : coordonnées de la fenêtre.
       bump.style.top = `${r.top - SWELL}px`;
       bump.style.bottom = `${innerHeight - r.bottom - SWELL}px`;
       glow.style.top = `${r.top + r.height / 2 - HALO}px`;
@@ -287,8 +287,8 @@ const Sidebar = (() => {
       bump.style.transition = `${move}, left var(--sb-dur) var(--sb-ease), opacity 150ms`;
       glow.style.transition = `top 420ms cubic-bezier(0.34, 1.2, 0.5, 1), left var(--sb-dur) var(--sb-ease), opacity 150ms`;
       set();
-      // À l'arrivée : la bordure se renfle un peu plus vers la droite, et la lueur s'enfle puis retombe.
-      bump.querySelector(".sh")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.55)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 560, easing: "ease-out", delay: 120 });
+      // À l'arrivée : la bordure de la page avance un peu plus vers le menu, et la lueur s'enfle puis retombe.
+      bump.querySelector(".sh")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.5)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 560, easing: "ease-out", delay: 120 });
       glow.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.18)", opacity: 1, offset: 0.45 }, { transform: "scale(1)", opacity: 1 }], { duration: 560, easing: "ease-out", delay: 120 });
       clearTimeout(placeLiquid.t);
       placeLiquid.t = setTimeout(() => parts.forEach((n) => (n.style.transition = "")), 640);
