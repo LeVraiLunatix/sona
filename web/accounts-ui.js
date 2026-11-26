@@ -90,8 +90,7 @@ const SonaUI = (() => {
           ${fld("code", "Code à 6 chiffres", { auto: "one-time-code", mode: "numeric", extra: 'maxlength="8"', cls: "code" })}
           <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>
-        <p class="auth-links"><button class="link-btn" data-back>Changer d'adresse</button><button class="link-btn" data-resend>Renvoyer le code</button></p>
-        <p class="auth-links"><button class="link-btn" data-password>Utiliser mon mot de passe</button></p>`;
+        <p class="auth-links"><button class="link-btn" data-back>Changer d'adresse</button><button class="link-btn" data-resend>Renvoyer le code</button><button class="link-btn" data-password>Utiliser mon mot de passe</button></p>`;
     } else if (ui.step === "password") {
       body = `${head("Ton mot de passe", ui.email ? `Pour <b>${h(ui.email)}</b>.` : "Pour les comptes qui en ont déjà un.")}
         <form id="auth-password" novalidate>

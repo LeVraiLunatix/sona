@@ -63,7 +63,8 @@
 
 .auth-h2 { font-family: var(--display); font-size: 32px; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; margin: 0 0 8px; }
 .auth .auth-hint { font-size: 15px; color: var(--text-2); margin: 0 0 20px; line-height: 1.5; }
-.auth .auth-hint b { color: var(--text); font-weight: 600; word-break: break-all; }
+/* L'adresse reste entière : elle passe à la ligne d'un bloc, et n'est coupée que si elle ne tient pas seule. */
+.auth .auth-hint b { display: inline-block; max-width: 100%; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
 
 .auth-providers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
 .provider { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 0 10px; border-radius: 14px; background: #08080a; border: 1px solid var(--hairline); font-weight: 600; font-size: 14.5px; transition: transform .3s var(--out), border-color .2s, background .2s; }
@@ -97,7 +98,7 @@
 .pill-btn:hover { background: var(--fill-strong); color: var(--text); }
 .guest { display: block; margin: 20px auto 0; min-height: 44px; padding: 0 16px; font-size: 14.5px; font-weight: 600; color: var(--text-2); }
 .guest:hover { color: var(--text); }
-.auth-links { display: flex; justify-content: center; gap: 22px; font-size: 14px; margin: 16px 0 0; }
+.auth-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 22px; font-size: 14px; margin: 16px 0 0; }
 .link-btn { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
 .link-btn:hover { color: var(--text); }
 .auth-msg { min-height: 8px; }
