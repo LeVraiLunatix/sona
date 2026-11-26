@@ -4,32 +4,33 @@
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ── Connexion, bienvenue, sanction : une seule coque ───────────────────
-   Noir, une grotesque, et six cordes jouables (accounts-ui.js). Rien d'autre. */
-.login.auth { display: block; height: 100vh; height: 100dvh; padding: 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; text-align: left; -webkit-overflow-scrolling: touch; background: #000; color-scheme: dark;
+   Noir, une grotesque, et le logo qui résonne (accounts-ui.js). Rien d'autre. */
+.login.auth { display: block; height: 100vh; height: 100dvh; padding: 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; container-type: inline-size; text-align: left; -webkit-overflow-scrolling: touch; background: #000; color-scheme: dark;
   --text: #f4f4f5; --text-2: #a1a1a9; --text-3: #74747d; --hairline: rgba(255, 255, 255, .13); --fill: rgba(255, 255, 255, .06); --fill-strong: #101012; --bg: #000; --bg-elevated: #151517; color: var(--text);
   --display: "Familjen Grotesk", var(--font, system-ui); --out: cubic-bezier(.16, 1, .3, 1); }
 .auth-layout {
   position: relative; min-height: 100vh; min-height: 100dvh; display: grid; align-content: start; justify-items: center;
   padding: max(20px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
 }
-.auth-strings { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.auth-echo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .auth-brand { display: none; }
 .auth-card { position: relative; width: min(400px, 100%); padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; text-align: left; }
 .auth-top { display: flex; height: 168px; align-items: flex-start; margin-bottom: 8px; padding-top: 4px; }
-.auth-top .auth-logo { position: relative; }
+.auth-top .auth-logo { display: none; }
+.auth-card.onboarding .auth-top .auth-logo { display: inline-flex; }
 .auth-logo { display: inline-flex; align-items: center; gap: 10px; font: 700 21px/1 var(--display); letter-spacing: -.02em; }
 .auth-logo svg { width: 26px; height: 26px; }
 
 @media (min-width: 960px) {
   .auth-layout { grid-template-columns: minmax(0, 1fr) 400px; align-content: stretch; align-items: center; justify-items: stretch; gap: 80px; max-width: 1280px; margin: 0 auto; padding: 48px 56px; }
-  /* Les cordes traversent toute la fenêtre et s'effacent avant le formulaire. */
-  .auth-strings { left: calc(50% - 50vw); width: 100vw; -webkit-mask: linear-gradient(90deg, #000 40%, transparent 57%); mask: linear-gradient(90deg, #000 40%, transparent 57%); }
-  .auth-brand { position: relative; display: flex; flex-direction: column; align-self: stretch; gap: 26px; pointer-events: none; }
-  .auth-brand .auth-logo { margin-bottom: 7vh; }
+  /* Les échos débordent sur toute la fenêtre et s'effacent avant le formulaire. */
+  .auth-echo { left: calc(50% - 50cqw); width: 100cqw; -webkit-mask: linear-gradient(90deg, #000 46%, transparent 60%); mask: linear-gradient(90deg, #000 46%, transparent 60%); }
+  .auth-brand { position: relative; display: flex; flex-direction: column; align-self: start; height: calc(100dvh - 96px); min-height: 560px; gap: 22px; pointer-events: none; padding-bottom: 2vh; }
+  .auth-brand .auth-logo { margin-bottom: auto; }
   .auth-top { display: none; }
   .auth-card { width: 100%; align-self: start; margin-top: max(0px, calc((100vh - 800px) / 2)); }
 }
-.auth-brand h1 { font: 700 clamp(60px, 7.4vw, 112px)/.95 var(--display); letter-spacing: -.045em; margin: 0; text-align: left; text-wrap: nowrap; }
+.auth-brand h1 { font: 700 clamp(52px, 5.8vw, 88px)/.95 var(--display); letter-spacing: -.045em; margin: 0; text-align: left; text-wrap: nowrap; }
 .auth-brand h1 span { display: block; overflow: hidden; padding-bottom: .09em; margin-bottom: -.09em; }
 .auth-brand h1 i { display: block; font-style: normal; }
 .auth-brand .brand-sub { font-size: 18px; line-height: 1.5; color: var(--text-2); max-width: 34ch; margin: 0; }

@@ -31,71 +31,100 @@ const SonaUI = (() => {
     paintAuth();
   }
 
-  // ── Les cordes ───────────────────────────────────────────────────────────
-  // Signature de l'écran : six cordes qu'on pince (pointeur, doigt, frappe, envoi).
-  const strings = (() => {
-    const N = 6, still = matchMedia("(prefers-reduced-motion: reduce)");
+  // ── Le logo qui résonne ──────────────────────────────────────────────────
+  // Signature de l'écran : le glyphe Sona, tracé puis rempli, qui émet des échos
+  // à sa forme quand il bat (au repos, à la frappe, à l'envoi, au toucher).
+  const echo = (() => {
+    const GLYPH = "M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z";
+    const still = matchMedia("(prefers-reduced-motion: reduce)");
     const cv = document.createElement("canvas");
-    cv.className = "auth-strings";
+    cv.className = "auth-echo";
     cv.setAttribute("aria-hidden", "true");
-    let plucks = [], raf = 0, born = 0, errorAt = -1e9, last = null, W = 0, H = 0;
+    let path = null, waves = [], raf = 0, born = 0, beat = 0, errorAt = -1e9;
+    const aim = { x: 0, y: 0 }, tilt = { x: 0, y: 0 };
 
-    const lineY = (i) => (W >= 960 ? H * (0.6 + i * 0.055) : 70 + i * 17);
-
-    function pluck(i, x = 0.5, amp = 14, delay = 0) {
+    function pulse(force = 0.6, delay = 0) {
       if (still.matches) return;
-      plucks.push({ i: ((i % N) + N) % N, x: Math.min(0.95, Math.max(0.05, x)), amp, t: performance.now() + delay });
-      if (plucks.length > 60) plucks.shift();
+      waves.push({ t: performance.now() + delay, force });
+      if (waves.length > 18) waves.shift();
     }
-    const strum = (amp = 16, gap = 55) => { for (let i = 0; i < N; i++) pluck(i, 0.18 + i * 0.07, amp, i * gap); };
+    const burst = (force = 1, count = 3) => { for (let i = 0; i < count; i++) pulse(force, i * 130); };
+
+    /** Où se tient le logo : au cœur de la colonne de marque, ou en haut sur petit écran. */
+    function place(W) {
+      const brand = cv.parentElement?.querySelector(".auth-brand");
+      const b = brand?.getBoundingClientRect();
+      if (!b || !b.width) return { x: W / 2, y: 90, size: 88 };
+      const r = cv.getBoundingClientRect();
+      return { x: b.left - r.left + b.width * 0.46, y: b.top - r.top + b.height * 0.36, size: Math.min(b.height * 0.36, b.width * 0.62) };
+    }
+
+    function glyph(g, at, scale, drift) {
+      const k = (at.size / 223.5) * scale;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.scale(cv.width / cv.clientWidth, cv.width / cv.clientWidth);
+      g.translate(at.x + tilt.x * drift, at.y + tilt.y * drift);
+      g.scale(k, k);
+      g.translate(-200.17, -200);
+      return k;
+    }
 
     function draw(now) {
       raf = 0;
       if (!cv.isConnected) return;
       const dpr = Math.min(devicePixelRatio || 1, 2);
-      const w = cv.clientWidth, h = cv.clientHeight;
-      if (w !== W || h !== H || cv.width !== Math.round(w * dpr)) { W = w; H = h; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      const W = cv.clientWidth, H = cv.clientHeight;
+      if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
       const g = cv.getContext("2d");
-      g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      g.clearRect(0, 0, W, H);
-      const reveal = still.matches ? 1 : 1 - Math.pow(1 - Math.min(1, (now - born) / 1400), 3);
-      const red = Math.max(0, 1 - (now - errorAt) / 1600);
-      plucks = plucks.filter((p) => now - p.t < 3200);
-      for (let i = 0; i < N; i++) {
-        const y0 = lineY(i), mine = plucks.filter((p) => p.i === i && now >= p.t);
-        let energy = 0;
-        g.beginPath();
-        for (let px = 0; px <= W * reveal; px += 6) {
-          const x = px / W;
-          let d = still.matches ? 0 : Math.sin(x * 7 + now / 1100 + i * 1.3) * Math.sin(Math.PI * x) * 1.6;
-          for (const p of mine) {
-            const dt = (now - p.t) / 1000, decay = Math.exp(-dt * 2.1) * p.amp;
-            // Corde pincée : triangle centré sur le doigt, plus une harmonique.
-            const shape = x < p.x ? x / p.x : (1 - x) / (1 - p.x);
-            d += decay * (shape * shape * (3 - 2 * shape) * Math.cos(dt * (19 + i * 3.2)) + 0.22 * Math.sin(3 * Math.PI * x) * Math.sin(dt * (47 + i * 5)));
-          }
-          px ? g.lineTo(px, y0 + d) : g.moveTo(px, y0 + d);
-        }
-        for (const p of mine) energy += Math.exp(-(now - p.t) / 520) * (p.amp / 16);
-        const a = Math.min(0.95, 0.3 + i * 0.025 + energy * 0.55);
-        g.strokeStyle = `rgba(${Math.round(236 + 19 * red)}, ${Math.round(237 - 130 * red)}, ${Math.round(242 - 145 * red)}, ${Math.max(a, red * 0.7)})`;
-        g.lineWidth = 0.8 + (N - i) * 0.16 + Math.min(1, energy) * 0.7;
-        g.stroke();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, cv.width, cv.height);
+      path ||= new Path2D(GLYPH);
+      const at = place(W);
+      const age = still.matches ? 1e6 : now - born;
+      const traced = 1 - Math.pow(1 - Math.min(1, age / 1300), 3);
+      const filled = Math.max(0, Math.min(1, (age - 950) / 700));
+      const red = Math.max(0, 1 - (now - errorAt) / 1700);
+      const rgb = `${Math.round(210 + 45 * red)}, ${Math.round(209 - 105 * red)}, ${Math.round(216 - 119 * red)}`;
+      tilt.x += (aim.x - tilt.x) * 0.06;
+      tilt.y += (aim.y - tilt.y) * 0.06;
+      // Au repos, un battement lent.
+      if (!still.matches && now - beat > 2600 && age > 2000) { beat = now; pulse(0.45); }
+      waves = waves.filter((w) => now - w.t < 2600);
+
+      const rings = still.matches ? [0.22, 0.45, 0.68].map((p) => ({ p, force: 0.6 })) : waves.filter((w) => now >= w.t).map((w) => ({ p: (now - w.t) / 2600, force: w.force }));
+      for (const { p, force } of rings) {
+        const out = 1 - Math.pow(1 - p, 2.4);
+        const k = glyph(g, at, 1 + out * (1.1 + force * 0.9), 10 + out * 26);
+        g.strokeStyle = `rgba(${rgb}, ${Math.pow(1 - p, 1.6) * (0.18 + force * 0.42)})`;
+        g.lineWidth = (0.8 + force * 1.1) / k;
+        g.lineJoin = "round";
+        g.stroke(path);
+      }
+
+      // Le logo bat à chaque écho, comme une membrane.
+      let kick = 0;
+      for (const w of waves) { const dt = (now - w.t) / 1000; if (dt >= 0) kick += w.force * Math.exp(-dt * 7) * Math.sin(Math.min(Math.PI, dt * 16)); }
+      const k = glyph(g, at, 1 + Math.min(0.09, kick * 0.07), 8);
+      g.globalAlpha = filled;
+      g.fillStyle = `rgb(${rgb})`;
+      g.fill(path);
+      g.globalAlpha = 1;
+      if (filled < 1) {
+        g.setLineDash([900, 900]);
+        g.lineDashOffset = 900 * (1 - traced);
+        g.strokeStyle = `rgb(${rgb})`;
+        g.lineWidth = 1.5 / k;
+        g.stroke(path);
+        g.setLineDash([]);
       }
       if (!still.matches) raf = requestAnimationFrame(draw);
     }
 
-    /** Passer sur une corde la pince ; la vitesse du geste donne la force. */
+    /** Le logo suit légèrement le pointeur ; les échos, plus loin, traînent davantage. */
     function move(e) {
-      const r = cv.getBoundingClientRect();
-      const pt = { x: e.clientX - r.left, y: e.clientY - r.top };
-      if (last) {
-        for (let i = 0; i < N; i++) {
-          const y = lineY(i);
-          if ((last.y - y) * (pt.y - y) < 0) pluck(i, pt.x / (r.width || 1), Math.min(28, 6 + Math.abs(pt.y - last.y) * 0.7));
-        }
-      }
-      last = pt;
+      if (still.matches) return;
+      aim.x = (e.clientX / innerWidth - 0.5) * 1.6;
+      aim.y = (e.clientY / innerHeight - 0.5) * 1.6;
     }
 
     function mount() {
@@ -104,21 +133,21 @@ const SonaUI = (() => {
       host.prepend(cv);
       const screen = host.closest(".auth");
       screen.onpointermove = move;
-      screen.onpointerdown = (e) => { last = null; move(e); };
-      screen.onpointerleave = () => { last = null; };
-      if (!born) { born = performance.now(); strum(11, 90); }
+      screen.onpointerdown = (e) => { if (!e.target.closest("button, input, a, summary, label, select")) pulse(1); };
+      screen.onpointerleave = () => { aim.x = aim.y = 0; };
+      if (!born) { born = beat = performance.now(); burst(0.8, 3); waves.forEach((w) => (w.t += 1100)); }
       if (!raf) raf = requestAnimationFrame(draw);
     }
 
-    return { mount, pluck, strum, error: () => { errorAt = performance.now(); strum(22, 20); } };
+    return { mount, pulse, burst, error: () => { errorAt = performance.now(); burst(1, 2); } };
   })();
 
-  /** Coque commune (connexion, bienvenue, sanction) : titre et cordes d'un côté, contenu de l'autre. */
+  /** Coque commune (connexion, bienvenue, sanction) : logo et titre d'un côté, contenu de l'autre. */
   let shown = false;
   function shell(inner, cls = "") {
     const intro = shown ? "" : "intro";
     shown = true;
-    queueMicrotask(strings.mount);
+    queueMicrotask(echo.mount);
     return `<div class="login auth ${intro}">
       <div class="auth-layout">
         <aside class="auth-brand" aria-hidden="true">
@@ -208,7 +237,7 @@ const SonaUI = (() => {
     const form = document.querySelector(".auth-card form");
     if (form) form.after(document.querySelector(".auth-msg"));
     bindAuth();
-    if (ui.error) strings.error();
+    if (ui.error) echo.error();
   }
 
   const TITLES = {
@@ -236,7 +265,7 @@ const SonaUI = (() => {
     $r("#auth-form .wide-btn").textContent = signup ? "Créer mon compte" : "Se connecter";
     $r("[data-forgot]").hidden = signup;
     $r(".auth-msg").innerHTML = "";
-    strings.pluck(signup ? 4 : 1, signup ? 0.62 : 0.34, 11);
+    echo.pulse(0.9);
   }
 
   const meter = () => `<div class="pw-meter" id="pw-meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -259,11 +288,8 @@ const SonaUI = (() => {
 
   function bindAuth() {
     const $r = (s) => document.querySelector(s);
-    document.querySelectorAll(".auth .fi").forEach((input) => input.addEventListener("input", (e) => {
-      const n = input.value.length, c = (e.data || "a").charCodeAt(0);
-      strings.pluck(c + n, 0.12 + ((n * 0.061) % 0.76), 9);
-    }));
-    document.querySelectorAll(".auth form").forEach((form) => form.addEventListener("submit", () => strings.strum(18, 35)));
+    document.querySelectorAll(".auth .fi").forEach((input) => input.addEventListener("input", () => echo.pulse(0.35)));
+    document.querySelectorAll(".auth form").forEach((form) => form.addEventListener("submit", () => echo.burst()));
     $r("[data-back]")?.addEventListener("click", () => authScreen({ step: "form" }));
     document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
     document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => attempt(() => auth.oauth(b.dataset.provider))));
