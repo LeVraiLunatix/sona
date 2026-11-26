@@ -190,16 +190,20 @@
   .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
   .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
 
-  /* Renflement : 6 px dans la carte (recouvre la bordure), 7 px dehors, bout en ellipse. */
-  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 13px;
-    left: calc(var(--sb-gap) + var(--sb-rail) - 6px);
+  /* La bordure s'agrandit : l'épaulement part de la pastille 26 px avant le bord, monte de 7 px au-dessus et au-dessous,
+     passe le bord de 10 px et s'arrondit. Trois tranches (haut / milieu / bas) : quand la pastille s'étire, seul le
+     milieu s'allonge, les courbes gardent leur forme. */
+  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 36px;
+    left: calc(var(--sb-gap) + var(--sb-rail) - 26px);
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) + var(--sb-open) - 6px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
-  .sb-bridge b { position: absolute; inset: 0; background: var(--accent); border-radius: 0 7px 7px 0 / 0 28px 28px 0; transform-origin: left center;
-    box-shadow: 0 0 14px 2px color-mix(in srgb, var(--accent) 55%, transparent); }
-  /* Lueur de la bordure : un trait fin, vif à la hauteur de la page active, qui s'éteint en haut et en bas. */
-  .sb-bridge u { position: absolute; left: 5px; width: 3px; top: -110px; bottom: -110px; border-radius: 2px; filter: blur(1px);
-    background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 70%, transparent) 42%, color-mix(in srgb, var(--accent) 70%, transparent) 58%, transparent); }
+  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) + var(--sb-open) - 26px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-bridge .sh { position: absolute; inset: 0; transform-origin: left center; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 45%, transparent)); }
+  .sb-bridge .cap { position: absolute; left: 0; width: 36px; height: 31px; fill: var(--accent); overflow: visible; }
+  .sb-bridge .cap.t { top: 0; } .sb-bridge .cap.bt { bottom: 0; transform: scaleY(-1); }
+  .sb-bridge b { position: absolute; left: 0; width: 36px; top: 30px; bottom: 30px; background: var(--accent); }
+  /* Lueur de la bordure : un voile fin, plus vif à la hauteur de la page active, qui s'éteint doucement en haut et en bas. */
+  .sb-bridge u { position: absolute; left: 21px; width: 8px; top: -130px; bottom: -130px; filter: blur(3px); opacity: .9;
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--accent) 6%, transparent) 14%, color-mix(in srgb, var(--accent) 38%, transparent) 38%, color-mix(in srgb, var(--accent) 52%, transparent) 50%, color-mix(in srgb, var(--accent) 38%, transparent) 62%, color-mix(in srgb, var(--accent) 6%, transparent) 86%, transparent 100%); }
 
   /* Lueur autour : un disque doux centré sur le renflement. Elle passe SOUS la carte (on n'en voit que la moitié de droite) :
      forte au contact, presque éteinte à 120 px. */

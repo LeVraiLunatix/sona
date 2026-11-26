@@ -197,7 +197,7 @@ const Sidebar = (() => {
         ${profileHtml()}
       </div>
     </nav>
-    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><b></b></div>
+    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><div class="sh"><svg class="cap t" viewBox="0 0 36 31" preserveAspectRatio="none"><path d="M0 7C12 7 14 0 24 0C31 0 36 9 36 20L36 31L0 31Z"/></svg><b></b><svg class="cap bt" viewBox="0 0 36 31" preserveAspectRatio="none"><path d="M0 7C12 7 14 0 24 0C31 0 36 9 36 20L36 31L0 31Z"/></svg></div></div>
     <div class="sb-glow" id="sb-glow" aria-hidden="true"></div>`;
   }
 
@@ -257,7 +257,7 @@ const Sidebar = (() => {
     const parts = [el, bump, glow];
     if (!r || !r.height) { parts.forEach((n) => (n.style.opacity = "0")); sb.dataset.liquid = "off"; return; }
     sb.dataset.liquid = "on";
-    const SWELL = 0;      // le renflement a la hauteur exacte de la pastille (pas de marche au raccord)
+    const SWELL = 7;      // la bordure s'agrandit : l'épaulement monte de 7 px au-dessus et au-dessous de la pastille
     const HALO = 120;     // demi-hauteur de la lueur
     const top = r.top - box.top;
     const bottom = box.bottom - r.bottom;
@@ -288,7 +288,7 @@ const Sidebar = (() => {
       glow.style.transition = `top 420ms cubic-bezier(0.34, 1.2, 0.5, 1), left var(--sb-dur) var(--sb-ease), opacity 150ms`;
       set();
       // À l'arrivée : la bordure se renfle un peu plus vers la droite, et la lueur s'enfle puis retombe.
-      bump.querySelector("b")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.9)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 520, easing: "ease-out", delay: 120 });
+      bump.querySelector(".sh")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.55)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 560, easing: "ease-out", delay: 120 });
       glow.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.18)", opacity: 1, offset: 0.45 }, { transform: "scale(1)", opacity: 1 }], { duration: 560, easing: "ease-out", delay: 120 });
       clearTimeout(placeLiquid.t);
       placeLiquid.t = setTimeout(() => parts.forEach((n) => (n.style.transition = "")), 640);
