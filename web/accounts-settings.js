@@ -42,7 +42,7 @@ const SonaSettings = (() => {
       <h3 class="set-head">Connexion</h3><div class="set-group">
         ${linkRow("data-edit-email", icons.user, "Adresse e-mail", email || "Aucune")}
         ${linkRow("data-edit-password", icons.lock, hasPassword ? "Changer le mot de passe" : "Définir un mot de passe", hasPassword ? "Dernière méthode « e-mail »" : "Pour te connecter aussi avec ton e-mail")}
-        ${PROVIDERS_LIST().map(([id, name]) => `<div class="set-row"><span class="set-text"><b>${h(name)}</b><small>${linked.has(id) ? "Relié" : "Non relié"}</small></span>
+        ${PROVIDERS_LIST().map(([id, name, logo]) => `<div class="set-row"><span class="mi-icon">${logo}</span><span class="set-text"><b>${h(name)}</b><small>${linked.has(id) ? "Relié" : "Non relié"}</small></span>
           ${linked.has(id) ? `<button class="btn small ghost" data-unlink="${id}">Délier</button>` : `<button class="btn small" data-link="${id}">Lier</button>`}</div>`).join("")}
         <p class="set-note">Si tu te connectes avec une autre méthode utilisant la même adresse e-mail vérifiée, c'est le même compte. Tu ne peux jamais retirer ta dernière méthode.</p>
       </div>
@@ -56,7 +56,7 @@ const SonaSettings = (() => {
         ${linkRow("data-delete", icons.trash, "Supprimer mon compte", "Efface le compte et toutes les données, définitivement")}</div>`);
   }
 
-  const PROVIDERS_LIST = () => SonaUI.PROVIDERS.map(([id, name]) => [id, name]);
+  const PROVIDERS_LIST = () => SonaUI.PROVIDERS;
 
   function bindAccount(profile) {
     const $r = (s) => document.querySelector(s);

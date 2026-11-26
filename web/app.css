@@ -1695,10 +1695,10 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
 .live-pill.violet, .badge.earned, .stat-hero, .resume, .dev-remote { background: var(--fill); border: 0; border-radius: var(--r-card); }
 
 /* Réglages */
-.set-head { margin: var(--s-8) 0 var(--s-4) var(--s-5); letter-spacing: 0.08em; color: var(--text-3); }
+.set-head { margin: 28px 0 10px 18px; letter-spacing: 0.08em; color: var(--text-3); }
 .set-group, .set-account { border-radius: var(--r-card); max-width: 720px; background: var(--fill); }
-.set-row { padding: var(--s-5) var(--s-6); min-height: 68px; gap: var(--s-5); }
-.switch-row { padding: var(--s-5) var(--s-6); }
+.set-row { padding: 11px 18px; min-height: 60px; gap: 14px; }
+.switch-row { padding: 11px 18px; min-height: 60px; }
 .switch-row input:checked + i { background: var(--accent); }
 .switch-row input:checked + i::after { background: var(--bg); box-shadow: none; }
 .switch-row i::after { box-shadow: none; }
