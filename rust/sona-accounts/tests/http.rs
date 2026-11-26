@@ -329,3 +329,27 @@ async fn cors_only_allows_listed_origins() {
     assert_eq!(pre(&api, "https://trysona.fr").await.as_deref(), Some("https://trysona.fr"));
     assert_eq!(pre(&api, "https://evil.example").await, None);
 }
+
+#[tokio::test]
+async fn inactive_guests_are_deleted_with_their_music_data() {
+    use std::sync::Mutex;
+    let calls = std::sync::Arc::new(Mutex::new(Vec::<String>::new()));
+    let c = calls.clone();
+    let music = common::mock::start(move |s| {
+        c.lock().unwrap().push(format!("{} {}", s.method, s.uri));
+        (204, String::new())
+    })
+    .await;
+    let url = music.url.clone();
+    let Some(api) = Api::with(move |cfg, _| cfg.music_internal_url = Some(url)).await else { return };
+    let old = api.db.user("vieux@example.test").await;
+    let recent = api.db.user("recent@example.test").await;
+    let real = api.db.user("vrai@example.test").await;
+    api.db.su(&format!("update auth.users set is_anonymous = true, created_at = now() - interval '45 days' where id = '{old}'")).await;
+    api.db.su(&format!("update auth.users set is_anonymous = true where id = '{recent}'")).await;
+    api.db.su(&format!("update auth.users set created_at = now() - interval '400 days' where id = '{real}'")).await;
+    assert_eq!(sona_accounts::maintenance::purge_guests(&api.state, 30).await.unwrap(), 1);
+    assert_eq!(*calls.lock().unwrap(), vec![format!("DELETE /internal/users/{old}")]);
+    assert_eq!(api.db.su_scalar("select count(*) from auth.users").await, "2");
+    assert_eq!(api.db.su_scalar(&format!("select count(*) from public.profiles where id = '{old}'")).await, "0");
+}

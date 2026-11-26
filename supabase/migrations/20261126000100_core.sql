@@ -57,6 +57,18 @@ language sql stable security definer set search_path = '' as $$
   from public.profiles p where p.id = p_user
 $$;
 
+-- Mode invité : connexion anonyme Supabase. Un invité utilise l'app mais n'a
+-- aucune existence sociale (ni demandes, ni signalements, ni visibilité).
+create function private.is_anonymous(p_user uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce((select u.is_anonymous from auth.users u where u.id = p_user), false)
+$$;
+
+create function private.me_anonymous() returns boolean
+language sql stable set search_path = '' as $$
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false)
+$$;
+
 -- Compte utilisable : actif ou en quarantaine (dans ce cas il reste invisible
 -- des autres et ne peut rien envoyer, voir les fonctions sociales).
 create function private.is_active(p_user uuid) returns boolean

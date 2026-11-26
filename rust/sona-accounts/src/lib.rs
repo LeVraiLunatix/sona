@@ -16,6 +16,7 @@ pub mod internal;
 pub mod jwt;
 pub mod lastfm;
 pub mod lastfm_sig;
+pub mod maintenance;
 pub mod music;
 pub mod passkey;
 pub mod ratelimit;

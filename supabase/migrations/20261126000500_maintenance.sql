@@ -133,3 +133,40 @@ begin
     perform cron.schedule('sona-signup-spike', '*/10 * * * *', 'select private.detect_signup_spike()');
   end if;
 end $$;
+
+-- ── Invités inactifs (connexion anonyme) : supprimés après 30 jours ─────
+-- La suppression elle-même (et celle des données musicales) est faite par
+-- sona-accounts, qui lit cette liste.
+
+create function public.service_expired_guests(p_days int default 30) returns uuid[]
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.only_service();
+  return coalesce((select array_agg(u.id) from auth.users u
+                   where u.is_anonymous and coalesce(u.last_sign_in_at, u.created_at) < now() - make_interval(days => p_days)
+                   limit 500), '{}');
+end $$;
+grant execute on function public.service_expired_guests(int) to service_role;
+
+-- ── Photos de profil (Supabase Storage, seulement si le stockage existe) ─
+-- Lecture publique, écriture réservée au dossier de l'utilisateur, 200 Ko max, images seulement.
+
+do $$
+begin
+  if to_regclass('storage.buckets') is not null then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values ('avatars', 'avatars', true, 204800, array['image/webp', 'image/jpeg', 'image/png'])
+    on conflict (id) do update set public = true, file_size_limit = 204800,
+      allowed_mime_types = array['image/webp', 'image/jpeg', 'image/png'];
+
+    execute 'drop policy if exists avatars_insert on storage.objects';
+    execute 'drop policy if exists avatars_update on storage.objects';
+    execute 'drop policy if exists avatars_delete on storage.objects';
+    execute $p$create policy avatars_insert on storage.objects for insert to authenticated
+      with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text and public.me_active())$p$;
+    execute $p$create policy avatars_update on storage.objects for update to authenticated
+      using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text and public.me_active())$p$;
+    execute $p$create policy avatars_delete on storage.objects for delete to authenticated
+      using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)$p$;
+  end if;
+end $$;

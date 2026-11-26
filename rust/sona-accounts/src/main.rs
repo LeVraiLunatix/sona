@@ -23,16 +23,8 @@ async fn main() {
     }
     tokio::spawn(lastfm::run_worker(state.clone()));
     tokio::spawn(alerts::run_worker(state.clone()));
-    // Rétention : purge quotidienne (en plus de pg_cron si activé).
-    let purge_pool = pool.clone();
-    tokio::spawn(async move {
-        loop {
-            if let Err(e) = sqlx::query("select public.purge_expired()").execute(&purge_pool).await {
-                tracing::warn!(error = %e, "purge");
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
-        }
-    });
+    // Rétention et invités inactifs : une fois par heure.
+    tokio::spawn(sona_accounts::maintenance::run_daily(state.clone()));
     let listener = tokio::net::TcpListener::bind(&bind).await.expect("port d'écoute");
     tracing::info!("sona-accounts à l'écoute sur {bind}");
     axum::serve(listener, routes::router(state)).with_graceful_shutdown(async {

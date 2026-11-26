@@ -420,3 +420,35 @@ async fn relations_for_the_music_server_follow_the_same_rules() {
     db.su(&format!("update public.profiles set status = 'banned' where id = '{b}'")).await;
     assert_eq!(db.q(Who::Service, &format!("select public.service_friend_ids('{a}') as f")).await.unwrap()[0]["f"], json!([]));
 }
+
+#[tokio::test]
+async fn guests_have_no_social_existence_until_they_create_an_account() {
+    let db = db_or_skip!();
+    let guest = db.named("invite_1").await;
+    let real = db.named("alice").await;
+    db.su(&format!("update auth.users set is_anonymous = true where id = '{guest}'")).await;
+    let anon_claims = |id: uuid::Uuid| format!("select set_config('request.jwt.claims', '{{\"sub\":\"{id}\",\"role\":\"authenticated\",\"is_anonymous\":true}}', true)");
+    // Un invité ne peut ni inviter, ni signaler, ni utiliser un code d'invitation.
+    for sql in [
+        "select public.send_friend_request('alice')".to_string(),
+        format!("select public.create_report('profile', '{real}', null, 'spam', null)"),
+    ] {
+        let e = db.x(u(guest), &format!("{}; {sql}", anon_claims(guest))).await.unwrap_err();
+        assert_eq!(sqlstate(&e), "42501", "{sql}");
+    }
+    // Il est invisible des autres, même si on connaît son identifiant ou son pseudo.
+    assert_eq!(db.q(u(real), &format!("select public.get_profile('{guest}') as p")).await.unwrap()[0]["p"], json!(null));
+    db.x(u(real), "select public.send_friend_request('invite_1')").await.unwrap();
+    assert_eq!(db.count(u(guest), "select * from public.list_friend_requests()").await, 0);
+    // Il ne voit personne non plus.
+    assert!(!db.q(u(guest), &format!("select public.can_i_view('{real}', 'profile_min') as v")).await.unwrap()[0]["v"].as_bool().unwrap());
+    // Après création du compte (même identifiant, e-mail ajouté) : tout s'ouvre.
+    db.su(&format!("update auth.users set is_anonymous = false, email = 'invite@example.test' where id = '{guest}'")).await;
+    db.x(u(real), "select public.send_friend_request('invite_1')").await.unwrap();
+    assert_eq!(db.count(u(guest), "select * from public.list_friend_requests()").await, 1);
+    assert!(db.q(u(real), &format!("select public.get_profile('{guest}') as p")).await.unwrap()[0]["p"].is_object());
+    // Les invités inactifs sont repérés pour suppression.
+    let g2 = db.user("x@example.test").await;
+    db.su(&format!("update auth.users set is_anonymous = true, created_at = now() - interval '40 days' where id = '{g2}'")).await;
+    assert_eq!(db.q(Who::Service, "select public.service_expired_guests(30) as g").await.unwrap()[0]["g"], json!([g2.to_string()]));
+}

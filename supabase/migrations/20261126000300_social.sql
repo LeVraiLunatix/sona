@@ -69,7 +69,7 @@ $$;
 -- Visible des autres : compte actif (ni suspendu, ni banni, ni en quarantaine).
 create function private.is_visible(p_user uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select coalesce(private.effective_status(p_user) = 'active', false)
+  select coalesce(private.effective_status(p_user) = 'active', false) and not private.is_anonymous(p_user)
 $$;
 
 -- LA règle de visibilité, appliquée côté serveur (SQL, et FastAPI via
@@ -84,7 +84,7 @@ declare
 begin
   if p_viewer is null or p_owner is null then return false; end if;
   if p_viewer = p_owner then return private.is_active(p_owner); end if;
-  if not private.is_active(p_viewer) or not private.is_visible(p_owner) then return false; end if;
+  if not private.is_active(p_viewer) or private.is_anonymous(p_viewer) or not private.is_visible(p_owner) then return false; end if;
   if private.is_blocked_between(p_viewer, p_owner) then return false; end if;
   select * into s from public.privacy_settings where user_id = p_owner;
   if not found then return false; end if;
@@ -215,7 +215,7 @@ create function private.require_social(p_me uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   -- Une personne en quarantaine peut utiliser l'app, pas solliciter les autres.
-  if p_me is null or private.effective_status(p_me) <> 'active' then
+  if p_me is null or private.effective_status(p_me) <> 'active' or private.is_anonymous(p_me) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 end $$;

@@ -566,7 +566,7 @@ declare
   v_id uuid;
   v_reporters int;
 begin
-  if v_me is null or not private.is_active(v_me) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if v_me is null or not private.is_active(v_me) or private.is_anonymous(v_me) then raise exception 'forbidden' using errcode = '42501'; end if;
   if p_target_user = v_me then raise exception 'cannot_report_self' using errcode = '22023'; end if;
   -- Doublon récent : on renvoie le même signalement, sans consommer de quota.
   select id into v_id from public.reports
