@@ -28,38 +28,34 @@ Il n'y a **pas** de Supabase, pas de Postgres, pas d'Android natif (Android = PW
 ### Sidebar actuelle
 `renderShell()` (`app.js` ~568) + CSS réparti sur trois blocs de `app.css` (lignes ~83-135, ~1558-1610, ~1746-1790) qui se contredisent : largeur du rail animée (`width`, force le reflow), `:hover` qui agrandit le rail en repoussant la grille, labels en `max-width`, une dizaine d'entrées plus deux listes de playlists. Aucune bascule clavier, pas d'`aria-current` / `aria-expanded`.
 
-## 2. Décision d'architecture (prise à ta place)
+## 2. Décision d'architecture (prise à ta place, révisée : tout le serveur en Rust)
 
-Le cahier des charges suppose Supabase partout (Auth, Postgres + RLS, Edge Functions). Réécrire le moteur musique sur Postgres (repository de 1 800 lignes, flux audio, 60 fichiers de tests) n'est pas raisonnable ni sûr. Architecture retenue : **hybride**.
+Le cahier des charges suppose Supabase partout (Auth, Postgres + RLS, Edge Functions). Réécrire le moteur musique sur Postgres n'est pas raisonnable, et Sona est en train de migrer vers Rust : **aucune ligne de Python ni d'Edge Function TypeScript n'est ajoutée**. Tout le code serveur de ce chantier est un service Rust (`rust/sona-accounts`, axum + sqlx) qui prend la place des Edge Functions.
 
 ```
- Navigateur / PWA / Windows / iOS
-      │  supabase-js (auth, RPC amis, réglages, signalements)      ┌───────────────────────┐
-      ├───────────────────────────────────────────────────────────▶│ Supabase              │
-      │                                                            │  Auth (toutes méthodes)│
-      │  Edge Functions : lastfm, admin, account, passkey          │  Postgres + RLS        │
-      ├───────────────────────────────────────────────────────────▶│  Edge Functions (Deno) │
-      │                                                            └──────────▲────────────┘
-      │  Bearer <JWT Supabase>                                                │ service role (serveur seulement)
-      ▼                                                                       │
- FastAPI (VPS) ── vérifie le JWT, lit statut/ban/confidentialité/amitiés ─────┘
-   musique, bibliothèque, playlists, écoutes (SQLite), sessions d'écoute (mémoire)
+ Navigateur / PWA / Windows
+      │  supabase-js : auth, réglages, amis (RPC SQL), signalements
+      ├────────────────────────────────────────────────────────────▶ Supabase : Auth + Postgres (RLS)
+      │  Bearer <JWT Supabase>                                               ▲
+      ├──────────▶ sona-accounts (Rust, VPS) : Last.fm, admin, export/suppression,  │ SQL direct (rôle serveur)
+      │            passkeys, hook anti-inscription, alertes, /internal/*  ──────────┘
+      │  Bearer <JWT Supabase>
+      └──────────▶ serveur musique (Rust, en cours de migration) ── utilise la crate `sona_accounts::auth`
+                   (vérif JWT + statut/ban à chaque requête) et `/internal/relations`
 ```
 
-- **Supabase = identité + tout ce qui est social et modération** : `profiles`, rôles, sanctions, `audit_log`, amitiés, blocages, confidentialité, signalements, anti-abus, `connected_services`, passkeys. **RLS sur toutes les tables.** Les règles de visibilité vivent à un seul endroit : la fonction SQL `public.can_view(viewer, owner, scope)`, appelée aussi par FastAPI (RPC) pour les données qu'il sert.
-- **FastAPI reste le moteur musique**, mais n'a plus son propre système de comptes : il valide le JWT Supabase (ES256 via JWKS, ou HS256), rattache `sub` à un `app_accounts.supabase_uid` créé à la volée, et **interroge Supabase à chaque requête** (cache de 5 s) pour refuser un compte banni ou suspendu même avec un jeton encore valide.
-- **Écart assumé avec la section 4 du cahier des charges** : `library`, `playlists`, `playlist_tracks`, `listening_history` (= `plays`) restent dans SQLite côté FastAPI (espace de données entier par compte), et non dans Postgres. Ce sont des données couplées au flux audio ; leur visibilité envers les amis passe par `can_view` (Supabase) puis le filtrage FastAPI. `user_settings`, `connected_services` et tout le reste du schéma sont dans Postgres. Migrer ces quatre tables plus tard est possible sans changer l'API.
-- **Sessions d'écoute** : elles restent en mémoire dans FastAPI (état éphémère, nettoyé à la fermeture, ce que demande la spec) mais gagnent rôles, accès (amis / invitation à jeton expirant / ouvert avec lien), verrouillage, bannissement de session, coupure du chat, limite de participants, blocage entre utilisateurs et signalement de messages.
-- **Last.fm** : l'échange `auth.getSession` et le secret API passent dans une Edge Function (`lastfm`). La session key est chiffrée (AES-GCM) dans `connected_services`. Le scrobbling est fait **par le serveur Sona** (file d'attente persistante + réessais dans SQLite) en appelant cette Edge Function avec un secret serveur à serveur : le client n'a rien à gérer hors-ligne. L'import d'historique utilise `user.getRecentTracks` (public, clé API seule) dans FastAPI, en tâche de fond (déjà existant).
-- **Passkeys** : je n'ai pas pu consulter la doc Supabase (réseau du bac à sable fermé vers supabase.com) et je ne les suppose pas natifs. Implémentation WebAuthn avec SimpleWebAuthn dans une Edge Function ; la session Supabase est émise via `admin.generateLink(magiclink)` + `verifyOtp(token_hash)`. Si Supabase propose entre-temps le natif, on pourra le remplacer sans toucher au reste.
-- **Compatibilité** : l'ancienne connexion Last.fm de FastAPI (`/auth/lastfm*`) et l'app iOS native continuent de fonctionner pour les comptes déjà approuvés ; elle ne crée plus que des comptes `pending` (inutilisables). Les comptes Supabase sont la voie principale. Un script `scripts/link_legacy_account.py` rattache un ancien compte (et ses données) à un compte Supabase.
-- **iOS natif (`ios/Encre`)** : non modifié (impossible à compiler ici ; un Swift cassé fait échouer la CI). Il reste sur l'ancien flux. Le site/PWA (ce que tu testes sur iPhone) est la cible.
+- **Supabase = identité + tout ce qui est social et modération** : `profiles`, rôles, sanctions, `audit_log`, amitiés, blocages, confidentialité, signalements, anti-abus, `connected_services`, passkeys. RLS sur toutes les tables. Les règles de visibilité vivent à un seul endroit : la fonction SQL `private.can_view`.
+- **`sona-accounts` (Rust)** remplace les Edge Functions : vérification des JWT (ES256 via JWKS ou HS256), actions d'administration (le service REVÉRIFIE le rôle en base, et la base revérifie encore dans les fonctions SQL), échange Last.fm (secret côté serveur, clé de session chiffrée AES-256-GCM), file de scrobbling persistante avec réessais, export / suppression de compte, passkeys WebAuthn (`webauthn-rs`), hook « avant création d'utilisateur » (signature Standard Webhooks), alertes Discord, endpoints internes pour le serveur musique.
+- **Serveur musique** : je ne le touche pas (il est en migration). La crate expose ce dont il a besoin : middleware d'authentification axum (JWT + ban vérifié à chaque requête avec un cache de 5 s), `Relations` (amis / bloqué / présence / historique visibles), et le modèle de **sessions d'écoute** (`sessions`) : rôles, accès amis / invitation à jeton expirant / lien ouvert, verrouillage, bannissement, chat coupé, limite de participants, blocage. File, votes et chat restent dans ton code.
+- **Écart assumé avec la section 4** : `library`, `playlists`, `playlist_tracks`, `listening_history` restent dans le stockage du serveur musique (couplées au flux audio). Leur visibilité envers les amis passe par `can_view`. Tout le reste du schéma est dans Postgres.
+- **Passkeys** : je n'ai pas pu consulter la doc Supabase (réseau fermé vers supabase.com), je ne les suppose donc pas natifs. WebAuthn côté Rust ; la session Supabase est émise via `generate_link(magiclink)` + `verifyOtp(token_hash)`.
+- **iOS natif (`ios/Encre`)** : non modifié (impossible à compiler ici). Le site/PWA est la cible.
+- **Anciens comptes** : le rattachement d'un ancien compte Last.fm (et de ses données) à un compte Supabase se fait côté serveur musique ; la colonne `app_accounts.supabase_uid` n'est plus nécessaire côté ce chantier.
 
-## 3. Phases et commits
+## 3. Phases et commits (un seul push à la fin)
 
-1. Base : migrations SQL, RLS, tests Postgres 16 locaux (`tests/test_supabase_rls.py`)
-2. Edge Functions + modules partagés (tests node)
-3. FastAPI : JWT, bans, amis réels, présence, sessions, endpoints internes
-4. Web : écran unique, invité, onboarding, réglages, amis, signalements, `/admin`, pages légales
-5. Sidebar (3 variantes dans `docs/sidebar-variants/`, choix motivé, implémentation, tests navigateur)
-6. Docs (`docs/AUTH_SETUP.md`), `.env.example`, CI, résumé final
+1. Base : migrations SQL, RLS, tests Postgres 16 locaux (écrits en Rust)
+2. `sona-accounts` : JWT, ban à chaque requête, Last.fm, admin, compte, passkeys, hook, alertes, relations, sessions
+3. Web : écran unique, invité, onboarding, réglages, amis, signalements, `/admin`, pages légales
+4. Sidebar (3 variantes dans `docs/sidebar-variants/`, choix motivé, implémentation, tests navigateur)
+5. Docs (`docs/AUTH_SETUP.md`), `.env.example`, CI, résumé final
