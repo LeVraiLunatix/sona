@@ -184,7 +184,7 @@ const Sidebar = (() => {
     return `<div class="sb-spacer" aria-hidden="true"></div>
     <nav class="sb" id="sb" aria-label="Navigation principale" data-open="false">
       <div class="sb-face" aria-hidden="true"></div>
-      <div class="sb-top"><a class="sb-logo" href="#/home" aria-label="Sona, accueil"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></a><span class="sb-word" aria-hidden="true">ona</span></div>
+      <div class="sb-top"><a class="sb-logo" href="#/home" aria-label="Sona, accueil"><span class="sb-brand"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg><span class="sb-word" aria-hidden="true">ona</span></span></a></div>
       <button class="sb-link sb-toggle" id="sb-toggle" type="button" aria-expanded="false" aria-controls="sb-scroll" data-tip="Menu" data-key="" style="margin-top:6px">
         <span class="sb-ico"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v12h3.5V6zm5.500 0v12H19V6z"/></svg></span><span class="sb-label">Réduire le menu</span></button>
       <div class="sb-scroll" id="sb-scroll">

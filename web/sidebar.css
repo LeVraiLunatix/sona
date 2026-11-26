@@ -51,9 +51,13 @@
 /* ── Contenu : mêmes dimensions fermé et ouvert ───────────────────────── */
 
 .sb-top { display: flex; align-items: center; height: 48px; flex: none; }
-.sb-logo { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; color: var(--accent); flex: none; }
-.sb-logo svg { width: 28px; height: 28px; }
-.sb-word { margin-left: 2px; font-size: 22px; font-weight: 700; letter-spacing: -0.04em; opacity: 0; transition: opacity 90ms; }
+/* Logo : le S et « ona » forment « Sona », sur la même ligne de base (le S, de 34 px, a la hauteur de
+   capitale du texte de 34 px ; sa base est à ~14 % du bas de son carré, d'où le décalage de 4,8 px).
+   Au repos seul le S est visible, centré dans la colonne des icônes (7 + 34 / 2 + 12 = 36 px). */
+.sb-logo { display: flex; align-items: center; height: 48px; padding-left: 7px; border-radius: 16px; color: var(--accent); flex: none; }
+.sb-brand { display: inline-flex; align-items: baseline; }
+.sb-logo svg { width: 34px; height: 34px; flex: none; transform: translateY(4.8px); }
+.sb-word { font-size: 34px; line-height: 1; font-weight: 700; letter-spacing: -0.05em; color: var(--text); margin-left: -2px; padding-right: 4px; opacity: 0; transition: opacity 90ms; }
 .sb[data-open="true"] .sb-word { opacity: 1; transition: opacity 150ms 100ms; }
 
 .sb-scroll {
