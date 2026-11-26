@@ -114,7 +114,7 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
   ok("pseudo disponible : on peut continuer", !(await t.page.locator("[data-next]").isEnabled() === false));
   await t.page.click("[data-next]");
   await t.page.waitForSelector("[data-lfm]");
-  ok("services : Last.fm facultatif, Spotify et Deezer « bientôt »", (await t.page.locator(".soon").count()) === 2 && (await t.page.locator("[data-skip]").count()) === 1);
+  ok("services : Last.fm facultatif, import de playlists expliqué (rien de simulé)", (await t.page.locator(".soon").count()) === 0 && /Spotify, Deezer/.test(await text(t.page, ".ob-group")) && (await t.page.locator("[data-skip]").count()) === 1);
   await t.page.click("[data-skip]");
   await t.page.waitForSelector('[data-pref="presence"]');
   ok("préférences : présence désactivée par défaut", (await t.page.inputValue('[data-pref="presence"]')) === "nobody");
@@ -425,7 +425,7 @@ const contentLeft = (page) => page.evaluate(() => document.getElementById("conte
 {
   const t = await open({ mock: signedIn(), hash: "#/settings/services", accounts: { "GET /lastfm/status": { connected: false } } });
   await t.page.waitForSelector("[data-connect]");
-  ok("services : Last.fm facultatif, Spotify et Deezer « bientôt »", /Bientôt/.test(await text(t.page, "#content")) && /facultatif/.test(await text(t.page, "#content")));
+  ok("services : Last.fm facultatif, import de playlists et ancien compte (plus de « Bientôt »)", !/Bientôt/.test(await text(t.page, "#content")) && /facultatif/.test(await text(t.page, "#content")) && (await t.page.locator("[data-import-playlist]").count()) === 1 && (await t.page.locator("[data-link-legacy]").count()) === 1);
   await t.close();
 }
 {

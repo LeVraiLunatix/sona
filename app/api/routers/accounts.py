@@ -145,7 +145,8 @@ async def link_legacy(payload: LastfmLoginIn, deps: ApiDeps = Depends(identify))
     try:
         session = await deps.lastfm_auth.get_session(payload.token)
     except LastfmAuthError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+        # 400 et non 401 : le site se déconnecterait sur un 401. Le plus courant : Last.fm n'a pas encore été autorisé.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Autorise d'abord Sona sur la page Last.fm, puis réessaie. ({exc})") from exc
     legacy = await deps.repo.account_by_username(session.username)
     if legacy is None or legacy.lastfm_username.startswith("sb:"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucun ancien compte Sona pour ce pseudo Last.fm.")

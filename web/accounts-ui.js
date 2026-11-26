@@ -352,8 +352,7 @@ const SonaUI = (() => {
           <p class="auth-hint">Tout est facultatif. Sona garde ton historique d'écoute lui-même : Last.fm n'est qu'une option.</p>
           <div class="set-group ob-group">
             <div class="set-row"><span class="set-text"><b>Last.fm</b><small id="ob-lfm">Envoie tes écoutes à ton profil Last.fm</small></span><button class="btn small" data-lfm>Connecter</button></div>
-            <div class="set-row"><span class="set-text"><b>Spotify</b><small>Import de playlists</small></span><span class="soon">Bientôt</span></div>
-            <div class="set-row"><span class="set-text"><b>Deezer</b><small>Import de playlists</small></span><span class="soon">Bientôt</span></div>
+            <div class="set-row"><span class="set-text"><b>Playlists Spotify, Deezer…</b><small>Plus tard, dans Réglages › Services connectés : colle un lien de playlist et Sona la retrouve titre par titre</small></span></div>
           </div>
           <div class="ob-actions">${skip}<button class="btn big" data-next>Continuer</button></div>`;
         if (steps[i] === "prefs") return `<h2 class="auth-h2">Préférences</h2>

@@ -261,8 +261,10 @@ const SonaSettings = (() => {
              ${row("Last.fm", "Envoie tes écoutes à ton profil Last.fm", `<button class="btn small" data-connect>Connecter</button>`)}`}
       </div>
       <h3 class="set-head">Import de playlists</h3><div class="set-group">
-        ${row("Spotify", "Importer tes playlists", `<span class="soon">Bientôt</span>`)}
-        ${row("Deezer", "Importer tes playlists", `<span class="soon">Bientôt</span>`)}
+        ${row("Spotify, Deezer, Apple Music, YouTube, SoundCloud", "Colle le lien d'une playlist publique : chaque titre est retrouvé, ce qui est à vérifier t'est signalé, et elle se resynchronise chaque jour", `<button class="btn small" data-import-playlist>Importer</button>`)}
+      </div>
+      <h3 class="set-head">Ancien compte Sona</h3><div class="set-group">
+        ${row("Récupérer mon ancien compte", "Tu te connectais avec Last.fm avant ? Retrouve ta bibliothèque, tes playlists et ton historique", `<button class="btn small" data-link-legacy>Récupérer</button>`)}
       </div>`);
   }
 
@@ -304,7 +306,30 @@ const SonaSettings = (() => {
     catch (e) { toast(e.message); }
   }
 
+  /** Rattache un ancien compte (connexion Last.fm d'avant) : on le prouve en autorisant Last.fm avec son pseudo. */
+  async function linkLegacy() {
+    const { token, auth_url } = await api("/auth/lastfm/token", { method: "POST" });
+    if (window.sonaDesktop) window.sonaDesktop.openExternal(auth_url); else window.open(auth_url, "_blank", "noopener") || (location.href = auth_url);
+    toast("Autorise Sona sur la page Last.fm avec ton ancien pseudo, puis reviens ici");
+    const until = Date.now() + 10 * 60 * 1000;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 2500));
+      try {
+        await api("/auth/link-legacy", { method: "POST", body: JSON.stringify({ token }) });
+        toast("Ancien compte récupéré ✓");
+        location.hash = "#/library";
+        return;
+      } catch (e) {
+        // Last.fm n'a pas encore autorisé : on attend. Toute autre réponse du serveur (introuvable, déjà pris…) s'affiche.
+        if (!/Autorise d'abord/.test(e.message)) throw e;
+      }
+    }
+    throw new Error("Délai dépassé : relance la récupération.");
+  }
+
   function bindServices() {
+    $("[data-import-playlist]")?.addEventListener("click", guard(async () => { await importPlaylist(); }));
+    $("[data-link-legacy]")?.addEventListener("click", guard(linkLegacy));
     $("[data-connect]")?.addEventListener("click", guard(connectLastfm));
     $("[data-disconnect]")?.addEventListener("click", guard(async () => {
       if (!(await confirmSheet("Déconnecter Last.fm ? La clé de session est supprimée de Sona.", "Déconnecter"))) return;

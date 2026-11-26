@@ -81,7 +81,7 @@ def test_invalid_banned_and_unreachable(client):
     banned = person(client, "troll")
     client.fake.sanctioned["troll.jwt.signature"] = ("banned", "spam")
     got = client.get("/auth/me", headers=banned)
-    assert got.status_code == 403 and got.json()["detail"] == {"error": "sanctioned", "status": "banned", "reason": "spam", "until": None}
+    assert got.status_code == 403 and got.json() == {"error": "sanctioned", "status": "banned", "reason": "spam", "until": None}
     ok = person(client, "ok")
     client.fake.down = True
     assert client.get("/auth/me", headers=ok).status_code == 503
@@ -364,3 +364,14 @@ def test_scrobbles_go_through_the_accounts_service(client):
         time.sleep(0.05)
     assert ("uid-alice", "now_playing", "Ziak", "Grabba") in client.fake.scrobbles
     assert ("uid-alice", "scrobble", "A", "T1") in client.fake.scrobbles
+
+
+def test_link_waits_for_lastfm_authorisation_without_signing_out(client):
+    from app.providers.lastfm_auth import LastfmAuthError
+
+    async def not_yet(token):
+        raise LastfmAuthError("Last.fm : Unauthorized Token")
+
+    client.deps.lastfm_auth.get_session = not_yet
+    got = client.post("/auth/link-legacy", headers=person(client, "alice"), json={"token": "t"})
+    assert got.status_code == 400 and got.json()["detail"].startswith("Autorise d'abord")

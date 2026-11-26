@@ -11,6 +11,14 @@ from app.services import sona_accounts as sa
 
 _bearer = HTTPBearer(auto_error=False)
 
+class SanctionedError(Exception):
+    """Compte banni ou suspendu : réponse 403 `{error: "sanctioned", status, reason, until}` (écran de sanction du site)."""
+
+    def __init__(self, status: str, reason: str | None, until: str | None) -> None:
+        super().__init__(status)
+        self.body = {"error": "sanctioned", "status": status, "reason": reason, "until": until}
+
+
 PENDING_MESSAGE = "Compte en attente de validation par un administrateur."
 REJECTED_MESSAGE = "Accès à l'app refusé par un administrateur."
 
@@ -52,10 +60,7 @@ async def _identify_supabase(deps: ApiDeps, token: str) -> ApiDeps:
     except sa.InvalidToken:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expirée ou invalide : reconnecte-toi.") from None
     except sa.Sanctioned as exc:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail={"error": "sanctioned", "status": exc.status, "reason": exc.reason, "until": exc.until},
-        ) from None
+        raise SanctionedError(exc.status, exc.reason, exc.until) from None
     except sa.Unavailable:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Service de comptes indisponible.") from None
     profiles = await _profile_of(deps, who.uid)

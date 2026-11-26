@@ -10,7 +10,9 @@ from pathlib import Path
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+
+from app.api.auth import SanctionedError
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
@@ -202,6 +204,10 @@ def create_app() -> FastAPI:
         description="API privée servant de backend à l'app iOS de Sona.",
         lifespan=lifespan,
     )
+    @app.exception_handler(SanctionedError)
+    async def _sanctioned(_request, exc: SanctionedError):
+        return JSONResponse(exc.body, status_code=403)
+
     app.add_middleware(GZipExceptStream)
     # Sona web hébergé ailleurs (Vercel) : appels de l'API depuis une autre
     # adresse. Sans risque ici : l'authentification passe par un jeton
