@@ -52,13 +52,17 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
   ok("écran unique : fournisseurs, e-mail, invité", /Google/.test(body) && /Discord/.test(body) && /GitHub/.test(body) && (await t.page.locator('input[name="email"]').count()) === 1 && /Essayer sans compte/.test(body));
   ok("liens légaux", (await t.page.locator('a[href="conditions"]').count()) === 1 && (await t.page.locator('a[href="confidentialite"]').count()) === 1);
   ok("pas de scroll horizontal (bureau)", !(await hasScrollX(t.page)));
+  ok("un seul champ : pas d'onglets ni de mot de passe d'emblée", (await t.page.locator('[data-mode], input[name="password"]').count()) === 0);
   await t.page.fill('input[name="email"]', "alice@example.org");
+  await t.page.click("[data-password]");
+  await t.page.waitForSelector("#auth-password");
+  ok("mot de passe : l'adresse saisie est reprise", (await t.page.inputValue('input[name="email"]')) === "alice@example.org");
   await t.page.fill('input[name="password"]', "wrong");
-  await t.page.click("#auth-form button.btn");
+  await t.page.click("#auth-password button.btn");
   await t.page.waitForSelector(".auth-msg .error");
   ok("mauvais mot de passe : message en français", /incorrect/.test(await text(t.page, ".auth-msg")));
   await t.page.fill('input[name="password"]', "Correct-horse-9");
-  await t.page.click("#auth-form button.btn");
+  await t.page.click("#auth-password button.btn");
   await t.page.waitForSelector("#sb", { timeout: 5000 });
   ok("connexion : l'app s'ouvre avec le menu", true);
   await t.close();
@@ -81,20 +85,12 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
 // Inscription → code → bienvenue (pseudo vérifié en direct, services, préférences) → app.
 {
   const t = await open({ mock: { profile: { id: "u1", username: "sona_ab12cd34", display_name: null, avatar_url: null, bio: null, role: "user", status: "active", status_reason: null, status_until: null, onboarding_completed: false, force_username_change: false, force_avatar_change: false, friend_code: "abc", created_at: "2026-01-01T00:00:00Z" } } });
-  await t.page.click('[data-mode="signup"]');
   await t.page.fill('input[name="email"]', "nouvelle@example.org");
-  await t.page.fill('input[name="password"]', "court");
-  await t.page.click("#auth-form button.btn");
-  ok("mot de passe faible refusé", /10 caractères minimum/.test(await text(t.page, ".auth-msg")));
-  await t.page.click('[data-mode="signup"]');
-  await t.page.fill('input[name="email"]', "nouvelle@example.org");
-  await t.page.fill('input[name="password"]', "Abcdefghij");
-  await t.page.dispatchEvent('input[name="password"]', "input");
-  ok("jauge de mot de passe", (await t.page.locator("#pw-meter i.on").count()) >= 1 && /chiffres/.test(await text(t.page, "#pw-hint")));
-  await t.page.fill('input[name="password"]', "Cheval-Pile-42x");
   await t.page.click("#auth-form button.btn");
   await t.page.waitForSelector("#auth-code");
-  ok("confirmation par code à 6 chiffres", /nouvelle@example\.org/.test(await text(t.page)));
+  const sent = (await t.mockState()).auth.find((c) => c[0] === "otp");
+  ok("e-mail seul : un code est envoyé et le compte créé au besoin", sent?.[1].email === "nouvelle@example.org" && sent[1].options.shouldCreateUser === true, JSON.stringify((await t.mockState()).auth));
+  ok("code à 6 chiffres demandé, mot de passe proposé en repli", /nouvelle@example\.org/.test(await text(t.page)) && (await t.page.locator("[data-password]").count()) === 1);
   await t.page.fill('input[name="code"]', "000000");
   await t.page.click("#auth-code button");
   await t.page.waitForSelector(".auth-msg .error");
@@ -133,11 +129,17 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
 // Mot de passe oublié : même message que le compte existe ou non, code, nouveau mot de passe.
 {
   const t = await open();
+  await t.page.click("[data-password]");
   await t.page.click("[data-forgot]");
   await t.page.fill('input[name="email"]', "inconnu@example.org");
   await t.page.click("#auth-forgot button");
   await t.page.waitForSelector("#auth-reset-code");
   ok("mot de passe oublié : code demandé, sans révéler si le compte existe", /Code envoyé/.test(await text(t.page)));
+  await t.page.fill('input[name="code"]', "123456");
+  await t.page.click("#auth-reset-code button");
+  await t.page.waitForSelector("#auth-newpass");
+  await t.page.fill('input[name="password"]', "Abcdefghij");
+  ok("jauge de mot de passe", (await t.page.locator("#pw-meter i.on").count()) >= 1 && /chiffres/.test(await text(t.page, "#pw-hint")));
   await t.close();
 }
 

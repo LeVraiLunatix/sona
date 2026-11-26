@@ -70,16 +70,8 @@
 .provider[disabled] { opacity: .5; pointer-events: none; }
 .provider svg { width: 20px; height: 20px; flex: none; }
 .provider.passkey { width: 100%; }
-.pw-extra { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows .4s var(--out), visibility .4s; }
-.pw-extra.open { grid-template-rows: 1fr; visibility: visible; }
-.pw-extra > div { overflow: hidden; min-height: 0; }
-.auth .auth-tabs { position: relative; isolation: isolate; }
-.auth .auth-tabs button.on { background: transparent; box-shadow: none; transition: color .3s; }
-.auth .auth-tabs::before { content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 9px; background: #f4f4f5; transition: transform .4s var(--out); }
-.auth .auth-tabs:has([data-mode="signup"].on)::before { transform: translateX(100%); }
 .auth-or { display: flex; align-items: center; gap: 14px; color: var(--text-3); font-size: 13px; margin: 16px 0 12px; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
-.auth-tabs { margin: 0 0 14px; max-width: none; }
 
 /* Champs à étiquette flottante */
 .fld { position: relative; margin: 0 0 10px; }
@@ -97,8 +89,7 @@
 .auth .wide-btn { width: 100%; height: 54px; justify-content: center; margin-top: 8px; font-size: 16px; border-radius: 14px; background: #fff; color: #000; transition: transform .3s var(--out), box-shadow .3s; }
 .auth .wide-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(255, 255, 255, .18); }
 .auth .wide-btn:active { transform: scale(.985); }
-.auth .segmented { background: var(--fill); }
-.auth .segmented button.on { color: #000; }
+
 .auth-alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
 .pill-btn { min-height: 40px; padding: 0 14px; border-radius: 999px; background: transparent; color: var(--text-2); font-size: 13.5px; font-weight: 600; transition: background .15s, color .15s; }
 .pill-btn:hover { background: var(--fill-strong); color: var(--text); }

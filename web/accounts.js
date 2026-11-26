@@ -167,12 +167,6 @@
     user: () => current?.user || null,
     isGuest: () => !!current?.user?.is_anonymous,
 
-    async signUp(email, password, name) {
-      const problem = passwordProblem(password, email);
-      if (problem) throw new Error(problem);
-      const captchaToken = await captcha();
-      return run(need().auth.signUp({ email, password, options: { emailRedirectTo: redirectTo(), captchaToken } }));
-    },
     async signIn(email, password) {
       const captchaToken = await captcha();
       return run(need().auth.signInWithPassword({ email, password, options: { captchaToken } }));
@@ -183,11 +177,10 @@
       const captchaToken = await captcha();
       return run(need().auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: redirectTo(), captchaToken } }));
     },
-    /** type : « email » (code de connexion) ou « signup » (confirmation d'inscription). */
+    /** type : « email » (connexion ou inscription) ou « recovery » (mot de passe oublié). */
     verifyCode(email, token, type = "email") {
       return run(need().auth.verifyOtp({ email, token: token.replace(/\s+/g, ""), type }));
     },
-    resendSignup(email) { return run(need().auth.resend({ type: "signup", email })); },
     async resetPassword(email) {
       const captchaToken = await captcha();
       return run(need().auth.resetPasswordForEmail(email, { redirectTo: redirectTo(), captchaToken }));

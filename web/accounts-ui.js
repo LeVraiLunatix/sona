@@ -21,9 +21,9 @@ const SonaUI = (() => {
   ];
   const providerName = (p) => (PROVIDERS.find((x) => x[0] === p) || [p, p])[1];
 
-  // ── Écran unique : inscription et connexion ──────────────────────────────
+  // ── Écran unique : un e-mail suffit, le code connecte ou crée le compte ──────────────────────────────
 
-  const ui = { mode: "signin", step: "form", email: "", notice: "", error: "", busy: false, reason: "" };
+  const ui = { step: "form", email: "", notice: "", error: "", busy: false, reason: "" };
 
   function authScreen(next = {}) {
     Object.assign(ui, { step: "form", error: "", notice: "", busy: false }, next);
@@ -175,7 +175,6 @@ const SonaUI = (() => {
   function paintAuth() {
     const guestOk = !!window.Sona.configured;
     const passkeyOk = window.Sona.passkeys.supported() && !!window.Sona.config.accountsUrl;
-    const signup = ui.mode === "signup";
     const busy = ui.busy ? "disabled" : "";
     let body;
     if (!window.Sona.configured) {
@@ -186,7 +185,16 @@ const SonaUI = (() => {
           ${fld("code", "Code à 6 chiffres", { auto: "one-time-code", mode: "numeric", extra: 'maxlength="8"', cls: "code" })}
           <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>
-        <p class="auth-links"><button class="link-btn" data-back>Changer d'adresse</button><button class="link-btn" data-resend>Renvoyer le code</button></p>`;
+        <p class="auth-links"><button class="link-btn" data-back>Changer d'adresse</button><button class="link-btn" data-resend>Renvoyer le code</button></p>
+        <p class="auth-links"><button class="link-btn" data-password>Utiliser mon mot de passe</button></p>`;
+    } else if (ui.step === "password") {
+      body = `${head("Ton mot de passe", ui.email ? `Pour <b>${h(ui.email)}</b>.` : "Pour les comptes qui en ont déjà un.")}
+        <form id="auth-password" novalidate>
+          ${fld("email", "Adresse e-mail", { type: "email", value: ui.email, auto: "email", mode: "email", extra: 'autocapitalize="none" spellcheck="false"' })}
+          ${fld("password", "Mot de passe", { type: "password", auto: "current-password", eye: true })}
+          <button class="btn big wide-btn" ${busy}>Se connecter</button>
+        </form>
+        <p class="auth-links"><button class="link-btn" data-back>Retour</button><button class="link-btn" data-forgot>Mot de passe oublié</button></p>`;
     } else if (ui.step === "forgot") {
       body = `${head("Mot de passe oublié", "Entre ton adresse : on t'envoie un code (et un lien) pour choisir un nouveau mot de passe.")}
         <form id="auth-forgot" novalidate>
@@ -209,25 +217,17 @@ const SonaUI = (() => {
         </form>`;
     } else {
       const oauth = `<div class="auth-providers">${PROVIDERS.map(([id, name, svg]) => `<button class="provider" data-provider="${id}" aria-label="Continuer avec ${name}" ${busy}>${svg}<span>${name}</span></button>`).join("")}</div>`;
-      body = `${head(...TITLES[ui.mode === "signup" ? "signup" : "signin"])}
+      body = `${head("Bienvenue", "Ton e-mail suffit : on te connecte, ou on crée ton compte.")}
         ${isIOSStandalone()
           ? `<details class="auth-more"><summary>Google, Discord, GitHub</summary><p class="auth-hint">Dans l'app installée sur iPhone, ces connexions s'ouvrent dans Safari et ne reviennent pas ici. Choisis plutôt le code par e-mail ou une clé d'accès.</p>${oauth}</details>`
           : oauth}
         ${passkeyOk ? `<button class="provider passkey full" data-passkey ${busy}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 12h9m-3 0v4m-3-4v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Clé d'accès (Face ID, Touch ID…)</span></button>` : ""}
         <div class="auth-or"><span>ou avec ton e-mail</span></div>
-        <div class="segmented auth-tabs" role="tablist">
-          <button role="tab" aria-selected="${!signup}" class="${!signup ? "on" : ""}" data-mode="signin">Connexion</button>
-          <button role="tab" aria-selected="${signup}" class="${signup ? "on" : ""}" data-mode="signup">Créer un compte</button>
-        </div>
         <form id="auth-form" novalidate>
           ${fld("email", "Adresse e-mail", { type: "email", value: ui.email, auto: "email", mode: "email", extra: 'autocapitalize="none" spellcheck="false"' })}
-          ${fld("password", "Mot de passe", { type: "password", auto: signup ? "new-password" : "current-password", eye: true })}
-          <div class="pw-extra ${signup ? "open" : ""}"><div>${meter()}</div></div>
-          <button class="btn big wide-btn" ${busy}>${signup ? "Créer mon compte" : "Se connecter"}</button>
+          <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>
-        <div class="auth-alt">
-          <button class="pill-btn" data-code>Recevoir un code par e-mail</button><button class="pill-btn" data-forgot ${signup ? "hidden" : ""}>Mot de passe oublié</button>
-        </div>
+        <div class="auth-alt"><button class="pill-btn" data-password>J'ai un mot de passe</button></div>
         ${guestOk ? `<button class="guest" data-guest>Essayer sans compte</button>` : ""}`;
     }
     root().innerHTML = shell(`${body}
@@ -238,34 +238,6 @@ const SonaUI = (() => {
     if (form) form.after(document.querySelector(".auth-msg"));
     bindAuth();
     if (ui.error) echo.error();
-  }
-
-  const TITLES = {
-    signin: ["Content de te revoir", "Connecte-toi pour retrouver ta musique."],
-    signup: ["Crée ton compte", "Gratuit, sans pub, ouvert à tout le monde."],
-  };
-
-  /** Connexion ⇄ inscription : on change sur place, sans redessiner (rien ne saute, la saisie reste). */
-  function setMode(mode) {
-    ui.mode = mode;
-    ui.error = "";
-    ui.notice = "";
-    const signup = mode === "signup";
-    const $r = (s) => document.querySelector(s);
-    const [title, subtitle] = TITLES[mode];
-    $r(".auth-card .auth-h2").textContent = title;
-    $r(".auth-card .auth-hint").textContent = subtitle;
-    document.querySelectorAll("[data-mode]").forEach((b) => {
-      const on = b.dataset.mode === mode;
-      b.classList.toggle("on", on);
-      b.setAttribute("aria-selected", on);
-    });
-    $r(".pw-extra").classList.toggle("open", signup);
-    $r('#auth-form [name="password"]').autocomplete = signup ? "new-password" : "current-password";
-    $r("#auth-form .wide-btn").textContent = signup ? "Créer mon compte" : "Se connecter";
-    $r("[data-forgot]").hidden = signup;
-    $r(".auth-msg").innerHTML = "";
-    echo.pulse(0.9);
   }
 
   const meter = () => `<div class="pw-meter" id="pw-meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -291,51 +263,50 @@ const SonaUI = (() => {
     document.querySelectorAll(".auth .fi").forEach((input) => input.addEventListener("input", () => echo.pulse(0.35)));
     document.querySelectorAll(".auth form").forEach((form) => form.addEventListener("submit", () => echo.burst()));
     $r("[data-back]")?.addEventListener("click", () => authScreen({ step: "form" }));
-    document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
     document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => attempt(() => auth.oauth(b.dataset.provider))));
     $r("[data-passkey]")?.addEventListener("click", () => attempt(() => window.Sona.passkeys.login()));
     $r("[data-guest]")?.addEventListener("click", () => attempt(() => auth.guest()));
     $r("[data-forgot]")?.addEventListener("click", () => { ui.email = $r('[name="email"]')?.value.trim() || ui.email; ui.step = "forgot"; ui.error = ""; paintAuth(); });
-    $r("[data-code]")?.addEventListener("click", async () => {
-      const email = $r('[name="email"]')?.value.trim();
-      if (!email) { ui.error = "Entre ton adresse e-mail d'abord."; return paintAuth(); }
-      ui.email = email;
-      if (await attempt(() => auth.sendCode(email))) { ui.step = "code"; paintAuth(); }
-    });
+    document.querySelectorAll("[data-password]").forEach((b) => (b.onclick = () => {
+      ui.email = $r('[name="email"]')?.value.trim() || ui.email;
+      ui.step = "password";
+      ui.error = ""; ui.notice = "";
+      paintAuth();
+    }));
     $r("[data-resend]")?.addEventListener("click", async () => {
-      if (await attempt(() => (ui.mode === "signup-confirm" ? auth.resendSignup(ui.email) : auth.sendCode(ui.email)))) { ui.notice = "Nouveau code envoyé."; paintAuth(); }
+      if (await attempt(() => auth.sendCode(ui.email))) { ui.notice = "Nouveau code envoyé."; paintAuth(); }
     });
 
-    const pw = $r('#auth-form [name="password"], #auth-newpass [name="password"]');
+    const pw = $r('#auth-newpass [name="password"]');
     pw?.addEventListener("input", () => {
       const score = auth.passwordScore(pw.value);
       document.querySelectorAll("#pw-meter i").forEach((el, i) => el.classList.toggle("on", i < score));
       const hint = $r("#pw-hint");
-      if (hint) { const p = pw.value ? auth.passwordProblem(pw.value, $r('[name="email"]')?.value || ui.email) : null; hint.textContent = p || (pw.value ? "Mot de passe accepté." : "10 caractères minimum, avec minuscules, majuscules et chiffres."); hint.classList.toggle("bad", !!p); }
+      if (hint) { const p = pw.value ? auth.passwordProblem(pw.value, ui.email) : null; hint.textContent = p || (pw.value ? "Mot de passe accepté." : "10 caractères minimum, avec minuscules, majuscules et chiffres."); hint.classList.toggle("bad", !!p); }
     });
 
+    // Un code à l'adresse donnée : il connecte le compte existant ou le crée. Rien ne dit lequel des deux.
     $r("#auth-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = String(new FormData(e.target).get("email") || "").trim();
+      ui.email = email;
+      if (!/^\S+@\S+\.\S+$/.test(email)) { ui.error = "Adresse e-mail invalide."; return paintAuth(); }
+      if (await attempt(() => auth.sendCode(email))) { ui.step = "code"; paintAuth(); }
+    });
+    $r("#auth-password")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
       const email = String(f.get("email") || "").trim();
       const password = String(f.get("password") || "");
       ui.email = email;
       if (!/^\S+@\S+\.\S+$/.test(email)) { ui.error = "Adresse e-mail invalide."; return paintAuth(); }
-      if (!password) { ui.error = ui.mode === "signup" ? "Choisis un mot de passe." : "Entre ton mot de passe, ou demande un code par e-mail."; return paintAuth(); }
-      if (ui.mode === "signup") {
-        if (await attempt(async () => {
-          const data = await auth.signUp(email, password);
-          // Confirmation d'e-mail activée : pas de session, un code a été envoyé.
-          if (!data.session) { ui.mode = "signup-confirm"; ui.step = "code"; }
-        })) paintAuth();
-      } else {
-        await attempt(() => auth.signIn(email, password));
-      }
+      if (!password) { ui.error = "Entre ton mot de passe, ou reviens demander un code."; return paintAuth(); }
+      await attempt(() => auth.signIn(email, password));
     });
     $r("#auth-code")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const code = new FormData(e.target).get("code");
-      await attempt(() => auth.verifyCode(ui.email, String(code), ui.mode === "signup-confirm" ? "signup" : "email"));
+      await attempt(() => auth.verifyCode(ui.email, String(code)));
     });
     $r("#auth-forgot")?.addEventListener("submit", async (e) => {
       e.preventDefault();

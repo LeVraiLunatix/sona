@@ -36,7 +36,7 @@ const MOCK_SUPABASE = `
     getUserIdentities: () => ok({ identities: M.identities }),
     signInWithPassword: async (a) => { const g = gate("signIn", a); if (g) return g; if (a.password === "wrong") return fail("Invalid login credentials"); M.session = true; emit("SIGNED_IN"); return { data: { session: sess() }, error: null }; },
     signUp: async (a) => { const g = gate("signUp", a); if (g) return g; M.pendingEmail = a.email; M.profile.onboarding_completed = false; return { data: { session: null, user: { id: "u1" } }, error: null }; },
-    signInWithOtp: async (a) => { const g = gate("otp", a); if (g) return g; M.pendingEmail = a.email; return { data: {}, error: null }; },
+    signInWithOtp: async (a) => { const g = gate("otp", a); if (g) return g; M.authCalls.push(["otp", a]); M.pendingEmail = a.email; return { data: {}, error: null }; },
     verifyOtp: async (a) => { const g = gate("verify", a); if (g) return g; if (a.token === "000000") return fail("Token has expired or is invalid"); if (a.type === "recovery") { M.session = true; return { data: { session: sess() }, error: null }; } M.session = true; emit("SIGNED_IN"); return { data: { session: sess() }, error: null }; },
     signInWithOAuth: async (a) => { M.authCalls.push(["oauth", a]); return { data: { url: "https://example.org/oauth" }, error: null }; },
     linkIdentity: async (a) => { M.authCalls.push(["link", a]); return { data: { url: "x" }, error: null }; },
