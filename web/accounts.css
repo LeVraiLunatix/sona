@@ -146,3 +146,10 @@ form[data-note] .field { margin: 0; flex: 1; }
   .admin-filters .field { flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .ob-check-big { animation: none; } }
+
+/* ── Sessions d'écoute : signalement d'un message, rôles ──────────────── */
+.msg { position: relative; }
+.msg-flag { flex: none; align-self: center; width: 36px; height: 36px; border-radius: 50%; color: var(--text-3); opacity: 0; transition: opacity .15s; font-size: 15px; }
+.msg:hover .msg-flag, .msg-flag:focus-visible { opacity: 1; }
+@media (hover: none) { .msg-flag { opacity: .6; } }
+.party-badges { margin: 6px 0 0; text-align: center; }

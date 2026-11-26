@@ -298,13 +298,15 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   if (await webClosed(params)) return;
   if (params.get("party")) store.set("sona.joinParty", params.get("party").toUpperCase());
+  // Lien d'invitation privé (à durée limitée) : transmis au serveur au moment de rejoindre.
+  if (params.get("invite") && /^[a-f0-9]{16,96}$/i.test(params.get("invite"))) store.set("sona.partyInvite", params.get("invite"));
   // QR code d'une TV : le code survit à la connexion.
   if (params.get("link")) store.set("sona.linkCode", params.get("link").toUpperCase());
   SonaSocial.rememberInvite(params);
   // Retour de Last.fm (flux web) : le jeton est échangé une fois connecté.
   const lastfmToken = params.get("token");
   if (lastfmToken && store.get("sona.lastfmPending")) store.set("sona.lastfmToken", lastfmToken);
-  if (params.has("party") || params.has("link") || params.has("ami") || lastfmToken) history.replaceState(null, "", location.pathname + location.hash);
+  if (params.has("party") || params.has("invite") || params.has("link") || params.has("ami") || lastfmToken) history.replaceState(null, "", location.pathname + location.hash);
 
   if (!Sona.auth.init()) return SonaUI.authScreen();
   Sona.onSanction((info) => SonaUI.sanctionScreen(info));
@@ -6997,7 +6999,10 @@ function partyIntercept(action) {
 async function viewParty(code) {
   if (code && party.state?.code !== code.toUpperCase()) {
     try {
-      const fresh = await api(`/party/${encodeURIComponent(code.toUpperCase())}/join`, { method: "POST" });
+      // Invitation privée (lien à durée limitée) : le serveur la vérifie ; elle ne sert qu'une fois ici.
+      const invite = store.get("sona.partyInvite");
+      store.set("sona.partyInvite", null);
+      const fresh = await api(`/party/${encodeURIComponent(code.toUpperCase())}/join`, { method: "POST", body: JSON.stringify(invite ? { invite } : {}) });
       if (party.state) partyStop();
       await partyEnter(fresh);
     } catch (e) { toast(e.message); }
@@ -7049,7 +7054,8 @@ function renderParty() {
   const canControl = host || s.open_controls;
   const tabs = [["queue", `Propositions${s.queue.length ? ` (${s.queue.length})` : ""}`], ["chat", `Discussion${party.unread ? ` · ${party.unread}` : ""}`], ["history", "Déjà joués"]];
   root.innerHTML = `<div class="live-code"><span class="muted">${host ? "Ta session" : `Session de ${esc(s.host_name || "un ami")}`}</span><b>${esc(s.code)}</b>
-      <div class="pill-row center tight"><button class="btn ghost small" data-party-share>${icons.share} Inviter</button><button class="btn ghost small" data-party-copy>Copier le code</button></div></div>
+      <div class="pill-row center tight"><button class="btn ghost small" data-party-share>${icons.share} Inviter</button><button class="btn ghost small" data-party-copy>Copier le code</button>${host && SonaParty.supported(s) ? `<button class="btn ghost small" data-party-settings>${icons.gear} Réglages</button>` : ""}</div>
+      ${SonaParty.supported(s) && (s.locked || s.access) ? `<p class="muted small-note party-badges">${{ friends: "Amis seulement", invite: "Sur invitation", link: "Ouverte avec le code" }[s.access] || ""}${s.locked ? " · Verrouillée" : ""}${s.chat_enabled === false ? " · Chat coupé" : ""}</p>` : ""}</div>
     ${t ? `<div class="party-now">
         <img src="${esc(big(t.cover_url, 300))}" alt="">
         <div class="pn-text"><span class="eyebrow">${s.paused ? "En pause" : `${bars()} En cours`}</span><b>${esc(t.title)}</b><span class="muted">${esc(t.artist)}</span>
@@ -7081,9 +7087,11 @@ function renderParty() {
 function partyTabHtml(s) {
   if (party.tab === "chat") {
     party.unread = 0;
-    return `<div class="chat-list">${(s.messages || []).map((m) => `<div class="msg ${m.mine ? "mine" : ""}">${m.mine ? "" : avatar(m.avatar_url, m.by)}
-        <div class="bubble">${m.mine ? "" : `<b>${esc(m.by)}</b>`}${esc(m.text)}</div></div>`).join("") || `<p class="muted">Pas encore de message. Lance la discussion !</p>`}</div>
-      <form class="chat-form"><input class="field" id="party-msg" maxlength="300" placeholder="Écris un message…" autocomplete="off" enterkeyhint="send"><button class="btn" type="submit">Envoyer</button></form>`;
+    return `<div class="chat-list">${(s.messages || []).map((m, i) => `<div class="msg ${m.mine ? "mine" : ""}">${m.mine ? "" : avatar(m.avatar_url, m.by)}
+        <div class="bubble">${m.mine ? "" : `<b>${esc(m.by)}</b>`}${esc(m.text)}</div>
+        ${m.mine ? "" : `<button class="msg-flag" data-msg-act="${i}" aria-label="Signaler ou supprimer ce message">⚑</button>`}</div>`).join("") || `<p class="muted">Pas encore de message. Lance la discussion !</p>`}</div>
+      ${s.chat_enabled === false ? `<p class="muted">Le chat est coupé par l'hôte.</p>` : ""}
+      <form class="chat-form" ${s.chat_enabled === false || s.can_chat === false ? "hidden" : ""}><input class="field" id="party-msg" maxlength="300" placeholder="Écris un message…" autocomplete="off" enterkeyhint="send"><button class="btn" type="submit">Envoyer</button></form>`;
   }
   if (party.tab === "history") {
     return s.history?.length ? trackTable(s.history, "Écoute ensemble", { numbers: false }) : `<p class="muted">Les titres joués pendant la session apparaîtront ici.</p>`;
@@ -7134,12 +7142,23 @@ function bindParty(root, s) {
   };
   $$("[data-member]", root).forEach((b) => (b.onclick = () => {
     const m = s.members.find((x) => String(x.id) === b.dataset.member);
-    if (!s.is_host || !m || m.is_me || m.id == null) return;
+    if (!m || m.is_me || m.id == null) return;
+    // Serveur à jour : rôles, expulsion, bannissement, signalement. Sinon : l'ancien menu de l'hôte.
+    if (SonaParty.supported(s) || !s.is_host) return SonaParty.memberSheet(s, m);
     actionSheet(m.name, [
       { icon: "👑", label: "Lui passer la main", sub: "Il ou elle choisira la musique", run: () => post("/transfer", { member_id: m.id }) },
       { icon: icons.close, label: "Retirer de la session", danger: true, run: async () => {
         if (await confirmSheet(`Retirer ${m.name} de la session ?`, "Retirer")) post("/kick", { member_id: m.id });
       } },
+    ]);
+  }));
+  $("[data-party-settings]", root)?.addEventListener("click", () => SonaParty.settingsSheet(s));
+  $$("[data-msg-act]", root).forEach((b) => (b.onclick = () => {
+    const i = Number(b.dataset.msgAct);
+    const m = s.messages[i];
+    actionSheet("Message", [
+      { icon: icons.flag, label: "Signaler ce message", danger: true, run: () => SonaParty.reportMessage(s, m, i) },
+      (s.is_host || s.role === "moderator") && { icon: icons.trash, label: "Supprimer le message", danger: true, run: () => SonaParty.deleteMessage(s, m, i) },
     ]);
   }));
   $("[data-party-leave]", root).onclick = async () => {
