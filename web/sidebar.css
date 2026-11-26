@@ -175,12 +175,11 @@
 }
 
 /* ── Pastille « liquide » ─────────────────────────────────────────────────
-   La page active est une pastille claire dans le menu. En face, c'est la BORDURE DE L'ÉCRAN D'ÉCOUTE (la page) qui
-   s'agrandit : à la hauteur de la pastille, son bord gauche avance vers le menu en une bosse arrondie, et une lueur
-   claire l'entoure : vive à la bordure, elle s'éteint avec la distance (le long de la bordure et dans la page).
-   Quand on change de page, tout glisse en s'étirant (un bord part avant l'autre), puis la bosse avance un peu plus
-   et la lueur gonfle un instant (voir sidebar.js). Trois pièces : la pastille (dans la carte, sous les libellés), la
-   bosse et la lueur (posées sur la bordure de la page). */
+   La page active est une pastille claire dans le menu. En face, la BORDURE DE L'ÉCRAN D'ÉCOUTE (la page) s'agrandit à
+   la même hauteur : son trait s'épaissit en une lentille claire qui s'effile en haut et en bas, et une lueur l'entoure,
+   vive à la bordure, qui s'éteint avec la distance. RIEN ne dépasse : tout est rogné au bord de la page (ni dans l'espace
+   du menu, ni sur la carte). Quand on change de page, tout glisse en s'étirant (un bord part avant l'autre), puis le
+   trait s'épaissit un instant et la lueur gonfle (voir sidebar.js). */
 .sb-liquid, .sb-bridge, .sb-glow { display: none; }
 @media (min-width: 761px) {
   .sb-liquid { display: block; position: absolute; left: 12px; top: 0; bottom: 0; width: 48px; opacity: 0; pointer-events: none;
@@ -190,26 +189,21 @@
   .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
   .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
 
-  /* Bosse de la bordure de la page : 10 px vers le menu (il reste 2 px de vide), 2 px de recouvrement dans la page.
-     Trois tranches (haut / milieu / bas) : quand la pastille s'étire, seul le milieu s'allonge, les courbes gardent leur forme. */
-  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 12px;
-    left: calc(var(--sb-gap) * 2 + var(--sb-rail) - 10px);
+  /* Trait épaissi : posé sur le bord gauche de la page, rogné pile à ce bord (aucun débordement vers le menu). */
+  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 24px;
+    left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px 0);
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open) - 10px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
-  .sb-bridge .sh { position: absolute; inset: 0; transform-origin: right center; }
-  .sb-bridge .cap { position: absolute; left: 0; width: 12px; height: 32px; overflow: visible; }
-  .sb-bridge .cap.t { top: 0; } .sb-bridge .cap.bt { bottom: 0; transform: scaleY(-1); }
-  .sb-bridge .f { fill: var(--bg, #101012); }
-  .sb-bridge .l { fill: none; stroke: color-mix(in srgb, var(--accent) 60%, var(--bg, #101012)); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-  .sb-bridge .mid { position: absolute; left: 0; width: 12px; top: 31px; height: calc(100% - 62px); overflow: visible; }
-  /* Lueur de la bordure : un voile fin le long du bord de la page, plus vif à la hauteur de la pastille, qui s'éteint en haut et en bas. */
-  .sb-bridge u { position: absolute; left: 6px; width: 8px; top: -130px; bottom: -130px; filter: blur(3px); opacity: .9;
-    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--accent) 6%, transparent) 14%, color-mix(in srgb, var(--accent) 38%, transparent) 38%, color-mix(in srgb, var(--accent) 52%, transparent) 50%, color-mix(in srgb, var(--accent) 38%, transparent) 62%, color-mix(in srgb, var(--accent) 6%, transparent) 86%, transparent 100%); }
+  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open)); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  /* lentille : 5 px d'épaisseur au milieu, qui s'effile aux deux bouts */
+  .sb-bridge b { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); transform-origin: left center;
+    border-radius: 0 5px 5px 0 / 0 50% 50% 0; box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+  /* voile le long de la bordure : plus vif à la hauteur de la pastille, éteint à ~130 px */
+  .sb-bridge u { position: absolute; left: 0; width: 7px; top: -130px; bottom: -130px; filter: blur(3px); opacity: .9;
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--accent) 6%, transparent) 14%, color-mix(in srgb, var(--accent) 36%, transparent) 38%, color-mix(in srgb, var(--accent) 50%, transparent) 50%, color-mix(in srgb, var(--accent) 36%, transparent) 62%, color-mix(in srgb, var(--accent) 6%, transparent) 86%, transparent 100%); }
 
-  /* Lueur autour : un disque doux centré sur la bordure de la page, forte au contact, presque éteinte à 120 px.
-     Par-dessus la bosse (même éclaircissement qu'autour, donc pas de raccord visible), mais rognée au bord du menu : la
-     moitié gauche du disque ne couvre jamais la carte ni ses libellés. */
-  .sb-glow { display: block; position: fixed; z-index: 32; pointer-events: none; opacity: 0; width: 240px; height: 240px; clip-path: inset(0 0 0 108px);
+  /* Lueur autour : un disque doux centré sur la bordure ; on n'en garde que la moitié qui est dans la page
+     (rognée à 120 px du bord gauche du disque = le bord de la page) : forte au contact, presque éteinte à 120 px. */
+  .sb-glow { display: block; position: fixed; z-index: 32; pointer-events: none; opacity: 0; width: 240px; height: 240px; clip-path: inset(0 0 0 120px);
     left: calc(var(--sb-gap) * 2 + var(--sb-rail) - 120px);
     background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 30%, transparent) 0%, color-mix(in srgb, var(--accent) 13%, transparent) 42%, transparent 100%);
     transition: top 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
