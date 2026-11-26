@@ -25,7 +25,7 @@ async function open({ mock = {}, viewport = { width: 1280, height: 800 }, music 
   await routeApi(ctx, { music, accounts, calls });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (m) => { if (m.type() === "error" && !/404|Failed to load|net::ERR/.test(m.text())) errors.push(`console: ${m.text()}`); });
+  page.on("console", (m) => { if (m.type() === "error" && !/404|Failed to load|net::ERR|Failed to launch .sona:/.test(m.text())) errors.push(`console: ${m.text()}`); });
   await page.goto(`http://localhost:${srv.port}/web/${search}${hash}`);
   const mockState = () => page.evaluate(() => JSON.parse(JSON.stringify({ rpc: window.__mock.rpcCalls, auth: window.__mock.authCalls, updates: window.__mock.updates, profile: window.__mock.profile })));
   const close = async () => { await ctx.close(); srv.close(); };
@@ -140,6 +140,39 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
   await t.page.waitForSelector("#auth-newpass");
   await t.page.fill('input[name="password"]', "Abcdefghij");
   ok("jauge de mot de passe", (await t.page.locator("#pw-meter i.on").count()) >= 1 && /chiffres/.test(await text(t.page, "#pw-hint")));
+  await t.close();
+}
+
+// Connexion de l'application par le navigateur.
+{
+  // Côté application : un seul bouton, le secret reste dedans, le code revenu ouvre la session.
+  const t = await open({ accounts: { "POST /app-link/exchange": { token_hash: "HASH", type: "email" } } });
+  // Le pont de l'application Windows : ce qui n'est pas observé ici ne fait rien.
+  await t.page.addInitScript(() => { const known = { openExternal: (u) => { window.__opened = u; }, onDeepLink: (fn) => { window.__deep = fn; }, server: "", platform: "win32" }; window.sonaDesktop = new Proxy(known, { get: (o, k) => (k in o ? o[k] : () => Promise.resolve({})) }); });
+  await t.page.reload();
+  await t.page.waitForSelector("[data-browser]");
+  ok("application : la connexion passe par le navigateur, sans formulaire", (await t.page.locator('input[name="email"], [data-provider]').count()) === 0);
+  await t.page.click("[data-browser]");
+  await wait(t.page, 300);
+  const opened = await t.page.evaluate(() => window.__opened);
+  const secret = await t.page.evaluate(() => localStorage.getItem("sona.appLink"));
+  ok("seule l'empreinte du secret part dans l'adresse", /\?connexion&app=[A-Za-z0-9_-]{43}$/.test(opened || "") && secret && !opened.includes(secret), opened);
+  await t.page.evaluate(() => window.__deep("sona://auth/callback?handoff=CODE123"));
+  await t.page.waitForSelector("#sb", { timeout: 5000 });
+  const sent = JSON.parse(t.calls.find((c) => c.path === "/app-link/exchange")?.body || "{}");
+  ok("retour du navigateur : code + secret échangés, l'application est connectée", sent.code === "CODE123" && sent.verifier === secret, JSON.stringify(sent));
+  await t.close();
+}
+{
+  // Côté site : connecté, une confirmation explicite, puis retour vers l'application.
+  const challenge = "A".repeat(43);
+  const t = await open({ mock: signedIn(), search: `?connexion&app=${challenge}`, accounts: { "POST /app-link": { code: "CODE123" } } });
+  await t.page.waitForSelector("[data-allow]");
+  const asked = () => t.calls.filter((c) => JSON.stringify(c).includes("/app-link")).length;
+  ok("site : rien n'est demandé sans confirmation", asked() === 0 && /alice@example\.org/.test(await text(t.page)));
+  await t.page.click("[data-allow]");
+  await t.page.waitForSelector("[data-open]");
+  ok("site : retour vers l'application avec le code à usage unique", (await t.page.getAttribute("[data-open]", "href")) === "sona://auth/callback?handoff=CODE123" && asked() === 1);
   await t.close();
 }
 

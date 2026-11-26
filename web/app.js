@@ -303,6 +303,13 @@ async function boot() {
   // QR code d'une TV : le code survit à la connexion.
   if (params.get("link")) store.set("sona.linkCode", params.get("link").toUpperCase());
   SonaSocial.rememberInvite(params);
+  // L'application demande à être connectée : le défi survit au passage par un fournisseur.
+  if (!desktop && /^[A-Za-z0-9_-]{43}$/.test(params.get("app") || "")) {
+    sessionStorage.setItem("sona.app", params.get("app"));
+    const clean = new URL(location.href);
+    clean.searchParams.delete("app");
+    history.replaceState(null, "", clean);
+  }
   // Retour de Last.fm (flux web) : le jeton est échangé une fois connecté.
   const lastfmToken = params.get("token");
   if (lastfmToken && store.get("sona.lastfmPending")) store.set("sona.lastfmToken", lastfmToken);
@@ -353,7 +360,7 @@ function startOffline() {
 }
 
 async function startApp() {
-  if (startApp.running) return;
+  if (startApp.running || SonaUI.linkingApp()) return;
   startApp.running = true;
   try {
     let acc;
@@ -364,6 +371,8 @@ async function startApp() {
       return SonaUI.authScreen({ error: e.message });
     }
     if (!acc) return; // écran de sanction, d'inscription ou de bienvenue déjà affiché
+    const appChallenge = !desktop && !acc.guest && sessionStorage.getItem("sona.app");
+    if (appChallenge) return SonaUI.appLinkScreen(acc, appChallenge, startApp);
     account = acc;
     token = (await Sona.auth.accessToken()) || token;
     document.body.style.overflow = "";

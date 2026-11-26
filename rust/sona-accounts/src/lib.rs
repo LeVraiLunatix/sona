@@ -19,6 +19,7 @@ pub mod lastfm_sig;
 pub mod maintenance;
 pub mod music;
 pub mod passkey;
+pub mod app_link;
 pub mod ratelimit;
 pub mod redirect;
 pub mod routes;

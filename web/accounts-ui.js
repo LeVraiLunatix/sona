@@ -119,6 +119,10 @@ const SonaUI = (() => {
           ${fld("code", "Code à 6 chiffres", { auto: "one-time-code", mode: "numeric", extra: 'maxlength="8"', cls: "code" })}
           <button class="btn big wide-btn" ${busy}>Continuer</button>
         </form>`;
+    } else if (window.sonaDesktop?.onDeepLink && window.Sona.config.accountsUrl) {
+      body = `${head("Bienvenue", "La connexion se fait dans ton navigateur, puis tu reviens ici tout seul.")}
+        <button class="btn big wide-btn" data-browser ${busy}>Se connecter dans le navigateur</button>
+        ${guestOk ? `<button class="guest" data-guest>Essayer sans compte</button>` : ""}`;
     } else {
       const oauth = `<div class="auth-providers">${PROVIDERS.map(([id, name, svg]) => `<button class="provider" data-provider="${id}" aria-label="Continuer avec ${name}" ${busy}>${svg}<span>${name}</span></button>`).join("")}</div>`;
       body = `${head("Bienvenue", "Ton e-mail suffit : on te connecte, ou on crée ton compte.")}
@@ -165,6 +169,9 @@ const SonaUI = (() => {
     const $r = (s) => document.querySelector(s);
     $r("[data-back]")?.addEventListener("click", () => authScreen({ step: "form" }));
     document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => attempt(() => auth.oauth(b.dataset.provider))));
+    $r("[data-browser]")?.addEventListener("click", async () => {
+      if (await attempt(() => window.Sona.appLink.start())) { ui.notice = "Continue dans ton navigateur : Sona reprendra ici."; paintAuth(); }
+    });
     $r("[data-passkey]")?.addEventListener("click", () => attempt(() => window.Sona.passkeys.login()));
     $r("[data-guest]")?.addEventListener("click", () => attempt(() => auth.guest()));
     $r("[data-forgot]")?.addEventListener("click", () => { ui.email = $r('[name="email"]')?.value.trim() || ui.email; ui.step = "forgot"; ui.error = ""; paintAuth(); });
@@ -515,6 +522,37 @@ const SonaUI = (() => {
     };
   }
 
+  /** Rien n'est connecté sans ce clic : un lien reçu d'un tiers ne suffit pas. */
+  // Tant que cet écran est affiché, un jeton renouvelé (retour sur l'onglet) ne le remplace pas.
+  let linking = false;
+  function appLinkScreen(account, challenge, resume) {
+    linking = true;
+    const done = () => { linking = false; resume(); };
+    document.body.style.overflow = "hidden";
+    root().innerHTML = shell(`${head("Connecter l'application ?", `Sona sur cet ordinateur sera connecté à <b>${h(account.email || `@${account.username}`)}</b>.`)}
+      <button class="btn big wide-btn" data-allow>Connecter l'application</button>
+      <button class="guest" data-deny>Annuler</button>
+      <div class="auth-msg" role="status" aria-live="polite"></div>
+      <p class="fine legal">Ne confirme que si tu viens de cliquer sur « Se connecter dans le navigateur » dans Sona.</p>`);
+    const finish = () => { sessionStorage.removeItem("sona.app"); done(); };
+    document.querySelector("[data-deny]").onclick = finish;
+    document.querySelector("[data-allow]").onclick = async (e) => {
+      e.target.disabled = true;
+      try {
+        const url = await window.Sona.appLink.approve(challenge);
+        sessionStorage.removeItem("sona.app");
+        root().innerHTML = shell(`${head("Retourne dans Sona", "Si l'application ne s'est pas ouverte, utilise le bouton. Tu peux ensuite fermer cet onglet.")}
+          <a class="btn big wide-btn" data-open href="${h(url)}">Ouvrir Sona</a>
+          <button class="guest" data-stay>Continuer sur le site</button>`);
+        document.querySelector("[data-stay]").onclick = done;
+        location.href = url;
+      } catch (err) {
+        e.target.disabled = false;
+        document.querySelector(".auth-msg").innerHTML = `<p class="error" role="alert">${h(err.message)}</p>`;
+      }
+    };
+  }
+
   // ── Orchestration ────────────────────────────────────────────────────────
 
   /** Retour de la page après un fournisseur / un lien : jetons dans l'adresse. */
@@ -535,5 +573,5 @@ const SonaUI = (() => {
     return auth.signOut();
   }
 
-  return { authScreen, sanctionScreen, prepare, accountFrom, guestBanner, bindGuestBanner, upgradeSheet, exportData, deleteAccount, providerName, PROVIDERS, cleanUrl, entry, ui };
+  return { appLinkScreen, linkingApp: () => linking, authScreen, sanctionScreen, prepare, accountFrom, guestBanner, bindGuestBanner, upgradeSheet, exportData, deleteAccount, providerName, PROVIDERS, cleanUrl, entry, ui };
 })();

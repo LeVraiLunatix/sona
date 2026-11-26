@@ -31,7 +31,7 @@ fn bad_passkey<E: std::fmt::Debug>(e: E) -> AppError {
     AppError::bad("La clé d'accès n'a pas pu être vérifiée.")
 }
 
-fn client_key(h: &HeaderMap) -> String {
+pub(crate) fn client_key(h: &HeaderMap) -> String {
     h.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| "inconnu".into())
 }
 
@@ -146,7 +146,7 @@ pub async fn login_finish(State(s): State<AppState>, headers: HeaderMap, Json(b)
 }
 
 /// Lien magique fabriqué côté serveur (API admin d'Auth) : le client en tire une session.
-async fn magic_token_hash(s: &AppState, email: &str) -> Result<String> {
+pub(crate) async fn magic_token_hash(s: &AppState, email: &str) -> Result<String> {
     let key = s.cfg.supabase_service_key.as_deref().ok_or(AppError::NotConfigured("SUPABASE_SERVICE_ROLE_KEY"))?;
     let resp = s
         .http
