@@ -152,6 +152,13 @@ CREATE TABLE IF NOT EXISTS app_accounts (
     decided_by INTEGER
 );
 
+-- Comptes Supabase (service sona-accounts) rattachés à un compte de l'app : l'UUID est l'identité, `account_id` l'espace de données.
+CREATE TABLE IF NOT EXISTS supabase_links (
+    uid TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+
 -- Sessions de l'app : seule l'empreinte SHA-256 du jeton est stockée.
 CREATE TABLE IF NOT EXISTS app_sessions (
     token_hash TEXT PRIMARY KEY,

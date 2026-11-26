@@ -84,7 +84,7 @@ def test_web_page_calls_existing_routes(client):
     page = client.get("/web/app.js").text
     me = login(client, "alice")
     paths = set(re.findall(r'api\("(/[^"?]*)', page))
-    assert "/auth/me" in paths
+    assert paths  # l'identité vient de Supabase : le site n'appelle plus /auth/me
     for path in paths:
         method = client.post if path in {"/plays", "/plays/now"} else client.get
         assert method(path, headers=me).status_code != 404, path

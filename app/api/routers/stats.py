@@ -141,6 +141,12 @@ def _to_play(p: PlayIn) -> Play:
     )
 
 
+def _spawn_task(coro) -> None:
+    task = asyncio.create_task(coro)
+    _import_tasks.add(task)
+    task.add_done_callback(_import_tasks.discard)
+
+
 @router.post("/plays", status_code=status.HTTP_201_CREATED)
 async def add_plays(payload: PlaysIn, deps: ApiDeps = Depends(require_token)) -> dict:
     """Écoutes terminées, envoyées par lot : l'app garde celles qu'elle n'a
@@ -148,7 +154,14 @@ async def add_plays(payload: PlaysIn, deps: ApiDeps = Depends(require_token)) ->
     sont ignorés."""
     added = await deps.repo.plays_add(deps.user_id, [_to_play(p) for p in payload.plays])
     account = deps.account
-    if (
+    if added and account is not None and account.supabase_uid and deps.accounts is not None:
+        # Compte Sona : la clé Last.fm est chez le service de comptes (chiffrée) ; il garde la file et les réessais.
+        for p in added:
+            _spawn_task(deps.accounts.scrobble(
+                account.supabase_uid, "scrobble", p.artist, p.title, p.album, p.duration_seconds,
+                int(stats_service.parse_iso(p.played_at).timestamp()),
+            ))
+    elif (
         added and account is not None and account.scrobble_to_lastfm
         and account.lastfm_session_key and deps.lastfm_auth is not None
     ):
@@ -178,6 +191,12 @@ async def now_playing(payload: NowPlayingIn, deps: ApiDeps = Depends(require_tok
             ),
             payload.position_seconds or 0,
         )
+    if account is not None and account.supabase_uid and deps.accounts is not None:
+        _spawn_task(deps.accounts.scrobble(
+            account.supabase_uid, "now_playing", payload.artist.strip(), payload.title.strip(), payload.album,
+            payload.duration_seconds, int(datetime.now(timezone.utc).timestamp()),
+        ))
+        return
     if not (account and account.scrobble_to_lastfm and account.lastfm_session_key and deps.lastfm_auth):
         return
     task = asyncio.create_task(_now_playing(deps, account.lastfm_session_key, payload))

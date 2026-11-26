@@ -18,7 +18,10 @@ lieu de s'arrêter pour tout le monde).
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import random
+import secrets
 import time
 from dataclasses import dataclass, field
 
@@ -41,6 +44,19 @@ HISTORY_SIZE = 30
 COMMAND_TTL = 20
 COMMANDS = ("play", "pause", "next", "previous")
 
+# Règles d'accès. Tout refus d'entrée renvoie le MÊME message : il ne révèle ni un blocage, ni un bannissement,
+# ni un verrouillage.
+ACCESS_MODES = ("friends", "invite", "link")
+NOT_AVAILABLE = "Cette session n'est pas disponible."
+DEFAULT_MAX_PARTICIPANTS = 12
+MAX_PARTICIPANTS_LIMIT = 50
+INVITE_DEFAULT_TTL = 3600
+INVITE_MAX_TTL = 7 * 24 * 3600
+# Qui peut quoi : `host` (l'hôte seul), `moderators` (hôte + modérateurs), `everyone` (tout membre).
+LEVELS = ("host", "moderators", "everyone")
+PERMISSIONS = ("add_tracks", "change_track", "pause")
+COMMAND_PERMISSION = {"play": "pause", "pause": "pause", "next": "change_track", "previous": "change_track"}
+
 
 class PartyError(Exception):
     def __init__(self, status: int, message: str) -> None:
@@ -54,6 +70,8 @@ class Member:
     name: str
     avatar_url: str | None
     last_seen: float
+    # Identifiant du compte (UUID) : pour signaler quelqu'un et pour le blocage.
+    uid: str | None = None
 
 
 @dataclass
@@ -75,6 +93,7 @@ class Message:
     avatar_url: str | None
     text: str
     at: float
+    uid: str | None = None
 
 
 @dataclass
@@ -114,6 +133,17 @@ class Party:
     # Contrôle partagé : les invités peuvent mettre en pause, reprendre, passer.
     open_controls: bool = False
     banned: set[int] = field(default_factory=set)
+    # Accès et modération (voir docs/INTEGRATION_SERVEUR_MUSIQUE.md §5).
+    access: str = "friends"
+    locked: bool = False
+    chat_enabled: bool = True
+    max_participants: int = DEFAULT_MAX_PARTICIPANTS
+    permissions: dict = field(default_factory=lambda: {"add_tracks": "everyone", "change_track": "moderators", "pause": "moderators"})
+    moderators: set[int] = field(default_factory=set)
+    muted: set[int] = field(default_factory=set)
+    # Invitation : seule l'empreinte du jeton est gardée ; il expire.
+    invite_hash: str | None = None
+    invite_expires: float = 0.0
     version: int = 0
     next_id: int = 1
     created_at: float = field(default_factory=time.time)
@@ -207,7 +237,7 @@ def all_parties() -> list[Party]:
     return list(_parties.values())
 
 
-def create(user_id: int, name: str, avatar_url: str | None) -> Party:
+def create(user_id: int, name: str, avatar_url: str | None, uid: str | None = None) -> Party:
     existing = hosted_by(user_id)
     if existing is not None:
         existing.members[user_id].last_seen = _now()
@@ -215,7 +245,7 @@ def create(user_id: int, name: str, avatar_url: str | None) -> Party:
     # Un hôte ne peut pas être en même temps invité ailleurs.
     leave_all(user_id)
     party = Party(code=_new_code(), host_user_id=user_id)
-    party.members[user_id] = Member(user_id, name, avatar_url, _now())
+    party.members[user_id] = Member(user_id, name, avatar_url, _now(), uid)
     _parties[party.code] = party
     return party
 
@@ -226,17 +256,38 @@ def leave_all(user_id: int) -> None:
             leave(party, user_id)
 
 
-def join(code: str, user_id: int, name: str, avatar_url: str | None) -> Party:
+def hash_invite(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def join(
+    code: str, user_id: int, name: str, avatar_url: str | None, uid: str | None = None, *,
+    is_friend: bool = False, blocked: bool = False, invite: str | None = None,
+) -> Party:
+    """Entrée dans une session. `is_friend` : ami accepté de l'hôte ; `blocked` : un blocage existe entre la personne et
+    un membre (calculés par le service de comptes). Tout refus a le même message, sans rien révéler."""
     party = get(code)
-    if user_id in party.banned:
-        raise PartyError(403, "L'hôte t'a retiré de cette session.")
-    if user_id not in party.members:
-        leave_all(user_id)
-        party = get(code)
-        party.members[user_id] = Member(user_id, name, avatar_url, _now())
-        party.bump()
-    party.members[user_id].last_seen = _now()
+    if user_id in party.members and user_id not in party.banned:
+        party.members[user_id].last_seen = _now()
+        return party
+    refused = PartyError(404, NOT_AVAILABLE)
+    if user_id in party.banned or blocked or party.locked or len(party.members) >= party.max_participants:
+        raise refused
+    if party.access == "friends" and not is_friend:
+        raise refused
+    if party.access == "invite" and not _invite_ok(party, invite):
+        raise refused
+    leave_all(user_id)
+    party = get(code)
+    party.members[user_id] = Member(user_id, name, avatar_url, _now(), uid)
+    party.bump()
     return party
+
+
+def _invite_ok(party: Party, token: str | None) -> bool:
+    if not token or party.invite_hash is None or _now() > party.invite_expires:
+        return False
+    return hmac.compare_digest(hash_invite(token), party.invite_hash)
 
 
 def leave(party: Party, user_id: int) -> None:
@@ -273,8 +324,30 @@ def set_state(party: Party, user_id: int, track: dict | None, position: float, p
     party.bump()
 
 
+def role_of(party: Party, user_id: int) -> str:
+    if user_id == party.host_user_id:
+        return "host"
+    return "moderator" if user_id in party.moderators else "listener"
+
+
+def may(party: Party, user_id: int, permission: str) -> bool:
+    level = party.permissions.get(permission, "moderators")
+    role = role_of(party, user_id)
+    if level == "everyone":
+        return True
+    if level == "moderators":
+        return role in ("host", "moderator")
+    return role == "host"
+
+
+def is_staff(party: Party, user_id: int) -> bool:
+    return role_of(party, user_id) in ("host", "moderator")
+
+
 def propose(party: Party, user_id: int, track: dict) -> QueueItem:
     touch(party, user_id)
+    if not may(party, user_id, "add_tracks"):
+        raise PartyError(403, "L'hôte n'a pas ouvert l'ajout de titres.")
     if len(party.queue) >= MAX_QUEUE:
         raise PartyError(400, "La file de la session est pleine.")
     if any(_track_key(q.track) == _track_key(track) for q in party.queue):
@@ -337,11 +410,15 @@ def react(party: Party, user_id: int, emoji: str) -> None:
 
 def say(party: Party, user_id: int, text: str) -> None:
     touch(party, user_id)
+    if not party.chat_enabled:
+        raise PartyError(403, "Le chat est désactivé dans cette session.")
+    if user_id in party.muted:
+        raise PartyError(403, "Ton chat a été coupé dans cette session.")
     text = " ".join(text.split())[:MAX_MESSAGE_LENGTH]
     if not text:
         raise PartyError(400, "Message vide.")
     member = party.members[user_id]
-    party.messages.append(Message(party.take_id(), user_id, member.name, member.avatar_url, text, _now()))
+    party.messages.append(Message(party.take_id(), user_id, member.name, member.avatar_url, text, _now(), member.uid))
     del party.messages[:-MAX_MESSAGES]
     party.bump()
 
@@ -365,18 +442,112 @@ def command(party: Party, user_id: int, action: str) -> None:
     touch(party, user_id)
     if action not in COMMANDS:
         raise PartyError(400, f"Action inconnue : {action}")
-    if user_id != party.host_user_id and not party.open_controls:
+    if user_id != party.host_user_id and not (party.open_controls or may(party, user_id, COMMAND_PERMISSION[action])):
         raise PartyError(403, "L'hôte n'a pas ouvert le contrôle aux invités.")
     party.commands.append(Command(party.take_id(), action, party.members[user_id].name, _now()))
     party.bump()
 
 
-def configure(party: Party, user_id: int, open_controls: bool | None) -> None:
+def configure(
+    party: Party, user_id: int, open_controls: bool | None = None, *, access: str | None = None, locked: bool | None = None,
+    chat_enabled: bool | None = None, max_participants: int | None = None, permissions: dict | None = None,
+) -> None:
     if user_id != party.host_user_id:
         raise PartyError(403, "Seul l'hôte règle la session.")
     if open_controls is not None:
         party.open_controls = open_controls
+    if access is not None:
+        if access not in ACCESS_MODES:
+            raise PartyError(400, f"Accès inconnu : {access}")
+        party.access = access
+    if locked is not None:
+        party.locked = locked
+    if chat_enabled is not None:
+        party.chat_enabled = chat_enabled
+    if max_participants is not None:
+        if not 2 <= max_participants <= MAX_PARTICIPANTS_LIMIT:
+            raise PartyError(400, f"Entre 2 et {MAX_PARTICIPANTS_LIMIT} participants.")
+        party.max_participants = max_participants
+    for key, level in (permissions or {}).items():
+        if key not in PERMISSIONS or level not in LEVELS:
+            raise PartyError(400, f"Droit inconnu : {key}={level}")
+        party.permissions[key] = level
     party.bump()
+
+
+def create_invite(party: Party, user_id: int, ttl_seconds: int = INVITE_DEFAULT_TTL) -> tuple[str, float]:
+    """Jeton d'invitation (affiché une seule fois ; seule son empreinte est gardée), valable au plus 7 jours."""
+    if not is_staff(party, user_id):
+        raise PartyError(403, "Seul l'hôte ou un modérateur invite.")
+    ttl = max(60, min(int(ttl_seconds), INVITE_MAX_TTL))
+    token = secrets.token_urlsafe(24)
+    party.invite_hash = hash_invite(token)
+    party.invite_expires = _now() + ttl
+    party.bump()
+    return token, party.invite_expires
+
+
+def revoke_invite(party: Party, user_id: int) -> None:
+    if not is_staff(party, user_id):
+        raise PartyError(403, "Seul l'hôte ou un modérateur révoque.")
+    party.invite_hash = None
+    party.bump()
+
+
+def _target(party: Party, user_id: int, member_id: int) -> None:
+    """Hôte et modérateurs agissent sur un membre ordinaire ; seul l'hôte agit sur un modérateur ; jamais sur l'hôte."""
+    if not is_staff(party, user_id):
+        raise PartyError(403, "Seuls l'hôte et les modérateurs peuvent faire ça.")
+    if member_id == user_id:
+        raise PartyError(400, "Tu ne peux pas faire ça sur toi-même.")
+    if member_id == party.host_user_id or (member_id in party.moderators and user_id != party.host_user_id):
+        raise PartyError(403, "Tu ne peux pas agir sur ce membre.")
+    if member_id not in party.members:
+        raise PartyError(404, "Ce membre n'est plus dans la session.")
+
+
+def ban(party: Party, user_id: int, member_id: int) -> None:
+    _target(party, user_id, member_id)
+    party.banned.add(member_id)
+    party.moderators.discard(member_id)
+    leave(party, member_id)
+
+
+def mute(party: Party, user_id: int, member_id: int, muted: bool) -> None:
+    _target(party, user_id, member_id)
+    (party.muted.add if muted else party.muted.discard)(member_id)
+    party.bump()
+
+
+def set_moderator(party: Party, user_id: int, member_id: int, moderator: bool) -> None:
+    if user_id != party.host_user_id:
+        raise PartyError(403, "Seul l'hôte nomme les modérateurs.")
+    if member_id == user_id or member_id not in party.members:
+        raise PartyError(404, "Ce membre n'est plus dans la session.")
+    (party.moderators.add if moderator else party.moderators.discard)(member_id)
+    party.bump()
+
+
+def delete_message(party: Party, user_id: int, message_id: int) -> None:
+    if not is_staff(party, user_id):
+        raise PartyError(403, "Seuls l'hôte et les modérateurs suppriment un message.")
+    before = len(party.messages)
+    party.messages = [m for m in party.messages if m.id != message_id]
+    if len(party.messages) == before:
+        raise PartyError(404, "Message introuvable.")
+    party.bump()
+
+
+def close(code: str) -> None:
+    """Fermeture par la modération (ou l'hôte) : la session disparaît pour tout le monde."""
+    _parties.pop(code.upper().strip(), None)
+
+
+def on_block(user_id: int, other_id: int) -> None:
+    """Un blocage créé pendant une session retire la personne qui n'est pas l'hôte ; si c'est l'hôte, le bloqué part."""
+    for party in list(_parties.values()):
+        if user_id in party.members and other_id in party.members:
+            leave(party, other_id if user_id == party.host_user_id else user_id)
 
 
 def transfer(party: Party, user_id: int, new_host: int) -> None:
@@ -389,13 +560,8 @@ def transfer(party: Party, user_id: int, new_host: int) -> None:
 
 
 def kick(party: Party, user_id: int, member_id: int) -> None:
-    if user_id != party.host_user_id:
-        raise PartyError(403, "Seul l'hôte peut retirer quelqu'un.")
-    if member_id == user_id:
-        raise PartyError(400, "Tu ne peux pas te retirer toi-même : quitte la session.")
-    if member_id not in party.members:
-        raise PartyError(404, "Ce membre n'est plus dans la session.")
-    party.banned.add(member_id)
+    """Expulsion : la personne peut revenir (si l'accès le permet). Pour l'en empêcher : `ban`."""
+    _target(party, user_id, member_id)
     leave(party, member_id)
 
 
@@ -420,8 +586,8 @@ def snapshot(party: Party, viewer_id: int) -> dict:
         "is_host": viewer_id == party.host_user_id,
         "host_name": host.name if host else None,
         "members": [
-            {"id": m.user_id, "name": m.name, "avatar_url": m.avatar_url, "is_host": m.user_id == party.host_user_id,
-             "is_me": m.user_id == viewer_id}
+            {"id": m.user_id, "uid": m.uid, "name": m.name, "avatar_url": m.avatar_url, "is_host": m.user_id == party.host_user_id,
+             "is_me": m.user_id == viewer_id, "role": role_of(party, m.user_id), "muted": m.user_id in party.muted}
             for m in sorted(party.members.values(), key=lambda m: (m.user_id != party.host_user_id, m.name))
         ],
         "track": party.track,
@@ -435,11 +601,17 @@ def snapshot(party: Party, viewer_id: int) -> dict:
         ],
         "reactions": [{"id": r.id, "emoji": r.emoji, "by": r.by, "age": now - r.at} for r in party.reactions],
         "messages": [
-            {"id": m.id, "by": m.by, "avatar_url": m.avatar_url, "text": m.text, "mine": m.user_id == viewer_id, "age": now - m.at}
+            {"id": m.id, "uid": m.uid, "by": m.by, "avatar_url": m.avatar_url, "text": m.text, "mine": m.user_id == viewer_id, "age": now - m.at}
             for m in party.messages
         ],
         "skip": {"votes": len(party.skip_votes), "needed": party.skip_needed(), "voted": viewer_id in party.skip_votes},
         "open_controls": party.open_controls,
+        "access": party.access,
+        "locked": party.locked,
+        "chat_enabled": party.chat_enabled,
+        "max_participants": party.max_participants,
+        "permissions": party.permissions,
+        "role": role_of(party, viewer_id),
         "per_user": MAX_PER_USER,
         # Seul l'hôte exécute les commandes des invités.
         "commands": [{"id": c.id, "action": c.action, "by": c.by} for c in party.commands] if viewer_id == party.host_user_id else [],
