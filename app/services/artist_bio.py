@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 API_URL = "https://fr.wikipedia.org/w/api.php"
 SUMMARY_URL = "https://fr.wikipedia.org/api/rest_v1/page/summary/{title}"
 CACHE_TTL = 24 * 3600
-USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/LeVraiLunatix/sona)"
+USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/trysona/sona)"
 # Une page de musicien le dit dans son résumé : garde-fou contre un homonyme.
 _MUSIC_RE = re.compile(
     r"\b(chanteu\w*|rappeu\w*|musici\w*|compositeu\w*|groupe|duo|trio|dj|producteu\w*|"

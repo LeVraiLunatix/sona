@@ -18,7 +18,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://musicbrainz.org/ws/2"
-USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/LeVraiLunatix/sona)"
+USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/trysona/sona)"
 MIN_INTERVAL = 1.1
 CACHE_SIZE = 512
 

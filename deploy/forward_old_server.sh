@@ -3,7 +3,7 @@
 # renvoie vers le nouveau serveur. Les iPhone qui ont encore l'ancienne
 # adresse (amis pas encore mis à jour) continuent de marcher.
 #
-#   curl -fsSL https://raw.githubusercontent.com/LeVraiLunatix/sona/master/deploy/forward_old_server.sh | bash -s https://<nouvelle-adresse>
+#   curl -fsSL https://raw.githubusercontent.com/trysona/sona/master/deploy/forward_old_server.sh | bash -s https://<nouvelle-adresse>
 set -euo pipefail
 
 main() {

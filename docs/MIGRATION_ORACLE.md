@@ -72,7 +72,7 @@ ssh -i chemin/vers/la-cle.key ubuntu@<IP-publique>
 Puis lance l'installation complète :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LeVraiLunatix/sona/master/deploy/install_oracle.sh | bash
+curl -fsSL https://raw.githubusercontent.com/trysona/sona/master/deploy/install_oracle.sh | bash
 ```
 
 Le script installe Python, FFmpeg, PM2, Caddy (HTTPS automatique), ouvre
@@ -89,7 +89,7 @@ le **nouveau** (Oracle).
 Sur l'**ancien** serveur :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LeVraiLunatix/sona/master/deploy/export_from_old_server.sh | bash
+curl -fsSL https://raw.githubusercontent.com/trysona/sona/master/deploy/export_from_old_server.sh | bash
 ```
 
 Il copie la base, le `.env` et les cookies YouTube, puis affiche un
@@ -134,7 +134,7 @@ passer au vert (le déploiement automatique remarche).
   serveur, redirige-la vers le nouveau (ils n'ont rien à faire) :
 
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/LeVraiLunatix/sona/master/deploy/forward_old_server.sh | bash -s https://<nouvelle-adresse>
+  curl -fsSL https://raw.githubusercontent.com/trysona/sona/master/deploy/forward_old_server.sh | bash -s https://<nouvelle-adresse>
   ```
 
   Ça arrête aussi Sona sur l'ancien serveur, qui ne sert plus que de relais.

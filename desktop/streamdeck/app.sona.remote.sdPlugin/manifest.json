@@ -338,6 +338,6 @@
     "Debug": "disabled"
   },
   "UUID": "app.sona.remote",
-  "URL": "https://github.com/LeVraiLunatix/sona",
+  "URL": "https://github.com/trysona/sona",
   "PropertyInspectorPath": "ui/device.html"
 }

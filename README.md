@@ -10,9 +10,9 @@ Word-by-word lyrics, your own lossless files, listening together, and playback t
 
 ### [**Get Sona →**](https://trysona.fr/presentation)
 
-[![Tests](https://github.com/LeVraiLunatix/sona/actions/workflows/tests.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/tests.yml)
-[![iOS](https://github.com/LeVraiLunatix/sona/actions/workflows/ios.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/ios.yml)
-[![Windows](https://github.com/LeVraiLunatix/sona/actions/workflows/windows.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/windows.yml)
+[![Tests](https://github.com/trysona/sona/actions/workflows/tests.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/tests.yml)
+[![iOS](https://github.com/trysona/sona/actions/workflows/ios.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/ios.yml)
+[![Windows](https://github.com/trysona/sona/actions/workflows/windows.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/windows.yml)
 
 </div>
 
@@ -21,8 +21,8 @@ Word-by-word lyrics, your own lossless files, listening together, and playback t
 | Device | How |
 |---|---|
 | **Android** | Open [the site](https://trysona.fr/presentation) in Chrome, menu ⋮, **Install app** |
-| **iPhone / iPad** | Open [the site](https://trysona.fr/presentation) in Safari, **Share**, **Add to Home Screen** (a native `.ipa` for sideloading is in [Releases](https://github.com/LeVraiLunatix/sona/releases)) |
-| **Windows** | [Download the installer](https://github.com/LeVraiLunatix/sona/releases/tag/windows) |
+| **iPhone / iPad** | Open [the site](https://trysona.fr/presentation) in Safari, **Share**, **Add to Home Screen** (a native `.ipa` for sideloading is in [Releases](https://github.com/trysona/sona/releases)) |
+| **Windows** | [Download the installer](https://github.com/trysona/sona/releases/tag/windows) |
 
 Sign-in uses a Last.fm account. On the hosted server, new accounts wait for an admin's approval.
 
@@ -50,7 +50,7 @@ Sign-in uses a Last.fm account. On the hosted server, new accounts wait for an a
 Python 3.11–3.13 (3.12 recommended) and [FFmpeg](https://ffmpeg.org/).
 
 ```bash
-git clone https://github.com/LeVraiLunatix/sona.git
+git clone https://github.com/trysona/sona.git
 cd sona
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt     # Windows: .venv\Scripts\pip

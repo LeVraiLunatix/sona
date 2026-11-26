@@ -137,7 +137,7 @@ function since(iso) {
 // mini-lecteur, zone de notification…). Voir « Sona pour Windows » plus bas.
 const desktop = window.sonaDesktop || null;
 // Page de téléchargement de l'installateur Windows (version « Sona pour Windows » du dépôt).
-const WINDOWS_PAGE = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
+const WINDOWS_PAGE = "https://github.com/trysona/sona/releases/tag/windows";
 if (desktop) {
   document.documentElement.classList.add("desktop", `desktop-${desktop.platform}`);
   const link = document.createElement("link");

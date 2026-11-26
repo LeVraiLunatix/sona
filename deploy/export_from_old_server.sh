@@ -3,7 +3,7 @@
 # la base (comptes, écoutes, playlists…) et les cookies YouTube, chiffrés de
 # bout en bout (magic-wormhole). Voir docs/MIGRATION_ORACLE.md.
 #
-#   curl -fsSL https://raw.githubusercontent.com/LeVraiLunatix/sona/master/deploy/export_from_old_server.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/trysona/sona/master/deploy/export_from_old_server.sh | bash
 set -euo pipefail
 
 # Python de Sona sur ce serveur : son environnement virtuel s'il existe

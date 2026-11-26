@@ -9,9 +9,9 @@
 Un lecteur de musique complet — app iPhone, site, app Windows et bot Telegram — qui tourne sur ton propre serveur.<br>
 Recherche, écoute instantanée, paroles synchronisées, karaoké, mix automatique, écoute à plusieurs.
 
-[![Tests](https://github.com/LeVraiLunatix/sona/actions/workflows/tests.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/tests.yml)
-[![iOS](https://github.com/LeVraiLunatix/sona/actions/workflows/ios.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/ios.yml)
-[![Windows](https://github.com/LeVraiLunatix/sona/actions/workflows/windows.yml/badge.svg)](https://github.com/LeVraiLunatix/sona/actions/workflows/windows.yml)
+[![Tests](https://github.com/trysona/sona/actions/workflows/tests.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/tests.yml)
+[![iOS](https://github.com/trysona/sona/actions/workflows/ios.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/ios.yml)
+[![Windows](https://github.com/trysona/sona/actions/workflows/windows.yml/badge.svg)](https://github.com/trysona/sona/actions/workflows/windows.yml)
 ![Python](https://img.shields.io/badge/python-3.11–3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS_26-F05138?logo=swift&logoColor=white)
@@ -93,7 +93,7 @@ Tout le serveur est un seul processus Python : `app/api` (routes), `app/bot` (Te
 Il te faut Python 3.11 à 3.13 (3.12 recommandé) et [FFmpeg](https://ffmpeg.org/).
 
 ```bash
-git clone https://github.com/LeVraiLunatix/sona.git
+git clone https://github.com/trysona/sona.git
 cd sona
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt     # Windows : .venv\Scripts\pip

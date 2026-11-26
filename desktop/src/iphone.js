@@ -15,7 +15,7 @@ const path = require("node:path");
 const { app, net, Notification } = require("electron");
 const settings = require("./settings");
 
-const SOURCE_URL = "https://github.com/LeVraiLunatix/sona/releases/latest/download/source.json";
+const SOURCE_URL = "https://github.com/trysona/sona/releases/latest/download/source.json";
 const BUNDLE_ID = "com.sona.encre";
 const APP_ID = "sona";
 const DAY = 86_400_000;

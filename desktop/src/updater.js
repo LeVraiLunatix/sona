@@ -20,8 +20,8 @@ const { app, net, shell } = require("electron");
 const settings = require("./settings");
 const { compareVersions } = require("./iphone");
 
-const MANIFEST_URL = "https://github.com/LeVraiLunatix/sona/releases/download/windows/latest.json";
-const RELEASE_PAGE = "https://github.com/LeVraiLunatix/sona/releases/tag/windows";
+const MANIFEST_URL = "https://github.com/trysona/sona/releases/download/windows/latest.json";
+const RELEASE_PAGE = "https://github.com/trysona/sona/releases/tag/windows";
 const EVERY = 6 * 3_600_000;
 
 const portable = !!process.env.PORTABLE_EXECUTABLE_FILE;

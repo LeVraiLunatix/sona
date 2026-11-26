@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 API_BASE = "https://lrclib.net/api"
 # LRCLIB demande explicitement un User-Agent qui identifie l'application
 # (ASCII seulement : un en-tête HTTP accentué fait échouer httpx).
-USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/LeVraiLunatix/sona)"
+USER_AGENT = "Sona/1.0 (bot musical prive; https://github.com/trysona/sona)"
 # Écart de durée toléré entre notre morceau et une entrée LRCLIB : au-delà,
 # c'est probablement une autre version (live, remix, radio edit) dont les
 # paroles synchronisées seraient décalées.

@@ -2,12 +2,12 @@
 # Installation complète de Sona sur un serveur neuf (Oracle Cloud, Ubuntu
 # 24.04, ARM ou x86) — voir docs/MIGRATION_ORACLE.md.
 #
-#   curl -fsSL https://raw.githubusercontent.com/LeVraiLunatix/sona/master/deploy/install_oracle.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/trysona/sona/master/deploy/install_oracle.sh | bash
 #
 # Relançable sans risque : chaque étape vérifie ce qui est déjà fait.
 set -euo pipefail
 
-REPO="https://github.com/LeVraiLunatix/sona.git"
+REPO="https://github.com/trysona/sona.git"
 DIR="$HOME/sona"
 
 step() { printf '\n\033[1;35m▶ %s\033[0m\n' "$1"; }
