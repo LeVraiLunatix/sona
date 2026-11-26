@@ -197,7 +197,7 @@ const Sidebar = (() => {
         ${profileHtml()}
       </div>
     </nav>
-    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><b></b><i></i></div>
+    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><u></u><svg id="sb-blob" width="44" height="100%" preserveAspectRatio="none" aria-hidden="true"><path/></svg></div>
     <div class="sb-glow" id="sb-glow" aria-hidden="true"></div>`;
   }
 
@@ -241,6 +241,17 @@ const Sidebar = (() => {
 
   const liquid = { top: null, bottom: null };
 
+  /** Dessine d'un seul tenant le col qui sort de la pastille et le trait de la bordure de la page (aucune couture).
+   *  Repère : x = 44 est le bord gauche de la page ; la pastille finit à x ≈ 20 ; le col démarre dans la pastille (x = 10). */
+  function blob(H) {
+    const svg = document.getElementById("sb-blob");
+    if (!svg) return;
+    const cy = H / 2, hn = 13, X = 44, fh = 38;   // fh : demi-hauteur du trait au contact de la page (il s'arrête pile au bord, rien n'entre dans la page)
+    svg.setAttribute("viewBox", `0 0 ${X} ${H}`);
+    svg.firstElementChild.setAttribute("d",
+      `M10 ${cy - hn} H26 C${X - 6} ${cy - hn} ${X} ${cy - hn - 6} ${X} ${cy - fh} V${cy + fh} C${X} ${cy + hn + 6} ${X - 6} ${cy + hn} 26 ${cy + hn} H10 Z`);
+  }
+
   /** Place la pastille sous la page active. `animate` : étirement (le bord avant file, l'autre suit) puis petit rebond vers la droite. */
   function placeLiquid(animate = true) {
     const sb = root();
@@ -269,6 +280,7 @@ const Sidebar = (() => {
       // Trait épaissi et lueur sont posés sur la bordure de la page : coordonnées de la fenêtre.
       bump.style.top = `${r.top - SWELL}px`;
       bump.style.bottom = `${innerHeight - r.bottom - SWELL}px`;
+      blob(r.height + SWELL * 2);
       glow.style.top = `${r.top + r.height / 2 - HALO}px`;
     };
     if (first || !animate || reduce) {
@@ -288,8 +300,8 @@ const Sidebar = (() => {
       glow.style.transition = `top 420ms cubic-bezier(0.34, 1.2, 0.5, 1), left var(--sb-dur) var(--sb-ease), opacity 150ms`;
       set();
       // À l'arrivée : le trait de la bordure s'épaissit un peu plus, et la lueur s'enfle puis retombe.
-      bump.querySelector("b")?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.9)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 560, easing: "ease-out", delay: 120 });
-      bump.querySelector("i")?.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 420, easing: "cubic-bezier(0.32, 0.72, 0, 1)", delay: 60, fill: "backwards" });  // le chemin se creuse de la pastille vers la page
+      // le chemin se creuse de la pastille vers la page
+      document.getElementById("sb-blob")?.animate([{ clipPath: "inset(-200px 100% -200px 0)" }, { clipPath: "inset(-200px 0 -200px 0)" }], { duration: 420, easing: "cubic-bezier(0.32, 0.72, 0, 1)", delay: 60, fill: "backwards" });
       glow.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.18)", opacity: 1, offset: 0.45 }, { transform: "scale(1)", opacity: 1 }], { duration: 560, easing: "ease-out", delay: 120 });
       clearTimeout(placeLiquid.t);
       placeLiquid.t = setTimeout(() => parts.forEach((n) => (n.style.transition = "")), 640);
