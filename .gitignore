@@ -23,3 +23,6 @@ desktop/dist/
 
 # Rust
 rust/target/
+
+# Fichiers locaux du CLI Supabase
+supabase/.temp/
