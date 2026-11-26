@@ -196,7 +196,8 @@ const Sidebar = (() => {
         <button class="sb-link" id="sb-more" type="button" aria-haspopup="menu" data-tip="Plus"><span class="sb-ico">${icons.more}</span><span class="sb-label">Plus</span></button>
         ${profileHtml()}
       </div>
-    </nav>`;
+    </nav>
+    <div class="sb-bridge" id="sb-bridge" aria-hidden="true"><b></b><i class="f1"></i><i class="f2"></i><i class="f3"></i><i class="f4"></i></div>`;
   }
 
   /** Après insertion : branche les événements. */
@@ -235,7 +236,7 @@ const Sidebar = (() => {
     placeLiquid(true);
   }
 
-  // ── Pastille « liquide » : collée au bord gauche de la carte, elle glisse d'une page à l'autre en s'étirant ──
+  // ── Pastille « liquide » : elle traverse le bord de la carte et rejoint la page de droite par un pont ──
 
   const liquid = { top: null, bottom: null };
 
@@ -243,36 +244,47 @@ const Sidebar = (() => {
   function placeLiquid(animate = true) {
     const sb = root();
     const el = document.getElementById("sb-liquid");
-    if (!sb || !el || !mq.matches) return;
+    const bridge = document.getElementById("sb-bridge");
+    if (!sb || !el || !bridge || !mq.matches) return;
     const link = sb.querySelector(".sb-link.active:not(.sb-toggle), .sb-profile.active");
     const box = sb.getBoundingClientRect();
     let r = link?.getBoundingClientRect();
     // Lien rangé dans la liste qui défile : caché s'il sort de la zone visible.
     const scroller = link?.closest(".sb-scroll")?.getBoundingClientRect();
     if (r && scroller && (r.bottom < scroller.top + 6 || r.top > scroller.bottom - 6)) r = null;
-    if (!r || !r.height) { el.style.opacity = "0"; sb.dataset.liquid = "off"; return; }
+    if (!r || !r.height) { el.style.opacity = "0"; bridge.style.opacity = "0"; sb.dataset.liquid = "off"; return; }
     sb.dataset.liquid = "on";
+    const FIL = 6; // rayon des raccords concaves du pont
     const top = r.top - box.top;
     const bottom = box.bottom - r.bottom;
     const first = liquid.top == null || el.style.opacity !== "1";
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (first || !animate || reduce) {
-      el.style.transition = "none";
+    const set = () => {
       el.style.top = `${top}px`;
       el.style.bottom = `${bottom}px`;
-      el.style.opacity = "1";
+      // Le pont est en coordonnées de la fenêtre (il est hors de la carte, qui rogne tout ce qui dépasse).
+      bridge.style.top = `${r.top - FIL}px`;
+      bridge.style.bottom = `${innerHeight - r.bottom - FIL}px`;
+    };
+    if (first || !animate || reduce) {
+      for (const n of [el, bridge]) n.style.transition = "none";
+      set();
+      el.style.opacity = bridge.style.opacity = "1";
       void el.offsetHeight;
-      el.style.transition = "";
+      for (const n of [el, bridge]) n.style.transition = "";
     } else if (top !== liquid.top) {
       // Descendre : le bord du bas part le premier, celui du haut le rattrape (et inversement) : ça s'étire comme du liquide.
       const down = top > liquid.top;
       const lead = "180ms cubic-bezier(0.3, 0.9, 0.4, 1)";
       const trail = "420ms cubic-bezier(0.34, 1.45, 0.5, 1)";
-      el.style.transition = `top ${down ? trail : lead}, bottom ${down ? lead : trail}, width var(--sb-dur) var(--sb-ease), opacity 150ms`;
-      el.style.top = `${top}px`;
-      el.style.bottom = `${bottom}px`;
-      // Petit coup vers la droite à l'arrivée.
-      el.firstElementChild?.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(1.055)", offset: 0.45 }, { transform: "scaleX(1)" }], { duration: 480, easing: "ease-out", delay: 60 });
+      const move = `top ${down ? trail : lead}, bottom ${down ? lead : trail}`;
+      el.style.transition = `${move}, width var(--sb-dur) var(--sb-ease), opacity 150ms`;
+      bridge.style.transition = `${move}, left var(--sb-dur) var(--sb-ease), opacity 150ms`;
+      set();
+      // Le pont gonfle un instant en arrivant : le liquide se « jette » vers l'écran de droite.
+      bridge.firstElementChild?.animate([{ transform: "scaleY(1)" }, { transform: "scaleY(1.12)", offset: 0.5 }, { transform: "scaleY(1)" }], { duration: 460, easing: "ease-out", delay: 90 });
+      clearTimeout(placeLiquid.t);
+      placeLiquid.t = setTimeout(() => { el.style.transition = ""; bridge.style.transition = ""; }, 560);
     }
     liquid.top = top;
     liquid.bottom = bottom;

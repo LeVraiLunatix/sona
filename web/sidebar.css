@@ -175,15 +175,32 @@
 }
 
 /* ── Pastille « liquide » ─────────────────────────────────────────────────
-   Collée au bord gauche de la carte et arrondie vers la droite (une goutte). Quand on change de page, elle
-   glisse en s'étirant (un bord part avant l'autre) puis rebondit légèrement vers la droite (voir sidebar.js).
-   Elle est dans la carte, sous les libellés : le texte de la page active passe en sombre. */
-.sb-liquid { display: none; }
+   La page active est une pastille claire qui traverse le bord droit de la carte et rejoint la page de droite
+   par un pont aux raccords concaves, comme du liquide qui relie deux surfaces. Quand on change de page, elle
+   glisse en s'étirant (un bord part avant l'autre) puis gonfle un instant (voir sidebar.js).
+   Deux pièces : la pastille, dans la carte (sous les libellés), et le pont, hors de la carte (la carte rogne
+   tout ce qui dépasse) : il est posé à cheval sur le bord, 6 px dans la carte, 12 px de vide, puis 18 px DANS la page
+   (bout arrondi) : le blanc entre visiblement dans l'écran de droite. */
+.sb-liquid, .sb-bridge { display: none; }
 @media (min-width: 761px) {
-  .sb-liquid { display: block; position: absolute; left: 1px; top: 0; bottom: 0; width: 64px; opacity: 0; pointer-events: none;
+  .sb-liquid { display: block; position: absolute; left: 10px; top: 0; bottom: 0; width: 61px; opacity: 0; pointer-events: none;
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), width var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  .sb[data-open="true"] .sb-liquid { width: calc(var(--sb-open) - 13px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
-  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 0 24px 24px 0; transform-origin: left center; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+  .sb[data-open="true"] .sb-liquid { width: calc(var(--sb-open) - 11px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 18px 0 0 18px; transform-origin: left center; }
   .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
   .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
+
+  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: calc(var(--sb-gap) + 24px);
+    left: calc(var(--sb-gap) + var(--sb-rail) - 6px);
+    transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
+  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) + var(--sb-open) - 6px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  /* cou : la hauteur de la pastille ; raccords : quatre quarts de disque creusés (rayon 6 px) */
+  .sb-bridge b { position: absolute; left: 0; right: 0; top: 6px; bottom: 6px; background: var(--accent); border-radius: 0 14px 14px 0; transform-origin: left center; }
+  .sb-bridge i { position: absolute; width: 6px; height: 6px; }
+  .sb-bridge i.f1, .sb-bridge i.f2 { top: 0; } .sb-bridge i.f3, .sb-bridge i.f4 { bottom: 0; }
+  .sb-bridge i.f1, .sb-bridge i.f3 { left: 6px; } .sb-bridge i.f2, .sb-bridge i.f4 { right: 18px; }
+  .sb-bridge i.f1 { background: radial-gradient(circle at 100% 0, transparent 5.5px, var(--accent) 6px); }
+  .sb-bridge i.f2 { background: radial-gradient(circle at 0 0, transparent 5.5px, var(--accent) 6px); }
+  .sb-bridge i.f3 { background: radial-gradient(circle at 100% 100%, transparent 5.5px, var(--accent) 6px); }
+  .sb-bridge i.f4 { background: radial-gradient(circle at 0 100%, transparent 5.5px, var(--accent) 6px); }
 }
