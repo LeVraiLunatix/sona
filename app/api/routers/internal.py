@@ -35,7 +35,8 @@ async def _user_id(deps: ApiDeps, uid: str) -> int | None:
 @router.get("/users/{uid}/export")
 async def export_user(uid: str, deps: ApiDeps = Depends(internal)) -> dict:
     user_id = await _user_id(deps, uid)
-    return {"music": await deps.repo.export_user_data(user_id) if user_id is not None else {}}
+    # Renvoyé tel quel : sona-accounts l'insère sous la clé « music » de l'export complet.
+    return await deps.repo.export_user_data(user_id) if user_id is not None else {}
 
 
 @router.delete("/users/{uid}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

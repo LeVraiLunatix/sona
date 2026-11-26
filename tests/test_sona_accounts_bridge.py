@@ -292,10 +292,10 @@ def test_export_and_delete_remove_everything(client):
     alice = person(client, "alice")
     client.post("/plays", headers=alice, json={"plays": [{"title": "T", "artist": "A", "source": "deezer", "source_id": "1"}]})
     client.post("/me/playlists", headers=alice, json={"name": "Ma liste", "tracks": [{**TRACK, "album": None, "year": None, "duration_seconds": 1, "cover_url": None, "artist_source_id": None, "album_source_id": None}]})
-    data = client.get("/internal/users/uid-alice/export", headers=INTERNAL).json()["music"]
+    data = client.get("/internal/users/uid-alice/export", headers=INTERNAL).json()
     assert len(data["plays"]) == 1 and data["playlists"][0]["name"] == "Ma liste" and len(data["playlist_tracks"]) == 1
     assert client.delete("/internal/users/uid-alice", headers=INTERNAL).status_code == 204
-    assert client.get("/internal/users/uid-alice/export", headers=INTERNAL).json()["music"] == {}
+    assert client.get("/internal/users/uid-alice/export", headers=INTERNAL).json() == {}
     # Un nouveau jeton de la même personne repart d'un espace vide.
     assert client.get("/plays/recent", headers=alice).json() == []
     assert client.delete("/internal/users/inconnu", headers=INTERNAL).status_code == 204  # idempotent
