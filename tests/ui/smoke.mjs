@@ -24,6 +24,7 @@ const track = (i, extra = {}) => ({ source: "deezer", source_id: String(i), titl
 const album = { source: "deezer", source_id: "99", title: "Double", artist: "Favé", artist_source_id: "10", year: "2024", cover_url: null, track_count: 4, duration_seconds: 12,
   tracks: [track(1, { disc_number: 1, track_number: 1 }), track(2, { disc_number: 1, track_number: 2 }), track(3, { disc_number: 2, track_number: 1 }), track(4, { disc_number: 2, track_number: 2 })] };
 const jsonRoutes = {
+  "/uploads": { tracks: [], used_bytes: 0, quota_bytes: 1073741824, max_file_bytes: 104857600 },
   "/browse/radios": [{ title: "Rap", radios: [{ id: "39021", title: "Rap français", picture_url: "" }] }],
   "/auth/me": { status: "approved", username: "t", display_name: "Test", id: 1 },
   "/settings": { autoplay: false }, "/health": { version: "x", streaming: "ok" },
@@ -63,10 +64,11 @@ await page.route("**/*", async (route) => {
   if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return route.fulfill({ status: 200, body: "" });
   if (url.pathname.startsWith("/web")) return route.continue();
   const cm = url.pathname.match(/^\/tracks\/deezer\/(\d+)\/credits$/);
+  if (url.pathname === "/uploads" && route.request().method() === "POST") return route.fulfill({ status: 415, json: { detail: "Ce fichier n'est pas un audio lisible." } });
   const j = cm ? jsonRoutes["/tracks/deezer/1/credits"] : jsonRoutes[url.pathname];
   if (j) return route.fulfill({ json: j });
   if (url.pathname.startsWith("/stream/")) return route.fulfill({ status: 200, contentType: "audio/wav", body: wav() });
-  if (/^\/(auth|settings|health|albums|artists|tracks|lyrics|search|me|library|smart|connect|plays|party|friends|stats|home|discover|analysis|radios|browse\/)/.test(url.pathname)) return route.fulfill({ status: 404, json: { detail: "nope" } });
+  if (/^\/(auth|settings|health|albums|artists|tracks|lyrics|search|me|library|smart|connect|plays|party|friends|stats|home|discover|analysis|radios|uploads|browse\/)/.test(url.pathname)) return route.fulfill({ status: 404, json: { detail: "nope" } });
   return route.continue();
 });
 const lines = [];
@@ -104,6 +106,12 @@ out("menu: reste ouvert au clic, rubrique gardée sur une fiche: true");
 await page.evaluate(() => { location.hash = "#/radios"; });
 await page.waitForSelector(".rc.live:not(.skeleton) .rc-title", { timeout: 5000 });
 out("covers de radios dessinées à l'écran: true");
+// 1 quinquies. « Mes fichiers » : la page et son bouton d'envoi
+await page.evaluate(() => { location.hash = "#/library/files"; });
+await page.waitForSelector("[data-upload]", { timeout: 5000 });
+await page.setInputFiles("#up-input", { name: "essai.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("ID3essai") });
+await page.waitForFunction(() => /essai\.mp3 :/.test(document.querySelector("#up-status")?.textContent || ""), null, { timeout: 5000 });
+out("mes fichiers: envoi et refus affichés: true");
 // 2. album avec disques
 await page.goto(`http://localhost:${port}/web/#/album/deezer/99`);
 await page.waitForSelector(".tracks .tr");

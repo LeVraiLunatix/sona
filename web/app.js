@@ -2252,7 +2252,57 @@ async function viewMix(id) {
     + trackTable(mix.tracks, mix.title));
 }
 
-const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", "Albums"], ["artists", "Artistes"], ["downloads", "Téléchargés"]];
+const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", "Albums"], ["artists", "Artistes"], ["files", "Mes fichiers"], ["downloads", "Téléchargés"]];
+
+/** « Mes fichiers » : ses propres audios, vérifiés par le serveur, écoutables par soi seul. */
+async function myFiles() {
+  const data = await api("/uploads");
+  const tracks = data.tracks;
+  const list = register(tracks, "Mes fichiers");
+  const mb = (b) => `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0).replace(".", ",")} Mo`;
+  setTimeout(() => {
+    const input = $("#up-input");
+    $("[data-upload]")?.addEventListener("click", () => input.click());
+    input?.addEventListener("change", () => sendFiles([...input.files], data.max_file_bytes));
+  });
+  return `<p class="page-sub">${plural(tracks.length, "fichier")} · ${mb(data.used_bytes)} sur ${mb(data.quota_bytes)} · toi seul peux les écouter</p>
+    <div class="pill-row"><button class="btn" data-upload>${icons.plus} Ajouter des fichiers</button>
+      ${tracks.length ? `<button class="btn ghost" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button>` : ""}</div>
+    <input type="file" id="up-input" accept=".mp3,.m4a,.flac,.wav,.ogg,audio/*" multiple hidden>
+    <p class="muted" id="up-status" role="status"></p>
+    ${tracks.length ? trackTable(tracks, "Mes fichiers", { showAlbum: true }) : empty(icons.note, "Aucun fichier", "Ajoute tes MP3, M4A, FLAC, WAV ou OGG (100 Mo par fichier) : ils rejoignent ta bibliothèque et tes playlists.")}`;
+}
+
+/** Envoi un par un ; chaque refus dit pourquoi, sans arrêter les suivants. */
+async function sendFiles(files, maxBytes) {
+  const refused = [];
+  let sent = 0;
+  for (const [i, file] of files.entries()) {
+    const status = $("#up-status");
+    if (status) status.textContent = `Envoi et vérification ${i + 1}/${files.length} : ${file.name}`;
+    try {
+      if (file.size > maxBytes) throw new Error("Fichier trop lourd (100 Mo maximum).");
+      await api(`/uploads?filename=${encodeURIComponent(file.name.slice(-250))}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+      sent++;
+    } catch (e) { refused.push(`${file.name} : ${e.message}`); }
+  }
+  heardCache = { at: 0, data: null };
+  await route();
+  const status = $("#up-status");
+  if (status && refused.length) status.textContent = refused.join(" · ");
+  if (sent) toast(`${plural(sent, "fichier")} ajouté${sent > 1 ? "s" : ""}`);
+}
+
+async function deleteUpload(t) {
+  if (!(await confirmSheet(`Supprimer « ${t.title} » ? Le fichier sera effacé du serveur, de tes playlists et de ta bibliothèque.`, "Supprimer"))) return;
+  try {
+    await api(`/uploads/${encodeURIComponent(t.source_id)}`, { method: "DELETE" });
+    state.liked.delete(trackKey(t));
+    heardCache = { at: 0, data: null };
+    toast("Fichier supprimé");
+    route();
+  } catch (e) { toast(e.message); }
+}
 
 async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
@@ -2289,6 +2339,8 @@ async function viewLibrary(kind) {
     const list = register(tracks, "Tes titres");
     body = tracks.length ? `<p class="page-sub">${plural(tracks.length, "titre")}</p><div class="pill-row"><button class="btn" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button></div>${trackTable(tracks, "Tes titres")}`
       : empty(icons.heart, "Rien ici pour l'instant", "Ajoute des titres avec le cœur, ici ou dans l'app.");
+  } else if (kind === "files") {
+    body = await myFiles();
   } else if (kind === "downloads") {
     const tracks = offline.meta;
     const list = register(tracks, "Téléchargés");
@@ -6234,8 +6286,9 @@ function trackMenu(t, ctx = null, index = -1) {
     playing && { icon: icons.sparkles, label: "Réagir à cet instant", sub: "Tes amis verront ta réaction à ce moment du titre", run: () => addMoment(t) },
     playing && { icon: icons.moon, label: sleep.until ? `Minuteur : ${sleepLabel()}` : "Minuteur de sommeil", run: sleepMenu },
     playing && { icon: icons.tv, label: "Diffuser sur la TV ou la PS5", run: openCast },
-    playing && account?.is_admin && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
+    playing && account?.is_admin && t.source !== "upload" && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
     account?.is_admin && { icon: icons.pulse, label: "Diagnostic de lecture", sub: "Ce que le serveur trouve pour ce titre, et pourquoi il l'écarte", run: () => diagnoseTrack(t) },
+    t.source === "upload" && { icon: icons.trash, label: "Supprimer ce fichier", danger: true, run: () => deleteUpload(t) },
     entry && ctx.playlist?.can_edit && { icon: icons.trash, label: "Retirer de cette playlist", danger: true, run: async () => {
       await api(`/me/playlists/${ctx.playlist.id}/tracks/${entry.entry_id}`, { method: "DELETE" });
       toast("Retiré de la playlist"); route();
