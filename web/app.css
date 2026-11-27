@@ -1046,7 +1046,8 @@ span.chip { cursor: default; }
 .live-card { padding: 16px; border-radius: 18px; background: var(--fill); max-width: 720px; display: flex; flex-direction: column; gap: 10px; }
 .lc-now { display: flex; gap: 12px; align-items: center; }
 .lc-now img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
-.lc-now span { display: flex; flex-direction: column; }
+.lc-now > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lc-now small { font-size: 13px; color: var(--text-2); }
 .lc-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text-2); }
 .lc-row b { color: var(--text); text-align: right; }
 .lc-row.bad b { color: #ff453a; }

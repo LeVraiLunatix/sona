@@ -6690,7 +6690,7 @@ async function viewStats() {
       <div class="badges">${challenges.badges.map((b) => `<div class="achv ${b.earned ? "earned" : ""}" title="${esc(b.description)}"><span>${b.earned ? icons.medal : icons.lock}</span><b>${esc(b.title)}</b><small>${esc(b.description)}</small></div>`).join("")}</div></section>` : ""}
     ${live ? `<section class="section"><div class="section-head"><h2>En direct</h2><a class="more" href="#/recent">Écoutes récentes</a></div>
       <div class="live-card">
-        ${nowPlaying ? `<div class="lc-now"><img src="${esc(big(nowPlaying.cover_url, 120))}" alt=""><span><span class="eyebrow">${bars()} En cours</span><b>${esc(nowPlaying.title)}</b> · ${esc(nowPlaying.artist)}</span></div>` : ""}
+        ${nowPlaying ? `<div class="lc-now"><img src="${esc(big(nowPlaying.cover_url, 120))}" alt=""><span><span class="eyebrow">${bars()} En cours</span><b>${esc(nowPlaying.title)}</b><small>${esc(nowPlaying.artist)}</small></span></div>` : ""}
         <div class="lc-row"><span>Aujourd'hui</span><b>${minutesLabel(live.today_minutes)} · ${plural(live.today_plays, "écoute")}</b></div>
         <div class="lc-row"><span>Last.fm</span><b>${live.lastfm.connected ? (live.lastfm.enabled ? `Scrobbling actif${live.lastfm.scrobbled_at ? ` · dernier ${since(live.lastfm.scrobbled_at)}` : ""}` : "Scrobbling coupé (réglages)") : "Non connecté"}</b></div>
         ${live.lastfm.error ? `<div class="lc-row bad"><span>Erreur Last.fm</span><b>${esc(live.lastfm.error)}</b></div>` : ""}
