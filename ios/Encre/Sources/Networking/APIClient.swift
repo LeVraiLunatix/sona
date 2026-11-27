@@ -151,6 +151,13 @@ final class APIClient {
         return try await send(try request("/auth/lastfm", method: "POST", bodyData: data, authenticated: false))
     }
 
+    /// Rattache au compte Sona connecté l'ancien compte dont l'appareil gardait la session.
+    func linkLegacy(sessionToken: String) async throws {
+        struct Body: Encodable { let session_token: String }
+        let data = try encode(Body(session_token: sessionToken))
+        try await sendNoContent(try request("/auth/link-legacy", method: "POST", bodyData: data))
+    }
+
     func me() async throws -> AppAccount {
         try await send(try request("/auth/me"))
     }

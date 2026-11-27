@@ -42,6 +42,7 @@ final class AuthManager: ObservableObject {
     func refresh() async {
         guard APIConfig.shared.isConfigured else {
             state = .signedOut
+            await loadSupabaseConfig()
             return
         }
         // Démarrage instantané : compte déjà accepté la dernière fois → on
@@ -51,6 +52,8 @@ final class AuthManager: ObservableObject {
             state = .approved(cached)
         }
         await loadSupabaseConfig()
+        if setAsideLegacySession() { return }
+        await adoptOldAccount()
         do {
             apply(try await APIClient.shared.me())
         } catch APIError.sanctioned(let sanction) {
@@ -99,9 +102,49 @@ final class AuthManager: ObservableObject {
         supabaseEnabled = SupabaseAuth.shared.config != nil
     }
 
+    // MARK: Ancien compte (connexion Last.fm d'avant les comptes Sona)
+
+    private static let legacyKey = "encre.legacy.session"
+    /// Un ancien compte attend d'être rattaché : l'écran de connexion l'annonce.
+    var hasLegacyAccount: Bool { Keychain.get(Self.legacyKey) != nil }
+
+    /// Une ancienne session (jeton sans point, contrairement à un jeton Supabase) est mise de côté, et on repasse par
+    /// la connexion : elle servira de preuve pour rattacher l'ancien compte.
+    private func setAsideLegacySession() -> Bool {
+        let old = APIConfig.shared.sessionToken
+        guard supabaseEnabled, !SupabaseAuth.shared.hasSession, !old.isEmpty, !old.contains(".") else { return false }
+        Keychain.set(old, forKey: Self.legacyKey)
+        APIConfig.shared.sessionToken = ""
+        Self.cachedAccount = nil
+        state = .signedOut
+        return true
+    }
+
+    private func adoptOldAccount() async {
+        guard SupabaseAuth.shared.hasSession, let old = Keychain.get(Self.legacyKey) else { return }
+        do {
+            try await APIClient.shared.linkLegacy(sessionToken: old)
+        } catch APIError.server(let status, _) where [403, 404, 409].contains(status) {
+            // Définitif : il n'y a rien à reprendre.
+        } catch {
+            return // réseau ou serveur en panne : on réessaiera
+        }
+        Keychain.set("", forKey: Self.legacyKey)
+    }
+
     /// Compte Sona : e-mail + mot de passe.
-    func signIn(email: String, password: String) async {
-        await runSupabase { try await SupabaseAuth.shared.signIn(email: email, password: password) }
+    func signIn(email: String, password: String, captcha: String) async {
+        await runSupabase { try await SupabaseAuth.shared.signIn(email: email, password: password, captcha: captcha) }
+    }
+
+    /// Compte Sona : code par e-mail (connexion ou création). Vrai si le code est parti.
+    func sendCode(email: String, captcha: String) async -> Bool {
+        await runSupabase { try await SupabaseAuth.shared.sendCode(email: email, captcha: captcha) }
+        return errorMessage == nil
+    }
+
+    func verifyCode(email: String, code: String) async {
+        await runSupabase { try await SupabaseAuth.shared.verifyCode(email: email, code: code) }
     }
 
     /// Compte Sona : Google, Discord ou GitHub (PKCE, feuille système).

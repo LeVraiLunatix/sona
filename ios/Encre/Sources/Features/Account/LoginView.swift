@@ -1,7 +1,7 @@
 import AuthenticationServices
 import SwiftUI
 
-/// Premier écran : se connecter avec Last.fm. L'adresse du serveur est
+/// Premier écran : compte Sona (ou Last.fm sur un serveur sans comptes). L'adresse du serveur est
 /// déjà renseignée dans l'app distribuée ; sinon, un champ la demande.
 struct LoginView: View {
     @EnvironmentObject private var auth: AuthManager
@@ -11,6 +11,12 @@ struct LoginView: View {
     @State private var showsToken = false
     @State private var email = ""
     @State private var password = ""
+    @State private var code = ""
+    @State private var codeSent = false
+    @State private var usesPassword = false
+    @State private var captcha = ""
+    /// Le jeton anti-robot ne sert qu'une fois : changer de tour recrée le widget.
+    @State private var captchaRound = 0
 
     var body: some View {
         ZStack {
@@ -21,11 +27,13 @@ struct LoginView: View {
                 Spacer()
                 SonaLogo(size: 72)
                     .reveal(0)
-                Text("Sona")
-                    .font(.system(size: 64, weight: .bold))
+                Text(auth.hasLegacyAccount ? "Sona fait peau neuve" : "Sona")
+                    .font(.system(size: auth.hasLegacyAccount ? 36 : 64, weight: .bold))
                     .foregroundStyle(Tone.primary)
                     .reveal(1)
-                Text("Ta musique, tes stats. Sur invitation.")
+                Text(auth.hasLegacyAccount
+                    ? "Crée ton compte Sona ou connecte-toi : tes playlists, ton historique et Last.fm te suivent."
+                    : "Ta musique, tes stats.")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(Tone.secondary)
                     .reveal(2)
@@ -39,8 +47,7 @@ struct LoginView: View {
 
                 if auth.supabaseEnabled {
                     accountSection
-                }
-
+                } else {
                 Button {
                     Task { await auth.signInWithLastfm(using: webAuthenticationSession) }
                 } label: {
@@ -61,6 +68,7 @@ struct LoginView: View {
                 .buttonStyle(.pressable)
                 .disabled(auth.isWorking || config.baseURL == nil)
                 .reveal(3)
+                }
 
                 if let message = auth.errorMessage {
                     Text(message)
@@ -96,15 +104,47 @@ struct LoginView: View {
         }
     }
 
-    /// Compte Sona : e-mail + mot de passe, ou Google / Discord / GitHub. (Pas de « Se connecter avec Apple » : voir docs/AUTH_SETUP.md.)
+    /// Compte Sona : code par e-mail ou mot de passe, ou Google / Discord / GitHub. (Pas de « Se connecter avec Apple » : voir docs/AUTH_SETUP.md.)
     private var accountSection: some View {
         VStack(spacing: 10) {
             field("Adresse e-mail", text: $email, secure: false, keyboard: .emailAddress)
-            field("Mot de passe", text: $password, secure: true)
-            PillButton(title: "Se connecter", systemImage: "person.fill", isLoading: auth.isWorking) {
-                Task { await auth.signIn(email: email, password: password) }
+            if codeSent {
+                field("Code reçu par e-mail", text: $code, secure: false, keyboard: .numberPad)
+                PillButton(title: "Continuer", systemImage: "person.fill", isLoading: auth.isWorking) {
+                    Task { await auth.verifyCode(email: email, code: code) }
+                }
+                .disabled(auth.isWorking || code.isEmpty)
+            } else {
+                if usesPassword {
+                    field("Mot de passe", text: $password, secure: true)
+                }
+                Turnstile(token: $captcha)
+                    .frame(height: 70)
+                    .id(captchaRound)
+                PillButton(title: usesPassword ? "Se connecter" : "Recevoir un code", systemImage: "person.fill", isLoading: auth.isWorking) {
+                    let used = captcha
+                    captcha = ""
+                    Task {
+                        if usesPassword {
+                            await auth.signIn(email: email, password: password, captcha: used)
+                        } else {
+                            codeSent = await auth.sendCode(email: email, captcha: used)
+                        }
+                        captchaRound += 1
+                    }
+                }
+                .disabled(auth.isWorking || captcha.isEmpty || email.isEmpty || (usesPassword && password.isEmpty))
             }
-            .disabled(auth.isWorking || email.isEmpty || password.isEmpty)
+            Button(codeSent ? "Changer d'adresse" : usesPassword ? "Recevoir un code (ou créer un compte)" : "J'ai un mot de passe") {
+                if codeSent {
+                    codeSent = false
+                    code = ""
+                } else {
+                    usesPassword.toggle()
+                }
+            }
+            .font(Typo.rowSubtitle)
+            .foregroundStyle(Tone.secondary)
             HStack(spacing: 10) {
                 ForEach(SupabaseAuth.providers, id: \.id) { provider in
                     PillButton(title: provider.name, systemImage: provider.icon, kind: .secondary) {
@@ -113,7 +153,6 @@ struct LoginView: View {
                     .disabled(auth.isWorking)
                 }
             }
-            Text("ou").font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary)
         }
         .padding(.bottom, 4)
     }
