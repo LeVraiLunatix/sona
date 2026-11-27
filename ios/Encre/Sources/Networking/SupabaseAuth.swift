@@ -2,6 +2,7 @@ import AuthenticationServices
 import CryptoKit
 import Foundation
 import Security
+import SwiftUI
 
 /// Connexion à un compte Sona (Supabase Auth) sans bibliothèque tierce : e-mail + mot de passe, ou Google / Discord / GitHub
 /// avec PKCE dans une feuille système (`ASWebAuthenticationSession`, retour sur `sona://auth/callback`).
