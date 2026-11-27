@@ -500,7 +500,19 @@ const staffProfile = (role) => ({ id: "m1", username: role, role, status: "activ
     const tiles = [...document.querySelectorAll(".page .mas > .tile")];
     return { n: tiles.length, cols: getComputedStyle(document.querySelector(".page .mas")).columnCount, hero: !!document.querySelector(".mas .tile.hero"), inTile: !!document.querySelector(".mas .tile .set-head + .set-group, .mas .tile .set-head + *"), head: !document.querySelector(".page > .set-head") };
   });
-  ok("masonry : sections de réglages en tuiles, deux colonnes sur téléphone", ms.n >= 3 && ms.cols === "2" && ms.head && ms.inTile, JSON.stringify(ms));
+  ok("masonry : sections de réglages en tuiles", ms.n >= 3 && ms.head && ms.inTile, JSON.stringify(ms));
+  // Téléphone : un bouton, un menu de bulles, une seule catégorie affichée à la fois.
+  await t.page.waitForSelector(".cat-btn");
+  const c1 = await t.page.evaluate(() => ({ visible: [...document.querySelectorAll(".mas > .tile:not(.hero)")].filter((x) => getComputedStyle(x).display !== "none").length, label: document.querySelector(".cat-name").textContent.trim() }));
+  ok("catégories : une seule tuile visible, le bouton donne son nom", c1.visible === 1 && c1.label.length > 0, JSON.stringify(c1));
+  await t.page.click(".cat-btn");
+  await t.page.waitForSelector(".cat-sheet.open .cat-bubble");
+  const bubbles = await t.page.locator(".cat-sheet.open .cat-bubble").count();
+  await t.page.waitForTimeout(700);
+  await t.page.click('.cat-bubble[data-i="1"]');
+  await t.page.waitForTimeout(500);
+  const c2 = await t.page.evaluate(() => ({ visible: [...document.querySelectorAll(".mas > .tile:not(.hero)")].filter((x) => getComputedStyle(x).display !== "none").map((x) => x.querySelector(".set-head")?.textContent.trim()), label: document.querySelector(".cat-name").textContent.trim(), closed: document.querySelector(".cat-sheet").hidden }));
+  ok("catégories : le menu de bulles propose chaque catégorie et en affiche une seule", bubbles >= 3 && c2.visible.length === 1 && c2.visible[0] === c2.label && c2.closed, JSON.stringify({ bubbles, ...c2 }));
   await t.page.evaluate(() => { confirmSheet("Supprimer ton compte ?", "Supprimer"); });
   await t.page.waitForSelector(".confirm-sheet .sheet");
   const cf = await t.page.evaluate(() => {

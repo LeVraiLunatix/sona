@@ -75,7 +75,7 @@
 .mas .tile .switch-row > span b { font-size: 15px; }
 .mas .tile .switch-row small { font-size: 12.5px; color: var(--text-3); }
 .mas .tile.hero { background: var(--accent); color: var(--on-accent, #0a0a0b); }
-.mas .tile.hero .set-account { color: inherit; flex-direction: row; align-items: center; gap: 14px; padding: 0; }
+.mas .tile.hero .set-account { color: inherit; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; padding: 0; }
 .mas .tile.hero .set-account b { color: inherit; font-size: 18px; }
 .mas .tile.hero .set-account small { color: rgba(10, 10, 11, .6); }
 .mas .tile.hero .profile-avatar { width: 56px; height: 56px; background: rgba(10, 10, 11, .12); color: var(--on-accent, #0a0a0b); }
@@ -105,3 +105,33 @@
 .sheet-wrap.mas-menu .menu-head img { width: 52px; height: 52px; border-radius: 12px; }
 .sheet-wrap.mas-menu .menu-head .t { font-size: 17px; letter-spacing: -.015em; }
 @media (min-width: 761px) { .sheet-wrap.mas-menu .sheet { width: min(480px, 92vw); } }
+
+/* ═══ Téléphone : un bouton + un menu de bulles pour choisir la catégorie de réglages ═══ */
+.cat-btn { display: none; }
+@media (max-width: 760px) {
+  .cat-btn { display: inline-flex; align-items: center; gap: 10px; position: sticky; top: 8px; z-index: 6; height: 48px; padding: 0 14px 0 8px; margin: 6px 0 14px; border-radius: 999px; border: 1px solid var(--hairline);
+    background: color-mix(in srgb, var(--bg-elevated, #19191c) 88%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); color: var(--text); font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+  .cat-btn:active { transform: scale(.97); }
+  .cat-ic { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent, #0a0a0b); display: grid; place-items: center; }
+  .cat-ic svg { width: 16px; height: 16px; fill: currentColor; }
+  .cat-chev svg { width: 18px; height: 18px; fill: none; stroke: var(--text-2); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; display: block; transition: transform .25s; }
+  .cat-btn[aria-expanded="true"] .cat-chev svg { transform: rotate(180deg); }
+  .mas.cats { columns: 1; margin-top: 0; }
+  .mas.cats .tile.off { display: none; }
+  .mas.cats .tile.hero { margin-bottom: 4px; }
+}
+.cat-sheet { position: fixed; inset: 0; z-index: 95; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px)); }
+.cat-sheet[hidden] { display: none; }
+.cat-back { position: absolute; inset: 0; background: rgba(6, 6, 8, .72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); opacity: 0; transition: opacity .3s; }
+.cat-sheet.open .cat-back { opacity: 1; }
+.cat-list { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.cat-bubble { min-width: 62%; max-width: 100%; padding: 17px 30px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--fill-strong); color: var(--text); font-size: 22px; font-weight: 650; letter-spacing: -.02em;
+  opacity: 0; transform: translateY(34px) scale(.55) rotate(var(--r, 0deg)); transition: transform .55s cubic-bezier(.34, 1.56, .64, 1) calc(var(--i) * 55ms), opacity .25s calc(var(--i) * 55ms), background .2s; }
+.cat-sheet.open .cat-bubble { opacity: 1; transform: translateY(0) scale(1) rotate(var(--r, 0deg)); }
+.cat-bubble.on { background: var(--accent); color: var(--on-accent, #0a0a0b); border-color: transparent; }
+.cat-bubble:active { transform: scale(.96) rotate(0deg); }
+.cat-x { position: relative; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent, #0a0a0b); display: grid; place-items: center; opacity: 0; transform: scale(.4) rotate(-90deg); transition: transform .5s cubic-bezier(.34, 1.56, .64, 1) .12s, opacity .25s .12s; }
+.cat-x svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.cat-sheet.open .cat-x { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .cat-bubble, .cat-x, .cat-back { transition: opacity .15s; transform: none !important; } }
+@media (min-width: 761px) { .cat-sheet { display: none !important; } }
