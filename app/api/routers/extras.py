@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
+from app.api import limits
 from app.api.auth import require_token
 from app.api.schemas import Album, Track
 from app.api.state import ApiDeps
@@ -206,7 +207,7 @@ async def mood(tz: str | None = Query(None), lat: float | None = Query(None, ge=
 
 
 @router.post("/recognize")
-async def recognize_song(request: Request, deps: ApiDeps = Depends(require_token)) -> dict:
+async def recognize_song(request: Request, deps: ApiDeps = Depends(limits.heavy("recognize", 20))) -> dict:
     """« Reconnaître un titre » : l'enregistrement (corps brut : WAV, M4A,
     WebM…) est identifié, puis retrouvé dans le catalogue de Sona."""
     audio = await request.body()

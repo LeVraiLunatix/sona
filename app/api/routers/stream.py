@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
-from app.api.auth import require_token
+from app.api import limits
+from app.api.auth import require_admin, require_token
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
@@ -333,7 +334,7 @@ async def local_file(deps: ApiDeps, source: str, source_id: str, quality: str) -
     qualité « Lossless », un titre d'une autre source est remplacé par ton
     fichier s'il existe (ISRC, sinon artiste + titre)."""
     root = deps.settings.local_music_dir
-    if root is None:
+    if root is None or not deps.is_admin:
         return None
     row = None
     if source == "local":
@@ -420,6 +421,7 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
         failure = _failures.get(key)
         if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
             raise HTTPException(failure[1], failure[2])
+        limits.check(deps, "download", 40, 600)
         try:
             async with _download_slots:
                 dest = await _resolve_and_download(deps, source, source_id, quality, fmt)
@@ -653,7 +655,7 @@ async def stream(
 
 
 @router.post("/stream/{source}/{source_id}/wrong-version")
-async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
     """« Mauvaise version ? » dans l'app (clip avec bruitages, live, autre
     enregistrement...) : la source servie pour ce morceau est écartée pour
     de bon, son fichier en cache supprimé, et la prochaine lecture en

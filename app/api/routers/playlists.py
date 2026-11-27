@@ -13,6 +13,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.api import limits
 from app.api.auth import require_token
 from app.api.routers import stream
 from app.api.schemas import (
@@ -108,7 +109,7 @@ async def create_playlist(payload: PlaylistCreate, deps: ApiDeps = Depends(requi
 
 
 @router.post("/import", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
-async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depends(limits.heavy("import", 6))) -> PlaylistOut:
     """Lance l'import en tâche de fond ; l'app suit ensuite la playlist
     (`import_status`, `import_done` / `import_total`) jusqu'à « done »."""
     try:
@@ -120,7 +121,7 @@ async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depend
 
 @router.post("/{playlist_id}/reimport", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
 @router.post("/{playlist_id}/sync", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
-async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(limits.heavy("import", 6))) -> PlaylistOut:
     """Resynchronise une playlist importée : relit la playlist d'origine et
     ajoute les titres apparus depuis (les corrections et l'ordre sont
     gardés). Se fait aussi tout seul, une fois par jour."""
@@ -199,7 +200,7 @@ async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: s
 
 
 @router.post("/import-tracks", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
-async def import_tracks(payload: PlaylistImportTracksRequest, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+async def import_tracks(payload: PlaylistImportTracksRequest, deps: ApiDeps = Depends(limits.heavy("import", 6))) -> PlaylistOut:
     """Playlist lue par l'app dans la bibliothèque Musique de l'iPhone — la
     liste complète, là où la page publique d'Apple Music s'arrête à 300."""
     tracks = [

@@ -6233,7 +6233,7 @@ function trackMenu(t, ctx = null, index = -1) {
     playing && { icon: icons.sparkles, label: "Réagir à cet instant", sub: "Tes amis verront ta réaction à ce moment du titre", run: () => addMoment(t) },
     playing && { icon: icons.moon, label: sleep.until ? `Minuteur : ${sleepLabel()}` : "Minuteur de sommeil", run: sleepMenu },
     playing && { icon: icons.tv, label: "Diffuser sur la TV ou la PS5", run: openCast },
-    playing && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
+    playing && account?.is_admin && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
     account?.is_admin && { icon: icons.pulse, label: "Diagnostic de lecture", sub: "Ce que le serveur trouve pour ce titre, et pourquoi il l'écarte", run: () => diagnoseTrack(t) },
     entry && ctx.playlist?.can_edit && { icon: icons.trash, label: "Retirer de cette playlist", danger: true, run: async () => {
       await api(`/me/playlists/${ctx.playlist.id}/tracks/${entry.entry_id}`, { method: "DELETE" });

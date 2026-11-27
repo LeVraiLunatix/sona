@@ -43,6 +43,8 @@ class ApiDeps:
     accounts: SonaAccounts | None = None
     account: Account | None = None
     is_admin: bool = False
+    # Connexion anonyme (« sans compte ») : écoute oui, actions lourdes non (voir app/api/limits.py).
+    is_guest: bool = False
     user_id_override: int | None = None
 
     @property
