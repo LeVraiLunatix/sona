@@ -79,7 +79,7 @@ const inside = geo.c.top >= geo.i.top && geo.c.bottom <= geo.i.bottom && geo.c.l
 out(`loupe dans le champ: ${inside}`);
 // 1 bis. un titre proposé se lance, la saisie ne change pas
 await page.fill("#q", "titre");
-await page.click("#sugg .sg:has(.sg-play)");
+await page.click("#sugg .sg[data-kind='track']");
 await page.waitForFunction(() => state.queue[state.index]?.source_id === "7", null, { timeout: 5000 });
 const typed = await page.inputValue("#q");
 if (typed !== "titre") throw new Error(`la proposition a modifié la saisie : ${typed}`);

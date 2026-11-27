@@ -1146,8 +1146,31 @@ function dailyCard({ track, reason }) {
     <span class="fab">${icons.play}</span></button>`;
 }
 
+/** Gros « pixels » blancs, en trois calques qui respirent à tour de rôle (trois animations par cover,
+ * pas une par carré). Le tirage dépend de la radio : chaque cover garde son propre motif. */
+function radioPixels(id) {
+  let seed = [...String(id)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7) || 1;
+  const rand = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+  const layers = ["", "", ""];
+  for (let y = 0; y < 5; y++) {
+    for (let x = 0; x < 5; x++) {
+      if (rand() < 0.3) continue;
+      layers[Math.floor(rand() * 3)] += `<rect x="${x + 0.04}" y="${y + 0.04}" width=".92" height=".92" rx=".07" fill-opacity="${(0.05 + rand() * rand() * 0.5).toFixed(2)}"/>`;
+    }
+  }
+  return layers.map((rects) => `<svg class="rc-px" viewBox="0 0 5 5" aria-hidden="true">${rects}</svg>`).join("");
+}
+
+/** Le titre en grand ; la taille suit le mot le plus long pour qu'aucun ne déborde. */
+function radioCover(r) {
+  const words = r.title.split(/\s+/);
+  const size = Math.min(21, 112 / Math.max(...words.map((w) => w.length))).toFixed(1);
+  return `<span class="rc">${radioPixels(r.id)}<span class="rc-title" style="font-size:${size}cqw" aria-hidden="true">${words.map(esc).join("<br>")}</span>
+    <svg class="rc-logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span>`;
+}
+
 const radioCard = (r) => `<a class="card radio-card" href="#" data-radio="${esc(r.id)}" data-title="${esc(r.title)}">
-  <div class="art-wrap"><img src="${esc(r.picture_url || "")}" alt="" loading="lazy"><span class="play-fab">${icons.play}</span></div>
+  <div class="art-wrap">${radioCover(r)}<span class="play-fab">${icons.play}</span></div>
   <div class="t">${esc(r.title)}</div><div class="s">Radio</div></a>`;
 
 let radioCache = null;
@@ -1621,8 +1644,8 @@ function paintSuggestions() {
     const thumb = s.kind === "recent" ? `<span class="sg-ic">${icons.search}</span>`
       : `<img class="${s.kind === "artist" ? "round" : ""}" src="${esc(big(s.picture_url || "", 80))}" alt="" loading="lazy">`;
     const sub = s.kind === "recent" ? "Recherche récente" : s.kind === "artist" ? "Artiste" : `${s.mine ? "Tu l'écoutes" : "Titre"} · ${esc(s.subtitle || "")}`;
-    return `<button class="sg ${i === searchUI.selected ? "on" : ""}" data-sg="${i}" role="option" aria-selected="${i === searchUI.selected}">${thumb}
-      <span class="sg-text"><b>${hlHtml(s.text, q)}</b><small>${sub}</small></span>${s.kind === "track" ? `<span class="sg-play">${icons.play}</span>` : ""}</button>`;
+    return `<button class="sg ${i === searchUI.selected ? "on" : ""}" data-sg="${i}" data-kind="${s.kind}" role="option" aria-selected="${i === searchUI.selected}">${thumb}
+      <span class="sg-text"><b>${hlHtml(s.text, q)}</b><small>${sub}</small></span></button>`;
   }).join("");
   box.classList.remove("hidden");
   input.setAttribute("aria-expanded", "true");
