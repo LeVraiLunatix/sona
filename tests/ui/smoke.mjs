@@ -24,6 +24,7 @@ const track = (i, extra = {}) => ({ source: "deezer", source_id: String(i), titl
 const album = { source: "deezer", source_id: "99", title: "Double", artist: "Favé", artist_source_id: "10", year: "2024", cover_url: null, track_count: 4, duration_seconds: 12,
   tracks: [track(1, { disc_number: 1, track_number: 1 }), track(2, { disc_number: 1, track_number: 2 }), track(3, { disc_number: 2, track_number: 1 }), track(4, { disc_number: 2, track_number: 2 })] };
 const jsonRoutes = {
+  "/browse/radios": [{ title: "Rap", radios: [{ id: "39021", title: "Rap français", picture_url: "" }] }],
   "/auth/me": { status: "approved", username: "t", display_name: "Test", id: 1 },
   "/settings": { autoplay: false }, "/health": { version: "x", streaming: "ok" },
   "/albums/deezer/99": album, "/albums/deezer/99/versions": [{ ...album, source_id: "98", title: "Double (Deluxe)", tracks: [] }],
@@ -66,7 +67,7 @@ await page.route("**/*", async (route) => {
   const j = cm ? jsonRoutes["/tracks/deezer/1/credits"] : jsonRoutes[url.pathname];
   if (j) return route.fulfill({ json: j });
   if (url.pathname.startsWith("/stream/")) return route.fulfill({ status: 200, contentType: "audio/wav", body: wav() });
-  if (/^\/(auth|settings|health|albums|artists|tracks|lyrics|search|me|library|smart|connect|plays|party|friends|stats|home|discover|analysis)/.test(url.pathname)) return route.fulfill({ status: 404, json: { detail: "nope" } });
+  if (/^\/(auth|settings|health|albums|artists|tracks|lyrics|search|me|library|smart|connect|plays|party|friends|stats|home|discover|analysis|radios|browse\/)/.test(url.pathname)) return route.fulfill({ status: 404, json: { detail: "nope" } });
   return route.continue();
 });
 const lines = [];
@@ -100,6 +101,10 @@ if (await page.$eval("#sb-bridge", (e) => getComputedStyle(e).visibility) !== "v
 await page.evaluate(() => { location.hash = "#/album/deezer/99"; });
 await page.waitForSelector("#sb a.active[data-nav='radios']", { timeout: 4000 });
 out("menu: reste ouvert au clic, rubrique gardée sur une fiche: true");
+// 1 quater. radios : squelette puis cover dessinée et animée quand elle est à l'écran
+await page.evaluate(() => { location.hash = "#/radios"; });
+await page.waitForSelector(".rc.live:not(.skeleton) .rc-title", { timeout: 5000 });
+out("covers de radios dessinées à l'écran: true");
 // 2. album avec disques
 await page.goto(`http://localhost:${port}/web/#/album/deezer/99`);
 await page.waitForSelector(".tracks .tr");

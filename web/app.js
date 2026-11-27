@@ -970,6 +970,7 @@ const emo = (e) => icons[EMOJI_ICONS[e]] || esc(e);
 const empty = (icon, title, text) => `<div class="empty"><div class="big">${icon}</div><h3>${esc(title)}</h3><p>${esc(text)}</p></div>`;
 
 function bindPage(root) {
+  $$(".rc", root).forEach((el) => radioSight.observe(el));
   $$("[data-shelf]", root).forEach((b) => (b.onclick = () => {
     const el = b.closest(".section").querySelector(".shelf, .track-grid");
     el.scrollBy({ left: el.clientWidth * Number(b.dataset.shelf) * 0.9, behavior: "smooth" });
@@ -1162,15 +1163,27 @@ function radioPixels(id) {
 }
 
 /** Le titre en grand ; la taille suit le mot le plus long pour qu'aucun ne déborde. */
-function radioCover(r) {
+function radioArt(r) {
   const words = r.title.split(/\s+/);
   const size = Math.min(21, 112 / Math.max(...words.map((w) => w.length))).toFixed(1);
-  return `<span class="rc">${radioPixels(r.id)}<span class="rc-title" style="font-size:${size}cqw" aria-hidden="true">${words.map(esc).join("<br>")}</span>
-    <svg class="rc-logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg></span>`;
+  return `${radioPixels(r.id)}<span class="rc-title" style="font-size:${size}cqw" aria-hidden="true">${words.map(esc).join("<br>")}</span>
+    <img class="rc-star" src="${esc(`${SERVER}/radios/${encodeURIComponent(r.id)}/cover`)}" alt="" loading="lazy" onerror="this.remove()">
+    <svg class="rc-logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>`;
 }
 
+/** Comme YouTube : un squelette, dessiné seulement quand la cover approche de l'écran ; et seules les
+ * covers visibles s'animent (47 en même temps faisaient ramer la page des radios). */
+const radioSight = new IntersectionObserver((entries) => entries.forEach(({ target, isIntersecting }) => {
+  if (isIntersecting && target.classList.contains("skeleton")) {
+    target.innerHTML = radioArt({ id: target.dataset.rc, title: target.dataset.title });
+    target.classList.remove("skeleton");
+  }
+  target.classList.toggle("live", isIntersecting);
+  if (!target.isConnected) radioSight.unobserve(target);
+}), { rootMargin: "120px" });
+
 const radioCard = (r) => `<a class="card radio-card" href="#" data-radio="${esc(r.id)}" data-title="${esc(r.title)}">
-  <div class="art-wrap">${radioCover(r)}<span class="play-fab">${icons.play}</span></div>
+  <div class="art-wrap"><span class="rc skeleton" data-rc="${esc(r.id)}" data-title="${esc(r.title)}"></span><span class="play-fab">${icons.play}</span></div>
   <div class="t">${esc(r.title)}</div><div class="s">Radio</div></a>`;
 
 let radioCache = null;

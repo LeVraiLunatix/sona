@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 
-from app.api.auth import require_token
+from app.api.auth import get_deps, require_token
 from app.api.schemas import RadioGroup, RadioStation, Track
 from app.api.state import ApiDeps
 from app.providers.deezer import DeezerError
+from app.services import radio_covers
 
 router = APIRouter(tags=["browse"])
 
@@ -66,6 +68,18 @@ async def list_radios(deps: ApiDeps = Depends(require_token)) -> list[RadioGroup
         )
         for title, radios in CURATED_RADIOS
     ]
+
+
+@router.get("/radios/{radio_id}/cover", response_class=FileResponse)
+async def radio_cover(radio_id: str, deps: ApiDeps = Depends(get_deps)) -> FileResponse:
+    """Portrait détouré de la cover. Sans compte (une balise <img> n'envoie pas
+    de jeton), donc limité aux radios de la liste : rien d'autre à fabriquer."""
+    if radio_id not in {rid for _, radios in CURATED_RADIOS for rid, _ in radios}:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Radio inconnue.")
+    path = radio_covers.cover(deps, radio_id)
+    if path is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cover pas encore prête.", headers={"Cache-Control": "no-store"})
+    return FileResponse(path, media_type="image/webp", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/radios/{radio_id}/tracks", response_model=list[Track])
