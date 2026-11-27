@@ -23,6 +23,7 @@ from app.services.discord_storage import StorageError
 router = APIRouter(tags=["mes fichiers"])
 
 SOURCE = "upload"
+ADMIN_QUOTA_MB = 10 * 1024
 
 
 def to_info(request: Request, row: dict) -> TrackInfo:
@@ -34,7 +35,8 @@ def to_info(request: Request, row: dict) -> TrackInfo:
 
 
 def _quota(deps: ApiDeps) -> int:
-    return deps.settings.upload_quota_mb * 1024 * 1024
+    mb = deps.settings.upload_quota_mb
+    return (max(mb, ADMIN_QUOTA_MB) if deps.is_admin else mb) * 1024 * 1024
 
 
 @router.get("/uploads")

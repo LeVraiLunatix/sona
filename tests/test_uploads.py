@@ -119,6 +119,16 @@ def test_files_live_on_drivecord_and_come_back_when_the_copy_is_gone(box):
     assert [p for p in folder.rglob("*") if p.is_file()] == []
 
 
+def test_admins_get_ten_gigabytes_others_the_configured_quota():
+    from types import SimpleNamespace
+
+    from app.api.routers.uploads import _quota
+
+    settings = SimpleNamespace(upload_quota_mb=1024)
+    assert _quota(SimpleNamespace(settings=settings, is_admin=False)) == 1024**3
+    assert _quota(SimpleNamespace(settings=settings, is_admin=True)) == 10 * 1024**3
+
+
 def test_another_account_cannot_read_my_file(tmp_path):
     import asyncio
 

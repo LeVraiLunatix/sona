@@ -2259,7 +2259,7 @@ async function myFiles() {
   const data = await api("/uploads");
   const tracks = data.tracks;
   const list = register(tracks, "Mes fichiers");
-  const mb = (b) => `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0).replace(".", ",")} Mo`;
+  const mb = (b) => b >= 1073741824 ? `${+(b / 1073741824).toFixed(1)} Go`.replace(".", ",") : `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0).replace(".", ",")} Mo`;
   setTimeout(() => {
     const input = $("#up-input");
     $("[data-upload]")?.addEventListener("click", () => input.click());
