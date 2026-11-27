@@ -903,17 +903,19 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 .rc.skeleton { background: linear-gradient(90deg, var(--fill) 25%, var(--fill-strong) 50%, var(--fill) 75%); background-size: 200% 100%; }
 .rc > * { animation: rc-in .35s ease-out backwards; }
 @keyframes rc-in { from { opacity: 0; } }
-.rc > .rc-px { position: absolute; inset: 0; width: 100%; height: 100%; fill: #fff; opacity: .35; animation: rc-breathe 4.8s ease-in-out infinite paused; will-change: opacity; }
+.rc > .rc-px { position: absolute; inset: 0; width: 100%; height: 100%; fill: #fff; opacity: .2; animation: rc-breathe 4.8s ease-in-out infinite paused; will-change: opacity; }
 .rc.live > .rc-px { animation-play-state: running; }
 .rc > .rc-px:nth-child(2) { animation-delay: -1.6s; }
 .rc > .rc-px:nth-child(3) { animation-delay: -3.2s; }
-@keyframes rc-breathe { 50% { opacity: 1; } }
+@keyframes rc-breathe { 50% { opacity: .7; } }
 .rc-title { position: absolute; left: 7cqw; right: 7cqw; top: 8cqw; font-weight: 900; line-height: .92; letter-spacing: -.04em; text-transform: uppercase; text-align: left; text-shadow: 0 2px 18px rgba(0, 0, 0, .55); }
-/* Le portrait détouré passe devant le titre, qui reste derrière lui. */
-.rc > img.rc-star { position: absolute; inset: auto 4% 0; width: 92% !important; height: 72% !important; object-fit: contain !important; object-position: bottom center !important; transform: none !important; box-shadow: none !important; border-radius: 0 !important; background: none !important; }
+/* Le portrait, en noir et blanc, passe devant le titre et derrière les carrés. Toujours entier (contain), posé en bas. */
+.rc > img.rc-star { position: absolute; inset: auto 8% 0; width: 84% !important; height: 66% !important; object-fit: contain !important; object-position: bottom center !important; transform: none !important; filter: grayscale(1) contrast(1.08); box-shadow: none !important; border-radius: 0 !important; background: none !important; z-index: 0; }
+.rc > .rc-px { z-index: 1; pointer-events: none; }
+.rc > .rc-logo { z-index: 2; }
 .rc-logo { filter: drop-shadow(0 1px 6px rgba(0, 0, 0, .7)); }
 .rc-logo { position: absolute; left: 7cqw; bottom: 7cqw; width: 15cqw; height: 15cqw; color: #fff; fill: currentColor; }
-@media (prefers-reduced-motion: reduce) { .rc > .rc-px { animation: none; opacity: .7; } .rc > * { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rc > .rc-px { animation: none; opacity: .45; } .rc > * { animation: none; } }
 .round-grid .card .art-wrap { border-radius: 50%; }
 .round-grid .card .t, .round-grid .card .s { text-align: center; }
 
