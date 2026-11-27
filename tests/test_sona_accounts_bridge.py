@@ -41,6 +41,10 @@ def client(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("LASTFM_API_KEY", "cle")
     monkeypatch.setenv("LASTFM_API_SECRET", "secret")
     monkeypatch.setenv("INTERNAL_API_SECRET", SECRET)
+    # Les réglages du `.env` de la machine ne doivent pas entrer dans les tests.
+    monkeypatch.setenv("SUPABASE_URL", "")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "")
+    monkeypatch.setenv("SONA_ACCOUNTS_URL", "")
     party.reset()
     presence.reset()
 

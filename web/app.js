@@ -2418,7 +2418,7 @@ function importFix(p, item, onFixed) {
     const box = $(".imp-results", wrap);
     box.innerHTML = `<div class="loading-row"><span class="spinner"></span></div>`;
     results = ((await api(`/search?q=${encodeURIComponent(q)}`).catch(() => ({ tracks: [] }))).tracks || []).slice(0, 8);
-    box.innerHTML = results.length ? results.map((t, k) => `<button class="imp-pick" data-pick="${k}"><img src="${esc(big(t.cover_url, 120))}" alt=""><span><b>${esc(t.title)}</b><small>${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</small></span><em>${t.duration_seconds ? clock(t.duration_seconds * 1000) : ""}</em></button>`).join("")
+    box.innerHTML = results.length ? results.map((t, k) => `<button class="imp-pick" data-pick="${k}"><img src="${esc(big(t.cover_url, 120))}" alt=""><span><b>${esc(t.title)}</b><small>${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</small></span><em>${t.duration_seconds ? fmt(t.duration_seconds) : ""}</em></button>`).join("")
       : `<p class="muted">Aucun résultat.</p>`;
   };
   $(".imp-search", wrap).onsubmit = (e) => { e.preventDefault(); search(e.target.q.value.trim()); };

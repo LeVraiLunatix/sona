@@ -190,7 +190,12 @@ function serveWeb() {
     const rel = decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html";
     const file = path.normalize(path.join(WEB_ROOT, rel));
     if (url.host !== "sona" || !file.startsWith(WEB_ROOT + path.sep)) return new Response("", { status: 404 });
-    return net.fetch(pathToFileURL(file).toString());
+    // Jamais gardé en cache : après une mise à jour, l'ancienne version de l'interface restait affichée.
+    return net.fetch(pathToFileURL(file).toString()).then((res) => {
+      const headers = new Headers(res.headers);
+      headers.set("Cache-Control", "no-store");
+      return new Response(res.body, { status: res.status, headers });
+    });
   });
 }
 

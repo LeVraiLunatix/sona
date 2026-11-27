@@ -31,8 +31,23 @@ fn bad_passkey<E: std::fmt::Debug>(e: E) -> AppError {
     AppError::bad("La clé d'accès n'a pas pu être vérifiée.")
 }
 
+/// Adresse qui sert aux limites anti-abus : la DERNIÈRE de `X-Forwarded-For`, ajoutée par le proxy
+/// placé devant le service. Les précédentes sont écrites par l'appelant, qui les change à volonté.
 pub(crate) fn client_key(h: &HeaderMap) -> String {
-    h.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| "inconnu".into())
+    h.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.rsplit(',').next()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| "inconnu".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn client_key_ignores_what_the_caller_wrote() {
+        let mut h = HeaderMap::new();
+        h.insert("x-forwarded-for", "1.2.3.4, 9.9.9.9".parse().unwrap());
+        assert_eq!(client_key(&h), "9.9.9.9");
+        assert_eq!(client_key(&HeaderMap::new()), "inconnu");
+    }
 }
 
 async fn save_state(s: &AppState, user: Option<Uuid>, kind: &str, state: &impl serde::Serialize) -> Result<Uuid> {

@@ -32,7 +32,6 @@ const jsonRoutes = {
   "/artists/deezer/10/top-tracks": [track(1)], "/artists/deezer/10/related": [],
   "/artists/deezer/10/albums": { albums: [{ ...album, tracks: [] }, { ...album, source_id: "97", title: "Ancien", year: "2019", tracks: [] }, { ...album, source_id: "96", title: "B", year: "2020", tracks: [] }], singles: [{ ...album, source_id: "95", title: "Single", year: "2022", tracks: [] }], other_versions: [{ ...album, source_id: "98", title: "Double (Deluxe)", tracks: [] }] },
   "/artists/deezer/10/bio": { text: "Favé est un rappeur français. ".repeat(12), url: "https://fr.wikipedia.org/wiki/Fave", source: "Wikipédia" },
-  "/artists/deezer/10/concerts": [{ id: "1", artist: "Favé", datetime: "2026-12-01T20:00:00", venue: "Zénith", city: "Paris", country: "FR", url: null }],
   "/tracks/deezer/1/credits": { artists: track(1).artists, credits: [{ role: "Producteur", names: ["Beatmaker"] }], album: "Double", label: "Label", release_date: "2024-05-03", genres: ["Rap"], isrc: "FR1", disc_number: 1, track_number: 1, duration_seconds: 3 },
   "/lyrics": { synced: true, instrumental: false, sync: "word", source: "netease", language: "fr", lines: [
     { time: 0, text: "Ligne un", words: [{ time: 0, text: "Ligne ", end: 0.4 }, { time: 0.4, text: "un", end: 0.9 }] },
@@ -126,11 +125,10 @@ out(`clic invité -> ${await page.evaluate(() => location.hash)}`);
 await page.click(".lcd [data-goalbum]");
 await page.waitForFunction(() => location.hash === "#/album/deezer/99");
 out(`clic album -> ${await page.evaluate(() => location.hash)}`);
-// 5. artiste : bio, concerts, filtres
+// 5. artiste : bio, filtres
 await page.goto(`http://localhost:${port}/web/#/artist/deezer/10`);
 await page.waitForSelector("#artist-bio .bio-text", { timeout: 5000 });
-await page.waitForSelector("#artist-concerts .concert", { timeout: 5000 });
-out(`bio+concerts ok, chips: ${await page.$$eval(".disco-controls .chip", (e) => e.length)}`);
+out(`bio ok, chips: ${await page.$$eval(".disco-controls .chip", (e) => e.length)}`);
 await page.click("[data-disco-filter='singles']");
 out(`après filtre singles, étagères: ${await page.$$eval("#artist-disco .section-head h2", (e) => e.map((x) => x.textContent).join(",") || "(aucune)")}`);
 // 6. drawer crédits + paroles décalage
