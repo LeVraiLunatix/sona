@@ -197,6 +197,10 @@ class DiscordStorage:
             return await self._retry(call)
 
     async def read(self, chunk: Chunk) -> bytes:
+        return unseal(self._key, await self.read_raw(chunk), chunk.index)
+
+    async def read_raw(self, chunk: Chunk) -> bytes:
+        """Les octets tels qu'ils sont rangés dans le salon (chiffrés ou non)."""
         async def call() -> bytes:
             url = await self.fresh_url(chunk)
             response = await self._http().get(url)
@@ -204,20 +208,26 @@ class DiscordStorage:
                 chunk.expires_at = 0.0  # lien périmé : le prochain essai en redemande un
                 raise StorageError(f"Discord {response.status_code}")
             _raise_for(response)
-            return unseal(self._key, response.content, chunk.index)
+            return response.content
 
         return await self._retry(call)
 
-    async def delete(self, chunks: list[Chunk]) -> None:
-        """Efface les messages (au mieux : un échec n'empêche pas le reste)."""
+    async def delete(self, chunks: list[Chunk]) -> list[str]:
+        """Efface les messages (au mieux : un échec n'empêche pas le reste). Rend ceux restés en place."""
+        failed: list[str] = []
         for chunk in chunks:
+            async def call(message_id: str = chunk.message_id) -> None:
+                response = await self._http().delete(f"{self._webhook}/messages/{message_id}")
+                if response.status_code != 404:  # déjà effacé
+                    _raise_for(response)
+
             try:
                 async with self._lock:
-                    response = await self._http().delete(f"{self._webhook}/messages/{chunk.message_id}")
-                if response.status_code not in (200, 204, 404):
-                    logger.info("Suppression du message Discord %s : %s", chunk.message_id, response.status_code)
-            except httpx.HTTPError as exc:
-                logger.info("Suppression du message Discord %s impossible : %s", chunk.message_id, exc)
+                    await self._retry(call)
+            except (StorageError, httpx.HTTPError) as exc:
+                logger.warning("Suppression du message Discord %s impossible : %s", chunk.message_id, exc)
+                failed.append(chunk.message_id)
+        return failed
 
     async def aclose(self) -> None:
         if self._client is not None:
