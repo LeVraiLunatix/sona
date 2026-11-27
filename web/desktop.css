@@ -104,7 +104,8 @@ html.desktop .page { padding: 30px 40px 60px; }
    boutons. */
 html.desktop .grip { -webkit-app-region: drag; align-self: stretch; min-width: 12px; }
 html.desktop .drag-top { position: fixed; z-index: 150; top: 0; left: 0; right: 0; height: var(--gap); -webkit-app-region: drag; }
-html.desktop:not(:has(.app)) .drag-top { height: 48px; }
+/* La bande s'arrête avant les boutons de fenêtre (3 × 46px), sinon elle avale leurs clics. */
+html.desktop:not(:has(.app)) .drag-top { height: 48px; right: 138px; }
 html.desktop .brand { -webkit-app-region: drag; padding: 6px 10px 16px; }
 /* Une poignée reste active même cachée sous un calque : on les coupe quand
    le lecteur plein écran ou une feuille passe par-dessus. */

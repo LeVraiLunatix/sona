@@ -24,13 +24,13 @@
 .auth-logo svg { width: 26px; height: 26px; }
 
 @media (min-width: 960px) {
-  .auth-layout { grid-template-columns: minmax(0, 1fr) 400px; align-content: start; align-items: start; justify-items: stretch; gap: 80px; max-width: 1280px; margin: 0 auto; padding: 48px 56px; }
+  .auth-layout { grid-template-columns: minmax(0, 1fr) 400px; align-content: center; align-items: center; justify-items: stretch; gap: 80px; max-width: 1280px; margin: 0 auto; padding: 48px 56px; }
   .auth-silk::after { background: linear-gradient(90deg, rgba(0, 0, 0, .15), rgba(0, 0, 0, .35) 45%, rgba(0, 0, 0, .85) 62%); }
-  /* Titre et formulaire centrés sur la même ligne ; ancrés en haut, ils ne bougent pas quand le formulaire s'allonge. */
-  .auth-brand { position: relative; display: flex; flex-direction: column; justify-content: center; align-self: start; gap: 22px; pointer-events: none; height: 600px; margin-top: max(0px, calc((100vh - 700px) / 2)); }
+  /* Titre et formulaire centrés sur la même ligne, quelle que soit la hauteur du formulaire. */
+  .auth-brand { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 22px; pointer-events: none; }
   .auth-brand .auth-logo { margin-bottom: 10px; }
   .auth-top { display: none; }
-  .auth-card { width: 100%; align-self: start; margin-top: max(0px, calc((100vh - 700px) / 2)); }
+  .auth-card { width: 100%; }
 }
 .auth-brand h1 { font: 700 clamp(52px, 5.8vw, 88px)/.95 var(--display); letter-spacing: -.045em; margin: 0; text-align: left; text-wrap: nowrap; }
 .auth-brand h1 span { display: block; overflow: hidden; padding-bottom: .09em; margin-bottom: -.09em; }
@@ -41,7 +41,7 @@
 .auth-card.onboarding { padding: 22px; background: rgba(14, 14, 16, .88); border: 1px solid var(--hairline); border-radius: 24px; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 
 .auth-card.onboarding .auth-top { margin: 0 0 20px; }
-.auth-card.onboarding { width: min(440px, 100%); align-self: start; }
+.auth-card.onboarding { width: min(440px, 100%); }
 
 /* Une seule mise en scène, à la première ouverture. */
 .auth.intro .auth-brand h1 i { animation: auth-line 1.1s var(--out) .1s both; }
