@@ -25,7 +25,7 @@ main() {
     git reset --hard --quiet origin/master
     # Réglages sans lesquels plus personne ne peut se connecter : on s'arrête avant de redémarrer
     # (les processus en cours gardent l'ancien code).
-    for key in SONA_ACCOUNTS_URL INTERNAL_API_SECRET; do
+    for key in SONA_ACCOUNTS_URL INTERNAL_API_SECRET STORAGE_KEY; do
         grep -q "^$key=." .env || { echo "ARRÊT : $key manque dans .env (voir docs/AUTH_SETUP.md)." >&2; exit 1; }
     done
     .venv/bin/pip install --quiet --upgrade -r requirements.txt

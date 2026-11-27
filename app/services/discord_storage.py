@@ -1,8 +1,11 @@
 """Stockage « Drivecord » : des fichiers découpés en morceaux de 9,5 Mio,
 envoyés dans un salon Discord par webhook.
 
-Même principe que le moteur de Drivecord (et de prod-syn-site), sans
-chiffrement : ces fichiers ne servent qu'à Sona. Chaque morceau est une pièce
+Même principe que le moteur de Drivecord (et de prod-syn-site). Tout morceau
+envoyé est chiffré (AES-256-GCM, clé `STORAGE_KEY` du serveur) : le salon ne
+contient que des octets illisibles, aux noms tirés au hasard. Sans clé, rien
+n'est envoyé. Les morceaux d'avant le chiffrement se relisent tels quels.
+La clé perdue, les fichiers le sont aussi. Chaque morceau est une pièce
 jointe d'un message ; on garde son `messageId` / `attachmentId` et la dernière
 URL CDN connue. Ces URLs sont signées et expirent (~24 h) : au moment de
 relire, on redemande le message au webhook pour en obtenir une fraîche.
@@ -12,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import aclosing
@@ -19,6 +23,7 @@ from dataclasses import asdict, dataclass
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+from Cryptodome.Cipher import AES
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,8 @@ CHUNK_SIZE = int(9.5 * 1024 * 1024)
 RETRIES = 8
 BASE_DELAY = 0.5
 MAX_DELAY = 30.0
+# Début d'un morceau chiffré : marque, nonce (12 o), données, étiquette (16 o).
+MAGIC = b"SNE1"
 
 
 class StorageError(Exception):
@@ -81,8 +88,30 @@ def _raise_for(response: httpx.Response) -> None:
         raise PermanentError(f"Discord {response.status_code} : {response.text[:200]}")
 
 
+def seal(key: bytes, data: bytes, index: int) -> bytes:
+    nonce = secrets.token_bytes(12)
+    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+    cipher.update(str(index).encode())  # un morceau ne peut pas prendre la place d'un autre
+    body, tag = cipher.encrypt_and_digest(data)
+    return MAGIC + nonce + body + tag
+
+
+def unseal(key: bytes | None, data: bytes, index: int) -> bytes:
+    if not data.startswith(MAGIC):
+        return data  # envoyé avant le chiffrement
+    if key is None:
+        raise PermanentError("Fichier chiffré : STORAGE_KEY manque sur ce serveur.")
+    cipher = AES.new(key, AES.MODE_GCM, nonce=data[4:16])
+    cipher.update(str(index).encode())
+    try:
+        return cipher.decrypt_and_verify(data[16:-16], data[-16:])
+    except ValueError:
+        raise PermanentError("Fichier chiffré illisible : mauvaise clé ou morceau abîmé.") from None
+
+
 class DiscordStorage:
-    def __init__(self, webhook: str | None, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(self, webhook: str | None, client: httpx.AsyncClient | None = None, key: bytes | None = None) -> None:
+        self._key = key
         self._webhook = (webhook or "").strip()
         self._client = client
         # Un seul webhook : le cadencer évite surtout de déclencher des 429.
@@ -115,11 +144,15 @@ class DiscordStorage:
     async def put_chunk(self, data: bytes, filename: str, index: int) -> Chunk:
         if not self.enabled:
             raise StorageError("Stockage Discord non configuré (DISCORD_STORAGE_WEBHOOK).")
+        if self._key is None:
+            raise StorageError("STORAGE_KEY manque : rien n'est envoyé sans chiffrement.")
+        sealed = seal(self._key, data, index)
 
         async def call() -> Chunk:
             response = await self._http().post(
                 self._webhook, params={"wait": "true"},
-                files={"files[0]": (filename, data, "application/octet-stream")},
+                # Le nom d'origine dirait de quoi il s'agit : un nom au hasard.
+                files={"files[0]": (f"{secrets.token_hex(8)}.bin", sealed, "application/octet-stream")},
             )
             _raise_for(response)
             message = response.json()
@@ -171,7 +204,7 @@ class DiscordStorage:
                 chunk.expires_at = 0.0  # lien périmé : le prochain essai en redemande un
                 raise StorageError(f"Discord {response.status_code}")
             _raise_for(response)
-            return response.content
+            return unseal(self._key, response.content, chunk.index)
 
         return await self._retry(call)
 

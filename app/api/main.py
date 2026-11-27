@@ -104,8 +104,8 @@ async def lifespan(app: FastAPI):
         accounts=accounts,
         musicbrainz=musicbrainz,
         lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch, genius),
-        exclusive_storage=DiscordStorage(settings.exclusives_webhook),
-        vault_storage=DiscordStorage(settings.audio_vault_webhook or settings.exclusives_webhook),
+        exclusive_storage=DiscordStorage(settings.exclusives_webhook, key=settings.storage_key),
+        vault_storage=DiscordStorage(settings.audio_vault_webhook or settings.exclusives_webhook, key=settings.storage_key),
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
     # Tâches de fond (sauvegarde quotidienne, surveillance…) — jamais pendant les tests.

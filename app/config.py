@@ -57,6 +57,8 @@ class Settings:
     # Fichiers envoyés par les gens (« Mes fichiers ») et place permise par compte.
     uploads_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "uploads")
     upload_quota_mb: int = 1024
+    # Clé de chiffrement de tout ce qui part sur Discord (32 octets).
+    storage_key: bytes | None = None
     # Alertes aux administrateurs (panne de lecture, demande d'accès).
     alerts_webhook: str | None = None
     # Rattrapage : les titres déjà dans le cache du disque sont envoyés peu à peu
@@ -120,6 +122,20 @@ def resolve_youtube_cookies_file() -> Path | None:
     return cookies_file if cookies_file.is_file() else None
 
 
+def _storage_key(raw: str) -> bytes | None:
+    """64 caractères hexadécimaux (`openssl rand -hex 32`). Une valeur mal formée arrête le démarrage."""
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        key = bytes.fromhex(raw)
+    except ValueError:
+        key = b""
+    if len(key) != 32:
+        raise RuntimeError("STORAGE_KEY doit faire 64 caractères hexadécimaux (openssl rand -hex 32).")
+    return key
+
+
 def load_settings() -> Settings:
     # Optionnel ici : seul le bot Telegram (run.py) en a besoin, pas l'API
     # (run_api.py), qui peut donc tourner sans jamais créer de bot Telegram.
@@ -170,6 +186,7 @@ def load_settings() -> Settings:
         audio_vault=os.getenv("AUDIO_VAULT", "1").strip().lower() not in ("0", "false", "non", "no"),
         audio_vault_webhook=os.getenv("AUDIO_VAULT_WEBHOOK", "").strip() or None,
         alerts_webhook=os.getenv("ALERTS_DISCORD_WEBHOOK", "").strip() or None,
+        storage_key=_storage_key(os.getenv("STORAGE_KEY", "")),
         audio_vault_backfill=os.getenv("AUDIO_VAULT_BACKFILL", "1").strip().lower() not in ("0", "false", "non", "no"),
         exclusives_cache_dir=data_dir("EXCLUSIVES_CACHE_DIR", "data/exclusives"),
         stream_cache_max_mb=int(os.getenv("STREAM_CACHE_MAX_MB", "").strip() or 2048),
