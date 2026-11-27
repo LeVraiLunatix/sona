@@ -59,7 +59,8 @@ function tick() {
   requestAnimationFrame(() => {
     const line = lines[active];
     if (line?.words?.length) { renderWords(line); fillWords(line, position() + 0.15); }
-    else nowEl.textContent = line ? line.text : "♪";
+    else if (line?.text) nowEl.textContent = line.text;
+    else nowEl.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" role="img" aria-label="Instrumental"><path d="M19 3.2v11.3a3.5 3.5 0 1 1-2-3.2V7.4L10 9v7.5a3.5 3.5 0 1 1-2-3.2V6.2c0-.5.3-.9.8-1l9-2c.6-.1 1.2.3 1.2 1z"/></svg>';
     nextEl.textContent = lines[active + 1]?.text || "";
     requestAnimationFrame(() => document.body.classList.remove("swap"));
   });

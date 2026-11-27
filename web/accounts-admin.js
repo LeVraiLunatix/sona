@@ -19,7 +19,7 @@ const SonaAdmin = (() => {
   const list = { search: "", role: "", status: "", provider: "", offset: 0 };
 
   async function view(tab = "dashboard") {
-    if (!account?.is_staff) return cpage(empty("🔒", "Accès réservé", "Cette page est réservée à l'équipe de Sona."));
+    if (!account?.is_staff) return cpage(empty(icons.lock, "Accès réservé", "Cette page est réservée à l'équipe de Sona."));
     if (!TABS.some(([t]) => t === tab) || (tab === "audit" && !isAdmin())) tab = "dashboard";
     $("#content").innerHTML = skeleton("Administration");
     const tabs = `<nav class="admin-tabs" aria-label="Sections de l'administration">${TABS.filter(([t]) => t !== "audit" || isAdmin()).map(([t, l]) => `<a href="#/admin/${t}" class="${t === tab ? "on" : ""}" ${t === tab ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;

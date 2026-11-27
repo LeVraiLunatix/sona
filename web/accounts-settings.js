@@ -110,7 +110,7 @@ const SonaSettings = (() => {
       const name = await askText({ title: "Nom de cet appareil", value: /iPhone|iPad/.test(navigator.userAgent) ? "Mon iPhone" : "Cet appareil", confirm: "Continuer" });
       if (name == null) return;
       await passkeys.register(name);
-      toast("Clé d'accès ajoutée ✓");
+      toast("Clé d'accès ajoutée");
       refresh();
     }));
     $$("[data-key-del]").forEach((b) => (b.onclick = guard(async () => {
@@ -159,7 +159,7 @@ const SonaSettings = (() => {
             if (input.value.trim() !== v) return;
             ok = r.available;
             submit.disabled = !ok;
-            say(ok ? "ok" : "bad", ok ? "Disponible ✓" : why[r.reason] || "Indisponible.");
+            say(ok ? "ok" : "bad", ok ? "Disponible" : why[r.reason] || "Indisponible.");
           } catch (e) { say("bad", e.message); }
         }, 300);
       };
@@ -174,7 +174,7 @@ const SonaSettings = (() => {
           resolve(true);
           wrap.close();
           refreshChrome();
-          toast("Pseudo modifié ✓");
+          toast("Pseudo modifié");
         } catch (err) { say("bad", /username_|duplicate|unique/i.test(err.original?.message || err.message) ? "Ce pseudo n'est pas disponible." : err.message); }
       };
       setTimeout(() => input.focus(), 250);
@@ -193,7 +193,7 @@ const SonaSettings = (() => {
       e.preventDefault();
       await auth.updatePassword(input.value);
       wrap.close();
-      toast("Mot de passe changé ✓");
+      toast("Mot de passe changé");
       route();
     });
   }
@@ -292,7 +292,7 @@ const SonaSettings = (() => {
     try {
       while (Date.now() < until) {
         await new Promise((r) => setTimeout(r, 2500));
-        try { await window.Sona.svc("/lastfm/connect", { method: "POST", body: { token } }); toast("Last.fm connecté ✓"); if (location.hash.startsWith("#/settings")) route(); return true; }
+        try { await window.Sona.svc("/lastfm/connect", { method: "POST", body: { token } }); toast("Last.fm connecté"); if (location.hash.startsWith("#/settings")) route(); return true; }
         catch (e) { if (!/Autorise d'abord/.test(e.message)) throw e; }
       }
       throw new Error("Délai dépassé : relance la connexion à Last.fm.");
@@ -302,7 +302,7 @@ const SonaSettings = (() => {
   /** Retour du site Last.fm avec ?token=… (flux web). */
   async function finishLastfm(token) {
     store.set("sona.lastfmPending", null);
-    try { await window.Sona.svc("/lastfm/connect", { method: "POST", body: { token } }); toast("Last.fm connecté ✓"); location.hash = "#/settings/services"; }
+    try { await window.Sona.svc("/lastfm/connect", { method: "POST", body: { token } }); toast("Last.fm connecté"); location.hash = "#/settings/services"; }
     catch (e) { toast(e.message); }
   }
 
@@ -316,7 +316,7 @@ const SonaSettings = (() => {
       await new Promise((r) => setTimeout(r, 2500));
       try {
         await api("/auth/link-legacy", { method: "POST", body: JSON.stringify({ token }) });
-        toast("Ancien compte récupéré ✓");
+        toast("Ancien compte récupéré");
         location.hash = "#/library";
         return;
       } catch (e) {

@@ -58,7 +58,7 @@ const SonaSocial = (() => {
       ${live}
       <div id="requests">${requestRows(reqs)}</div>
       ${friends.length ? `<div class="friend-list" id="friends-list">${friends.map((f) => friendRow(f, byName.get(f.username.toLowerCase()))).join("")}</div>`
-        : empty("👋", "Personne pour l'instant", "Personne n'est ami avec toi par défaut. Ajoute un ami avec son pseudo, ou partage ton lien ou ton QR code.")}`);
+        : empty(icons.friends, "Personne pour l'instant", "Personne n'est ami avec toi par défaut. Ajoute un ami avec son pseudo, ou partage ton lien ou ton QR code.")}`);
   }
 
   function bindFriends(friends, music) {
@@ -66,7 +66,7 @@ const SonaSocial = (() => {
     $("[data-upgrade]")?.addEventListener("click", SonaUI.upgradeSheet);
     $("[data-add]")?.addEventListener("click", addSheet);
     $("[data-mycode]")?.addEventListener("click", codeSheet);
-    $$("[data-accept]").forEach((b) => (b.onclick = guard(async () => { await social.respond(b.dataset.accept, "accept"); toast("Ami ajouté ✓"); reload(); })));
+    $$("[data-accept]").forEach((b) => (b.onclick = guard(async () => { await social.respond(b.dataset.accept, "accept"); toast("Ami ajouté"); reload(); })));
     // Refus : discret, l'expéditeur n'est pas notifié.
     $$("[data-decline]").forEach((b) => (b.onclick = guard(async () => { await social.respond(b.dataset.decline, "decline"); reload(); })));
     $$("[data-ignore]").forEach((b) => (b.onclick = guard(async () => { await social.respond(b.dataset.ignore, "ignore"); reload(); })));
@@ -166,7 +166,7 @@ const SonaSocial = (() => {
   /** Profil minimal quand le serveur musique n'a rien à montrer (ou est injoignable). */
   async function viewProfileOnly(userId) {
     const p = await social.profileOf(userId);
-    if (!p) return cpage(empty("🔒", "Profil introuvable ou privé", "Ce profil n'existe pas ou n'est pas visible pour toi."));
+    if (!p) return cpage(empty(icons.lock, "Profil introuvable ou privé", "Ce profil n'existe pas ou n'est pas visible pour toi."));
     setTimeout(() => $("[data-pmenu]")?.addEventListener("click", () => profileMenu(userId, p.username)));
     return cpage(`<div class="profile-head">${avatar(p.avatar_url, p.username, "profile-avatar")}<h1>${h(p.display_name || p.username)}</h1><div class="muted">@${h(p.username)}</div>
       ${p.bio ? `<p class="muted">${h(p.bio)}</p>` : ""}

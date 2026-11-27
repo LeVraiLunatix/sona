@@ -241,7 +241,7 @@ const SonaUI = (() => {
     $r("#auth-newpass")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const pass = String(new FormData(e.target).get("password"));
-      if (await attempt(() => auth.updatePassword(pass))) { toast("Mot de passe changé ✓"); await entry(); }
+      if (await attempt(() => auth.updatePassword(pass))) { toast("Mot de passe changé"); await entry(); }
     });
     document.querySelectorAll("[data-eye]").forEach((btn) => (btn.onclick = () => {
       const input = btn.parentElement.querySelector("input");
@@ -266,7 +266,7 @@ const SonaUI = (() => {
     const untilText = banned ? "Définitif" : until ? `Jusqu'au ${new Date(until).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}` : "Durée non précisée";
     const appealed = active && (await social.table("appeals").select("id,status,response").eq("sanction_id", active.id).then((r) => r.data || []).catch(() => []));
     const pending = appealed?.find((a) => a.status === "open");
-    root().innerHTML = shell(`<div class="sanction-badge ${banned ? "ban" : "susp"}" aria-hidden="true">${banned ? "⛔" : "⏸"}</div>
+    root().innerHTML = shell(`<div class="sanction-badge ${banned ? "ban" : "susp"}" aria-hidden="true">${banned ? icons.ban : icons.pause}</div>
       <h2 class="auth-h2">${banned ? "Compte banni" : "Compte suspendu"}</h2>
       <dl class="sanction-facts"><div><dt>Raison</dt><dd>${h(reason)}</dd></div><div><dt>Durée</dt><dd>${h(untilText)}</dd></div></dl>
       ${active ? (pending
@@ -402,7 +402,7 @@ const SonaUI = (() => {
           </div>
           <p class="auth-hint">Profil : pseudo et photo visibles, le reste réservé à tes amis. Réglable dans Réglages › Confidentialité.</p>
           <div class="ob-actions">${skip}<button class="btn big" data-next>Continuer</button></div>`;
-        return `<div class="ob-done"><div class="ob-check-big" aria-hidden="true">✓</div><h2 class="auth-h2">Tout est prêt</h2>
+        return `<div class="ob-done"><div class="ob-check-big" aria-hidden="true">${icons.check}</div><h2 class="auth-h2">Tout est prêt</h2>
           <p class="auth-hint">Bienvenue sur Sona${data.username ? `, ${h(data.username)}` : ""}. Tu peux modifier tout cela dans Réglages › Compte, Confidentialité et Services connectés.</p>
           <div class="ob-actions"><button class="btn big" data-finish>Commencer à écouter</button></div></div>`;
       };
@@ -445,7 +445,7 @@ const SonaUI = (() => {
           try {
             const r = await social.usernameAvailable(value);
             const reasons = { format: "3 à 20 caractères : lettres, chiffres, _ . -", taken: "Ce pseudo est déjà pris.", reserved: "Ce pseudo est réservé.", offensive: "Ce pseudo n'est pas accepté." };
-            check = r.available ? { ok: true, text: "Disponible ✓" } : { ok: false, text: reasons[r.reason] || "Indisponible." };
+            check = r.available ? { ok: true, text: "Disponible" } : { ok: false, text: reasons[r.reason] || "Indisponible." };
           } catch (e) { check = { ok: false, text: e.message }; }
           if (document.getElementById("ob-name")?.value.trim() !== value) return;
           paintCheck();
@@ -501,7 +501,7 @@ const SonaUI = (() => {
 
   function guestBanner() {
     if (!auth.isGuest() || sessionStorage.getItem("sona.guestBanner") === "off") return "";
-    return `<div class="guest-banner" role="note"><span>Tu écoutes sans compte. <button class="link-btn" data-upgrade>Crée-en un</button> pour garder ta bibliothèque et retrouver tes amis.</span><button class="x" data-dismiss aria-label="Masquer">×</button></div>`;
+    return `<div class="guest-banner" role="note"><span>Tu écoutes sans compte. <button class="link-btn" data-upgrade>Crée-en un</button> pour garder ta bibliothèque et retrouver tes amis.</span><button class="x" data-dismiss aria-label="Masquer">${icons.close}</button></div>`;
   }
 
   function bindGuestBanner(root) {
