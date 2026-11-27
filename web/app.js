@@ -937,9 +937,10 @@ function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null
 /** Nombre de disques d'une liste de titres (1 si la source ne le dit pas). */
 const discOf = (tracks) => Math.max(1, ...tracks.map((t) => t.disc_number || 1));
 
-function trackGrid(tracks, name) {
+function trackGrid(tracks, name, { solo = false } = {}) {
   tracks = (tracks || []).filter((t) => t && t.source && t.source_id);
   const list = register(tracks, name);
+  if (solo) registry.get(list).solo = true;
   const current = state.queue[state.index];
   return `<div class="track-grid" data-list="${list}">${tracks.map((t, i) => `
     <button class="mini ${sameTrack(t, current) ? "current" : ""}" data-i="${i}">
@@ -1416,7 +1417,7 @@ async function deleteExclusive(t) {
 // Saisie avec suggestions (↑ ↓ Entrée), filtres Tout / Titres / Artistes /
 // Albums / Ta bibliothèque, mots cherchés en surbrillance, titres de ta
 // bibliothèque et playlists qui correspondent, « Afficher plus de titres ».
-const SEARCH_FILTERS = [["all", "Tout"], ["songs", "Titres"], ["artists", "Artistes"], ["albums", "Albums"], ["library", "Ta bibliothèque"]];
+const SEARCH_FILTERS = [["all", "Tout"], ["songs", "Titres"], ["artists", "Artistes"], ["albums", "Albums"], ["library", "Tes écoutes"]];
 const SEARCH_PAGE = 24;
 const searchUI = { filter: "all", data: null, abort: null, suggestAbort: null, suggestions: [], selected: -1 };
 const RECENTS_KEY = "sona.searches";
@@ -1443,33 +1444,72 @@ function hlHtml(text, q) {
   return out;
 }
 
-let libCache = { at: 0, tracks: [] };
-/** Titres de ta bibliothèque (gardés 5 min) : de quoi chercher dedans sans solliciter le serveur à chaque touche. */
-async function libraryTracks() {
-  if (libCache.tracks.length && Date.now() - libCache.at < 300000) return libCache.tracks;
-  const got = await api("/library/track?limit=500").catch(() => ({ items: [] }));
-  libCache = { at: Date.now(), tracks: (got.items || []).filter((t) => t?.source && t?.source_id) };
-  return libCache.tracks;
+let heardCache = { at: 0, data: null };
+/** Ce que tu écoutes (gardé 5 min) : `often`, tes écoutes récentes de la plus répétée à la moins
+ * répétée ; `all`, les mêmes suivies de ta bibliothèque. De quoi chercher dedans à chaque touche. */
+async function heard() {
+  if (heardCache.data && Date.now() - heardCache.at < (heardCache.data.all.length ? 300000 : 20000)) return heardCache.data;
+  const [plays, lib] = await Promise.all([
+    api("/plays/recent?limit=200").catch(() => []),
+    api("/library/track?limit=500").then((r) => r.items || []).catch(() => []),
+  ]);
+  const count = new Map();
+  for (const p of plays) if (p.source && p.source_id) count.set(trackKey(p), (count.get(trackKey(p)) || 0) + 1);
+  const often = playsToTracks(plays, 200).sort((a, b) => count.get(trackKey(b)) - count.get(trackKey(a)));
+  const data = { often, all: playsToTracks([...often, ...lib.filter(Boolean)], 700) };
+  heardCache = { at: Date.now(), data };
+  return data;
 }
+
+const matching = (tracks, q) => {
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  return tracks.filter((t) => { const text = fold(`${t.title} ${t.artist} ${t.album || ""}`); return words.every((w) => text.includes(w)); });
+};
 
 async function libraryMatches(q) {
   const words = fold(q).split(/\s+/).filter(Boolean);
-  const all = (text) => words.every((w) => text.includes(w));
-  const tracks = (await libraryTracks()).filter((t) => all(fold(`${t.title} ${t.artist} ${t.album || ""}`)));
-  const playlists = (state.playlists || []).filter((p) => all(fold(p.name)));
+  const tracks = matching((await heard()).all, q);
+  const playlists = (state.playlists || []).filter((p) => words.every((w) => fold(p.name).includes(w)));
   return { tracks: tracks.slice(0, 30), playlists: playlists.slice(0, 12) };
+}
+
+/** Page de recherche sans saisie : des titres à lancer d'un toucher, choisis d'après tes écoutes. */
+async function drawDiscover(box, seq) {
+  box.innerHTML = `<div id="sx-for-you"></div><div id="sx-often"></div><div id="sx-artists"></div><div id="sx-radios"></div>`;
+  const fill = (id, html) => {
+    const el = $(`#${id}`, box);
+    if (seq !== runSearch.seq || !el || !html) return;
+    el.innerHTML = html;
+    bindPage(el);
+  };
+  const section = (title, hint, inner) => `<section class="section"><div class="section-head"><h2>${title}</h2><span class="sx-hint">${hint}</span></div>${inner}</section>`;
+  heard().then(({ often }) => {
+    if (!often.length) return fill("sx-often", `<p class="muted sx-empty">Écoute quelques titres : des propositions à ton goût apparaîtront ici.</p>`);
+    fill("sx-often", section("Tu les écoutes souvent", "Touche pour lancer", trackGrid(often.slice(0, 8), "Tes habitudes", { solo: true })));
+    const artists = [...new Map(often.filter((t) => t.artist_source_id).map((t) => [t.artist_source_id, t])).values()].slice(0, 12);
+    fill("sx-artists", shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist.split(",")[0], round: true })), { kind: "round" }));
+  });
+  api("/mixes").catch(() => []).then((mixes) => {
+    const mix = ["discoveries", "daily"].map((id) => mixes.find((m) => m.id === id)).find((m) => m?.tracks.length);
+    if (mix) fill("sx-for-you", section("D'après tes écoutes", esc(mix.subtitle || ""), trackGrid(mix.tracks.slice(0, 8), mix.title, { solo: true })));
+  });
+  radioGroups().catch(() => []).then((groups) => {
+    fill("sx-radios", shelf("Radios", groups.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` }));
+    $$("#sx-radios [data-radio]", box).forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
+  });
 }
 
 async function viewSearch(q) {
   searchUI.filter = "all";
-  const html = page(`<h1 class="page-title">Chercher</h1>
+  const html = page(`<h1 class="page-title">Rechercher</h1>
     <div class="search-box">
-      <label class="search-hero">${icons.search}<input id="q" type="search" placeholder="Artistes, titres, albums, liens…" value="${esc(q)}" autocomplete="off" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="sugg" aria-autocomplete="list">
+      <label class="search-hero">${icons.search}<input id="q" type="search" placeholder="Que veux-tu écouter ?" value="${esc(q)}" autocomplete="off" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="sugg" aria-autocomplete="list">
         <button class="search-clear ${q ? "" : "hidden"}" type="button" id="q-clear" aria-label="Effacer la recherche">${icons.close}</button></label>
       <div class="sugg hidden" id="sugg" role="listbox"></div>
     </div>
     <div id="recents-box"></div>
     <div id="results"></div>`);
+  searchUI.suggestions = [];
   setTimeout(() => {
     const input = $("#q");
     if (!input) return;
@@ -1551,16 +1591,22 @@ async function showSuggestions(q) {
   if (!box) return;
   searchUI.suggestAbort?.abort();
   const ctrl = (searchUI.suggestAbort = new AbortController());
-  const recents = recentSearches().filter((r) => !q || fold(r).includes(fold(q)) && fold(r) !== fold(q)).slice(0, q ? 2 : 5)
+  if (!q) { searchUI.suggestions = []; return hideSuggestions(); }
+  const recents = recentSearches().filter((r) => fold(r).includes(fold(q)) && fold(r) !== fold(q)).slice(0, 2)
     .map((text) => ({ kind: "recent", text }));
-  let remote = [];
-  if (q.length >= 2) {
-    remote = await api(`/search/suggest?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal }).catch(() => []);
-    if (ctrl.signal.aborted || !$("#sugg")) return;
-  }
+  const [mine, remote] = q.length < 2 ? [[], []] : await Promise.all([
+    heard().then((h) => matching(h.all, q).slice(0, 3)),
+    api(`/search/suggest?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal }).catch(() => []),
+  ]);
+  if (ctrl.signal.aborted || !$("#sugg")) return;
   // La saisie a changé pendant l'attente : cette liste est périmée.
   if (($("#q")?.value || "").trim() !== q) return;
-  searchUI.suggestions = [...recents, ...remote];
+  const known = new Set(mine.map(trackKey));
+  searchUI.suggestions = [
+    ...mine.map((t) => ({ kind: "track", mine: true, track: t, text: t.title, subtitle: t.artist, picture_url: t.cover_url })),
+    ...recents,
+    ...remote.filter((r) => r.kind !== "track" || !known.has(trackKey(r))),
+  ];
   searchUI.selected = -1;
   paintSuggestions();
 }
@@ -1574,9 +1620,9 @@ function paintSuggestions() {
   box.innerHTML = list.map((s, i) => {
     const thumb = s.kind === "recent" ? `<span class="sg-ic">${icons.search}</span>`
       : `<img class="${s.kind === "artist" ? "round" : ""}" src="${esc(big(s.picture_url || "", 80))}" alt="" loading="lazy">`;
-    const sub = s.kind === "recent" ? "Recherche récente" : s.kind === "artist" ? "Artiste" : `Titre · ${esc(s.subtitle || "")}`;
+    const sub = s.kind === "recent" ? "Recherche récente" : s.kind === "artist" ? "Artiste" : `${s.mine ? "Tu l'écoutes" : "Titre"} · ${esc(s.subtitle || "")}`;
     return `<button class="sg ${i === searchUI.selected ? "on" : ""}" data-sg="${i}" role="option" aria-selected="${i === searchUI.selected}">${thumb}
-      <span class="sg-text"><b>${hlHtml(s.text, q)}</b><small>${sub}</small></span></button>`;
+      <span class="sg-text"><b>${hlHtml(s.text, q)}</b><small>${sub}</small></span>${s.kind === "track" ? `<span class="sg-play">${icons.play}</span>` : ""}</button>`;
   }).join("");
   box.classList.remove("hidden");
   input.setAttribute("aria-expanded", "true");
@@ -1592,11 +1638,16 @@ function pickSuggestion(s) {
   if (!s) return;
   const input = $("#q");
   hideSuggestions();
+  input.blur();
   if (s.kind === "artist") { go(`#/artist/${s.source}/${s.source_id}`); return; }
-  input.value = s.kind === "track" ? `${s.text} ${s.subtitle || ""}`.trim() : s.text;
+  if (s.kind === "track") {
+    haptic();
+    playFromSearch(s.track || { source: s.source, source_id: s.source_id, title: s.text, artist: s.subtitle || "", cover_url: s.picture_url, artist_source_id: s.artist_source_id });
+    return;
+  }
+  input.value = s.text;
   $("#q-clear")?.classList.remove("hidden");
   drawRecents();
-  input.blur();
   runSearch(input.value.trim());
 }
 
@@ -1619,15 +1670,7 @@ async function runSearch(q) {
   // remplacer par un squelette : plus de clignotement à chaque pause de frappe.
   const keep = !!(q && searchUI.data && box.querySelector(".top-result, .shelf, .grid, .tracks"));
   if (!keep) searchUI.data = null;
-  if (!q) {
-    // Rien de tapé : les radios, comme l'onglet Rechercher de l'app.
-    const groups = await radioGroups().catch(() => []);
-    if (seq !== runSearch.seq || !$("#results")) return;
-    box.innerHTML = groups.map((g) => shelf(g.title, g.radios.map(radioCard))).join("");
-    $$("[data-radio]", box).forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
-    bindPage(box);
-    return;
-  }
+  if (!q) return drawDiscover(box, seq);
   if (looksLikeLink(q)) {
     box.innerHTML = `<p class="muted">Ouverture du lien…</p>`;
     try {
@@ -1692,7 +1735,7 @@ function drawResults(box) {
       ? `<a class="top-card" href="#/artist/${top.source}/${top.source_id}"><img class="round" src="${esc(top.picture_url || "")}" alt=""><div class="t">${hlHtml(top.name, q)}</div><div class="s">Artiste</div></a>`
       : songs[0] ? `<button class="top-card" data-top><img src="${esc(big(songs[0].cover_url, 300))}" alt=""><div class="t">${hlHtml(songs[0].title, q)}</div><div class="s">Titre · ${esc(songs[0].artist)}</div></button>` : "";
     body = (songs.length ? section("Meilleur résultat", `<div class="top-result">${topHtml}<div>${trackTable(songs.slice(0, 5), name, { numbers: false, showAlbum: false, ...songOpts })}</div></div>`) : "")
-      + (libCount ? section("Dans ta bibliothèque", (lib.tracks.length ? trackTable(lib.tracks.slice(0, 4), "Ta bibliothèque", { numbers: false, showAlbum: false, hl: q }) : "")
+      + (libCount ? section("Dans tes écoutes", (lib.tracks.length ? trackTable(lib.tracks.slice(0, 4), "Tes écoutes", { numbers: false, showAlbum: false, ...songOpts }) : "")
         + (lib.playlists.length ? `<div class="shelf">${lib.playlists.slice(0, 6).map(playlistCard).join("")}</div>` : ""), seeAll("library")) : "")
       + shelf("Artistes", artists.map(artistCard), { kind: "round" })
       + shelf("Albums", albums.map(albumCard))
@@ -1705,7 +1748,7 @@ function drawResults(box) {
   } else if (f === "albums") {
     body = section("Albums", `<div class="grid">${albums.map(albumCard).join("")}</div>`);
   } else if (f === "library") {
-    body = (lib.tracks.length ? section("Titres de ta bibliothèque", trackTable(lib.tracks, "Ta bibliothèque", { hl: q })) : "")
+    body = (lib.tracks.length ? section("Titres", trackTable(lib.tracks, "Tes écoutes", songOpts)) : "")
       + (lib.playlists.length ? section("Playlists", `<div class="grid">${lib.playlists.map(playlistCard).join("")}</div>`) : "");
   }
   box.innerHTML = chips + body;

@@ -36,6 +36,7 @@ const jsonRoutes = {
   "/lyrics": { synced: true, instrumental: false, sync: "word", source: "netease", language: "fr", lines: [
     { time: 0, text: "Ligne un", words: [{ time: 0, text: "Ligne ", end: 0.4 }, { time: 0.4, text: "un", end: 0.9 }] },
     { time: 1, text: "" }, { time: 2, text: "Ligne deux" }] },
+  "/search/suggest": [{ kind: "track", text: "Titre propose", subtitle: "Fave", picture_url: null, source: "deezer", source_id: "7" }],
   "/search": { query_id: "q", provider: "deezer", total: 1, tracks: [track(1)] },
   "/me/playlists/5": { id: 5, name: "Importée", description: null, cover_url: null, covers: [], origin: "soundcloud", origin_url: "https://soundcloud.com/a/sets/b",
     track_count: 2, duration_seconds: 6, import_status: "done", import_total: 3, import_done: 3, import_missing: 1, import_uncertain: 1, import_added: 0,
@@ -73,9 +74,17 @@ const out = (s) => { lines.push(s); console.log(s); };
 await page.goto(`http://localhost:${port}/web/#/search`);
 await page.waitForSelector(".search-hero", { timeout: 8000 });
 // 1. loupe dans le champ
-const geo = await page.evaluate(() => { const i = document.querySelector(".search-hero input").getBoundingClientRect(), c = document.querySelector(".search-hero .icon").getBoundingClientRect(); return { i, c }; });
+const geo = await page.evaluate(() => { const i = document.querySelector(".search-hero input").getBoundingClientRect(), c = document.querySelector(".search-hero > .icon").getBoundingClientRect(); return { i, c }; });
 const inside = geo.c.top >= geo.i.top && geo.c.bottom <= geo.i.bottom && geo.c.left >= geo.i.left;
 out(`loupe dans le champ: ${inside}`);
+// 1 bis. un titre proposé se lance, la saisie ne change pas
+await page.fill("#q", "titre");
+await page.click("#sugg .sg:has(.sg-play)");
+await page.waitForFunction(() => state.queue[state.index]?.source_id === "7", null, { timeout: 5000 });
+const typed = await page.inputValue("#q");
+if (typed !== "titre") throw new Error(`la proposition a modifié la saisie : ${typed}`);
+out("proposition lancée, saisie intacte: true");
+await page.evaluate(() => audio.pause());
 // 2. album avec disques
 await page.goto(`http://localhost:${port}/web/#/album/deezer/99`);
 await page.waitForSelector(".tracks .tr");
