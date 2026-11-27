@@ -13,6 +13,7 @@ _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 # EXISTS` ne les ajoute pas à une base déjà créée, il faut un ALTER explicite.
 # (table, colonne, définition SQL)
 _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("uploads", "chunks", "TEXT"),
     ("allowed_users", "display_name", "TEXT"),
     ("allowed_users", "added_by", "INTEGER"),
     ("invites", "max_uses", "INTEGER NOT NULL DEFAULT 1"),

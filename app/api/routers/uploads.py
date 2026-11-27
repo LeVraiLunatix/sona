@@ -18,6 +18,7 @@ from app.api.schemas import Track
 from app.api.state import ApiDeps
 from app.providers.base import TrackInfo
 from app.services import uploads
+from app.services.discord_storage import StorageError
 
 router = APIRouter(tags=["mes fichiers"])
 
@@ -72,19 +73,26 @@ async def add_upload(
                     raise too_big
                 handle.write(chunk)
         title, artist, album = uploads.describe(received, filename)
+        upload_id = secrets.token_hex(12)
         try:
             cleaned = await uploads.clean(received, deps.settings.uploads_dir, deps.settings.ffmpeg_path)
         except uploads.UploadError as exc:
             raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc)) from exc
 
+    try:
+        name, chunks = await uploads.store(deps, upload_id, cleaned)
+    except StorageError as exc:
+        cleaned.path.unlink(missing_ok=True)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Drivecord n'a pas pris le fichier : réessaie.") from exc
     row = {
-        "id": secrets.token_hex(12), "user_id": deps.user_id, "title": title, "artist": artist, "album": album,
-        "duration_seconds": cleaned.duration, "mime": cleaned.mime, "size": cleaned.size, "path": cleaned.path.name,
+        "id": upload_id, "user_id": deps.user_id, "title": title, "artist": artist, "album": album,
+        "duration_seconds": cleaned.duration, "mime": cleaned.mime, "size": cleaned.size, "path": name, "chunks": chunks,
     }
     # Quota revérifié au moment d'enregistrer : plusieurs envois peuvent arriver en même temps.
     if not await deps.repo.upload_add(row, uploads.MAX_FILES, _quota(deps)):
-        cleaned.path.unlink(missing_ok=True)
+        await uploads.remove(deps, row)
         raise full
+    _prune(deps, keep=name)
     info = to_info(request, row)
     await deps.repo.library_add(deps.user_id, "track", info)
     return Track.from_info(info)
@@ -95,13 +103,25 @@ async def delete_upload(upload_id: str, deps: ApiDeps = Depends(require_token)) 
     row = await deps.repo.upload_delete(deps.user_id, upload_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Fichier introuvable.")
-    (deps.settings.uploads_dir / row["path"]).unlink(missing_ok=True)
+    await uploads.remove(deps, row)
+
+
+def _prune(deps: ApiDeps, keep: str) -> None:
+    """Les copies de travail ne débordent pas : même plafond que le cache des titres."""
+    from app.api.routers.stream import prune_cache  # stream importe ce module
+
+    folder = uploads.cache_folder(deps)
+    prune_cache(folder, deps.settings.stream_cache_max_mb * 1024 * 1024, keep=folder / keep)
 
 
 async def own_file(deps: ApiDeps, upload_id: str) -> tuple[Path, str]:
     """Chemin et type du fichier, seulement pour la personne qui l'a envoyé."""
     row = await deps.repo.upload_get(deps.user_id, upload_id)
-    path = deps.settings.uploads_dir / row["path"] if row else None
-    if path is None or not path.is_file():
+    try:
+        path = await uploads.local_copy(deps, row) if row else None
+    except StorageError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Drivecord ne répond pas : réessaie dans un instant.") from exc
+    if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Fichier introuvable.")
+    _prune(deps, keep=path.name)
     return path, row["mime"]

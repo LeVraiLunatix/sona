@@ -1,5 +1,8 @@
 """Fichiers audio envoyés par les gens : vérifiés, puis réécrits au propre avant d'être gardés.
 
+Les fichiers vivent sur Drivecord (salon Discord, même moteur que les exclus) ; le serveur n'en garde
+qu'une copie de travail, effaçable. Sans webhook configuré, ils restent sur le disque.
+
 Rien de ce que dit l'envoi (nom, type annoncé) n'est cru :
 1. le format est reconnu aux premiers octets, et seuls quelques formats audio passent ;
 2. ffmpeg n'ouvre QUE ce format, sans accès au réseau, et ne reprend que la piste audio : images,
@@ -11,11 +14,15 @@ Le nom sur le disque est tiré au hasard : rien de choisi par la personne n'y en
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import secrets
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+
+from app.services import exclusives
+from app.services.discord_storage import CHUNK_SIZE
 
 MAX_FILE_BYTES = 100 * 1024 * 1024
 MAX_FILES = 500
@@ -86,6 +93,64 @@ def describe(source: Path, filename: str) -> tuple[str, str, str | None]:
     title = tag("title") or (by_name[-1] if by_name[-1] else "Sans titre")
     artist = tag("artist") or (by_name[0] if len(by_name) == 2 else "Artiste inconnu")
     return title, artist, tag("album") or None
+
+
+# -- Rangement : Drivecord, avec une copie de travail sur le serveur --------
+
+
+def _drivecord(deps):
+    storage = deps.vault_storage
+    return storage if storage is not None and storage.enabled else None
+
+
+def _cache_dir(deps) -> Path:
+    return deps.settings.uploads_dir / "cache"
+
+
+async def _parts(path: Path):
+    with path.open("rb") as handle:
+        while part := await asyncio.to_thread(handle.read, CHUNK_SIZE):
+            yield part
+
+
+async def store(deps, upload_id: str, cleaned: Cleaned) -> tuple[str, str | None]:
+    """Range le fichier propre ; rend (nom sur le disque, morceaux Drivecord en JSON ou None).
+    Lève StorageError si Drivecord ne l'a pas pris : on ne promet pas un fichier qu'on n'a pas gardé."""
+    name = f"{upload_id}{cleaned.path.suffix}"
+    storage = _drivecord(deps)
+    if storage is None:
+        cleaned.path.replace(deps.settings.uploads_dir / name)
+        return name, None
+    chunks = await storage.store(_parts(cleaned.path), name)
+    folder = _cache_dir(deps)
+    folder.mkdir(parents=True, exist_ok=True)
+    cleaned.path.replace(folder / name)
+    return name, json.dumps([chunk.to_json() for chunk in chunks])
+
+
+async def local_copy(deps, row: dict) -> Path | None:
+    """Le fichier sur le disque, rapatrié de Drivecord s'il n'y est plus."""
+    if not row["chunks"]:
+        path = deps.settings.uploads_dir / row["path"]
+        return path if path.is_file() else None
+    storage = _drivecord(deps)
+    if storage is None:
+        return None
+    return await exclusives.materialize(storage, _cache_dir(deps), {"id": row["id"], "filename": row["path"], "chunks": row["chunks"]})
+
+
+async def remove(deps, row: dict) -> None:
+    """Efface le fichier partout : copie de travail et messages Drivecord."""
+    (deps.settings.uploads_dir / row["path"]).unlink(missing_ok=True)
+    (_cache_dir(deps) / row["path"]).unlink(missing_ok=True)
+    storage = _drivecord(deps)
+    if row["chunks"] and storage is not None:
+        await storage.delete(exclusives.chunks_of(row["chunks"]))
+
+
+def cache_folder(deps) -> Path:
+    """Seul dossier qu'on peut vider : tout ce qu'il contient est aussi sur Drivecord."""
+    return _cache_dir(deps)
 
 
 async def _ffmpeg(ffmpeg: str, *args: str) -> tuple[int, str]:

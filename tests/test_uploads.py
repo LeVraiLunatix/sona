@@ -11,6 +11,8 @@ import wave
 import pytest
 
 from app.services import uploads
+from app.services.discord_storage import DiscordStorage, StorageError
+from tests.test_audio_vault import FakeDiscord
 from tests.test_api_browse import AUTH, client  # noqa: F401  (client : fixture)
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
@@ -44,6 +46,7 @@ def test_names_and_tags_are_cleaned(tmp_path):
 @pytest.fixture
 def box(client, tmp_path):
     client.app.state.deps.settings = __import__("dataclasses").replace(client.app.state.deps.settings, uploads_dir=tmp_path / "envois")
+    client.app.state.deps.vault_storage = DiscordStorage(None)  # sans webhook : tout reste sur le disque
     return client, tmp_path / "envois"
 
 
@@ -91,6 +94,29 @@ def test_fake_audio_too_big_and_full_space_are_refused(box, monkeypatch):
     monkeypatch.setattr(uploads, "MAX_FILES", 0)
     assert send(client, tone()).status_code == 413
     assert not folder.exists() or list(folder.iterdir()) == []
+
+
+@needs_ffmpeg
+def test_files_live_on_drivecord_and_come_back_when_the_copy_is_gone(box):
+    client, folder = box
+    drive = client.app.state.deps.vault_storage = FakeDiscord()
+    track = send(client, tone()).json()
+    assert drive.files
+    (copy,) = (folder / "cache").iterdir()
+    original = copy.read_bytes()
+    copy.unlink()
+    played = client.get(f"/stream/upload/{track['source_id']}", headers=AUTH)
+    assert played.status_code == 200 and played.content == original
+    assert client.delete(f"/uploads/{track['source_id']}", headers=AUTH).status_code == 204
+    assert not drive.files and list((folder / "cache").iterdir()) == []
+
+    async def broken(parts, filename):
+        raise StorageError("en panne")
+
+    drive.store = broken
+    assert send(client, tone()).status_code == 502
+    assert client.get("/uploads", headers=AUTH).json()["tracks"] == []
+    assert [p for p in folder.rglob("*") if p.is_file()] == []
 
 
 def test_another_account_cannot_read_my_file(tmp_path):

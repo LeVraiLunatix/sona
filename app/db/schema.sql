@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS uploads (
     mime TEXT NOT NULL,
     size INTEGER NOT NULL,
     path TEXT NOT NULL,
+    chunks TEXT,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads (user_id);

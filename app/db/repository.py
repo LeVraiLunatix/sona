@@ -762,11 +762,11 @@ class Repository:
     async def upload_add(self, row: dict, max_files: int, max_bytes: int) -> bool:
         """Enregistre le fichier si la place le permet (vérification et écriture en une instruction)."""
         cursor = await self._db.conn.execute(
-            """INSERT INTO uploads (id, user_id, title, artist, album, duration_seconds, mime, size, path, created_at)
-               SELECT :id, :user_id, :title, :artist, :album, :duration_seconds, :mime, :size, :path, :created_at
+            """INSERT INTO uploads (id, user_id, title, artist, album, duration_seconds, mime, size, path, chunks, created_at)
+               SELECT :id, :user_id, :title, :artist, :album, :duration_seconds, :mime, :size, :path, :chunks, :created_at
                WHERE (SELECT COUNT(*) FROM uploads WHERE user_id=:user_id) < :max_files
                  AND (SELECT COALESCE(SUM(size), 0) FROM uploads WHERE user_id=:user_id) + :size <= :max_bytes""",
-            {**row, "created_at": _now(), "max_files": max_files, "max_bytes": max_bytes},
+            {"chunks": None, **row, "created_at": _now(), "max_files": max_files, "max_bytes": max_bytes},
         )
         await self._db.conn.commit()
         return cursor.rowcount > 0
@@ -795,7 +795,7 @@ class Repository:
     # -- Export et suppression d'un compte (RGPD) -----------------------
 
     _USER_TABLES = ("uploads", "users", "library", "history", "plays", "playlists", "track_moments", "tv_screens", "public_links", "connect_saved", "share_links")
-    _SECRET_COLUMNS = {"tv_screens": ("lounge_token",), "uploads": ("path",)}
+    _SECRET_COLUMNS = {"tv_screens": ("lounge_token",), "uploads": ("path", "chunks")}
 
     async def export_user_data(self, user_id: int) -> dict:
         """Toutes les données musicales de la personne, en JSON (sans jetons ni clés)."""
