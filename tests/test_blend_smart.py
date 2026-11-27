@@ -61,6 +61,7 @@ def test_web_page_and_stream_token(client):
     for icon in manifest.json()["icons"]:
         got = client.get(f"/web/{icon['src']}")
         assert got.status_code == 200 and got.headers["content-type"] == "image/png", icon["src"]
+    assert client.get("/web/pochette.css").headers["content-type"].startswith("text/css")
     assert "addEventListener(\"fetch\"" in client.get("/web/sw.js").text
     assert client.get("/web/icons/apple-touch-icon.png").headers["content-type"] == "image/png"
     # Polices du site (Pricedown du thème GTA VI…) : servies telles quelles, jamais la page d'accueil.

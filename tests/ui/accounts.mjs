@@ -528,6 +528,64 @@ const staffProfile = (role) => ({ id: "m1", username: role, role, status: "activ
   await t.close();
 }
 
+// ── Direction « Pochette » : réglages sans boîtes, interrupteurs blancs, menu teinté, popup empilée ──
+{
+  const t = await open({ mock: signedIn(), hash: "#/settings", viewport: { width: 390, height: 844 } });
+  await t.page.waitForSelector(".switch-row");
+  const st = await t.page.evaluate(() => {
+    const g = getComputedStyle(document.querySelector(".set-group"));
+    const on = document.querySelector(".switch-row input:checked + i");
+    const title = getComputedStyle(document.querySelector(".page-title"));
+    const wm = getComputedStyle(document.querySelector(".page"), "::before");
+    return { groupBg: g.backgroundColor, radius: g.borderRadius, on: on && getComputedStyle(on).backgroundColor, accent: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(), title: parseFloat(title.fontSize), wm: wm.content, wmOpacity: wm.opacity, overflow: document.documentElement.scrollWidth - innerWidth };
+  });
+  ok("pochette : groupes de réglages sans boîte", st.groupBg === "rgba(0, 0, 0, 0)" && st.radius === "0px", JSON.stringify(st));
+  ok("pochette : interrupteur actif blanc (plus de vert)", st.on && st.on !== "rgb(48, 209, 88)" && /^rgb\((24[0-9]|25[0-5]), (24[0-9]|25[0-5]), (24[0-9]|25[0-5])\)$/.test(st.on), JSON.stringify(st));
+  ok("pochette : grand titre et « S » en filigrane discret", st.title >= 34 && st.wm !== "none" && Number(st.wmOpacity) <= 0.08, JSON.stringify(st));
+  ok("pochette : rien ne déborde à droite sur téléphone", st.overflow <= 0, JSON.stringify(st));
+  const ms = await t.page.evaluate(() => {
+    const tiles = [...document.querySelectorAll(".page .mas > .tile")];
+    return { n: tiles.length, cols: getComputedStyle(document.querySelector(".page .mas")).columnCount, hero: !!document.querySelector(".mas .tile.hero"), inTile: !!document.querySelector(".mas .tile .set-head + .set-group, .mas .tile .set-head + *"), head: !document.querySelector(".page > .set-head") };
+  });
+  ok("masonry : sections de réglages en tuiles", ms.n >= 3 && ms.head && ms.inTile, JSON.stringify(ms));
+  // Téléphone : un bouton, un menu de bulles, une seule catégorie affichée à la fois.
+  await t.page.waitForSelector(".cat-btn");
+  const c1 = await t.page.evaluate(() => ({ visible: [...document.querySelectorAll(".mas > .tile:not(.hero)")].filter((x) => getComputedStyle(x).display !== "none").length, label: document.querySelector(".cat-name").textContent.trim() }));
+  ok("catégories : une seule tuile visible, le bouton donne son nom", c1.visible === 1 && c1.label.length > 0, JSON.stringify(c1));
+  await t.page.click(".cat-btn");
+  await t.page.waitForSelector(".cat-sheet.open .cat-bubble");
+  const bubbles = await t.page.locator(".cat-sheet.open .cat-bubble").count();
+  await t.page.waitForTimeout(700);
+  await t.page.click('.cat-bubble[data-i="1"]');
+  await t.page.waitForTimeout(500);
+  const c2 = await t.page.evaluate(() => ({ visible: [...document.querySelectorAll(".mas > .tile:not(.hero)")].filter((x) => getComputedStyle(x).display !== "none").map((x) => x.querySelector(".set-head")?.textContent.trim()), label: document.querySelector(".cat-name").textContent.trim(), closed: document.querySelector(".cat-sheet").hidden }));
+  ok("catégories : le menu de bulles propose chaque catégorie et en affiche une seule", bubbles >= 3 && c2.visible.length === 1 && c2.visible[0] === c2.label && c2.closed, JSON.stringify({ bubbles, ...c2 }));
+  await t.page.evaluate(() => { confirmSheet("Supprimer ton compte ?", "Supprimer"); });
+  await t.page.waitForSelector(".confirm-sheet .sheet");
+  const cf = await t.page.evaluate(() => {
+    const btns = [...document.querySelectorAll(".confirm-sheet .pill-row .btn")];
+    const [a, b] = btns.map((x) => x.getBoundingClientRect());
+    const topmost = btns.reduce((m, x) => (x.getBoundingClientRect().top < m.getBoundingClientRect().top ? x : m));
+    return { stacked: Math.abs(a.left - b.left) < 2 && a.top !== b.top, full: a.width > 300, destructiveFirst: topmost.textContent.trim() };
+  });
+  ok("pochette : confirmation en boutons pleine largeur empilés, geste destructeur en haut", cf.stacked && cf.full && cf.destructiveFirst === "Supprimer", JSON.stringify(cf));
+  await t.page.keyboard.press("Escape");
+  await t.page.waitForTimeout(400);
+  await t.page.evaluate(() => trackMenu({ title: "Grabba", artist: "Ziak", album: "Roche", cover_url: null, source: "deezer", source_id: "1" }));
+  await t.page.waitForSelector(".sheet-wrap.mas-menu .menu-item");
+  const mn = await t.page.evaluate(() => {
+    const w = document.querySelector(".sheet-wrap.mas-menu");
+    const items = [...w.querySelectorAll(".menu-item")].map((x) => x.getBoundingClientRect());
+    const left = Math.min(...items.map((r) => r.left));
+    const cols = new Set(items.map((r) => Math.round(r.left))).size;
+    const heights = new Set(items.map((r) => Math.round(r.height))).size;
+    const first = getComputedStyle(w.querySelector(".menu-item")).backgroundColor;
+    return { cols, heights, first, fullWidth: items.every((r) => r.width > 120), left };
+  });
+  ok("masonry : menu d'un titre en deux colonnes de tuiles de hauteurs différentes, première tuile blanche", mn.cols === 2 && mn.heights >= 3 && mn.fullWidth && /^rgb\((24[0-9]|25[0-5]), /.test(mn.first), JSON.stringify(mn));
+  await t.close();
+}
+
 console.log(results.join("\n"));
 if (errors.length) { console.log("\nERREURS JS :\n" + [...new Set(errors)].join("\n")); failed += errors.length; }
 console.log(`\n${results.length - failed < 0 ? 0 : results.filter((r) => r.startsWith("ok")).length}/${results.length} contrôles réussis`);

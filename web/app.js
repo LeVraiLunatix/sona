@@ -41,7 +41,8 @@ const currentTrackNow = () => { const r = remoteDevice(); return r ? deviceNow(r
 /** Allume ou éteint le thème selon la page affichée et le titre en cours. */
 function syncGta(track) {
   const t = track !== undefined ? track : currentTrackNow();
-  const want = look.gtavi !== false && (gta.route || isGtaTrack(t));
+  // Automatique : le thème se met tout seul (page du jeu, ou titre de l'album en lecture), il ne se choisit pas.
+  const want = gta.route || isGtaTrack(t);
   if (want === gta.on) return;
   gta.on = want;
   document.documentElement.classList.toggle("gtavi", want);
@@ -50,7 +51,7 @@ function syncGta(track) {
   if (want) toast("Bienvenue à Leonida");
 }
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
-const LOOK_DEFAULT = { accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: null, hover: true, lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
+const LOOK_DEFAULT = { accent: "neutre", tint: true, shape: "arrondi", menu: null, hover: true, lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
 let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
 function applyLook() {
   const root = document.documentElement;
@@ -6220,11 +6221,11 @@ function openSheet(html, { cls = "", onClose } = {}) {
 }
 
 /** Menu d'actions : [{ icon, label, sub, run, danger, checked }]. */
-function actionSheet(title, items, { header = "" } = {}) {
+function actionSheet(title, items, { header = "", cls = "" } = {}) {
   const wrap = openSheet(`${header || (title ? `<h2 class="sheet-title">${esc(title)}</h2>` : "")}
     <div class="menu">${items.filter(Boolean).map((item, i) => `<button class="menu-item ${item.danger ? "danger" : ""}" data-mi="${i}">
       <span class="mi-icon">${item.icon || ""}</span><span class="mi-text"><span class="mi-label">${esc(item.label)}</span>${item.sub ? `<span class="mi-sub">${esc(item.sub)}</span>` : ""}</span>
-      ${item.checked ? `<span class="mi-check">${icons.check}</span>` : ""}</button>`).join("")}</div>`);
+      ${item.checked ? `<span class="mi-check">${icons.check}</span>` : ""}</button>`).join("")}</div>`, { cls });
   const list = items.filter(Boolean);
   $$("[data-mi]", wrap).forEach((b) => (b.onclick = async () => {
     haptic();
@@ -6255,7 +6256,7 @@ function confirmSheet(text, confirm = "Confirmer") {
     let done = false;
     const wrap = openSheet(`<h2 class="sheet-title">${esc(text)}</h2>
       <div class="pill-row"><button class="btn ghost" data-no>Annuler</button><button class="btn danger" data-yes>${esc(confirm)}</button></div>`,
-      { onClose: () => { if (!done) { done = true; resolve(false); } } });
+      { cls: "confirm-sheet", onClose: () => { if (!done) { done = true; resolve(false); } } });
     $("[data-yes]", wrap).onclick = () => { done = true; resolve(true); wrap.close(); };
     $("[data-no]", wrap).onclick = () => { done = true; resolve(false); wrap.close(); };
   });
@@ -6303,7 +6304,7 @@ function trackMenu(t, ctx = null, index = -1) {
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
     { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
     { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
-  ], { header });
+  ], { header, cls: "mas-menu" });
 }
 
 /** Lance des titres sur un autre appareil (Relais) et le pilote. */
@@ -7559,7 +7560,6 @@ function viewAppearance() {
     <p class="page-sub">Choisis la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
     <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
     <h3 class="set-head">Interface</h3><div class="set-group">
-      <label class="switch-row"><span><b>Thème GTA VI</b><small>Sur la page de Grand Theft Auto VI, et quand un titre de l'album joue, Sona devient Vice City.</small></span><input type="checkbox" data-look-gtavi ${look.gtavi !== false ? "checked" : ""}><i></i></label>
       <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
       <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
       <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Rail d'icônes ou panneau ouvert, retenu sur cet appareil (Ctrl/⌘ + B). Auto : ouvert sur grand écran.</small></span><span class="chips">${chip("menu", "auto", "Auto", !look.menu)}${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
@@ -7585,8 +7585,6 @@ function bindAppearance() {
     if (hov) hov.checked = look.hover !== false;
     const tint = $("[data-look-tint]", root);
     if (tint) tint.checked = look.tint;
-    const gtaBox = $("[data-look-gtavi]", root);
-    if (gtaBox) gtaBox.checked = look.gtavi !== false;
     const auto = $("[data-look-lyrauto]", root), blur = $("[data-look-lyrblur]", root), glob = $("#lyr-global", root);
     if (auto) auto.checked = look.lyrAuto;
     if (blur) blur.checked = look.lyrBlur;
@@ -7606,7 +7604,6 @@ function bindAppearance() {
   });
   $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
   $("[data-look-hover]", root)?.addEventListener("change", (e) => setLook({ hover: e.target.checked }));
-  $("[data-look-gtavi]", root)?.addEventListener("change", (e) => { setLook({ gtavi: e.target.checked }); syncGta(); });
   $("[data-look-lyrauto]", root)?.addEventListener("change", (e) => setLook({ lyrAuto: e.target.checked }));
   $("[data-look-lyrblur]", root)?.addEventListener("change", (e) => setLook({ lyrBlur: e.target.checked }));
   // Décalage global des paroles : 0,05 s par appui, borné à ±1,5 s.
