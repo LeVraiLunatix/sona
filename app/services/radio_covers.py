@@ -21,6 +21,8 @@ from pathlib import Path
 
 import httpx
 
+from app.services import radio_mix
+
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "u2net_human_seg.onnx"
@@ -104,7 +106,8 @@ async def build(deps, radio_id: str) -> bool:
     folder = cover_dir(deps.settings)
     folder.mkdir(parents=True, exist_ok=True)
     taken = {p.read_text() for p in folder.glob("*.artist") if p.stem != radio_id}
-    tracks = await deps.deezer.get_radio_tracks(radio_id, limit=40)
+    # Les artistes les mieux placés dans les playlists de la radio ; à défaut, sa station.
+    tracks = [t for _, t in (await radio_mix.pool(deps, radio_id))[:60]] or await deps.deezer.get_radio_tracks(radio_id, limit=40)
     model = deps.settings.models_dir / MODEL_NAME
     for artist_id in candidates(tracks, taken):
         artist = await deps.deezer.get_artist(artist_id)

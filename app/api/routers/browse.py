@@ -7,7 +7,7 @@ from app.api.auth import get_deps, require_token
 from app.api.schemas import RadioGroup, RadioStation, Track
 from app.api.state import ApiDeps
 from app.providers.deezer import DeezerError
-from app.services import radio_covers
+from app.services import radio_covers, radio_mix
 
 router = APIRouter(tags=["browse"])
 
@@ -88,6 +88,9 @@ async def radio_tracks(radio_id: str, deps: ApiDeps = Depends(require_token)) ->
     vide, la station ne s'arrête jamais."""
     if not radio_id.isdigit():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Identifiant de radio invalide.")
+    pool = await radio_mix.pool(deps, radio_id)
+    if len(pool) >= 25:
+        return [Track.from_info(t) for t in radio_mix.draw(pool, 25)]
     try:
         tracks = await deps.deezer.get_radio_tracks(radio_id)
     except DeezerError as exc:

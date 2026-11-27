@@ -160,7 +160,12 @@ def test_browse_radios_are_curated(client):
     assert not any("test" in t or "festival" in t for t in titles)
 
 
-def test_radio_tracks(client):
+def test_radio_tracks(client, monkeypatch):
+    async def no_playlists(deps, radio_id):
+        return []
+
+    monkeypatch.setattr("app.services.radio_mix.pool", no_playlists)
+
     async def fake_radio_tracks(radio_id, limit=25):
         assert radio_id == "39021"
         return [track("5")]

@@ -910,7 +910,7 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 @keyframes rc-breathe { 50% { opacity: 1; } }
 .rc-title { position: absolute; left: 7cqw; right: 7cqw; top: 8cqw; font-weight: 900; line-height: .92; letter-spacing: -.04em; text-transform: uppercase; text-align: left; text-shadow: 0 2px 18px rgba(0, 0, 0, .55); }
 /* Le portrait détouré passe devant le titre, qui reste derrière lui. */
-.rc-star { position: absolute; left: 4%; bottom: 0; width: 92% !important; height: 72% !important; object-fit: contain; object-position: bottom center; box-shadow: none !important; border-radius: 0 !important; background: none !important; }
+.rc > img.rc-star { position: absolute; inset: auto 4% 0; width: 92% !important; height: 72% !important; object-fit: contain !important; object-position: bottom center !important; transform: none !important; box-shadow: none !important; border-radius: 0 !important; background: none !important; }
 .rc-logo { filter: drop-shadow(0 1px 6px rgba(0, 0, 0, .7)); }
 .rc-logo { position: absolute; left: 7cqw; bottom: 7cqw; width: 15cqw; height: 15cqw; color: #fff; fill: currentColor; }
 @media (prefers-reduced-motion: reduce) { .rc > .rc-px { animation: none; opacity: .7; } .rc > * { animation: none; } }
