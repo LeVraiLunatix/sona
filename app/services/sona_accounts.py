@@ -141,6 +141,18 @@ class SonaAccounts:
         resp.raise_for_status()
         return bool(resp.json().get("offensive"))
 
+    async def adopt_lastfm(self, uid: str, username: str, session_key: str) -> bool:
+        """Confie au service des comptes la liaison Last.fm d'un ancien compte (il la chiffre ; il ne remplace pas
+        une liaison que la personne aurait déjà faite)."""
+        try:
+            resp = await self._post("/internal/lastfm/adopt", {"user_id": uid, "username": username, "session_key": session_key})
+        except Unavailable as exc:
+            logger.warning("Liaison Last.fm non reprise : %s", exc)
+            return False
+        if resp.status_code >= 400:
+            logger.warning("Liaison Last.fm non reprise (%s)", resp.status_code)
+        return resp.status_code < 400
+
     async def scrobble(self, uid: str, kind: str, artist: str, track: str, album: str | None, duration: int | None, timestamp: int) -> None:
         """Au mieux : un scrobbling raté ne bloque jamais la lecture."""
         body = {"user_id": uid, "kind": kind, "artist": artist, "track": track, "album": album, "duration": duration, "timestamp": timestamp}

@@ -371,6 +371,25 @@ const contentLeft = (page) => page.evaluate(() => document.getElementById("conte
   await t.close();
 }
 
+// Ancienne session sur l'appareil : « Sona fait peau neuve », puis rattachement dès la connexion.
+{
+  const t = await open({ store: { "sona.token": "ancienne-session" }, music: { "/auth/me": { username: "vieux", display_name: "Tim" } } });
+  await t.page.waitForSelector(".peau");
+  ok("ancien compte : l'écran « peau neuve » salue la personne", /Sona fait peau neuve[\s\S]*Salut Tim[\s\S]*Last\.fm/.test(await text(t.page, ".peau")));
+  await t.page.click('[data-peau="signup"]');
+  await t.page.waitForSelector(".auth-card");
+  ok("ancien compte : « Créer mon compte » mène à l'inscription", true);
+  await t.close();
+}
+{
+  const t = await open({ mock: signedIn(), store: { "sona.token": "ancienne-session" }, music: { "POST /auth/link-legacy": { id: 1 } } });
+  await t.page.waitForSelector("#sb");
+  await wait(t.page, 800);
+  const sent = t.calls.filter((c) => c.path === "/auth/link-legacy").length;
+  ok("ancien compte : rattaché une fois connecté, puis oublié", sent === 1 && (await t.page.evaluate(() => localStorage.getItem("sona.token"))) === null, String(sent));
+  await t.close();
+}
+
 // Mobile : pas de menu latéral, barre du bas + « Plus ».
 {
   const t = await open({ mock: signedIn(), viewport: { width: 390, height: 844 } });

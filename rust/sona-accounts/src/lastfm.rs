@@ -104,6 +104,20 @@ fn client(s: &AppState) -> Result<Client<'_>> {
     }
 }
 
+/// Une clé de session reprise d'un ancien compte n'est valable que pour l'application qui l'a émise : elle est rangée
+/// avec cette marque, et signée avec les anciens identifiants.
+const LEGACY: &str = "legacy:";
+
+fn client_for<'a>(s: &'a AppState, stored: &str) -> Option<(Client<'a>, String)> {
+    match stored.strip_prefix(LEGACY) {
+        Some(session) => match (&s.cfg.lastfm_legacy_api_key, &s.cfg.lastfm_legacy_api_secret) {
+            (Some(key), Some(secret)) => Some((Client { http: &s.http, base: &s.lastfm_base, key, secret }, session.to_string())),
+            _ => None,
+        },
+        None => client(s).ok().map(|api| (api, stored.to_string())),
+    }
+}
+
 // ── Connexion ────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -174,6 +188,37 @@ pub async fn connect(State(s): State<AppState>, AuthUser(p): AuthUser, Json(body
     .execute(&s.pool)
     .await?;
     Ok(Json(json!({ "connected": true, "username": name })))
+}
+
+#[derive(Deserialize)]
+pub struct AdoptIn {
+    pub user_id: Uuid,
+    pub username: String,
+    pub session_key: String,
+}
+
+/// Reprend la liaison Last.fm d'un ancien compte Sona (appelé par le serveur musique, qui a vérifié que c'est la même
+/// personne). La clé est chiffrée comme les autres ; une liaison déjà faite par la personne n'est pas remplacée.
+pub async fn adopt(State(s): State<AppState>, _i: Internal, Json(b): Json<AdoptIn>) -> Result<Json<Value>> {
+    let plain = |t: &str, max: usize| !t.is_empty() && t.len() <= max && t.bytes().all(|c| c.is_ascii_graphic());
+    if !plain(&b.username, 64) || !plain(&b.session_key, 128) {
+        return Err(AppError::bad("liaison invalide"));
+    }
+    let vault = s.vault.as_ref().ok_or(AppError::NotConfigured("SECRETS_ENCRYPTION_KEY"))?;
+    // Deux applications Last.fm distinctes : la clé reprise reste attachée à l'ancienne.
+    let stored = if s.cfg.lastfm_legacy_api_key.is_some() { format!("{LEGACY}{}", b.session_key) } else { b.session_key.clone() };
+    let sealed = vault.seal(&stored, &b.user_id.to_string());
+    let done = sqlx::query(
+        "insert into public.connected_services (user_id, provider, external_username, secret_encrypted, connected_at, last_error)
+         values ($1, 'lastfm', $2, $3, now(), null)
+         on conflict (user_id, provider) do nothing",
+    )
+    .bind(b.user_id)
+    .bind(&b.username)
+    .bind(sealed)
+    .execute(&s.pool)
+    .await?;
+    Ok(Json(json!({ "adopted": done.rows_affected() == 1 })))
 }
 
 pub async fn status(State(s): State<AppState>, AuthUser(p): AuthUser) -> Result<Json<Value>> {
@@ -298,7 +343,9 @@ fn backoff_seconds(attempts: i32) -> i64 {
 /// ligne (`skip locked`) permettent plusieurs instances sans doublon.
 pub async fn tick(s: &AppState) -> Result<usize> {
     let Some(vault) = s.vault.as_ref() else { return Ok(0) };
-    let Ok(api) = client(s) else { return Ok(0) };
+    if client(s).is_err() {
+        return Ok(0);
+    }
     let mut tx = s.pool.begin().await?;
     let rows: Vec<QueueRow> = sqlx::query_as(
         "select id, user_id, kind, payload, attempts from private.scrobble_queue
@@ -319,7 +366,7 @@ pub async fn tick(s: &AppState) -> Result<usize> {
                 .bind(user)
                 .fetch_optional(&mut *tx)
                 .await?;
-        let Some(key) = secret.flatten().and_then(|sealed| vault.open(&sealed, &user.to_string()).ok()) else {
+        let Some((api, key)) = secret.flatten().and_then(|sealed| vault.open(&sealed, &user.to_string()).ok()).and_then(|stored| client_for(s, &stored)) else {
             // Plus connecté (ou clé illisible) : rien à envoyer.
             sqlx::query("delete from private.scrobble_queue where id = any($1)").bind(&ids).execute(&mut *tx).await?;
             continue;

@@ -17,6 +17,9 @@ pub struct Config {
     pub allowed_return_urls: Vec<String>,
     pub lastfm_api_key: Option<String>,
     pub lastfm_api_secret: Option<String>,
+    /// Ancienne application Last.fm : seules les liaisons reprises d'anciens comptes passent par elle.
+    pub lastfm_legacy_api_key: Option<String>,
+    pub lastfm_legacy_api_secret: Option<String>,
     /// 32 octets en base64 : chiffre les clés de session des services connectés.
     pub secrets_key: Option<String>,
     /// Secret partagé avec le serveur musique (en-tête `x-sona-internal`).
@@ -50,6 +53,8 @@ impl Config {
             allowed_return_urls: list("ALLOWED_RETURN_URLS"),
             lastfm_api_key: var("LASTFM_API_KEY"),
             lastfm_api_secret: var("LASTFM_API_SECRET"),
+            lastfm_legacy_api_key: var("LASTFM_LEGACY_API_KEY"),
+            lastfm_legacy_api_secret: var("LASTFM_LEGACY_API_SECRET"),
             secrets_key: var("SECRETS_ENCRYPTION_KEY"),
             internal_secret: var("INTERNAL_API_SECRET"),
             music_internal_url: var("MUSIC_INTERNAL_URL").map(|u| u.trim_end_matches('/').to_string()),
@@ -73,6 +78,8 @@ impl Config {
             allowed_return_urls: vec!["https://trysona.fr".into(), "http://localhost:8000".into(), "sona://auth/callback".into()],
             lastfm_api_key: Some("clefake".into()),
             lastfm_api_secret: Some("secretfake".into()),
+            lastfm_legacy_api_key: None,
+            lastfm_legacy_api_secret: None,
             secrets_key: Some("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=".into()),
             internal_secret: Some("internal-test-secret".into()),
             music_internal_url: None,

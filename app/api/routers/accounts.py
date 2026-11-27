@@ -6,7 +6,7 @@ import logging
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.auth import bearer_token, get_deps, identify, require_admin
 from app.api.state import ApiDeps
@@ -137,22 +137,33 @@ async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_
     return LoginOut(session_token=token, account=AccountOut.from_account(account))
 
 
+class LinkLegacyIn(BaseModel):
+    """La preuve que l'ancien compte est le sien : sa session encore gardée sur l'appareil, ou un jeton Last.fm."""
+
+    token: str | None = Field(None, max_length=256)
+    session_token: str | None = Field(None, max_length=256)
+
+
 @router.post("/auth/link-legacy", response_model=AccountOut)
-async def link_legacy(payload: LastfmLoginIn, deps: ApiDeps = Depends(identify)) -> AccountOut:
+async def link_legacy(payload: LinkLegacyIn, deps: ApiDeps = Depends(identify)) -> AccountOut:
     """Rattache un compte Sona d'avant (connexion Last.fm) au compte de la personne connectée, avec toutes ses données
-    (bibliothèque, playlists, historique). La preuve : autoriser Last.fm avec le pseudo de l'ancien compte. Un ancien
-    compte n'est rattaché qu'une fois, et seulement s'il était accepté."""
+    (bibliothèque, playlists, historique). La preuve : l'ancienne session de l'appareil, sinon autoriser Last.fm avec le
+    pseudo de l'ancien compte. Un ancien compte n'est rattaché qu'une fois, et seulement s'il était accepté. Sa liaison
+    Last.fm suit : la clé passe au service des comptes."""
     me = deps.account
     if me is None or not me.supabase_uid:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte Sona pour rattacher un ancien compte.")
-    if deps.lastfm_auth is None:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Connexion Last.fm non configurée sur le serveur.")
-    try:
-        session = await deps.lastfm_auth.get_session(payload.token)
-    except LastfmAuthError as exc:
-        # 400 et non 401 : le site se déconnecterait sur un 401. Le plus courant : Last.fm n'a pas encore été autorisé.
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Autorise d'abord Sona sur la page Last.fm, puis réessaie. ({exc})") from exc
-    legacy = await deps.repo.account_by_username(session.username)
+    if payload.session_token:
+        legacy = await deps.repo.account_for_session(payload.session_token)
+    else:
+        if deps.lastfm_auth is None:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Connexion Last.fm non configurée sur le serveur.")
+        try:
+            session = await deps.lastfm_auth.get_session(payload.token or "")
+        except LastfmAuthError as exc:
+            # 400 et non 401 : le site se déconnecterait sur un 401. Le plus courant : Last.fm n'a pas encore été autorisé.
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Autorise d'abord Sona sur la page Last.fm, puis réessaie. ({exc})") from exc
+        legacy = await deps.repo.account_by_username(session.username)
     if legacy is None or legacy.lastfm_username.startswith("sb:"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucun ancien compte Sona pour ce pseudo Last.fm.")
     if legacy.status != "approved":
@@ -165,6 +176,9 @@ async def link_legacy(payload: LastfmLoginIn, deps: ApiDeps = Depends(identify))
     await deps.repo.relink_uid(me.supabase_uid, legacy.id)
     # Les anciennes sessions Last.fm ne doivent plus ouvrir ce compte : il appartient maintenant à la personne.
     await deps.repo.delete_sessions_of(legacy.id)
+    # Au mieux : le compte est récupéré même si la liaison Last.fm doit être refaite à la main.
+    if legacy.lastfm_session_key and deps.accounts is not None:
+        await deps.accounts.adopt_lastfm(me.supabase_uid, legacy.lastfm_username, legacy.lastfm_session_key)
     return AccountOut.from_account(await deps.repo.account_for_uid(me.supabase_uid))
 
 

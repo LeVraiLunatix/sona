@@ -18,7 +18,8 @@ fn signature_ok(params: &std::collections::BTreeMap<String, String>) -> bool {
             p.insert(k.as_str(), v.clone());
         }
     }
-    sona_accounts::lastfm_sig::sign(&p, SECRET) == params.get("api_sig").cloned().unwrap_or_default()
+    let secret = if params.get("api_key").map(String::as_str) == Some("ancienne-app") { "ancien-secret" } else { SECRET };
+    sona_accounts::lastfm_sig::sign(&p, secret) == params.get("api_sig").cloned().unwrap_or_default()
 }
 
 fn params_of(s: &mock::Seen) -> std::collections::BTreeMap<String, String> {
@@ -98,6 +99,57 @@ async fn connect_exchanges_the_token_server_side_and_stores_an_encrypted_key() {
     let (st, _) = api.call("DELETE", "/lastfm", Some(&api.token(u)), None).await;
     assert_eq!(st, StatusCode::OK);
     assert_eq!(api.db.su_scalar("select count(*) from public.connected_services").await, "0");
+}
+
+#[tokio::test]
+async fn an_old_link_is_adopted_encrypted_and_never_replaces_a_new_one() {
+    let Some((api, _server)) = api_with(session_ok).await else { return };
+    let alice = api.db.named("alice").await;
+    let body = json!({ "user_id": alice, "username": "vieux_pseudo", "session_key": "ANCIENNE-CLE-456" });
+    // Sans le secret partagé : refusé.
+    assert_eq!(api.call("POST", "/internal/lastfm/adopt", None, Some(body.clone())).await.0, StatusCode::FORBIDDEN);
+    let internal = [("x-sona-internal", "internal-test-secret".to_string())];
+    let (st, got) = api.call_with("POST", "/internal/lastfm/adopt", &internal, Some(body.clone())).await;
+    assert_eq!((st, got["adopted"].as_bool()), (StatusCode::OK, Some(true)), "{got}");
+    let (_, status) = api.call("GET", "/lastfm/status", Some(&api.token(alice)), None).await;
+    assert_eq!((status["connected"].as_bool(), status["username"].as_str()), (Some(true), Some("vieux_pseudo")), "{status}");
+    // La personne relie un autre compte elle-même : la reprise suivante ne l'écrase pas.
+    connect(&api, alice).await;
+    let (_, again) = api.call_with("POST", "/internal/lastfm/adopt", &internal, Some(body)).await;
+    assert_eq!(again["adopted"].as_bool(), Some(false), "{again}");
+    let (_, status) = api.call("GET", "/lastfm/status", Some(&api.token(alice)), None).await;
+    assert_eq!(status["username"].as_str(), Some("lfm_alice"), "{status}");
+}
+
+#[tokio::test]
+async fn an_adopted_link_scrobbles_through_the_old_application() {
+    let server = mock::start(|s| {
+        if !signature_ok(&params_of(s)) {
+            return (403, json!({ "error": 13, "message": "Invalid method signature supplied" }).to_string());
+        }
+        (200, json!({ "scrobbles": { "@attr": { "accepted": 1 } } }).to_string())
+    })
+    .await;
+    let base = format!("{}/", server.url);
+    let Some(api) = Api::with(move |cfg, st| {
+        st.lastfm_base = Arc::new(base);
+        cfg.lastfm_legacy_api_key = Some("ancienne-app".into());
+        cfg.lastfm_legacy_api_secret = Some("ancien-secret".into());
+    })
+    .await
+    else {
+        return;
+    };
+    let alice = api.db.named("alice").await;
+    let internal = [("x-sona-internal", "internal-test-secret".to_string())];
+    let body = json!({ "user_id": alice, "username": "vieux_pseudo", "session_key": "ANCIENNE-CLE-456" });
+    assert_eq!(api.call_with("POST", "/internal/lastfm/adopt", &internal, Some(body)).await.0, StatusCode::OK);
+    api.internal("POST", "/internal/scrobble", Some(scrobble_in(alice, "scrobble", "Voyager", 60))).await;
+    assert_eq!(sona_accounts::lastfm::tick(&api.state).await.unwrap(), 1);
+    let sent = server.requests();
+    let params = params_of(sent.last().expect("rien envoyé"));
+    assert_eq!(params.get("api_key").map(String::as_str), Some("ancienne-app"));
+    assert_eq!(params.get("sk").map(String::as_str), Some("ANCIENNE-CLE-456"));
 }
 
 #[tokio::test]

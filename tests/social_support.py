@@ -78,6 +78,9 @@ class FakeAccounts:
     async def scrobble(self, uid, kind, artist, track, album, duration, timestamp):
         self.scrobbles.append((uid, kind, artist, track))
 
+    async def adopt_lastfm(self, uid, username, session_key):
+        return True
+
     async def aclose(self) -> None:
         pass
 
