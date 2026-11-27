@@ -96,6 +96,7 @@ await page.waitForTimeout(500);
 if (await page.$eval("#sb", (e) => e.dataset.open) !== "true") throw new Error("le menu s'est replié sous la souris");
 await page.mouse.move(900, 300, { steps: 5 });
 await page.waitForSelector('#sb[data-open="false"]');
+if (await page.$eval("#sb-bridge", (e) => getComputedStyle(e).visibility) !== "visible") throw new Error("le raccord ne revient pas dès le repli");
 await page.evaluate(() => { location.hash = "#/album/deezer/99"; });
 await page.waitForSelector("#sb a.active[data-nav='radios']", { timeout: 4000 });
 out("menu: reste ouvert au clic, rubrique gardée sur une fiche: true");
