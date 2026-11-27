@@ -1525,7 +1525,7 @@ async function drawDiscover(box, seq) {
     const artists = [...new Map(often.filter((t) => t.artist_source_id).map((t) => [t.artist_source_id, t])).values()].slice(0, 12);
     fill("sx-artists", shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist.split(",")[0], round: true })), { kind: "round" }));
   });
-  api("/mixes").catch(() => []).then((mixes) => {
+  api("/home/mixes").catch(() => []).then((mixes) => {
     const mix = ["discoveries", "daily"].map((id) => mixes.find((m) => m.id === id)).find((m) => m?.tracks.length);
     if (mix) fill("sx-for-you", section("D'après tes écoutes", esc(mix.subtitle || ""), trackGrid(mix.tracks.slice(0, 8), mix.title, { solo: true })));
   });
