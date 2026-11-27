@@ -68,10 +68,24 @@ final class SupabaseAuth {
 
     // MARK: - Connexions
 
-    func signIn(email: String, password: String) async throws {
-        let body = ["email": email.trimmingCharacters(in: .whitespacesAndNewlines), "password": password]
+    /// `captcha` : jeton Turnstile, à usage unique (voir `Turnstile`).
+    func signIn(email: String, password: String, captcha: String) async throws {
+        let body: [String: Any] = ["email": Self.clean(email), "password": password, "gotrue_meta_security": ["captcha_token": captcha]]
         apply(try await token(grant: "password", body: body))
     }
+
+    /// Code par e-mail : il connecte le compte, ou le crée s'il n'existe pas.
+    func sendCode(email: String, captcha: String) async throws {
+        let body: [String: Any] = ["email": Self.clean(email), "create_user": true, "gotrue_meta_security": ["captcha_token": captcha]]
+        _ = try await post("auth/v1/otp", body: body)
+    }
+
+    func verifyCode(email: String, code: String) async throws {
+        let body = ["type": "email", "email": Self.clean(email), "token": code.filter { !$0.isWhitespace }]
+        apply(try Self.session(from: try await post("auth/v1/verify", body: body)))
+    }
+
+    private static func clean(_ email: String) -> String { email.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// OAuth avec PKCE : le « verifier » ne quitte jamais l'appareil ; seul son empreinte part avec la demande.
     func signIn(provider: String, using web: WebAuthenticationSession) async throws {
@@ -157,10 +171,14 @@ final class SupabaseAuth {
         }
     }
 
-    private func token(grant: String, body: [String: String]) async throws -> Session {
+    private func token(grant: String, body: [String: Any]) async throws -> Session {
+        try Self.session(from: try await post("auth/v1/token", query: [URLQueryItem(name: "grant_type", value: grant)], body: body))
+    }
+
+    private func post(_ path: String, query: [URLQueryItem] = [], body: [String: Any]) async throws -> Data {
         guard let config else { throw AuthError.notConfigured }
-        var components = URLComponents(url: config.url.appendingPathComponent("auth/v1/token"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "grant_type", value: grant)]
+        var components = URLComponents(url: config.url.appendingPathComponent(path), resolvingAgainstBaseURL: false)
+        if !query.isEmpty { components?.queryItems = query }
         guard let url = components?.url else { throw AuthError.notConfigured }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -170,6 +188,10 @@ final class SupabaseAuth {
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw AuthError.server("Réponse invalide.") }
         guard (200..<300).contains(http.statusCode) else { throw AuthError.server(Self.message(from: data, status: http.statusCode)) }
+        return data
+    }
+
+    private static func session(from data: Data) throws -> Session {
         let parsed = try JSONDecoder().decode(TokenResponse.self, from: data)
         let expires = parsed.expiresAt ?? (Date().timeIntervalSince1970 + (parsed.expiresIn ?? 3600))
         return Session(accessToken: parsed.accessToken, refreshToken: parsed.refreshToken, expiresAt: expires)
@@ -181,6 +203,8 @@ final class SupabaseAuth {
         switch raw.lowercased() {
         case let m where m.contains("invalid login credentials"): return "E-mail ou mot de passe incorrect."
         case let m where m.contains("email not confirmed"): return "Confirme d'abord ton adresse e-mail (lien reçu par courriel)."
+        case let m where m.contains("captcha"): return "La vérification anti-robot a échoué : réessaie."
+        case let m where m.contains("token has expired or is invalid"): return "Code faux ou expiré."
         case let m where m.contains("rate limit") || status == 429: return "Trop de tentatives. Réessaie dans quelques minutes."
         default: return raw.isEmpty ? "Connexion refusée (\(status))." : raw
         }
