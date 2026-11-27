@@ -174,6 +174,8 @@
   .sb-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
 }
 
+@keyframes sb-back { from { opacity: 0; } }
+
 /* ── Pastille « liquide » ─────────────────────────────────────────────────
    La page active est une pastille claire dans le menu. En face, la BORDURE DE L'ÉCRAN D'ÉCOUTE (la page) s'agrandit à
    la même hauteur : son trait s'épaissit en une lentille claire qui s'effile en haut et en bas, et une lueur l'entoure,
@@ -194,7 +196,7 @@
   .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 24px;
     left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px calc(var(--sb-gap) * -3 - 24px));
     transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open)); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  html[data-menu="ouvert"] .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open)); transition-delay: 0ms, 0ms, 0ms, 0ms; }
   .sb-bridge svg { position: absolute; left: -44px; top: 0; height: 100%; overflow: visible; }
   .sb-bridge svg path { fill: var(--accent); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 45%, transparent)); }
   /* voile le long de la bordure : plus vif à la hauteur de la pastille, éteint à ~130 px */
@@ -207,7 +209,10 @@
     left: calc(var(--sb-gap) * 2 + var(--sb-rail) - 120px);
     background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 30%, transparent) 0%, color-mix(in srgb, var(--accent) 13%, transparent) 42%, transparent 100%);
     transition: top 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
-  /* Menu survolé : il recouvre la bordure, le raccord est caché ; au repli il revient aussitôt, en glissant avec lui. */
+  /* Menu survolé : il recouvre la bordure, le raccord est caché. Au repli, il reste en place et apparaît en fondu au
+     moment où le bord du menu le rejoint (70 ms de départ, puis l'essentiel du trajet fait au tiers de la durée). */
+  html:not([data-menu="ouvert"]) .sb[data-open="false"] ~ :is(.sb-bridge, .sb-glow) {
+    animation: sb-back calc(var(--sb-dur) * .5) ease-out calc(70ms + var(--sb-dur) * .35) backwards; }
   html:not([data-menu="ouvert"]) .sb[data-open="true"] ~ :is(.sb-bridge, .sb-glow) { visibility: hidden; }
-  .sb[data-open="true"] ~ .sb-glow { left: calc(var(--sb-gap) * 2 + var(--sb-open) - 120px); transition-delay: 0ms, 0ms, 0ms; }
+  html[data-menu="ouvert"] .sb[data-open="true"] ~ .sb-glow { left: calc(var(--sb-gap) * 2 + var(--sb-open) - 120px); transition-delay: 0ms, 0ms, 0ms; }
 }
