@@ -6687,7 +6687,7 @@ async function viewStats() {
     ${challenges ? `<section class="section"><div class="section-head"><h2>Défis de la semaine</h2><span class="muted">${challenges.ends_in_days ? `encore ${plural(challenges.ends_in_days, "jour")}` : "dernier jour"}</span></div>
       <div class="challenges">${challenges.challenges.map((c) => `<div class="challenge ${c.done ? "done" : ""}"><div class="ct">${esc(c.title)}${c.done ? ` ${icons.check}` : ""}</div>
         <div class="meter"><i style="width:${Math.round((c.value / c.goal) * 100)}%"></i></div><div class="cv">${c.value}/${c.goal} ${esc(c.unit)}</div></div>`).join("")}</div>
-      <div class="badges">${challenges.badges.map((b) => `<div class="badge ${b.earned ? "earned" : ""}" title="${esc(b.description)}"><span>${b.earned ? icons.medal : icons.lock}</span><b>${esc(b.title)}</b><small>${esc(b.description)}</small></div>`).join("")}</div></section>` : ""}
+      <div class="badges">${challenges.badges.map((b) => `<div class="achv ${b.earned ? "earned" : ""}" title="${esc(b.description)}"><span>${b.earned ? icons.medal : icons.lock}</span><b>${esc(b.title)}</b><small>${esc(b.description)}</small></div>`).join("")}</div></section>` : ""}
     ${live ? `<section class="section"><div class="section-head"><h2>En direct</h2><a class="more" href="#/recent">Écoutes récentes</a></div>
       <div class="live-card">
         ${nowPlaying ? `<div class="lc-now"><img src="${esc(big(nowPlaying.cover_url, 120))}" alt=""><span><span class="eyebrow">${bars()} En cours</span><b>${esc(nowPlaying.title)}</b> · ${esc(nowPlaying.artist)}</span></div>` : ""}

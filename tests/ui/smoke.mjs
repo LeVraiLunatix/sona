@@ -85,6 +85,20 @@ const typed = await page.inputValue("#q");
 if (typed !== "titre") throw new Error(`la proposition a modifié la saisie : ${typed}`);
 out("proposition lancée, saisie intacte: true");
 await page.evaluate(() => audio.pause());
+// 1 ter. menu : reste ouvert après un clic tant que la souris est dessus ; une fiche garde sa rubrique allumée
+if (await page.$eval("#sb", (e) => e.dataset.pinned) === "open") await page.click("#sb-toggle");
+await page.mouse.move(900, 300, { steps: 5 });
+await page.waitForSelector('#sb[data-open="false"]');
+await page.mouse.move(40, 300, { steps: 5 });
+await page.waitForSelector('#sb[data-open="true"]');
+await page.click("#sb a[data-nav='radios']");
+await page.waitForTimeout(500);
+if (await page.$eval("#sb", (e) => e.dataset.open) !== "true") throw new Error("le menu s'est replié sous la souris");
+await page.mouse.move(900, 300, { steps: 5 });
+await page.waitForSelector('#sb[data-open="false"]');
+await page.evaluate(() => { location.hash = "#/album/deezer/99"; });
+await page.waitForSelector("#sb a.active[data-nav='radios']", { timeout: 4000 });
+out("menu: reste ouvert au clic, rubrique gardée sur une fiche: true");
 // 2. album avec disques
 await page.goto(`http://localhost:${port}/web/#/album/deezer/99`);
 await page.waitForSelector(".tracks .tr");

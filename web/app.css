@@ -63,9 +63,9 @@ img { display: block; }
 .icon { width: 1em; height: 1em; fill: currentColor; flex: none; }
 .icon.line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .eyebrow .icon, .muted .icon, .champion .icon, .member .icon, .link .icon, .brow .icon, p.none .icon { vertical-align: -.15em; }
-.empty .big, .huge, .mood-emoji, .float-reaction .e, .emoji-row button, .badge span, .moment { line-height: 1; }
+.empty .big, .huge, .mood-emoji, .float-reaction .e, .emoji-row button, .achv span, .moment { line-height: 1; }
 .empty .big .icon { color: var(--text-3); }
-.mood-emoji .icon, .huge .icon, .badge span .icon { margin-inline: auto; display: block; }
+.mood-emoji .icon, .huge .icon, .achv span .icon { margin-inline: auto; display: block; }
 .emoji-row button { display: grid; place-items: center; }
 .medal { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 800; color: #1c1c1e; background: #ffd60a; }
 .medal.m2 { background: #d1d1d6; }
@@ -1038,11 +1038,11 @@ span.chip { cursor: default; }
 .challenge.done .meter i { background: #30d158; }
 .meter.big { height: 8px; margin: 10px 0 18px; }
 .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
-.badge { padding: 12px; border-radius: 16px; background: var(--fill); display: flex; flex-direction: column; gap: 2px; opacity: .55; }
-.badge.earned { opacity: 1; background: linear-gradient(135deg, rgba(255, 214, 10, .2), rgba(255, 159, 10, .08)); }
-.badge span { font-size: 26px; }
-.badge b { font-size: 14px; }
-.badge small { font-size: 12px; color: var(--text-2); }
+.achv { padding: 12px; border-radius: 16px; background: var(--fill); display: flex; flex-direction: column; gap: 2px; opacity: .55; }
+.achv.earned { opacity: 1; background: linear-gradient(135deg, rgba(255, 214, 10, .2), rgba(255, 159, 10, .08)); }
+.achv span { font-size: 26px; }
+.achv b { font-size: 14px; }
+.achv small { font-size: 12px; color: var(--text-2); }
 .live-card { padding: 16px; border-radius: 18px; background: var(--fill); max-width: 720px; display: flex; flex-direction: column; gap: 10px; }
 .lc-now { display: flex; gap: 12px; align-items: center; }
 .lc-now img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
@@ -1709,7 +1709,7 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
 .tile:hover, .tile.blue:hover { background: var(--fill-strong); }
 .tile-icon { background: var(--accent-soft); color: var(--accent); border-radius: 14px; width: 48px; height: 48px; }
 .tiles { gap: var(--s-5); }
-.live-pill.violet, .badge.earned, .stat-hero, .resume, .dev-remote { background: var(--fill); border: 0; border-radius: var(--r-card); }
+.live-pill.violet, .achv.earned, .stat-hero, .resume, .dev-remote { background: var(--fill); border: 0; border-radius: var(--r-card); }
 
 /* Réglages */
 .set-head { margin: 28px 0 10px 18px; letter-spacing: 0.08em; color: var(--text-3); }
