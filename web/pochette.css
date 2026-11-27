@@ -57,19 +57,51 @@
 .menu-item .mi-sub { font-weight: 500; font-size: 13px; color: var(--text-3); }
 .menu-item.danger, .menu-item.danger .mi-icon { color: #ff7b7b; }
 
-/* Menu d'un titre : teinté par la pochette (--tint = couleur dominante, calculée par app.js). */
-.sheet-wrap.tinted { --tint: 120, 32, 40; }
-.sheet-wrap.tinted .sheet {
-  background: linear-gradient(180deg, rgba(var(--tint), .8), rgba(10, 7, 9, .97) 64%), var(--bg-elevated);
-  -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); border-color: rgba(var(--tint), .35);
-}
-.sheet-wrap.tinted .menu-head { grid-template-columns: 1fr; gap: 0; padding: 10px 2px 14px; border-bottom: 0; }
-.sheet-wrap.tinted .menu-head img { width: 118px; height: 118px; border-radius: 18px; box-shadow: 0 24px 50px rgba(0, 0, 0, .5); margin-bottom: 14px; }
-.sheet-wrap.tinted .menu-head .t { font-size: 24px; letter-spacing: -.03em; line-height: 1.1; }
-.sheet-wrap.tinted .menu-head .s { font-size: 15px; color: rgba(255, 255, 255, .62); margin-top: 2px; white-space: normal; }
-.sheet-wrap.tinted .menu-item { border-bottom: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
-.sheet-wrap.tinted .menu-item .mi-icon { color: rgba(255, 255, 255, .55); }
-.sheet-wrap.tinted .menu .menu-item:first-child { color: color-mix(in srgb, rgb(var(--tint)) 40%, #fff); }
-.sheet-wrap.tinted .menu .menu-item:first-child .mi-icon { color: inherit; }
-.sheet-wrap.tinted .menu-item.danger, .sheet-wrap.tinted .menu-item.danger .mi-icon { color: #ff8a8a; }
-@media (min-width: 761px) { .sheet-wrap.tinted .sheet { width: min(420px, 92vw); } }
+/* ═══ Masonry (direction retenue) ═══ */
+
+/* Pages de réglages : les sections deviennent des tuiles qui s'emboîtent en colonnes. */
+.mas { columns: 2; column-gap: 10px; margin-top: 8px; max-width: 1100px; }
+@media (min-width: 761px) { .mas { columns: 3 300px; column-gap: 12px; } }
+.mas .tile { break-inside: avoid; margin: 0 0 10px; border-radius: 22px; background: var(--fill); padding: 14px 16px; display: block; }
+@media (min-width: 761px) { .mas .tile { margin-bottom: 12px; padding: 18px 20px; } }
+@media (max-width: 760px) { .mas .tile.wide { column-span: all; } }
+.mas .tile .set-head { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -.015em; color: var(--text); text-transform: none; }
+.mas .tile .set-group { max-width: none; }
+.mas .tile .set-group > :first-child { border-top: 0; }
+.mas .tile .set-row { padding: 11px 0; }
+.mas .tile .set-text b { font-size: 15px; }
+.mas .tile .set-text small { font-size: 12.5px; }
+.mas .tile .switch-row { padding: 11px 0; gap: 12px; }
+.mas .tile .switch-row > span b { font-size: 15px; }
+.mas .tile .switch-row small { font-size: 12.5px; color: var(--text-3); }
+.mas .tile.hero { background: var(--accent); color: var(--on-accent, #0a0a0b); }
+.mas .tile.hero .set-account { color: inherit; flex-direction: row; align-items: center; gap: 14px; padding: 0; }
+.mas .tile.hero .set-account b { color: inherit; font-size: 18px; }
+.mas .tile.hero .set-account small { color: rgba(10, 10, 11, .6); }
+.mas .tile.hero .profile-avatar { width: 56px; height: 56px; background: rgba(10, 10, 11, .12); color: var(--on-accent, #0a0a0b); }
+@media (max-width: 760px) { .mas .tile.hero { column-span: all; } }
+/* Réglages à choix (Formes, Menu…) : le texte au-dessus, les boutons dessous, au lieu d'écraser le texte. */
+.mas .tile .look-seg { flex-wrap: wrap; }
+.mas .tile .look-seg .set-text { flex: 1 1 100%; }
+.mas .tile .look-seg .chips { margin-top: 2px; }
+.page:has(.mas)::before { display: none; }
+
+/* Menu d'actions d'un titre : tuiles de hauteurs différentes en deux colonnes. */
+.sheet-wrap.mas-menu .menu { display: block; columns: 2; column-gap: 8px; }
+.sheet-wrap.mas-menu .menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 0; width: 100%; break-inside: avoid; margin: 0 0 8px; padding: 14px; text-align: left; position: relative;
+  background: var(--fill-strong); border: 0; border-radius: 20px; font-size: 15.5px; font-weight: 650; }
+.sheet-wrap.mas-menu .menu-item:hover { background: rgba(255, 255, 255, .13); }
+.sheet-wrap.mas-menu .menu-item .mi-icon { order: 0; width: 34px; height: 34px; border-radius: 11px; background: var(--fill-strong); color: var(--text); font-size: 18px; margin-bottom: 10px; }
+.sheet-wrap.mas-menu .menu-item .mi-text { order: 1; min-width: 0; max-width: 100%; }
+.sheet-wrap.mas-menu .menu-item .mi-label { white-space: normal; }
+.sheet-wrap.mas-menu .menu-item .mi-sub { white-space: normal; font-weight: 500; font-size: 12.5px; margin-top: 2px; }
+.sheet-wrap.mas-menu .menu-item .mi-check { position: absolute; right: 12px; top: 12px; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child { background: var(--accent); color: var(--on-accent, #0a0a0b); padding-bottom: 22px; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child .mi-icon { background: rgba(10, 10, 11, .1); color: inherit; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child .mi-sub { color: rgba(10, 10, 11, .6); }
+.sheet-wrap.mas-menu .menu-item.danger { background: rgba(255, 107, 107, .12); color: #ff7b7b; }
+.sheet-wrap.mas-menu .menu-item.danger .mi-icon { background: rgba(255, 107, 107, .16); color: #ff7b7b; }
+.sheet-wrap.mas-menu .menu-head { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; padding: 4px 4px 14px; border-bottom: 0; }
+.sheet-wrap.mas-menu .menu-head img { width: 52px; height: 52px; border-radius: 12px; }
+.sheet-wrap.mas-menu .menu-head .t { font-size: 17px; letter-spacing: -.015em; }
+@media (min-width: 761px) { .sheet-wrap.mas-menu .sheet { width: min(480px, 92vw); } }

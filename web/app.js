@@ -41,7 +41,8 @@ const currentTrackNow = () => { const r = remoteDevice(); return r ? deviceNow(r
 /** Allume ou éteint le thème selon la page affichée et le titre en cours. */
 function syncGta(track) {
   const t = track !== undefined ? track : currentTrackNow();
-  const want = look.gtavi !== false && (gta.route || isGtaTrack(t));
+  // Automatique : le thème se met tout seul (page du jeu, ou titre de l'album en lecture), il ne se choisit pas.
+  const want = gta.route || isGtaTrack(t);
   if (want === gta.on) return;
   gta.on = want;
   document.documentElement.classList.toggle("gtavi", want);
@@ -50,7 +51,7 @@ function syncGta(track) {
   if (want) toast("Bienvenue à Leonida 🌴");
 }
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
-const LOOK_DEFAULT = { accent: "neutre", tint: true, gtavi: true, shape: "arrondi", menu: null, hover: true, lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
+const LOOK_DEFAULT = { accent: "neutre", tint: true, shape: "arrondi", menu: null, hover: true, lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
 let look = (() => { try { return { ...LOOK_DEFAULT, ...JSON.parse(store.get("sona.look") || "{}") }; } catch { return { ...LOOK_DEFAULT }; } })();
 function applyLook() {
   const root = document.documentElement;
@@ -6098,7 +6099,7 @@ function trackMenu(t, ctx = null, index = -1) {
   const playing = sameTrack(t, state.queue[state.index]);
   const entry = ctx?.entries?.[index];
   const header = `<div class="menu-head"><img src="${esc(big(t.cover_url, 200))}" alt=""><div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="s">${esc([t.artist, t.album].filter(Boolean).join(" · "))}</div></div></div>`;
-  const sheet = actionSheet("", [
+  actionSheet("", [
     !playing && { icon: icons.nextUp, label: "Lire ensuite", run: () => playNext(t) },
     !playing && { icon: icons.queue, label: "Ajouter à la file d'attente", run: () => addToQueue(t) },
     { icon: icons.plus, label: "Ajouter à une playlist…", run: () => addToPlaylistSheet([t]) },
@@ -6131,60 +6132,7 @@ function trackMenu(t, ctx = null, index = -1) {
     { icon: icons.quote, label: "Crédits du titre", sub: "Artistes, compositeurs, producteurs, label…", run: () => creditsSheet(t) },
     { icon: icons.share, label: "Partager un lien Sona…", sub: "Page publique : pochette et extraits de 30 s", run: () => sonaShareSheet({ kind: "track", source: t.source, id: t.source_id, title: t.title, subtitle: t.artist, cover_url: t.cover_url }) },
     { icon: icons.globe, label: "Copier le lien de la plateforme", run: () => shareTrack(t) },
-  ], { header, cls: "tinted" });
-  tintSheet(sheet, t);
-}
-
-// Menu teinté par la pochette : couleur dominante lue dans l'image quand le serveur d'images l'autorise (canvas),
-// sinon une teinte stable tirée du titre (jamais un gris neutre, jamais une erreur).
-const tintCache = new Map();
-
-function hslToRgb(h, s, l) {
-  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
-  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
-}
-
-function seedTint(seed) {
-  let h = 0;
-  for (const c of String(seed || "sona")) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return hslToRgb(h, 0.55, 0.3);
-}
-
-function coverTint(t) {
-  const key = t.cover_url || `${t.title}|${t.artist}`;
-  if (tintCache.has(key)) return Promise.resolve(tintCache.get(key));
-  const done = (rgb) => { tintCache.set(key, rgb); return rgb; };
-  if (!t.cover_url) return Promise.resolve(done(seedTint(key)));
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      try {
-        const c = document.createElement("canvas");
-        c.width = c.height = 24;
-        const g = c.getContext("2d", { willReadFrequently: true });
-        g.drawImage(img, 0, 0, 24, 24);
-        const px = g.getImageData(0, 0, 24, 24).data;
-        let r = 0, gr = 0, b = 0, w = 0;
-        for (let i = 0; i < px.length; i += 4) {
-          const mx = Math.max(px[i], px[i + 1], px[i + 2]), mn = Math.min(px[i], px[i + 1], px[i + 2]);
-          const weight = 0.15 + (mx - mn) / 255; // les couleurs vives pèsent plus que les gris
-          r += px[i] * weight; gr += px[i + 1] * weight; b += px[i + 2] * weight; w += weight;
-        }
-        const k = 0.8; // un peu assombri : le menu doit rester posé
-        resolve(done([Math.round((r / w) * k), Math.round((gr / w) * k), Math.round((b / w) * k)]));
-      } catch { resolve(done(seedTint(key))); }
-    };
-    img.onerror = () => resolve(done(seedTint(key)));
-    img.src = big(t.cover_url, 60);
-  });
-}
-
-function tintSheet(wrap, t) {
-  const apply = (rgb) => wrap.style.setProperty("--tint", rgb.join(", "));
-  apply(seedTint(t.cover_url || `${t.title}|${t.artist}`)); // tout de suite, puis la vraie couleur quand elle est lue
-  coverTint(t).then(apply);
+  ], { header, cls: "mas-menu" });
 }
 
 /** Lance des titres sur un autre appareil (Relais) et le pilote. */
@@ -7440,7 +7388,6 @@ function viewAppearance() {
     <p class="page-sub">Choisis la couleur et les formes de Sona. Les changements sont immédiats et restent sur cet appareil.</p>
     <h3 class="set-head">Couleur</h3><div class="look-accents">${accents}</div>
     <h3 class="set-head">Interface</h3><div class="set-group">
-      <label class="switch-row"><span><b>Thème GTA VI</b><small>Sur la page de Grand Theft Auto VI, et quand un titre de l'album joue, Sona devient Vice City.</small></span><input type="checkbox" data-look-gtavi ${look.gtavi !== false ? "checked" : ""}><i></i></label>
       <label class="switch-row"><span><b>Teinte de la pochette</b><small>Les pages d'album, de playlist et d'artiste prennent la couleur de leur pochette.</small></span><input type="checkbox" data-look-tint ${look.tint ? "checked" : ""}><i></i></label>
       <div class="set-row look-seg"><span class="set-text"><b>Formes</b><small>Les coins des cartes, des panneaux et des boutons.</small></span><span class="chips">${chip("shape", "arrondi", "Arrondies", look.shape === "arrondi")}${chip("shape", "net", "Nettes", look.shape === "net")}</span></div>
       <div class="set-row look-seg"><span class="set-text"><b>Menu</b><small>Rail d'icônes ou panneau ouvert, retenu sur cet appareil (Ctrl/⌘ + B). Auto : ouvert sur grand écran.</small></span><span class="chips">${chip("menu", "auto", "Auto", !look.menu)}${chip("menu", "rail", "Rail", look.menu === "rail")}${chip("menu", "ouvert", "Ouvert", look.menu === "ouvert")}</span></div>
@@ -7466,8 +7413,6 @@ function bindAppearance() {
     if (hov) hov.checked = look.hover !== false;
     const tint = $("[data-look-tint]", root);
     if (tint) tint.checked = look.tint;
-    const gtaBox = $("[data-look-gtavi]", root);
-    if (gtaBox) gtaBox.checked = look.gtavi !== false;
     const auto = $("[data-look-lyrauto]", root), blur = $("[data-look-lyrblur]", root), glob = $("#lyr-global", root);
     if (auto) auto.checked = look.lyrAuto;
     if (blur) blur.checked = look.lyrBlur;
@@ -7487,7 +7432,6 @@ function bindAppearance() {
   });
   $("[data-look-tint]", root)?.addEventListener("change", (e) => setLook({ tint: e.target.checked }));
   $("[data-look-hover]", root)?.addEventListener("change", (e) => setLook({ hover: e.target.checked }));
-  $("[data-look-gtavi]", root)?.addEventListener("change", (e) => { setLook({ gtavi: e.target.checked }); syncGta(); });
   $("[data-look-lyrauto]", root)?.addEventListener("change", (e) => setLook({ lyrAuto: e.target.checked }));
   $("[data-look-lyrblur]", root)?.addEventListener("change", (e) => setLook({ lyrBlur: e.target.checked }));
   // Décalage global des paroles : 0,05 s par appui, borné à ±1,5 s.

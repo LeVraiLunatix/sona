@@ -496,6 +496,11 @@ const staffProfile = (role) => ({ id: "m1", username: role, role, status: "activ
   ok("pochette : interrupteur actif blanc (plus de vert)", st.on && st.on !== "rgb(48, 209, 88)" && /^rgb\((24[0-9]|25[0-5]), (24[0-9]|25[0-5]), (24[0-9]|25[0-5])\)$/.test(st.on), JSON.stringify(st));
   ok("pochette : grand titre et « S » en filigrane discret", st.title >= 34 && st.wm !== "none" && Number(st.wmOpacity) <= 0.08, JSON.stringify(st));
   ok("pochette : rien ne déborde à droite sur téléphone", st.overflow <= 0, JSON.stringify(st));
+  const ms = await t.page.evaluate(() => {
+    const tiles = [...document.querySelectorAll(".page .mas > .tile")];
+    return { n: tiles.length, cols: getComputedStyle(document.querySelector(".page .mas")).columnCount, hero: !!document.querySelector(".mas .tile.hero"), inTile: !!document.querySelector(".mas .tile .set-head + .set-group, .mas .tile .set-head + *"), head: !document.querySelector(".page > .set-head") };
+  });
+  ok("masonry : sections de réglages en tuiles, deux colonnes sur téléphone", ms.n >= 3 && ms.cols === "2" && ms.head && ms.inTile, JSON.stringify(ms));
   await t.page.evaluate(() => { confirmSheet("Supprimer ton compte ?", "Supprimer"); });
   await t.page.waitForSelector(".confirm-sheet .sheet");
   const cf = await t.page.evaluate(() => {
@@ -508,14 +513,17 @@ const staffProfile = (role) => ({ id: "m1", username: role, role, status: "activ
   await t.page.keyboard.press("Escape");
   await t.page.waitForTimeout(400);
   await t.page.evaluate(() => trackMenu({ title: "Grabba", artist: "Ziak", album: "Roche", cover_url: null, source: "deezer", source_id: "1" }));
-  await t.page.waitForSelector(".sheet-wrap.tinted .menu-item");
+  await t.page.waitForSelector(".sheet-wrap.mas-menu .menu-item");
   const mn = await t.page.evaluate(() => {
-    const w = document.querySelector(".sheet-wrap.tinted");
-    const it = w.querySelector(".menu-item");
-    const icon = it.querySelector(".mi-icon").getBoundingClientRect(), label = it.querySelector(".mi-label").getBoundingClientRect();
-    return { tint: w.style.getPropertyValue("--tint"), iconRight: icon.left > label.left, head: !!w.querySelector(".menu-head img") };
+    const w = document.querySelector(".sheet-wrap.mas-menu");
+    const items = [...w.querySelectorAll(".menu-item")].map((x) => x.getBoundingClientRect());
+    const left = Math.min(...items.map((r) => r.left));
+    const cols = new Set(items.map((r) => Math.round(r.left))).size;
+    const heights = new Set(items.map((r) => Math.round(r.height))).size;
+    const first = getComputedStyle(w.querySelector(".menu-item")).backgroundColor;
+    return { cols, heights, first, fullWidth: items.every((r) => r.width > 120), left };
   });
-  ok("pochette : menu d'un titre teinté (couleur de pochette), icône à droite, pochette en tête", /^\d+, \d+, \d+$/.test(mn.tint) && mn.iconRight && mn.head, JSON.stringify(mn));
+  ok("masonry : menu d'un titre en deux colonnes de tuiles de hauteurs différentes, première tuile blanche", mn.cols === 2 && mn.heights >= 3 && mn.fullWidth && /^rgb\((24[0-9]|25[0-5]), /.test(mn.first), JSON.stringify(mn));
   await t.close();
 }
 

@@ -265,7 +265,7 @@ def create_app() -> FastAPI:
                  "sw.js": ("sw.js", "application/javascript"),
                  "manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
     # Comptes (Supabase) : scripts et styles de l'interface.
-    for script in ("accounts.js", "accounts-ui.js", "accounts-settings.js", "accounts-social.js", "accounts-admin.js", "accounts-party.js", "sidebar.js"):
+    for script in ("accounts.js", "accounts-ui.js", "accounts-settings.js", "accounts-social.js", "accounts-admin.js", "accounts-party.js", "sidebar.js", "masonry.js"):
         web_files[script] = (script, "application/javascript")
     web_files["accounts.css"] = ("accounts.css", "text/css")
     web_files["sidebar.css"] = ("sidebar.css", "text/css")
