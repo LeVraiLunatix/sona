@@ -2252,7 +2252,7 @@ async function viewMix(id) {
     + trackTable(mix.tracks, mix.title));
 }
 
-const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", "Albums"], ["artists", "Artistes"], ["files", "Mes fichiers"], ["downloads", "Téléchargés"]];
+const LIB_KINDS = [["playlists", "Playlists", "list"], ["tracks", "Titres", "note"], ["albums", "Albums", "disc"], ["artists", "Artistes", "mic"], ["files", "Mes fichiers", "share"], ["downloads", "Téléchargés", "download"]];
 
 /** « Mes fichiers » : ses propres audios, vérifiés par le serveur, écoutables par soi seul. */
 async function myFiles() {
@@ -2306,7 +2306,7 @@ async function deleteUpload(t) {
 
 async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
-  const seg = `<div class="segmented">${LIB_KINDS.map(([k, label]) => `<a href="#/library/${k}" class="${k === kind ? "on" : ""}">${label}</a>`).join("")}</div>`;
+  const seg = `<nav class="segmented lib-tabs" aria-label="Bibliothèque">${LIB_KINDS.map(([k, label, icon]) => `<a href="#/library/${k}" ${k === kind ? 'class="on" aria-current="page"' : ""}>${icons[icon]}${label}</a>`).join("")}</nav>`;
   $("#content").innerHTML = page(`<h1 class="page-title">Bibliothèque</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   let body = "";
   if (kind === "playlists") {

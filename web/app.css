@@ -846,6 +846,12 @@ html[data-lyrblur="off"] .lyrics p, html[data-lyrblur="off"] .lyrics p.near { fi
 .segmented > .on { background: var(--fill-strong); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .segmented.small { margin: 0 0 10px; }
 .segmented.small > * { font-size: 12.5px; padding: 6px; }
+/* Bibliothèque : une pastille par rubrique, à sa largeur ; défile au doigt si la place manque. */
+.segmented.lib-tabs { gap: 8px; padding: 2px 0; background: none; max-width: none; overflow-x: auto; scrollbar-width: none; }
+.segmented.lib-tabs > * { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 999px; background: var(--fill); }
+.segmented.lib-tabs > *:hover { background: var(--fill-strong); color: var(--text); }
+.segmented.lib-tabs > .on { background: var(--text); color: var(--bg); box-shadow: none; }
+.segmented.lib-tabs .icon { width: 15px; height: 15px; }
 
 /* Tuiles colorées (Jouer, Récaps, Blind test) */
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
