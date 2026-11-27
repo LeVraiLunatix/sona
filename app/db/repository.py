@@ -752,10 +752,50 @@ class Repository:
             await self._db.conn.execute("DELETE FROM app_sessions WHERE account_id=?", (row["account_id"],))
         await self._db.conn.commit()
 
+    # -- Fichiers envoyés (« Mes fichiers ») -----------------------------
+
+    async def upload_usage(self, user_id: int) -> tuple[int, int]:
+        cursor = await self._db.conn.execute("SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS s FROM uploads WHERE user_id=?", (user_id,))
+        row = await cursor.fetchone()
+        return row["n"], row["s"]
+
+    async def upload_add(self, row: dict, max_files: int, max_bytes: int) -> bool:
+        """Enregistre le fichier si la place le permet (vérification et écriture en une instruction)."""
+        cursor = await self._db.conn.execute(
+            """INSERT INTO uploads (id, user_id, title, artist, album, duration_seconds, mime, size, path, created_at)
+               SELECT :id, :user_id, :title, :artist, :album, :duration_seconds, :mime, :size, :path, :created_at
+               WHERE (SELECT COUNT(*) FROM uploads WHERE user_id=:user_id) < :max_files
+                 AND (SELECT COALESCE(SUM(size), 0) FROM uploads WHERE user_id=:user_id) + :size <= :max_bytes""",
+            {**row, "created_at": _now(), "max_files": max_files, "max_bytes": max_bytes},
+        )
+        await self._db.conn.commit()
+        return cursor.rowcount > 0
+
+    async def upload_list(self, user_id: int) -> list[dict]:
+        cursor = await self._db.conn.execute("SELECT * FROM uploads WHERE user_id=? ORDER BY created_at DESC, rowid DESC", (user_id,))
+        return [dict(r) for r in await cursor.fetchall()]
+
+    async def upload_get(self, user_id: int, upload_id: str) -> dict | None:
+        cursor = await self._db.conn.execute("SELECT * FROM uploads WHERE id=? AND user_id=?", (upload_id, user_id))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def upload_delete(self, user_id: int, upload_id: str) -> dict | None:
+        """Retire le fichier, ses favoris et ses places dans les playlists ; rend sa fiche."""
+        row = await self.upload_get(user_id, upload_id)
+        if row is None:
+            return None
+        conn = self._db.conn
+        await conn.execute("DELETE FROM library WHERE source='upload' AND source_id=?", (upload_id,))
+        await conn.execute("DELETE FROM playlist_tracks WHERE source='upload' AND source_id=?", (upload_id,))
+        await conn.execute("DELETE FROM uploads WHERE id=?", (upload_id,))
+        await conn.commit()
+        return row
+
     # -- Export et suppression d'un compte (RGPD) -----------------------
 
-    _USER_TABLES = ("users", "library", "history", "plays", "playlists", "track_moments", "tv_screens", "public_links", "connect_saved", "share_links")
-    _SECRET_COLUMNS = {"tv_screens": ("lounge_token",)}
+    _USER_TABLES = ("uploads", "users", "library", "history", "plays", "playlists", "track_moments", "tv_screens", "public_links", "connect_saved", "share_links")
+    _SECRET_COLUMNS = {"tv_screens": ("lounge_token",), "uploads": ("path",)}
 
     async def export_user_data(self, user_id: int) -> dict:
         """Toutes les données musicales de la personne, en JSON (sans jetons ni clés)."""

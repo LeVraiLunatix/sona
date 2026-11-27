@@ -15,6 +15,7 @@ from starlette.background import BackgroundTask
 
 from app.api import limits
 from app.api.auth import require_admin, require_token
+from app.api.routers import uploads
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
@@ -389,6 +390,9 @@ async def _cached_file(deps: ApiDeps, source: str, source_id: str, fmt: str, qua
 async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> tuple[str, str]:
     """Chemin et type du fichier audio prêt à servir : depuis le cache, ou
     après téléchargement + vérification (un seul à la fois par morceau)."""
+    if source == uploads.SOURCE:  # fichier de la personne : rien à chercher nulle part
+        path, content_type = await uploads.own_file(deps, source_id)
+        return str(path), content_type
     cached = await _cached_file(deps, source, source_id, fmt, quality)
     if cached is not None:
         return cached
@@ -502,6 +506,9 @@ async def prepare(
     vraie cause), et pour le morceau suivant pendant l'écoute du courant —
     l'enchaînement est alors instantané."""
     _check_params(quality, format)
+    if source == uploads.SOURCE:
+        await uploads.own_file(deps, source_id)
+        return {"ready": True, "local": True}
     if source == exclusives.SOURCE:
         await exclusive_file(deps, source_id, quality, version)
         return {"ready": True}
@@ -610,6 +617,9 @@ async def stream(
     deps: ApiDeps = Depends(require_token),
 ):
     _check_params(quality, format)
+    if source == uploads.SOURCE:
+        path, content_type = await uploads.own_file(deps, source_id)
+        return FileResponse(path, media_type=content_type, headers={"X-Content-Type-Options": "nosniff"})
     if source == exclusives.SOURCE:
         path, content_type = await exclusive_file(deps, source_id, quality, version)
         return FileResponse(path, media_type=content_type, filename=path.name)

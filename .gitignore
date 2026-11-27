@@ -15,6 +15,7 @@ data/backups/
 *.log
 data/karaoke/
 data/models/
+data/uploads/
 desktop/node_modules/
 desktop/dist/
 

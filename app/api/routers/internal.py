@@ -44,6 +44,8 @@ async def delete_user(uid: str, deps: ApiDeps = Depends(internal)) -> None:
     user_id = await _user_id(deps, uid)
     if user_id is not None:
         party_service.leave_all(user_id)
+        for row in await deps.repo.upload_list(user_id):  # les fichiers eux-mêmes, avant leurs fiches
+            (deps.settings.uploads_dir / row["path"]).unlink(missing_ok=True)
         await deps.repo.delete_user_data(user_id)
 
 

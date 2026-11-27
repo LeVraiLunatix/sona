@@ -18,7 +18,7 @@ from app.api.routers import (
     accounts, device_login, browse, connect, exclusives, extras, catalog, friends, history, home, karaoke, library, lyrics, party,
     public, internal,
     playlists,
-    local, search, share, stats, stream, tv, user_settings,
+    local, search, share, stats, stream, tv, uploads, user_settings,
 )
 from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
@@ -205,6 +205,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog.router)
     app.include_router(stream.router)
     app.include_router(local.router)
+    app.include_router(uploads.router)
     app.include_router(exclusives.router)
     app.include_router(karaoke.router)
     app.include_router(library.router)

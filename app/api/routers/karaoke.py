@@ -32,7 +32,7 @@ class PrepareIn(BaseModel):
 async def prepare_upcoming(payload: PrepareIn, deps: ApiDeps = Depends(limits.heavy("karaoke-next", 120))) -> list[dict]:
     """Titres à venir quand le mode chant est actif : séparés à l'avance,
     après le titre en cours d'écoute. Remplace la liste envoyée avant."""
-    return karaoke.prepare_upcoming(deps, [(t.source, t.source_id) for t in payload.tracks])
+    return karaoke.prepare_upcoming(deps, [(t.source, t.source_id) for t in payload.tracks if t.source != "upload"])
 
 
 @router.get("/karaoke/queue")
@@ -51,6 +51,8 @@ async def clear_separation_queue(deps: ApiDeps = Depends(require_token)) -> dict
 async def request_separation(source: str, source_id: str, deps: ApiDeps = Depends(limits.heavy("karaoke", 30))) -> dict:
     """Titre écouté maintenant en mode chant : en tête de file. Répond tout
     de suite avec l'état ; l'app interroge ensuite `GET` jusqu'à « ready »."""
+    if source == "upload":  # le cache de karaoké est commun à tous les comptes
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Le mode chant n'est pas disponible sur tes propres fichiers.")
     return karaoke.request(deps, source, source_id, karaoke.NOW)
 
 

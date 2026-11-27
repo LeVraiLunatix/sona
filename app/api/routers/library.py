@@ -4,10 +4,11 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from app.api.auth import require_token
+from app.api.routers import uploads
 from app.api.schemas import LibraryAddRequest, LibraryItemOut
 from app.api.state import ApiDeps
 from app.bot import lookup
@@ -71,8 +72,14 @@ async def list_library(
 
 
 @router.post("/{kind}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-async def add_to_library(kind: str, payload: LibraryAddRequest, deps: ApiDeps = Depends(require_token)) -> None:
+async def add_to_library(kind: str, payload: LibraryAddRequest, request: Request, deps: ApiDeps = Depends(require_token)) -> None:
     _check_kind(kind)
+    if payload.source == "upload":  # un de mes fichiers : sa fiche est chez nous, pas chez un service
+        row = await deps.repo.upload_get(deps.user_id, payload.source_id) if kind == "track" else None
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Fichier introuvable.")
+        await deps.repo.library_add(deps.user_id, kind, uploads.to_info(request, row))
+        return
     try:
         obj = await _GETTERS[kind](deps, payload.source, payload.source_id)
     except lookup.ProviderErrors as exc:

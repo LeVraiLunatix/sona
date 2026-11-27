@@ -54,6 +54,9 @@ class Settings:
     # webhook (AUDIO_VAULT_WEBHOOK) ou, à défaut, celui des exclus ; AUDIO_VAULT=0 le coupe.
     audio_vault: bool = True
     audio_vault_webhook: str | None = None
+    # Fichiers envoyés par les gens (« Mes fichiers ») et place permise par compte.
+    uploads_dir: Path = field(default_factory=lambda: BASE_DIR / "data" / "uploads")
+    upload_quota_mb: int = 1024
     # Alertes aux administrateurs (panne de lecture, demande d'accès).
     alerts_webhook: str | None = None
     # Rattrapage : les titres déjà dans le cache du disque sont envoyés peu à peu
@@ -175,6 +178,8 @@ def load_settings() -> Settings:
         lastfm_api_secret=os.getenv("LASTFM_API_SECRET", "").strip() or None,
         karaoke_dir=data_dir("KARAOKE_DIR", "data/karaoke"),
         models_dir=data_dir("MODELS_DIR", "data/models"),
+        uploads_dir=data_dir("UPLOADS_DIR", "data/uploads"),
+        upload_quota_mb=int(os.getenv("UPLOAD_QUOTA_MB", "").strip() or 1024),
         karaoke_cache_max_mb=int(os.getenv("KARAOKE_CACHE_MAX_MB", "").strip() or 1500),
         karaoke_threads=int(os.getenv("KARAOKE_THREADS", "").strip() or min(2, os.cpu_count() or 1)),
         lyrics_extra_sources=os.getenv("LYRICS_EXTRA_SOURCES", "1").strip().lower() not in ("0", "false", "non", "no"),
