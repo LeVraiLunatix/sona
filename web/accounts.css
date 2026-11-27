@@ -117,6 +117,10 @@
 .link-btn { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
 .link-btn:hover { color: var(--text); }
 .auth-msg { min-height: 8px; }
+/* Secours quand le navigateur n'ouvre pas l'application tout seul : n'apparaît qu'après un moment. */
+.auth-late { color: var(--text-3); animation: auth-late .4s ease 3s both; }
+.auth-late a { color: var(--text); text-decoration: underline; }
+@keyframes auth-late { from { opacity: 0; visibility: hidden; } }
 .auth-msg .error, .auth .error { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: rgba(255, 69, 58, .12); color: #ff6961; font-size: 14px; font-weight: 500; text-align: left; }
 .auth .notice, .notice { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--fill); color: var(--text-2); font-size: 14px; }
 .auth .legal { font-size: 12px; line-height: 1.55; margin: 16px 0 0; color: var(--text-3); text-align: center; }

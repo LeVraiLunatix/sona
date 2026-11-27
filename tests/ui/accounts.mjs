@@ -180,7 +180,11 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
   await t.page.click("[data-allow]");
   await t.page.waitForSelector("[data-stay]");
   await t.page.waitForTimeout(300);
-  ok("site : retour automatique vers l'application avec le code à usage unique", opened.includes("sona://auth/callback?handoff=CODE123") && asked() === 1 && (await t.page.locator("a[href^='sona:']").count()) === 0, JSON.stringify(opened));
+  ok("site : retour automatique vers l'application avec le code à usage unique", opened.includes("sona://auth/callback?handoff=CODE123") && asked() === 1, JSON.stringify(opened));
+  const late = t.page.locator("a[href='sona://auth/callback?handoff=CODE123']");
+  const early = await late.isVisible();
+  await late.waitFor({ state: "visible", timeout: 6000 });
+  ok("site : lien de secours seulement après un moment", !early);
   await t.close();
 }
 
