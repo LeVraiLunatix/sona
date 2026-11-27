@@ -54,6 +54,8 @@ class Settings:
     # webhook (AUDIO_VAULT_WEBHOOK) ou, à défaut, celui des exclus ; AUDIO_VAULT=0 le coupe.
     audio_vault: bool = True
     audio_vault_webhook: str | None = None
+    # Alertes aux administrateurs (panne de lecture, demande d'accès).
+    alerts_webhook: str | None = None
     # Rattrapage : les titres déjà dans le cache du disque sont envoyés peu à peu
     # au coffre (AUDIO_VAULT_BACKFILL=0 pour ne garder que les nouveaux titres).
     audio_vault_backfill: bool = True
@@ -164,6 +166,7 @@ def load_settings() -> Settings:
         exclusives_webhook=os.getenv("DISCORD_STORAGE_WEBHOOK", "").strip() or None,
         audio_vault=os.getenv("AUDIO_VAULT", "1").strip().lower() not in ("0", "false", "non", "no"),
         audio_vault_webhook=os.getenv("AUDIO_VAULT_WEBHOOK", "").strip() or None,
+        alerts_webhook=os.getenv("ALERTS_DISCORD_WEBHOOK", "").strip() or None,
         audio_vault_backfill=os.getenv("AUDIO_VAULT_BACKFILL", "1").strip().lower() not in ("0", "false", "non", "no"),
         exclusives_cache_dir=data_dir("EXCLUSIVES_CACHE_DIR", "data/exclusives"),
         stream_cache_max_mb=int(os.getenv("STREAM_CACHE_MAX_MB", "").strip() or 2048),

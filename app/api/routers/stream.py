@@ -22,7 +22,7 @@ from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, audio_vault, exclusives, karaoke, live_stream, local_library, stream_health
+from app.services import audio_analysis, audio_vault, exclusives, heavy, karaoke, live_stream, local_library, stream_health
 from app.services.resolver import (
     Candidate, ResolutionError, iter_audio_sources, rejection_reason, score_candidate,
 )
@@ -284,7 +284,7 @@ FAILURE_TTL = 120.0
 # empreinte) : sur une petite machine (1 Go), en lancer plusieurs en même
 # temps — lecture, préparation du suivant, mise en cache en arrière-plan —
 # saturait la mémoire au point de figer tout le serveur.
-_download_slots = asyncio.Semaphore(1)
+_download_slots = heavy.slot
 _failures: dict[tuple[str, str, str, str], tuple[float, int, str]] = {}
 
 

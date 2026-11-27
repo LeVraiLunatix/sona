@@ -7,7 +7,6 @@ import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -24,7 +23,7 @@ from app.api.routers import (
 from app.api.routers import health as health_admin
 from app.api.state import ApiDeps
 from app.config import load_settings
-from app.services import audio_vault, karaoke as karaoke_service, playlist_import, stream_health, youtube_session, ytdlp_updater
+from app.services import alerts, audio_vault, karaoke as karaoke_service, playlist_import, stream_health, youtube_session, ytdlp_updater
 from app.services.backup import run_backups
 from app.services.discord_storage import DiscordStorage
 from app.services.lyrics import LyricsService
@@ -109,15 +108,14 @@ async def lifespan(app: FastAPI):
         vault_storage=DiscordStorage(settings.audio_vault_webhook or settings.exclusives_webhook),
     )
     logger.info("API Sona démarrée (utilisateur API #%d)", settings.api_user_id)
-    # Sans bot Telegram (c'est lui qui sauvegarde d'habitude), l'API prend
-    # les sauvegardes quotidiennes en charge — jamais pendant les tests.
+    # Tâches de fond (sauvegarde quotidienne, surveillance…) — jamais pendant les tests.
     backups = None
     watcher = None
     syncer = None
     vaulter = None
     if "PYTEST_CURRENT_TEST" not in os.environ:
-        if not settings.bot_token:
-            backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
+        # Toujours : confiées au bot, plus personne ne sauvegardait une fois celui-ci arrêté.
+        backups = asyncio.create_task(run_backups(settings.database_path, settings.backup_dir))
         watcher = asyncio.create_task(_watch_streaming(app.state.deps))
         # Playlists importées : leurs nouveaux titres, une fois par jour.
         syncer = asyncio.create_task(playlist_import.auto_sync_loop(app.state.deps))
@@ -150,25 +148,10 @@ async def lifespan(app: FastAPI):
         await db.close()
 
 
-async def notify_admins(deps: ApiDeps, text: str) -> None:
-    """Message Telegram aux admins du bot (au mieux, jamais bloquant)."""
-    token = deps.settings.bot_token
-    if not token:
-        logger.warning("Alerte non envoyée (pas de bot Telegram) : %s", text.splitlines()[0])
-        return
-    try:
-        admins = await deps.repo.list_admins()
-        async with httpx.AsyncClient(timeout=10) as client:
-            for chat_id in admins:
-                await client.post(f"https://api.telegram.org/bot{token}/sendMessage", data={"chat_id": chat_id, "text": text})
-    except Exception as exc:
-        logger.info("Alerte Telegram impossible : %s", exc)
-
-
 async def _watch_streaming(deps: ApiDeps) -> None:
     """Surveille la santé de la lecture : les admins sont prévenus d'une
     panne (et de son retour à la normale), avec quoi faire."""
-    youtube_session.register_notifier(lambda text: notify_admins(deps, text))
+    youtube_session.register_notifier(lambda text: alerts.send(deps.settings, text))
     previous = "ok"
     while True:
         await asyncio.sleep(60)
@@ -177,7 +160,7 @@ async def _watch_streaming(deps: ApiDeps) -> None:
         previous = current["state"]
         if message:
             logger.warning("Santé de la lecture : %s", message.splitlines()[0])
-            await notify_admins(deps, message)
+            await alerts.send(deps.settings, message)
             if current["cause"] == "cookies" and deps.settings.youtube_cookies_file:
                 youtube_session.schedule_session_check(deps.settings.youtube_cookies_file, "panne de lecture")
 

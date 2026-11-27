@@ -21,7 +21,7 @@ from pathlib import Path
 
 import httpx
 
-from app.services import radio_mix
+from app.services import heavy, radio_mix
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,8 @@ async def build(deps, radio_id: str) -> bool:
         if not artist.picture_url:
             continue
         photo = await _download(artist.picture_url)
-        portrait = await asyncio.to_thread(lambda: cut_out(photo, _mask_with(model)))
+        async with heavy.slot:  # jamais en même temps qu'un téléchargement
+            portrait = await asyncio.to_thread(lambda: cut_out(photo, _mask_with(model)))
         if portrait:
             part = folder / f"{radio_id}.part"
             part.write_bytes(portrait)

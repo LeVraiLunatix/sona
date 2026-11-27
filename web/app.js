@@ -428,6 +428,7 @@ async function startApp() {
 function signOutLocal(silent) {
   token = null;
   account = null;
+  heardCache = { at: 0, data: null }; // les écoutes proposées sont celles du compte qui part
   Sona.auth.signOut().catch(() => {});
   audio.pause();
   partyLeave(true);
