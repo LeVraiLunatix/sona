@@ -146,12 +146,14 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
 // Connexion de l'application par le navigateur.
 {
   // Côté application : un seul bouton, le secret reste dedans, le code revenu ouvre la session.
-  const t = await open({ accounts: { "POST /app-link/exchange": { token_hash: "HASH", type: "email" } } });
+  const t = await open({ accounts: { "POST /app-link/exchange": { token_hash: "HASH", type: "email" } }, music: { "/me/public-link": { __status: 401, __json: { detail: "non" } } } });
   // Le pont de l'application Windows : ce qui n'est pas observé ici ne fait rien.
   await t.page.addInitScript(() => { const known = { openExternal: (u) => { window.__opened = u; }, onDeepLink: (fn) => { window.__deep = fn; }, server: "", platform: "win32" }; window.sonaDesktop = new Proxy(known, { get: (o, k) => (k in o ? o[k] : () => Promise.resolve({})) }); });
   await t.page.reload();
   await t.page.waitForSelector("[data-browser]");
   ok("application : la connexion passe par le navigateur, sans formulaire", (await t.page.locator('input[name="email"], [data-provider]').count()) === 0);
+  await wait(t.page, 4600);
+  ok("application sans compte : pas de faux « Déconnecté » au démarrage", !/Déconnecté/.test(await text(t.page)));
   await t.page.click("[data-browser]");
   await wait(t.page, 300);
   const opened = await t.page.evaluate(() => window.__opened);

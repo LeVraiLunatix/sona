@@ -175,7 +175,8 @@ async function api(path, options = {}) {
     ...options,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(options.headers || {}) },
   });
-  if (res.status === 401) { signOutLocal(); throw new Error("Session expirée"); }
+  // Sans jeton, on n'était pas connecté : rien à déconnecter (appels faits au démarrage de l'app Windows).
+  if (res.status === 401) { if (token) signOutLocal(); throw new Error("Session expirée"); }
   if (res.status === 403) {
     // Compte suspendu ou banni PENDANT la session : le serveur le sait à chaque requête.
     const body = await res.clone().json().catch(() => ({}));
