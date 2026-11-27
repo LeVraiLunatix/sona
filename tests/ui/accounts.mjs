@@ -172,9 +172,15 @@ const hasScrollX = (page) => page.evaluate(() => document.documentElement.scroll
   await t.page.waitForSelector("[data-allow]");
   const asked = () => t.calls.filter((c) => JSON.stringify(c).includes("/app-link")).length;
   ok("site : rien n'est demandé sans confirmation", asked() === 0 && /alice@example\.org/.test(await text(t.page)));
+  // Le lien sona:// ne passe pas par le réseau : seul le navigateur signale la navigation demandée.
+  const cdp = await t.page.context().newCDPSession(t.page);
+  const opened = [];
+  cdp.on("Page.frameRequestedNavigation", (e) => opened.push(e.url));
+  await cdp.send("Page.enable");
   await t.page.click("[data-allow]");
-  await t.page.waitForSelector("[data-open]");
-  ok("site : retour vers l'application avec le code à usage unique", (await t.page.getAttribute("[data-open]", "href")) === "sona://auth/callback?handoff=CODE123" && asked() === 1);
+  await t.page.waitForSelector("[data-stay]");
+  await t.page.waitForTimeout(300);
+  ok("site : retour automatique vers l'application avec le code à usage unique", opened.includes("sona://auth/callback?handoff=CODE123") && asked() === 1 && (await t.page.locator("a[href^='sona:']").count()) === 0, JSON.stringify(opened));
   await t.close();
 }
 

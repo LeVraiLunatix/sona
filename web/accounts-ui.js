@@ -550,8 +550,7 @@ const SonaUI = (() => {
       try {
         const url = await window.Sona.appLink.approve(challenge);
         sessionStorage.removeItem("sona.app");
-        root().innerHTML = shell(`${head("Retourne dans Sona", "Si l'application ne s'est pas ouverte, utilise le bouton. Tu peux ensuite fermer cet onglet.")}
-          <a class="btn big wide-btn" data-open href="${h(url)}">Ouvrir Sona</a>
+        root().innerHTML = shell(`${head("Retour dans Sona…", "L'application s'ouvre toute seule, tu peux ensuite fermer cet onglet. Rien ne se passe ? Relance la connexion depuis Sona.")}
           <button class="guest" data-stay>Continuer sur le site</button>`);
         document.querySelector("[data-stay]").onclick = done;
         location.href = url;
