@@ -330,6 +330,29 @@ def test_internal_session_moderation(client):
 # -- Ancien compte -----------------------------------------------------------
 
 
+def test_the_old_session_kept_on_the_device_brings_data_and_lastfm(client):
+    legacy = client.post("/auth/lastfm", json={"token": "vieux"}).json()
+    client.post(f"/admin/accounts/{legacy['account']['id']}/approve", headers=LEGACY)
+    old = {"Authorization": f"Bearer {legacy['session_token']}"}
+    client.post("/plays", headers=old, json={"plays": [{"title": "Souvenir", "artist": "A", "source": "deezer", "source_id": "9"}]})
+    adopted = []
+
+    async def adopt(uid, username, key):
+        adopted.append((uid, username, key))
+        return True
+
+    client.deps.accounts.adopt_lastfm = adopt
+    new = person(client, "alice")
+    assert client.post("/auth/link-legacy", headers=new, json={"session_token": "faux"}).status_code == 404
+    assert adopted == []
+    linked = client.post("/auth/link-legacy", headers=new, json={"session_token": legacy["session_token"]})
+    assert linked.status_code == 200, linked.text
+    assert [p["title"] for p in client.get("/plays/recent", headers=new).json()] == ["Souvenir"]
+    assert len(adopted) == 1 and adopted[0][0] == "uid-alice" and adopted[0][2]
+    # La session d'avant ne sert qu'une fois.
+    assert client.post("/auth/link-legacy", headers=person(client, "bob"), json={"session_token": legacy["session_token"]}).status_code == 404
+
+
 def test_link_a_legacy_account_keeps_its_data(client):
     legacy = client.post("/auth/lastfm", json={"token": "vieux"}).json()
     client.post(f"/admin/accounts/{legacy['account']['id']}/approve", headers=LEGACY)

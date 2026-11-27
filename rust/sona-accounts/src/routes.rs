@@ -69,6 +69,7 @@ pub fn router(state: AppState) -> Router {
         .route("/internal/notify/session-invite", post(internal::notify_session_invite))
         .route("/internal/text-check", post(internal::text_check))
         .route("/internal/scrobble", post(lastfm::enqueue))
+        .route("/internal/lastfm/adopt", post(lastfm::adopt))
         .route("/internal/lastfm/{uid}", get(lastfm::internal_user))
         .layer(RequestBodyLimitLayer::new(64 * 1024))
         .layer(cors)

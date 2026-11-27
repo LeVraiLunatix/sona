@@ -176,6 +176,35 @@ pub async fn connect(State(s): State<AppState>, AuthUser(p): AuthUser, Json(body
     Ok(Json(json!({ "connected": true, "username": name })))
 }
 
+#[derive(Deserialize)]
+pub struct AdoptIn {
+    pub user_id: Uuid,
+    pub username: String,
+    pub session_key: String,
+}
+
+/// Reprend la liaison Last.fm d'un ancien compte Sona (appelé par le serveur musique, qui a vérifié que c'est la même
+/// personne). La clé est chiffrée comme les autres ; une liaison déjà faite par la personne n'est pas remplacée.
+pub async fn adopt(State(s): State<AppState>, _i: Internal, Json(b): Json<AdoptIn>) -> Result<Json<Value>> {
+    let plain = |t: &str, max: usize| !t.is_empty() && t.len() <= max && t.bytes().all(|c| c.is_ascii_graphic());
+    if !plain(&b.username, 64) || !plain(&b.session_key, 128) {
+        return Err(AppError::bad("liaison invalide"));
+    }
+    let vault = s.vault.as_ref().ok_or(AppError::NotConfigured("SECRETS_ENCRYPTION_KEY"))?;
+    let sealed = vault.seal(&b.session_key, &b.user_id.to_string());
+    let done = sqlx::query(
+        "insert into public.connected_services (user_id, provider, external_username, secret_encrypted, connected_at, last_error)
+         values ($1, 'lastfm', $2, $3, now(), null)
+         on conflict (user_id, provider) do nothing",
+    )
+    .bind(b.user_id)
+    .bind(&b.username)
+    .bind(sealed)
+    .execute(&s.pool)
+    .await?;
+    Ok(Json(json!({ "adopted": done.rows_affected() == 1 })))
+}
+
 pub async fn status(State(s): State<AppState>, AuthUser(p): AuthUser) -> Result<Json<Value>> {
     let row: Option<(Option<String>, Option<String>, Option<String>, bool)> = sqlx::query_as(
         "select external_username, last_error, last_sync_at::text, secret_encrypted is not null

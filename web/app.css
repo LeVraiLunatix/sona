@@ -2890,3 +2890,13 @@ select.field option { background: var(--bg-elevated); color: var(--text); }
   select.field option::checkmark { order: 1; margin-left: auto; color: var(--accent); }
 }
 @font-face { font-family: "Familjen Grotesk"; font-weight: 700; font-display: swap; src: url("fonts/FamiljenGrotesk-700.woff2") format("woff2"); }
+
+/* « Sona fait peau neuve » : l'écran des personnes qui avaient un compte d'avant. */
+.peau { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 24px; text-align: center; background: #0a0a0b; color: #f2f5fb; }
+.peau-logo { width: 96px; height: 96px; color: #d2d1d8; fill: currentColor; filter: drop-shadow(0 0 18px rgba(236, 236, 244, .5)); }
+.peau h1 { margin: 0; font-size: clamp(32px, 7vw, 56px); font-weight: 800; letter-spacing: -.04em; line-height: 1.05; }
+.peau p { max-width: 46ch; margin: 0; font-size: 16px; line-height: 1.6; color: rgba(242, 245, 251, .68); }
+.peau div { display: flex; flex-direction: column; gap: 10px; width: min(320px, 100%); margin-top: 12px; }
+.peau .btn { height: 50px; justify-content: center; border-radius: 999px; }
+.peau .btn:not(.ghost) { background: #fff; color: #000; }
+.peau .btn.ghost { background: rgba(255, 255, 255, .1); color: #fff; }

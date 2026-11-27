@@ -101,6 +101,26 @@ async fn connect_exchanges_the_token_server_side_and_stores_an_encrypted_key() {
 }
 
 #[tokio::test]
+async fn an_old_link_is_adopted_encrypted_and_never_replaces_a_new_one() {
+    let Some((api, _server)) = api_with(session_ok).await else { return };
+    let alice = api.db.named("alice").await;
+    let body = json!({ "user_id": alice, "username": "vieux_pseudo", "session_key": "ANCIENNE-CLE-456" });
+    // Sans le secret partagé : refusé.
+    assert_eq!(api.call("POST", "/internal/lastfm/adopt", None, Some(body.clone())).await.0, StatusCode::FORBIDDEN);
+    let internal = [("x-sona-internal", "internal-test-secret".to_string())];
+    let (st, got) = api.call_with("POST", "/internal/lastfm/adopt", &internal, Some(body.clone())).await;
+    assert_eq!((st, got["adopted"].as_bool()), (StatusCode::OK, Some(true)), "{got}");
+    let (_, status) = api.call("GET", "/lastfm/status", Some(&api.token(alice)), None).await;
+    assert_eq!((status["connected"].as_bool(), status["username"].as_str()), (Some(true), Some("vieux_pseudo")), "{status}");
+    // La personne relie un autre compte elle-même : la reprise suivante ne l'écrase pas.
+    connect(&api, alice).await;
+    let (_, again) = api.call_with("POST", "/internal/lastfm/adopt", &internal, Some(body)).await;
+    assert_eq!(again["adopted"].as_bool(), Some(false), "{again}");
+    let (_, status) = api.call("GET", "/lastfm/status", Some(&api.token(alice)), None).await;
+    assert_eq!(status["username"].as_str(), Some("lfm_alice"), "{status}");
+}
+
+#[tokio::test]
 async fn connect_errors_are_clear_and_tokens_are_validated_first() {
     let Some((api, server)) = api_with(|s| match params_of(s).get("token").map(String::as_str) {
         Some("pasencoreautorise000000000000") => (403, json!({ "error": 14, "message": "Unauthorized Token" }).to_string()),

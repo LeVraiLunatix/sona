@@ -356,9 +356,49 @@ async function boot() {
   desktop?.onDeepLink?.((url) => Sona.auth.handleDeepLink(url).catch((e) => toast(e.message)));
 
   const session = await Sona.auth.session();
-  if (!session) return landing();
+  if (!session) return (await newLook()) || landing();
   token = session.access_token;
   startApp();
+}
+
+/** Quelqu'un qui utilisait Sona avant les comptes (l'ancienne session est encore sur l'appareil) : on lui explique, et
+    son ancien compte sera rattaché au nouveau dès la connexion (adoptOldAccount). */
+async function newLook() {
+  const old = store.get("sona.token");
+  if (!old) return false;
+  let who = null;
+  try {
+    const res = await fetch(`${BASE}/auth/me`, { headers: { Authorization: `Bearer ${old}` }, cache: "no-store" });
+    if (res.status === 401 || res.status === 403) { store.set("sona.token", null); return false; }
+    if (res.ok) who = await res.json();
+  } catch { /* serveur injoignable : on explique quand même */ }
+  const name = who?.display_name || who?.username || "";
+  const root = document.getElementById("root");
+  root.innerHTML = `<main class="peau" aria-labelledby="peau-title">
+    <svg class="peau-logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>
+    <h1 id="peau-title">Sona fait peau neuve</h1>
+    <p>${name ? `Salut ${esc(name)} ! ` : ""}Sona a maintenant ses propres comptes. Crée le tien : ta bibliothèque, tes playlists, ton historique et ton Last.fm te suivent tout seuls.</p>
+    <div><button type="button" class="btn" data-peau="signup">Créer mon compte</button><button type="button" class="btn ghost" data-peau="signin">J'ai déjà un compte</button></div></main>`;
+  $$("[data-peau]", root).forEach((b) => (b.onclick = () => SonaUI.authScreen({ mode: b.dataset.peau })));
+  return true;
+}
+
+/** Une fois connecté (pas en invité) : rattache l'ancien compte de l'appareil, données et Last.fm compris. */
+async function adoptOldAccount(acc) {
+  const old = store.get("sona.token");
+  if (!old || acc.guest) return;
+  try {
+    await api("/auth/link-legacy", { method: "POST", body: JSON.stringify({ session_token: old }) });
+  } catch (e) {
+    // Session inconnue ou compte déjà rattaché : inutile de réessayer. Une panne se réessaie au prochain lancement.
+    if (/Aucun ancien compte|déjà rattaché|pas été accepté/.test(e.message)) store.set("sona.token", null);
+    return;
+  }
+  store.set("sona.token", null);
+  toast("Ton ancien compte est relié : bibliothèque, playlists et Last.fm");
+  loadSidebar();
+  loadLiked();
+  route();
 }
 
 /** Pas connecté, sur le site : la page de présentation d'abord (on s'y connecte ou on y crée son compte).
@@ -415,6 +455,7 @@ async function startApp() {
     SonaSettings.startNotifications();
     SonaSettings.enforce(acc.profile);
     SonaSocial.redeemPendingInvite();
+    adoptOldAccount(acc);
     const lfm = store.get("sona.lastfmToken");
     if (lfm) { store.set("sona.lastfmToken", null); SonaSettings.finishLastfm(lfm); }
     const linkCode = store.get("sona.linkCode");
