@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from app.api.auth import get_deps
 from app.api.state import ApiDeps
 from app.services import party as party_service
+from app.services import uploads
 
 router = APIRouter(prefix="/internal", tags=["interne"], include_in_schema=False)
 
@@ -44,6 +45,8 @@ async def delete_user(uid: str, deps: ApiDeps = Depends(internal)) -> None:
     user_id = await _user_id(deps, uid)
     if user_id is not None:
         party_service.leave_all(user_id)
+        for row in await deps.repo.upload_list(user_id):  # les fichiers eux-mêmes, avant leurs fiches
+            await uploads.remove(deps, row)
         await deps.repo.delete_user_data(user_id)
 
 

@@ -30,7 +30,15 @@ jobs:
           ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
           ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
           ORACLE_KNOWN_HOSTS: ${{ secrets.ORACLE_KNOWN_HOSTS }}
+          COMPTES_PRETS: ${{ vars.COMPTES_PRETS }}
         run: |
+          # Le serveur de musique ne marche qu'avec le service des comptes et ses réglages
+          # (docs/AUTH_SETUP.md) : rien n'est déployé avant la variable de dépôt COMPTES_PRETS=oui.
+          if [ "$COMPTES_PRETS" != "oui" ]; then
+            echo "::warning::Déploiement ignoré : installe d'abord le service des comptes (docs/AUTH_SETUP.md), puis crée la variable COMPTES_PRETS=oui."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # Tant que les secrets ne sont pas créés (voir docs/DEPLOIEMENT.md),
           # le déploiement s'arrête ici : un échec rouge à chaque fusion
           # masquerait les vraies pannes.

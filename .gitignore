@@ -6,6 +6,7 @@ venv/
 .pytest_cache/
 data/*.db
 data/*.db-journal
+data/*.db.avant-chiffrement
 data/cache/*
 !data/cache/.gitkeep
 data/stream_cache/*
@@ -15,6 +16,7 @@ data/backups/
 *.log
 data/karaoke/
 data/models/
+data/uploads/
 desktop/node_modules/
 desktop/dist/
 
@@ -23,3 +25,6 @@ desktop/dist/
 
 # Rust
 rust/target/
+
+# Fichiers locaux du CLI Supabase
+supabase/.temp/

@@ -24,6 +24,8 @@ const track = (i, extra = {}) => ({ source: "deezer", source_id: String(i), titl
 const album = { source: "deezer", source_id: "99", title: "Double", artist: "Favé", artist_source_id: "10", year: "2024", cover_url: null, track_count: 4, duration_seconds: 12,
   tracks: [track(1, { disc_number: 1, track_number: 1 }), track(2, { disc_number: 1, track_number: 2 }), track(3, { disc_number: 2, track_number: 1 }), track(4, { disc_number: 2, track_number: 2 })] };
 const jsonRoutes = {
+  "/uploads": { tracks: [], used_bytes: 0, quota_bytes: 1073741824, max_file_bytes: 104857600 },
+  "/browse/radios": [{ title: "Rap", radios: [{ id: "39021", title: "Rap français", picture_url: "" }] }],
   "/auth/me": { status: "approved", username: "t", display_name: "Test", id: 1 },
   "/settings": { autoplay: false }, "/health": { version: "x", streaming: "ok" },
   "/albums/deezer/99": album, "/albums/deezer/99/versions": [{ ...album, source_id: "98", title: "Double (Deluxe)", tracks: [] }],
@@ -31,11 +33,11 @@ const jsonRoutes = {
   "/artists/deezer/10/top-tracks": [track(1)], "/artists/deezer/10/related": [],
   "/artists/deezer/10/albums": { albums: [{ ...album, tracks: [] }, { ...album, source_id: "97", title: "Ancien", year: "2019", tracks: [] }, { ...album, source_id: "96", title: "B", year: "2020", tracks: [] }], singles: [{ ...album, source_id: "95", title: "Single", year: "2022", tracks: [] }], other_versions: [{ ...album, source_id: "98", title: "Double (Deluxe)", tracks: [] }] },
   "/artists/deezer/10/bio": { text: "Favé est un rappeur français. ".repeat(12), url: "https://fr.wikipedia.org/wiki/Fave", source: "Wikipédia" },
-  "/artists/deezer/10/concerts": [{ id: "1", artist: "Favé", datetime: "2026-12-01T20:00:00", venue: "Zénith", city: "Paris", country: "FR", url: null }],
   "/tracks/deezer/1/credits": { artists: track(1).artists, credits: [{ role: "Producteur", names: ["Beatmaker"] }], album: "Double", label: "Label", release_date: "2024-05-03", genres: ["Rap"], isrc: "FR1", disc_number: 1, track_number: 1, duration_seconds: 3 },
   "/lyrics": { synced: true, instrumental: false, sync: "word", source: "netease", language: "fr", lines: [
     { time: 0, text: "Ligne un", words: [{ time: 0, text: "Ligne ", end: 0.4 }, { time: 0.4, text: "un", end: 0.9 }] },
     { time: 1, text: "" }, { time: 2, text: "Ligne deux" }] },
+  "/search/suggest": [{ kind: "track", text: "Titre propose", subtitle: "Fave", picture_url: null, source: "deezer", source_id: "7" }],
   "/search": { query_id: "q", provider: "deezer", total: 1, tracks: [track(1)] },
   "/me/playlists/5": { id: 5, name: "Importée", description: null, cover_url: null, covers: [], origin: "soundcloud", origin_url: "https://soundcloud.com/a/sets/b",
     track_count: 2, duration_seconds: 6, import_status: "done", import_total: 3, import_done: 3, import_missing: 1, import_uncertain: 1, import_added: 0,
@@ -62,10 +64,11 @@ await page.route("**/*", async (route) => {
   if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return route.fulfill({ status: 200, body: "" });
   if (url.pathname.startsWith("/web")) return route.continue();
   const cm = url.pathname.match(/^\/tracks\/deezer\/(\d+)\/credits$/);
+  if (url.pathname === "/uploads" && route.request().method() === "POST") return route.fulfill({ status: 415, json: { detail: "Ce fichier n'est pas un audio lisible." } });
   const j = cm ? jsonRoutes["/tracks/deezer/1/credits"] : jsonRoutes[url.pathname];
   if (j) return route.fulfill({ json: j });
   if (url.pathname.startsWith("/stream/")) return route.fulfill({ status: 200, contentType: "audio/wav", body: wav() });
-  if (/^\/(auth|settings|health|albums|artists|tracks|lyrics|search|me|library|smart|connect|plays|party|friends|stats|home|discover|analysis)/.test(url.pathname)) return route.fulfill({ status: 404, json: { detail: "nope" } });
+  if (/^\/(auth|settings|health|albums|artists|tracks|lyrics|search|me|library|smart|connect|plays|party|friends|stats|home|discover|analysis|radios|uploads|browse\/)/.test(url.pathname)) return route.fulfill({ status: 404, json: { detail: "nope" } });
   return route.continue();
 });
 const lines = [];
@@ -73,9 +76,42 @@ const out = (s) => { lines.push(s); console.log(s); };
 await page.goto(`http://localhost:${port}/web/#/search`);
 await page.waitForSelector(".search-hero", { timeout: 8000 });
 // 1. loupe dans le champ
-const geo = await page.evaluate(() => { const i = document.querySelector(".search-hero input").getBoundingClientRect(), c = document.querySelector(".search-hero .icon").getBoundingClientRect(); return { i, c }; });
+const geo = await page.evaluate(() => { const i = document.querySelector(".search-hero input").getBoundingClientRect(), c = document.querySelector(".search-hero > .icon").getBoundingClientRect(); return { i, c }; });
 const inside = geo.c.top >= geo.i.top && geo.c.bottom <= geo.i.bottom && geo.c.left >= geo.i.left;
 out(`loupe dans le champ: ${inside}`);
+// 1 bis. un titre proposé se lance, la saisie ne change pas
+await page.fill("#q", "titre");
+await page.click("#sugg .sg[data-kind='track']");
+await page.waitForFunction(() => state.queue[state.index]?.source_id === "7", null, { timeout: 5000 });
+const typed = await page.inputValue("#q");
+if (typed !== "titre") throw new Error(`la proposition a modifié la saisie : ${typed}`);
+out("proposition lancée, saisie intacte: true");
+await page.evaluate(() => audio.pause());
+// 1 ter. menu : reste ouvert après un clic tant que la souris est dessus ; une fiche garde sa rubrique allumée
+if (await page.$eval("#sb", (e) => e.dataset.pinned) === "open") await page.click("#sb-toggle");
+await page.mouse.move(900, 300, { steps: 5 });
+await page.waitForSelector('#sb[data-open="false"]');
+await page.mouse.move(40, 300, { steps: 5 });
+await page.waitForSelector('#sb[data-open="true"]');
+await page.click("#sb a[data-nav='radios']");
+await page.waitForTimeout(500);
+if (await page.$eval("#sb", (e) => e.dataset.open) !== "true") throw new Error("le menu s'est replié sous la souris");
+await page.mouse.move(900, 300, { steps: 5 });
+await page.waitForSelector('#sb[data-open="false"]');
+await page.waitForFunction(() => getComputedStyle(document.querySelector("#sb-bridge")).opacity === "1" && getComputedStyle(document.querySelector("#sb-bridge")).visibility === "visible", null, { timeout: 1500 });
+await page.evaluate(() => { location.hash = "#/album/deezer/99"; });
+await page.waitForSelector("#sb a.active[data-nav='radios']", { timeout: 4000 });
+out("menu: reste ouvert au clic, rubrique gardée sur une fiche: true");
+// 1 quater. radios : squelette puis cover dessinée et animée quand elle est à l'écran
+await page.evaluate(() => { location.hash = "#/radios"; });
+await page.waitForSelector(".rc.live:not(.skeleton) .rc-title", { timeout: 5000 });
+out("covers de radios dessinées à l'écran: true");
+// 1 quinquies. « Mes fichiers » : la page et son bouton d'envoi
+await page.evaluate(() => { location.hash = "#/library/files"; });
+await page.waitForSelector("[data-upload]", { timeout: 5000 });
+await page.setInputFiles("#up-input", { name: "essai.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("ID3essai") });
+await page.waitForFunction(() => /essai\.mp3 :/.test(document.querySelector("#up-status")?.textContent || ""), null, { timeout: 5000 });
+out("mes fichiers: envoi et refus affichés: true");
 // 2. album avec disques
 await page.goto(`http://localhost:${port}/web/#/album/deezer/99`);
 await page.waitForSelector(".tracks .tr");
@@ -97,11 +133,10 @@ out(`clic invité -> ${await page.evaluate(() => location.hash)}`);
 await page.click(".lcd [data-goalbum]");
 await page.waitForFunction(() => location.hash === "#/album/deezer/99");
 out(`clic album -> ${await page.evaluate(() => location.hash)}`);
-// 5. artiste : bio, concerts, filtres
+// 5. artiste : bio, filtres
 await page.goto(`http://localhost:${port}/web/#/artist/deezer/10`);
 await page.waitForSelector("#artist-bio .bio-text", { timeout: 5000 });
-await page.waitForSelector("#artist-concerts .concert", { timeout: 5000 });
-out(`bio+concerts ok, chips: ${await page.$$eval(".disco-controls .chip", (e) => e.length)}`);
+out(`bio ok, chips: ${await page.$$eval(".disco-controls .chip", (e) => e.length)}`);
 await page.click("[data-disco-filter='singles']");
 out(`après filtre singles, étagères: ${await page.$$eval("#artist-disco .section-head h2", (e) => e.map((x) => x.textContent).join(",") || "(aucune)")}`);
 // 6. drawer crédits + paroles décalage

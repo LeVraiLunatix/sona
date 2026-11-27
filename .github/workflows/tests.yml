@@ -80,4 +80,4 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Tests d'interface
-        run: node tests/ui/accounts.mjs
+        run: node tests/ui/accounts.mjs && node tests/ui/smoke.mjs

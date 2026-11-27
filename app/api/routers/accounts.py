@@ -12,7 +12,7 @@ from app.api.auth import bearer_token, get_deps, identify, require_admin
 from app.api.state import ApiDeps
 from app.db.repository import Account
 from app.providers.lastfm_auth import APP_CALLBACK, AUTH_URL, LastfmAuthError
-from app.services import presence
+from app.services import alerts, presence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["comptes"])
@@ -224,20 +224,6 @@ async def decide(account_id: int, action: str, deps: ApiDeps = Depends(require_a
 
 
 async def _notify_admins(deps: ApiDeps, account: Account) -> None:
-    """Prévient les admins du bot Telegram qu'une demande d'accès attend
-    (au mieux : une notification ratée ne bloque rien)."""
-    token = deps.settings.bot_token
-    if not token:
-        return
+    """Prévient les administrateurs qu'une demande d'accès attend."""
     name = account.display_name or account.lastfm_username
-    text = (
-        f"🔔 Nouvelle demande d'accès à l'app Sona : {name} (Last.fm : {account.lastfm_username}).\n"
-        "Accepte-la depuis l'app : Réglages → Administration."
-    )
-    try:
-        admins = await deps.repo.list_admins()
-        async with httpx.AsyncClient(timeout=10) as client:
-            for chat_id in admins:
-                await client.post(f"https://api.telegram.org/bot{token}/sendMessage", data={"chat_id": chat_id, "text": text})
-    except Exception as exc:
-        logger.info("Notification Telegram de la demande d'accès impossible : %s", exc)
+    await alerts.send(deps.settings, f"Nouvelle demande d'accès à Sona : {name} (Last.fm : {account.lastfm_username}). Réglages → Administration.")

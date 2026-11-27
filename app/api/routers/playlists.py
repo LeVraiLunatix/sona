@@ -13,6 +13,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.api import limits
 from app.api.auth import require_token
 from app.api.routers import stream
 from app.api.schemas import (
@@ -39,7 +40,7 @@ from app.services.resolver import ResolutionError, source_from_url
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/me/playlists", tags=["playlists"])
 
-KNOWN_SOURCES = {"deezer", "apple", "spotify", "youtube", "soundcloud"}
+KNOWN_SOURCES = {"deezer", "apple", "spotify", "youtube", "soundcloud", "upload"}
 
 
 async def _owned(deps: ApiDeps, playlist_id: int) -> Playlist:
@@ -82,6 +83,13 @@ def _check_tracks(tracks: list[Track]) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Source inconnue : {', '.join(sorted(unknown))}")
 
 
+async def _check_own_files(deps: ApiDeps, tracks: list[Track]) -> None:
+    """On ne met dans une playlist que SES fichiers (les autres ne pourraient pas les écouter)."""
+    for track in tracks:
+        if track.source == "upload" and await deps.repo.upload_get(deps.user_id, track.source_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Fichier introuvable.")
+
+
 async def _detail(deps: ApiDeps, playlist_id: int) -> PlaylistDetailOut:
     playlist = await _accessible(deps, playlist_id)
     entries = await deps.repo.playlist_tracks(playlist_id)
@@ -100,6 +108,7 @@ async def list_playlists(deps: ApiDeps = Depends(require_token)) -> list[Playlis
 @router.post("", response_model=PlaylistDetailOut, status_code=status.HTTP_201_CREATED)
 async def create_playlist(payload: PlaylistCreate, deps: ApiDeps = Depends(require_token)) -> PlaylistDetailOut:
     _check_tracks(payload.tracks)
+    await _check_own_files(deps, payload.tracks)
     playlist_id = await deps.repo.playlist_create(
         deps.user_id, payload.name.strip() or "Nouvelle playlist", payload.description
     )
@@ -108,7 +117,7 @@ async def create_playlist(payload: PlaylistCreate, deps: ApiDeps = Depends(requi
 
 
 @router.post("/import", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
-async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depends(limits.heavy("import", 6))) -> PlaylistOut:
     """Lance l'import en tâche de fond ; l'app suit ensuite la playlist
     (`import_status`, `import_done` / `import_total`) jusqu'à « done »."""
     try:
@@ -120,7 +129,7 @@ async def import_playlist(payload: PlaylistImportRequest, deps: ApiDeps = Depend
 
 @router.post("/{playlist_id}/reimport", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
 @router.post("/{playlist_id}/sync", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
-async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+async def reimport_playlist(playlist_id: int, deps: ApiDeps = Depends(limits.heavy("import", 6))) -> PlaylistOut:
     """Resynchronise une playlist importée : relit la playlist d'origine et
     ajoute les titres apparus depuis (les corrections et l'ordre sont
     gardés). Se fait aussi tout seul, une fois par jour."""
@@ -161,6 +170,7 @@ async def fix_import_item(
             if payload.track is None:
                 raise playlist_import.PlaylistImportError("Choisis le titre à mettre à la place.")
             _check_tracks([payload.track])
+            await _check_own_files(deps, [payload.track])
             item = await playlist_import.fix_item(deps, playlist, item_id, "replace", payload.track.to_info())
         elif payload.action == "link":
             item = await _fix_with_link(deps, playlist, item_id, (payload.url or "").strip())
@@ -199,7 +209,7 @@ async def _fix_with_link(deps: ApiDeps, playlist: Playlist, item_id: int, url: s
 
 
 @router.post("/import-tracks", response_model=PlaylistOut, status_code=status.HTTP_202_ACCEPTED)
-async def import_tracks(payload: PlaylistImportTracksRequest, deps: ApiDeps = Depends(require_token)) -> PlaylistOut:
+async def import_tracks(payload: PlaylistImportTracksRequest, deps: ApiDeps = Depends(limits.heavy("import", 6))) -> PlaylistOut:
     """Playlist lue par l'app dans la bibliothèque Musique de l'iPhone — la
     liste complète, là où la page publique d'Apple Music s'arrête à 300."""
     tracks = [
@@ -252,6 +262,7 @@ async def add_tracks(
 ) -> PlaylistDetailOut:
     await _accessible(deps, playlist_id, edit=True)
     _check_tracks(payload.tracks)
+    await _check_own_files(deps, payload.tracks)
     await deps.repo.playlist_add_tracks(playlist_id, [t.to_info() for t in payload.tracks])
     return await _detail(deps, playlist_id)
 

@@ -48,7 +48,7 @@ function syncGta(track) {
   document.documentElement.classList.toggle("gtavi", want);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", want ? "#1b0536" : "#08080a");
   applyLook();
-  if (want) toast("Bienvenue à Leonida 🌴");
+  if (want) toast("Bienvenue à Leonida");
 }
 const ACCENTS = { neutre: ["Neutre", null], ciel: ["Ciel", "#8cc8ff"], menthe: ["Menthe", "#7ee0b0"], rose: ["Rose", "#ff9bb8"], ambre: ["Ambre", "#ffc46b"], violet: ["Violet", "#b9a4ff"] };
 const LOOK_DEFAULT = { accent: "neutre", tint: true, shape: "arrondi", menu: null, hover: true, lyrAuto: true, lyrBlur: true, lyrOffset: 0 };
@@ -176,7 +176,8 @@ async function api(path, options = {}) {
     ...options,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(options.headers || {}) },
   });
-  if (res.status === 401) { signOutLocal(); throw new Error("Session expirée"); }
+  // Sans jeton, on n'était pas connecté : rien à déconnecter (appels faits au démarrage de l'app Windows).
+  if (res.status === 401) { if (token) signOutLocal(); throw new Error("Session expirée"); }
   if (res.status === 403) {
     // Compte suspendu ou banni PENDANT la session : le serveur le sait à chaque requête.
     const body = await res.clone().json().catch(() => ({}));
@@ -214,7 +215,33 @@ function toast(text) {
 // ── Icônes (dans l'esprit des SF Symbols) ─────────────────────────────────
 
 const ic = (d, vb = "0 0 24 24") => `<svg class="icon" viewBox="${vb}" aria-hidden="true"><path d="${d}"/></svg>`;
+const il = (d) => `<svg class="icon line" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 const icons = {
+  flame: il("M12 22a7 7 0 0 0 7-7c0-5-4-8-6-13-1 3-1 5-3 7-1-1-1.5-2-1.5-3C6.5 8 5 11.5 5 15a7 7 0 0 0 7 7zm0 0a3 3 0 0 0 3-3c0-2-2-3.5-3-5-1 1.5-3 3-3 5a3 3 0 0 0 3 3z"),
+  laugh: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM7 13h10a5 5 0 0 1-10 0zM8 9.5l1.5-1 1.5 1M13 9.5l1.5-1 1.5 1"),
+  loveFace: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM8 15c2.5 2.5 5.5 2.5 8 0M8.5 11 6.8 9.3a1.2 1.2 0 0 1 1.7-1.6 1.2 1.2 0 0 1 1.7 1.6zM15.5 11l-1.7-1.7a1.2 1.2 0 0 1 1.7-1.6 1.2 1.2 0 0 1 1.7 1.6z"),
+  tear: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM8.5 15c2-1.5 5-1.5 7 0M9 9h.01M15 9h.01M17 11.5c1 1.3 1.5 2 1.5 2.8a1.5 1.5 0 0 1-3 0c0-.8.5-1.5 1.5-2.8z"),
+  zap: il("M13 2 3 14h9l-1 8 10-12h-9z"),
+  thumb: il("M7 10v12M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.8a2 2 0 0 0 1.8-1.1L12 2a3.1 3.1 0 0 1 3 3.9z"),
+  hand: il("M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"),
+  party: il("M4 21 9 9l7 7zM14 8c0-2 1-3 3-3M17 12c1.5-1 3-1 4 0M12 5V3M19 8h.01M21 4h.01M10 3h.01"),
+  sun: il("M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"),
+  sunrise: il("M12 2v6M8 6l4-4 4 4M4.9 10.9l1.4 1.4M2 18h2M20 18h2M17.7 12.3l1.4-1.4M22 22H2M16 18a4 4 0 0 0-8 0"),
+  cloud: il("M17.5 19a4.5 4.5 0 0 0 .4-9A6 6 0 0 0 6.3 8.6 5.2 5.2 0 0 0 7 19z"),
+  rain: il("M17.5 15a4.5 4.5 0 0 0 .4-9 6 6 0 0 0-11.6-1.4A5.2 5.2 0 0 0 7 15zM8 19v2M12 18v4M16 19v2"),
+  snow: il("M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5"),
+  glasses: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM6 9h5v1a2.5 2.5 0 0 1-5 0zM13 9h5v1a2.5 2.5 0 0 1-5 0zM11 9h2M8.5 16c2 1.5 5 1.5 7 0"),
+  compass: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM16 8l-2 6-6 2 2-6z"),
+  palette: il("M12 2a10 10 0 0 0 0 20c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.2 0-1 .8-1.8 1.8-1.8H17a5 5 0 0 0 5-5c0-5-4.5-9-10-9zM7 11.5h.01M9.5 7.5h.01M14.5 7.5h.01M17.5 11h.01"),
+  crown: il("M3 7l4 4 5-7 5 7 4-4-2 12H5zM5 22h14"),
+  medal: il("M12 9a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM8.5 10 6 2h4l2 5 2-5h4l-2.5 8"),
+  clock: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2"),
+  pin: il("M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0zM12 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"),
+  link: il("M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11.8 5.2M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"),
+  warning: il("M12 3 2 20h20zM12 10v4M12 17h.01"),
+  ban: il("M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM4.9 4.9l14.2 14.2"),
+  expand: il("M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"),
+  up: il("M6 15l6-6 6 6"),
   play: ic("M7 4.8v14.4c0 .8.9 1.3 1.6.9l11.2-7.2c.6-.4.6-1.4 0-1.8L8.6 3.9C7.9 3.5 7 4 7 4.8z"),
   pause: ic("M7 4h3.2c.4 0 .8.4.8.8v14.4c0 .4-.4.8-.8.8H7c-.4 0-.8-.4-.8-.8V4.8c0-.4.4-.8.8-.8zm6.8 0H17c.4 0 .8.4.8.8v14.4c0 .4-.4.8-.8.8h-3.2c-.4 0-.8-.4-.8-.8V4.8c0-.4.4-.8.8-.8z"),
   next: ic("M3 6.3v11.4c0 .7.8 1.1 1.4.7l8.1-5.7c.5-.4.5-1.1 0-1.4L4.4 5.6C3.8 5.2 3 5.6 3 6.3zm9.5 0v11.4c0 .7.8 1.1 1.4.7l8.1-5.7c.5-.4.5-1.1 0-1.4l-8.1-5.7c-.6-.4-1.4 0-1.4.7z"),
@@ -304,6 +331,13 @@ async function boot() {
   // QR code d'une TV : le code survit à la connexion.
   if (params.get("link")) store.set("sona.linkCode", params.get("link").toUpperCase());
   SonaSocial.rememberInvite(params);
+  // L'application demande à être connectée : le défi survit au passage par un fournisseur.
+  if (!desktop && /^[A-Za-z0-9_-]{43}$/.test(params.get("app") || "")) {
+    sessionStorage.setItem("sona.app", params.get("app"));
+    const clean = new URL(location.href);
+    clean.searchParams.delete("app");
+    history.replaceState(null, "", clean);
+  }
   // Retour de Last.fm (flux web) : le jeton est échangé une fois connecté.
   const lastfmToken = params.get("token");
   if (lastfmToken && store.get("sona.lastfmPending")) store.set("sona.lastfmToken", lastfmToken);
@@ -354,7 +388,7 @@ function startOffline() {
 }
 
 async function startApp() {
-  if (startApp.running) return;
+  if (startApp.running || SonaUI.linkingApp()) return;
   startApp.running = true;
   try {
     let acc;
@@ -365,6 +399,8 @@ async function startApp() {
       return SonaUI.authScreen({ error: e.message });
     }
     if (!acc) return; // écran de sanction, d'inscription ou de bienvenue déjà affiché
+    const appChallenge = !desktop && !acc.guest && sessionStorage.getItem("sona.app");
+    if (appChallenge) return SonaUI.appLinkScreen(acc, appChallenge, startApp);
     account = acc;
     token = (await Sona.auth.accessToken()) || token;
     document.body.style.overflow = "";
@@ -393,6 +429,7 @@ async function startApp() {
 function signOutLocal(silent) {
   token = null;
   account = null;
+  heardCache = { at: 0, data: null }; // les écoutes proposées sont celles du compte qui part
   Sona.auth.signOut().catch(() => {});
   audio.pause();
   partyLeave(true);
@@ -462,7 +499,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
   const banner = $("#install");
   if (banner) banner.innerHTML = installBanner();
 });
-window.addEventListener("appinstalled", () => { installPrompt = null; $("#install")?.replaceChildren(); toast("Sona est installé ✓"); });
+window.addEventListener("appinstalled", () => { installPrompt = null; $("#install")?.replaceChildren(); toast("Sona est installé"); });
 
 function installBanner() {
   if (standalone || store.get("sona.installDismissed") || !isMobile() || (!installPrompt && !isIOS)) return "";
@@ -773,7 +810,7 @@ async function route() {
     if (token_ !== route.seq) return;
     gta.route = false;
     syncGta();
-    content.innerHTML = page(`<div class="empty"><div class="big">⚠︎</div><h3>Impossible d'afficher cette page</h3><p>${esc(e.message)}</p></div>`);
+    content.innerHTML = page(`<div class="empty"><div class="big">${icons.warning}</div><h3>Impossible d'afficher cette page</h3><p>${esc(e.message)}</p></div>`);
   }
   const title = $(".page-title, .hero h1, .profile-head h1, .pa-name", content)?.textContent || "";
   nav.titles[hash] = title;
@@ -902,9 +939,10 @@ function trackTable(tracks, name, { numbers = true, showAlbum = true, ctx = null
 /** Nombre de disques d'une liste de titres (1 si la source ne le dit pas). */
 const discOf = (tracks) => Math.max(1, ...tracks.map((t) => t.disc_number || 1));
 
-function trackGrid(tracks, name) {
+function trackGrid(tracks, name, { solo = false } = {}) {
   tracks = (tracks || []).filter((t) => t && t.source && t.source_id);
   const list = register(tracks, name);
+  if (solo) registry.get(list).solo = true;
   const current = state.queue[state.index];
   return `<div class="track-grid" data-list="${list}">${tracks.map((t, i) => `
     <button class="mini ${sameTrack(t, current) ? "current" : ""}" data-i="${i}">
@@ -928,9 +966,13 @@ function hero({ cover, covers, kind, title, by, byHref, info, list, round, extra
     </div></div>`;
 }
 
+// L'API et les réactions gardent l'emoji comme donnée (les apps le lisent) ; le web montre l'icône.
+const EMOJI_ICONS = { "🔥": "flame", "😂": "laugh", "😍": "loveFace", "🥹": "tear", "🤯": "zap", "👏": "thumb", "🙌": "hand", "🎉": "party", "💃": "note", "🎤": "mic", "❤️": "heartFill", "💘": "heartFill", "🔁": "repeat", "🌙": "moon", "🧭": "compass", "🎨": "palette", "🌅": "sunrise", "🎧": "headphones", "🌧️": "rain", "❄️": "snow", "☀️": "sun", "😎": "glasses", "☁️": "cloud" };
+const emo = (e) => icons[EMOJI_ICONS[e]] || esc(e);
 const empty = (icon, title, text) => `<div class="empty"><div class="big">${icon}</div><h3>${esc(title)}</h3><p>${esc(text)}</p></div>`;
 
 function bindPage(root) {
+  $$(".rc", root).forEach((el) => radioSight.observe(el));
   $$("[data-shelf]", root).forEach((b) => (b.onclick = () => {
     const el = b.closest(".section").querySelector(".shelf, .track-grid");
     el.scrollBy({ left: el.clientWidth * Number(b.dataset.shelf) * 0.9, behavior: "smooth" });
@@ -1023,7 +1065,7 @@ async function viewHome() {
     $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
     $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
     $("[data-recognize]")?.addEventListener("click", (e) => { e.preventDefault(); recognizeSheet(); });
-    $("[data-mood-play]")?.addEventListener("click", () => playStation(`${mood.emoji} ${mood.title}`, async () => (await loadMood()).tracks));
+    $("[data-mood-play]")?.addEventListener("click", () => playStation(mood.title, async () => (await loadMood()).tracks));
     $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
   });
   return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
@@ -1052,7 +1094,7 @@ async function viewHome() {
     })))}
     ${memory ? `<button class="memory" data-memory>
       <span class="covers">${memory.tracks.slice(0, 3).map((t) => `<img src="${esc(big(t.cover_url, 200))}" alt="">`).join("")}</span>
-      <span class="memory-text"><span class="eyebrow">🕰️ ${esc(memory.label)}</span><span class="t">Ce que tu écoutais le ${esc(memory.date_label)}</span>
+      <span class="memory-text"><span class="eyebrow">${icons.clock} ${esc(memory.label)}</span><span class="t">Ce que tu écoutais le ${esc(memory.date_label)}</span>
       <span class="s">${plural(memory.plays, "écoute")} · touche pour réécouter</span></span></button>` : ""}
     <section class="section"><div class="section-head"><h2>Jouer</h2></div>
       <div class="tiles">
@@ -1068,7 +1110,7 @@ async function viewHome() {
     ${shelf("Radios", radios.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` })}
     ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
     ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
-    ${!mixes.length && !recentTracks.length ? empty("♫", "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
+    ${!mixes.length && !recentTracks.length ? empty(icons.note, "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
 }
 
 /** Mix « selon la météo » : l'humeur du moment (heure, jour, météo si la position est connue). */
@@ -1081,9 +1123,9 @@ function loadMood() {
 
 function moodCard(m) {
   const w = m.weather;
-  const weather = w ? `${w.label ? `${esc(w.label)} · ` : ""}${Math.round(w.temperature)} °C` : `<span class="link" data-mood-geo>📍 Selon ta météo</span>`;
+  const weather = w ? `${w.label ? `${esc(w.label)} · ` : ""}${Math.round(w.temperature)} °C` : `<span class="link" data-mood-geo>${icons.pin} Selon ta météo</span>`;
   return `<button class="mood mood-${esc(m.mood)}" data-mood-play>
-    <span class="mood-emoji">${esc(m.emoji)}</span>
+    <span class="mood-emoji">${emo(m.emoji)}</span>
     <span class="mood-text"><span class="eyebrow">Selon le moment · ${weather}</span><span class="t">${esc(m.title)}</span><span class="s">${esc(m.subtitle)}</span></span>
     <span class="fab">${icons.play}</span></button>`;
 }
@@ -1102,13 +1144,48 @@ function askMoodLocation() {
 function dailyCard({ track, reason }) {
   return `<button class="daily" data-play="${register([track], "Titre du jour")}">
     <img src="${esc(big(track.cover_url, 300))}" alt="">
-    <span class="daily-text"><span class="eyebrow">✨ Titre du jour</span><span class="t">${esc(track.title)}</span>
+    <span class="daily-text"><span class="eyebrow">${icons.sparkles} Titre du jour</span><span class="t">${esc(track.title)}</span>
     <span class="s">${esc(track.artist)}</span><span class="why">${esc(reason)}</span></span>
     <span class="fab">${icons.play}</span></button>`;
 }
 
+/** Gros « pixels » blancs, en trois calques qui respirent à tour de rôle (trois animations par cover,
+ * pas une par carré). Le tirage dépend de la radio : chaque cover garde son propre motif. */
+function radioPixels(id) {
+  let seed = [...String(id)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7) || 1;
+  const rand = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+  const layers = ["", "", ""];
+  for (let y = 0; y < 5; y++) {
+    for (let x = 0; x < 5; x++) {
+      if (rand() < 0.3) continue;
+      layers[Math.floor(rand() * 3)] += `<rect x="${x + 0.04}" y="${y + 0.04}" width=".92" height=".92" rx=".07" fill-opacity="${(0.05 + rand() * rand() * 0.5).toFixed(2)}"/>`;
+    }
+  }
+  return layers.map((rects) => `<svg class="rc-px" viewBox="0 0 5 5" aria-hidden="true">${rects}</svg>`).join("");
+}
+
+/** Le titre en grand ; la taille suit le mot le plus long pour qu'aucun ne déborde. */
+function radioArt(r) {
+  const words = r.title.split(/\s+/);
+  const size = Math.min(21, 112 / Math.max(...words.map((w) => w.length))).toFixed(1);
+  return `${radioPixels(r.id)}<span class="rc-title" style="font-size:${size}cqw" aria-hidden="true">${words.map(esc).join("<br>")}</span>
+    <img class="rc-star" src="${esc(`${SERVER}/radios/${encodeURIComponent(r.id)}/cover`)}" alt="" loading="lazy" onerror="this.remove()">
+    <svg class="rc-logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#sona-mark"/></svg>`;
+}
+
+/** Comme YouTube : un squelette, dessiné seulement quand la cover approche de l'écran ; et seules les
+ * covers visibles s'animent (47 en même temps faisaient ramer la page des radios). */
+const radioSight = new IntersectionObserver((entries) => entries.forEach(({ target, isIntersecting }) => {
+  if (isIntersecting && target.classList.contains("skeleton")) {
+    target.innerHTML = radioArt({ id: target.dataset.rc, title: target.dataset.title });
+    target.classList.remove("skeleton");
+  }
+  target.classList.toggle("live", isIntersecting);
+  if (!target.isConnected) radioSight.unobserve(target);
+}), { rootMargin: "120px" });
+
 const radioCard = (r) => `<a class="card radio-card" href="#" data-radio="${esc(r.id)}" data-title="${esc(r.title)}">
-  <div class="art-wrap"><img src="${esc(r.picture_url || "")}" alt="" loading="lazy"><span class="play-fab">${icons.play}</span></div>
+  <div class="art-wrap"><span class="rc skeleton" data-rc="${esc(r.id)}" data-title="${esc(r.title)}"></span><span class="play-fab">${icons.play}</span></div>
   <div class="t">${esc(r.title)}</div><div class="s">Radio</div></a>`;
 
 let radioCache = null;
@@ -1180,7 +1257,7 @@ async function viewExclusives(artistKey) {
       .sort(ui.sort === "count" ? (a, b) => b.tracks.length - a.tracks.length || a.label.localeCompare(b.label, "fr") : (a, b) => a.label.localeCompare(b.label, "fr"));
     const host = $("#xa-list");
     if (!host) return;
-    host.innerHTML = shown.length ? shown.map(cardHtml).join("") : empty("✦", "Aucun artiste", "Aucun artiste ne correspond à cette recherche.");
+    host.innerHTML = shown.length ? shown.map(cardHtml).join("") : empty(icons.sparkles, "Aucun artiste", "Aucun artiste ne correspond à cette recherche.");
     $("#xr-count").textContent = plural(shown.length, "artiste");
   };
   setTimeout(() => {
@@ -1199,7 +1276,7 @@ async function viewExclusives(artistKey) {
     ${tracks.length ? `<div class="xr-bar"><input class="field" id="xr-q" type="search" placeholder="Chercher un artiste…" autocomplete="off">
         <div class="xr-sort"><button class="on" data-xr-sort="az">A–Z</button><button data-xr-sort="count">Plus d'exclus</button></div><span class="muted" id="xr-count"></span></div>
       <div class="xa-grid" id="xa-list"></div>`
-      : empty("✦", "Aucun exclu pour le moment", status.can_add ? "Ajoute ton premier titre inédit avec le bouton ci-dessus." : "Les titres inédits ajoutés par l'admin apparaîtront ici.")}
+      : empty(icons.sparkles, "Aucun exclu pour le moment", status.can_add ? "Ajoute ton premier titre inédit avec le bouton ci-dessus." : "Les titres inédits ajoutés par l'admin apparaîtront ici.")}
     ${status.enabled === false ? `<p class="muted">Stockage non configuré : renseigne DISCORD_STORAGE_WEBHOOK sur le serveur.</p>` : ""}`);
 }
 
@@ -1267,7 +1344,7 @@ function exclusiveSheet(existing = null) {
         <label class="excl-label">Ajouter une version (ex. le FLAC)<input class="field" type="file" id="ex-version" accept="audio/*,.flac,.m4a,.mp3,.wav,.opus,.ogg"></label></div>` : ""}
       <div class="pill-row"><button class="btn ghost" data-no>Annuler</button><button class="btn" id="ex-save">${existing ? "Enregistrer" : "Ajouter"}</button></div>
     </div>`, { cls: "excl-sheet" });
-  const linked = () => { $("#ex-linked", wrap).textContent = pick.id ? "✓ Rattaché à la fiche de l'artiste : l'exclu s'affichera sur sa page." : "Choisis l'artiste dans la liste pour l'afficher sur sa page."; };
+  const linked = () => { $("#ex-linked", wrap).textContent = pick.id ? "Rattaché à la fiche de l'artiste : l'exclu s'affichera sur sa page." : "Choisis l'artiste dans la liste pour l'afficher sur sa page."; };
   linked();
   let timer;
   $("#ex-artist", wrap).oninput = (e) => {
@@ -1378,7 +1455,7 @@ async function deleteExclusive(t) {
 // Saisie avec suggestions (↑ ↓ Entrée), filtres Tout / Titres / Artistes /
 // Albums / Ta bibliothèque, mots cherchés en surbrillance, titres de ta
 // bibliothèque et playlists qui correspondent, « Afficher plus de titres ».
-const SEARCH_FILTERS = [["all", "Tout"], ["songs", "Titres"], ["artists", "Artistes"], ["albums", "Albums"], ["library", "Ta bibliothèque"]];
+const SEARCH_FILTERS = [["all", "Tout"], ["songs", "Titres"], ["artists", "Artistes"], ["albums", "Albums"], ["library", "Tes écoutes"]];
 const SEARCH_PAGE = 24;
 const searchUI = { filter: "all", data: null, abort: null, suggestAbort: null, suggestions: [], selected: -1 };
 const RECENTS_KEY = "sona.searches";
@@ -1405,33 +1482,72 @@ function hlHtml(text, q) {
   return out;
 }
 
-let libCache = { at: 0, tracks: [] };
-/** Titres de ta bibliothèque (gardés 5 min) : de quoi chercher dedans sans solliciter le serveur à chaque touche. */
-async function libraryTracks() {
-  if (libCache.tracks.length && Date.now() - libCache.at < 300000) return libCache.tracks;
-  const got = await api("/library/track?limit=500").catch(() => ({ items: [] }));
-  libCache = { at: Date.now(), tracks: (got.items || []).filter((t) => t?.source && t?.source_id) };
-  return libCache.tracks;
+let heardCache = { at: 0, data: null };
+/** Ce que tu écoutes (gardé 5 min) : `often`, tes écoutes récentes de la plus répétée à la moins
+ * répétée ; `all`, les mêmes suivies de ta bibliothèque. De quoi chercher dedans à chaque touche. */
+async function heard() {
+  if (heardCache.data && Date.now() - heardCache.at < (heardCache.data.all.length ? 300000 : 20000)) return heardCache.data;
+  const [plays, lib] = await Promise.all([
+    api("/plays/recent?limit=200").catch(() => []),
+    api("/library/track?limit=500").then((r) => r.items || []).catch(() => []),
+  ]);
+  const count = new Map();
+  for (const p of plays) if (p.source && p.source_id) count.set(trackKey(p), (count.get(trackKey(p)) || 0) + 1);
+  const often = playsToTracks(plays, 200).sort((a, b) => count.get(trackKey(b)) - count.get(trackKey(a)));
+  const data = { often, all: playsToTracks([...often, ...lib.filter(Boolean)], 700) };
+  heardCache = { at: Date.now(), data };
+  return data;
 }
+
+const matching = (tracks, q) => {
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  return tracks.filter((t) => { const text = fold(`${t.title} ${t.artist} ${t.album || ""}`); return words.every((w) => text.includes(w)); });
+};
 
 async function libraryMatches(q) {
   const words = fold(q).split(/\s+/).filter(Boolean);
-  const all = (text) => words.every((w) => text.includes(w));
-  const tracks = (await libraryTracks()).filter((t) => all(fold(`${t.title} ${t.artist} ${t.album || ""}`)));
-  const playlists = (state.playlists || []).filter((p) => all(fold(p.name)));
+  const tracks = matching((await heard()).all, q);
+  const playlists = (state.playlists || []).filter((p) => words.every((w) => fold(p.name).includes(w)));
   return { tracks: tracks.slice(0, 30), playlists: playlists.slice(0, 12) };
+}
+
+/** Page de recherche sans saisie : des titres à lancer d'un toucher, choisis d'après tes écoutes. */
+async function drawDiscover(box, seq) {
+  box.innerHTML = `<div id="sx-for-you"></div><div id="sx-often"></div><div id="sx-artists"></div><div id="sx-radios"></div>`;
+  const fill = (id, html) => {
+    const el = $(`#${id}`, box);
+    if (seq !== runSearch.seq || !el || !html) return;
+    el.innerHTML = html;
+    bindPage(el);
+  };
+  const section = (title, hint, inner) => `<section class="section"><div class="section-head"><h2>${title}</h2><span class="sx-hint">${hint}</span></div>${inner}</section>`;
+  heard().then(({ often }) => {
+    if (!often.length) return fill("sx-often", `<p class="muted sx-empty">Écoute quelques titres : des propositions à ton goût apparaîtront ici.</p>`);
+    fill("sx-often", section("Tu les écoutes souvent", "Touche pour lancer", trackGrid(often.slice(0, 8), "Tes habitudes", { solo: true })));
+    const artists = [...new Map(often.filter((t) => t.artist_source_id).map((t) => [t.artist_source_id, t])).values()].slice(0, 12);
+    fill("sx-artists", shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist.split(",")[0], round: true })), { kind: "round" }));
+  });
+  api("/home/mixes").catch(() => []).then((mixes) => {
+    const mix = ["discoveries", "daily"].map((id) => mixes.find((m) => m.id === id)).find((m) => m?.tracks.length);
+    if (mix) fill("sx-for-you", section("D'après tes écoutes", esc(mix.subtitle || ""), trackGrid(mix.tracks.slice(0, 8), mix.title, { solo: true })));
+  });
+  radioGroups().catch(() => []).then((groups) => {
+    fill("sx-radios", shelf("Radios", groups.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` }));
+    $$("#sx-radios [data-radio]", box).forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
+  });
 }
 
 async function viewSearch(q) {
   searchUI.filter = "all";
-  const html = page(`<h1 class="page-title">Chercher</h1>
+  const html = page(`<h1 class="page-title">Rechercher</h1>
     <div class="search-box">
-      <label class="search-hero">${icons.search}<input id="q" type="search" placeholder="Artistes, titres, albums, liens…" value="${esc(q)}" autocomplete="off" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="sugg" aria-autocomplete="list">
+      <label class="search-hero">${icons.search}<input id="q" type="search" placeholder="Que veux-tu écouter ?" value="${esc(q)}" autocomplete="off" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="sugg" aria-autocomplete="list">
         <button class="search-clear ${q ? "" : "hidden"}" type="button" id="q-clear" aria-label="Effacer la recherche">${icons.close}</button></label>
       <div class="sugg hidden" id="sugg" role="listbox"></div>
     </div>
     <div id="recents-box"></div>
     <div id="results"></div>`);
+  searchUI.suggestions = [];
   setTimeout(() => {
     const input = $("#q");
     if (!input) return;
@@ -1513,16 +1629,22 @@ async function showSuggestions(q) {
   if (!box) return;
   searchUI.suggestAbort?.abort();
   const ctrl = (searchUI.suggestAbort = new AbortController());
-  const recents = recentSearches().filter((r) => !q || fold(r).includes(fold(q)) && fold(r) !== fold(q)).slice(0, q ? 2 : 5)
+  if (!q) { searchUI.suggestions = []; return hideSuggestions(); }
+  const recents = recentSearches().filter((r) => fold(r).includes(fold(q)) && fold(r) !== fold(q)).slice(0, 2)
     .map((text) => ({ kind: "recent", text }));
-  let remote = [];
-  if (q.length >= 2) {
-    remote = await api(`/search/suggest?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal }).catch(() => []);
-    if (ctrl.signal.aborted || !$("#sugg")) return;
-  }
+  const [mine, remote] = q.length < 2 ? [[], []] : await Promise.all([
+    heard().then((h) => matching(h.all, q).slice(0, 3)),
+    api(`/search/suggest?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal }).catch(() => []),
+  ]);
+  if (ctrl.signal.aborted || !$("#sugg")) return;
   // La saisie a changé pendant l'attente : cette liste est périmée.
   if (($("#q")?.value || "").trim() !== q) return;
-  searchUI.suggestions = [...recents, ...remote];
+  const known = new Set(mine.map(trackKey));
+  searchUI.suggestions = [
+    ...mine.map((t) => ({ kind: "track", mine: true, track: t, text: t.title, subtitle: t.artist, picture_url: t.cover_url })),
+    ...recents,
+    ...remote.filter((r) => r.kind !== "track" || !known.has(trackKey(r))),
+  ];
   searchUI.selected = -1;
   paintSuggestions();
 }
@@ -1536,8 +1658,8 @@ function paintSuggestions() {
   box.innerHTML = list.map((s, i) => {
     const thumb = s.kind === "recent" ? `<span class="sg-ic">${icons.search}</span>`
       : `<img class="${s.kind === "artist" ? "round" : ""}" src="${esc(big(s.picture_url || "", 80))}" alt="" loading="lazy">`;
-    const sub = s.kind === "recent" ? "Recherche récente" : s.kind === "artist" ? "Artiste" : `Titre · ${esc(s.subtitle || "")}`;
-    return `<button class="sg ${i === searchUI.selected ? "on" : ""}" data-sg="${i}" role="option" aria-selected="${i === searchUI.selected}">${thumb}
+    const sub = s.kind === "recent" ? "Recherche récente" : s.kind === "artist" ? "Artiste" : `${s.mine ? "Tu l'écoutes" : "Titre"} · ${esc(s.subtitle || "")}`;
+    return `<button class="sg ${i === searchUI.selected ? "on" : ""}" data-sg="${i}" data-kind="${s.kind}" role="option" aria-selected="${i === searchUI.selected}">${thumb}
       <span class="sg-text"><b>${hlHtml(s.text, q)}</b><small>${sub}</small></span></button>`;
   }).join("");
   box.classList.remove("hidden");
@@ -1554,11 +1676,16 @@ function pickSuggestion(s) {
   if (!s) return;
   const input = $("#q");
   hideSuggestions();
+  input.blur();
   if (s.kind === "artist") { go(`#/artist/${s.source}/${s.source_id}`); return; }
-  input.value = s.kind === "track" ? `${s.text} ${s.subtitle || ""}`.trim() : s.text;
+  if (s.kind === "track") {
+    haptic();
+    playFromSearch(s.track || { source: s.source, source_id: s.source_id, title: s.text, artist: s.subtitle || "", cover_url: s.picture_url, artist_source_id: s.artist_source_id });
+    return;
+  }
+  input.value = s.text;
   $("#q-clear")?.classList.remove("hidden");
   drawRecents();
-  input.blur();
   runSearch(input.value.trim());
 }
 
@@ -1581,15 +1708,7 @@ async function runSearch(q) {
   // remplacer par un squelette : plus de clignotement à chaque pause de frappe.
   const keep = !!(q && searchUI.data && box.querySelector(".top-result, .shelf, .grid, .tracks"));
   if (!keep) searchUI.data = null;
-  if (!q) {
-    // Rien de tapé : les radios, comme l'onglet Rechercher de l'app.
-    const groups = await radioGroups().catch(() => []);
-    if (seq !== runSearch.seq || !$("#results")) return;
-    box.innerHTML = groups.map((g) => shelf(g.title, g.radios.map(radioCard))).join("");
-    $$("[data-radio]", box).forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
-    bindPage(box);
-    return;
-  }
+  if (!q) return drawDiscover(box, seq);
   if (looksLikeLink(q)) {
     box.innerHTML = `<p class="muted">Ouverture du lien…</p>`;
     try {
@@ -1601,7 +1720,7 @@ async function runSearch(q) {
       else if (got.kind === "artist" && got.artist) go(`#/artist/${got.artist.source}/${got.artist.source_id}`);
       return;
     } catch (e) {
-      if (seq === runSearch.seq && e.name !== "AbortError") box.innerHTML = empty("🔗", "Lien non reconnu", e.message);
+      if (seq === runSearch.seq && e.name !== "AbortError") box.innerHTML = empty(icons.link, "Lien non reconnu", e.message);
       return;
     }
   }
@@ -1626,7 +1745,7 @@ function drawResults(box) {
   const libCount = lib.tracks.length + lib.playlists.length;
   const counts = { songs: songs.length, artists: artists.length, albums: albums.length, library: libCount };
   if (!songs.length && !artists.length && !albums.length && !libCount) {
-    box.innerHTML = empty("🔍", "Aucun résultat", `Rien trouvé pour « ${q} ». Vérifie l'orthographe, essaie un seul mot, ou colle un lien Spotify, Deezer, Apple Music ou YouTube.`);
+    box.innerHTML = empty(icons.search, "Aucun résultat", `Rien trouvé pour « ${q} ». Vérifie l'orthographe, essaie un seul mot, ou colle un lien Spotify, Deezer, Apple Music ou YouTube.`);
     return;
   }
   if (!counts[searchUI.filter] && searchUI.filter !== "all") searchUI.filter = "all";
@@ -1654,7 +1773,7 @@ function drawResults(box) {
       ? `<a class="top-card" href="#/artist/${top.source}/${top.source_id}"><img class="round" src="${esc(top.picture_url || "")}" alt=""><div class="t">${hlHtml(top.name, q)}</div><div class="s">Artiste</div></a>`
       : songs[0] ? `<button class="top-card" data-top><img src="${esc(big(songs[0].cover_url, 300))}" alt=""><div class="t">${hlHtml(songs[0].title, q)}</div><div class="s">Titre · ${esc(songs[0].artist)}</div></button>` : "";
     body = (songs.length ? section("Meilleur résultat", `<div class="top-result">${topHtml}<div>${trackTable(songs.slice(0, 5), name, { numbers: false, showAlbum: false, ...songOpts })}</div></div>`) : "")
-      + (libCount ? section("Dans ta bibliothèque", (lib.tracks.length ? trackTable(lib.tracks.slice(0, 4), "Ta bibliothèque", { numbers: false, showAlbum: false, hl: q }) : "")
+      + (libCount ? section("Dans tes écoutes", (lib.tracks.length ? trackTable(lib.tracks.slice(0, 4), "Tes écoutes", { numbers: false, showAlbum: false, ...songOpts }) : "")
         + (lib.playlists.length ? `<div class="shelf">${lib.playlists.slice(0, 6).map(playlistCard).join("")}</div>` : ""), seeAll("library")) : "")
       + shelf("Artistes", artists.map(artistCard), { kind: "round" })
       + shelf("Albums", albums.map(albumCard))
@@ -1667,7 +1786,7 @@ function drawResults(box) {
   } else if (f === "albums") {
     body = section("Albums", `<div class="grid">${albums.map(albumCard).join("")}</div>`);
   } else if (f === "library") {
-    body = (lib.tracks.length ? section("Titres de ta bibliothèque", trackTable(lib.tracks, "Ta bibliothèque", { hl: q })) : "")
+    body = (lib.tracks.length ? section("Titres", trackTable(lib.tracks, "Tes écoutes", songOpts)) : "")
       + (lib.playlists.length ? section("Playlists", `<div class="grid">${lib.playlists.map(playlistCard).join("")}</div>`) : "");
   }
   box.innerHTML = chips + body;
@@ -1738,7 +1857,7 @@ function bindPageSearch({ tracks, name, opts, noun, addTo }) {
       const shownOpts = opts.ctx?.entries ? { ...opts, ctx: { ...opts.ctx, entries: idx.map((i) => opts.ctx.entries[i]) } } : opts;
       box.innerHTML = idx.length
         ? trackTable(idx.map((i) => tracks[i]), name, shownOpts)
-        : empty("🔍", "Aucun titre", `Rien dans ${noun} pour « ${raw} ».`);
+        : empty(icons.search, "Aucun titre", `Rien dans ${noun} pour « ${raw} ».`);
       bindPage(box);
     }, 120);
   });
@@ -2080,7 +2199,7 @@ async function viewUserPlaylist(id) {
   }) + progress + importBanner(p)
     + (p.import_error ? `<p class="${p.import_status === "failed" ? "error-text" : "muted"}">${esc(p.import_error)}</p>` : "")
     + pageSearchBar({ show: tracks.length > 5, noun: "cette playlist", canAdd })
-    + `<div id="pl-tracks">${tracks.length ? trackTable(tracks, p.name, { ctx }) : empty("♫", "Playlist vide", "Ajoute des titres avec « Ajouter des morceaux », le bouton … d'un titre, ou depuis le lecteur.")}</div>`);
+    + `<div id="pl-tracks">${tracks.length ? trackTable(tracks, p.name, { ctx }) : empty(icons.note, "Playlist vide", "Ajoute des titres avec « Ajouter des morceaux », le bouton … d'un titre, ou depuis le lecteur.")}</div>`);
 }
 
 function playlistMenu(p) {
@@ -2123,22 +2242,72 @@ async function viewSmart(id) {
   ]);
   const meta = lists.find((s) => s.id === id) || { title: "Playlist intelligente", subtitle: "" };
   return page(hero({ cover: tracks[0]?.cover_url, kind: "Playlist intelligente", title: meta.title, info: meta.subtitle, list: register(tracks, meta.title) })
-    + (tracks.length ? trackTable(tracks, meta.title) : empty("✦", "Rien pour l'instant", "Cette playlist se remplit toute seule avec tes écoutes.")));
+    + (tracks.length ? trackTable(tracks, meta.title) : empty(icons.sparkles, "Rien pour l'instant", "Cette playlist se remplit toute seule avec tes écoutes.")));
 }
 
 async function viewMix(id) {
   $("#content").innerHTML = skeleton("");
   const mix = (await api("/home/mixes")).find((m) => m.id === id);
-  if (!mix) return page(empty("♫", "Mix introuvable", "Il a peut-être été renouvelé."));
+  if (!mix) return page(empty(icons.note, "Mix introuvable", "Il a peut-être été renouvelé."));
   return page(hero({ cover: mix.covers[0], kind: "Mix Sona", title: mix.title, info: mix.subtitle, list: register(mix.tracks, mix.title) })
     + trackTable(mix.tracks, mix.title));
 }
 
-const LIB_KINDS = [["playlists", "Playlists"], ["tracks", "Titres"], ["albums", "Albums"], ["artists", "Artistes"], ["downloads", "Téléchargés"]];
+const LIB_KINDS = [["playlists", "Playlists", "list"], ["tracks", "Titres", "note"], ["albums", "Albums", "disc"], ["artists", "Artistes", "mic"], ["files", "Mes fichiers", "share"], ["downloads", "Téléchargés", "download"]];
+
+/** « Mes fichiers » : ses propres audios, vérifiés par le serveur, écoutables par soi seul. */
+async function myFiles() {
+  const data = await api("/uploads");
+  const tracks = data.tracks;
+  const list = register(tracks, "Mes fichiers");
+  const mb = (b) => b >= 1073741824 ? `${+(b / 1073741824).toFixed(1)} Go`.replace(".", ",") : `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0).replace(".", ",")} Mo`;
+  setTimeout(() => {
+    const input = $("#up-input");
+    $("[data-upload]")?.addEventListener("click", () => input.click());
+    input?.addEventListener("change", () => sendFiles([...input.files], data.max_file_bytes));
+  });
+  return `<p class="page-sub">${plural(tracks.length, "fichier")} · ${mb(data.used_bytes)} sur ${mb(data.quota_bytes)} · toi seul peux les écouter</p>
+    <div class="pill-row"><button class="btn" data-upload>${icons.plus} Ajouter des fichiers</button>
+      ${tracks.length ? `<button class="btn ghost" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button>` : ""}</div>
+    <input type="file" id="up-input" accept=".mp3,.m4a,.flac,.wav,.ogg,audio/*" multiple hidden>
+    <p class="muted" id="up-status" role="status"></p>
+    ${tracks.length ? trackTable(tracks, "Mes fichiers", { showAlbum: true }) : empty(icons.note, "Aucun fichier", "Ajoute tes MP3, M4A, FLAC, WAV ou OGG (100 Mo par fichier) : ils rejoignent ta bibliothèque et tes playlists.")}`;
+}
+
+/** Envoi un par un ; chaque refus dit pourquoi, sans arrêter les suivants. */
+async function sendFiles(files, maxBytes) {
+  const refused = [];
+  let sent = 0;
+  for (const [i, file] of files.entries()) {
+    const status = $("#up-status");
+    if (status) status.textContent = `Envoi et vérification ${i + 1}/${files.length} : ${file.name}`;
+    try {
+      if (file.size > maxBytes) throw new Error("Fichier trop lourd (100 Mo maximum).");
+      await api(`/uploads?filename=${encodeURIComponent(file.name.slice(-250))}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+      sent++;
+    } catch (e) { refused.push(`${file.name} : ${e.message}`); }
+  }
+  heardCache = { at: 0, data: null };
+  await route();
+  const status = $("#up-status");
+  if (status && refused.length) status.textContent = refused.join(" · ");
+  if (sent) toast(`${plural(sent, "fichier")} ajouté${sent > 1 ? "s" : ""}`);
+}
+
+async function deleteUpload(t) {
+  if (!(await confirmSheet(`Supprimer « ${t.title} » ? Le fichier sera effacé du serveur, de tes playlists et de ta bibliothèque.`, "Supprimer"))) return;
+  try {
+    await api(`/uploads/${encodeURIComponent(t.source_id)}`, { method: "DELETE" });
+    state.liked.delete(trackKey(t));
+    heardCache = { at: 0, data: null };
+    toast("Fichier supprimé");
+    route();
+  } catch (e) { toast(e.message); }
+}
 
 async function viewLibrary(kind) {
   if (!LIB_KINDS.some(([k]) => k === kind)) kind = "playlists";
-  const seg = `<div class="segmented">${LIB_KINDS.map(([k, label]) => `<a href="#/library/${k}" class="${k === kind ? "on" : ""}">${label}</a>`).join("")}</div>`;
+  const seg = `<nav class="segmented lib-tabs" aria-label="Bibliothèque">${LIB_KINDS.map(([k, label, icon]) => `<a href="#/library/${k}" ${k === kind ? 'class="on" aria-current="page"' : ""}>${icons[icon]}${label}</a>`).join("")}</nav>`;
   $("#content").innerHTML = page(`<h1 class="page-title">Bibliothèque</h1>${seg}<div class="loading-row"><span class="spinner"></span></div>`);
   let body = "";
   if (kind === "playlists") {
@@ -2163,14 +2332,16 @@ async function viewLibrary(kind) {
           href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name,
           subtitle: importing ? `Import… ${p.import_done}/${p.import_total ?? "?"}` : p.import_status === "failed" ? "Import impossible" : `${plural(p.track_count, "titre")}${p.is_owner === false ? ` · ${p.owner_name}` : ""}`,
         });
-      }).join("")}</div>` : empty("♫", "Aucune playlist", "Crée ta première playlist, ou importe-en une depuis Spotify, Apple Music, Deezer, YouTube ou SoundCloud.")}</section>`;
+      }).join("")}</div>` : empty(icons.note, "Aucune playlist", "Crée ta première playlist, ou importe-en une depuis Spotify, Apple Music, Deezer, YouTube ou SoundCloud.")}</section>`;
   } else if (kind === "tracks") {
     const data = await api("/library/track?limit=500").catch(() => ({ items: [] }));
     const tracks = (data.items || []).map((i) => i.track || { source: i.source, source_id: i.source_id, title: i.title, artist: i.subtitle || "", cover_url: i.cover_url }).filter((t) => t.source_id);
     state.liked = new Set(tracks.map(trackKey));
     const list = register(tracks, "Tes titres");
     body = tracks.length ? `<p class="page-sub">${plural(tracks.length, "titre")}</p><div class="pill-row"><button class="btn" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button></div>${trackTable(tracks, "Tes titres")}`
-      : empty("♡", "Rien ici pour l'instant", "Ajoute des titres avec le cœur, ici ou dans l'app.");
+      : empty(icons.heart, "Rien ici pour l'instant", "Ajoute des titres avec le cœur, ici ou dans l'app.");
+  } else if (kind === "files") {
+    body = await myFiles();
   } else if (kind === "downloads") {
     const tracks = offline.meta;
     const list = register(tracks, "Téléchargés");
@@ -2178,7 +2349,7 @@ async function viewLibrary(kind) {
     try { const e = await navigator.storage?.estimate?.(); if (e?.usage) usage = ` · ${(e.usage / 1048576).toFixed(0)} Mo utilisés`; } catch {}
     setTimeout(() => $("[data-dl-clear]")?.addEventListener("click", async () => { await offlineClear(); toast("Téléchargements supprimés"); route(); }));
     body = tracks.length ? `<p class="page-sub">${plural(tracks.length, "titre")}${usage}</p><div class="pill-row"><button class="btn" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button><button class="btn ghost" data-dl-clear>${icons.trash} Tout supprimer</button></div>${trackTable(tracks, "Téléchargés")}`
-      : empty("⬇️", "Aucun titre téléchargé", offline.supported ? "Dans le menu « ⋯ » d'un titre, ou avec le bouton de l'album : « Télécharger pour l'écoute hors ligne »." : "Le hors ligne n'est pas disponible dans ce navigateur.");
+      : empty(icons.download, "Aucun titre téléchargé", offline.supported ? "Dans le menu « ⋯ » d'un titre, ou avec le bouton de l'album : « Télécharger pour l'écoute hors ligne »." : "Le hors ligne n'est pas disponible dans ce navigateur.");
   } else {
     const k = kind === "albums" ? "album" : "artist";
     const data = await api(`/library/${k}?limit=500`).catch(() => ({ items: [] }));
@@ -2186,7 +2357,7 @@ async function viewLibrary(kind) {
     (k === "album" ? state.likedAlbums = new Set(items.map(trackKey)) : state.likedArtists = new Set(items.map(trackKey)));
     body = items.length ? `<div class="grid ${k === "artist" ? "round-grid" : ""}">${items.map((i) => card({
       href: `#/${k}/${i.source}/${i.source_id}`, cover: i.cover_url, title: i.title, subtitle: i.subtitle || "", round: k === "artist",
-    })).join("")}</div>` : empty(k === "album" ? "💿" : "🎤", "Rien ici pour l'instant", `Ajoute ${k === "album" ? "un album" : "un artiste"} avec le cœur de sa fiche.`);
+    })).join("")}</div>` : empty(k === "album" ? icons.disc : icons.mic, "Rien ici pour l'instant", `Ajoute ${k === "album" ? "un album" : "un artiste"} avec le cœur de sa fiche.`);
   }
   return page(`<h1 class="page-title">Bibliothèque</h1>${seg}${body}`);
 }
@@ -2300,7 +2471,7 @@ function importFix(p, item, onFixed) {
     const box = $(".imp-results", wrap);
     box.innerHTML = `<div class="loading-row"><span class="spinner"></span></div>`;
     results = ((await api(`/search?q=${encodeURIComponent(q)}`).catch(() => ({ tracks: [] }))).tracks || []).slice(0, 8);
-    box.innerHTML = results.length ? results.map((t, k) => `<button class="imp-pick" data-pick="${k}"><img src="${esc(big(t.cover_url, 120))}" alt=""><span><b>${esc(t.title)}</b><small>${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</small></span><em>${t.duration_seconds ? clock(t.duration_seconds * 1000) : ""}</em></button>`).join("")
+    box.innerHTML = results.length ? results.map((t, k) => `<button class="imp-pick" data-pick="${k}"><img src="${esc(big(t.cover_url, 120))}" alt=""><span><b>${esc(t.title)}</b><small>${esc(t.artist)}${t.album ? ` · ${esc(t.album)}` : ""}</small></span><em>${t.duration_seconds ? fmt(t.duration_seconds) : ""}</em></button>`).join("")
       : `<p class="muted">Aucun résultat.</p>`;
   };
   $(".imp-search", wrap).onsubmit = (e) => { e.preventDefault(); search(e.target.q.value.trim()); };
@@ -2388,7 +2559,7 @@ function bindHealth() {
     result("Essai de lecture d'une vidéo YouTube…");
     try {
       const got = await api("/admin/streaming/selftest", { method: "POST" });
-      result(got.ok ? `✅ YouTube répond (${got.message}).` : `❌ ${got.message}`, !got.ok);
+      result(got.ok ? `YouTube répond (${got.message}).` : got.message, !got.ok);
     } catch (err) { result(err.message, true); }
   });
   $("#ytdlp-update")?.addEventListener("click", async () => {
@@ -4223,7 +4394,7 @@ function renderLyrics() {
   if (!ly) { box.innerHTML = `<div class="lyrics"><p class="none">Chargement des paroles…</p></div>`; return; }
   const cur = state.queue[state.index];
   if (!ly.lines.length) {
-    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? "♪ Instrumental" : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">Sona les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
+    box.innerHTML = `<div class="lyrics"><p class="none">${ly.instrumental ? `${icons.note} Instrumental` : "Pas encore de paroles pour ce titre."}</p>${ly.instrumental ? "" : `<p class="lyr-later">Sona les recherche de nouveau d'elle-même, régulièrement.</p>`}</div>`;
     return;
   }
   const tools = ly.synced && cur ? `<div class="lyr-tools" title="Paroles décalées ? Avance ou retarde-les">
@@ -4239,7 +4410,7 @@ function renderLyrics() {
       const backs = l.timed.map((w, k) => (w.back ? word(w, k) : "")).join("");
       return `<p data-l="${i}">${main}${backs ? `<span class="bk">${backs}</span>` : ""}</p>`;
     }
-    return `<p data-l="${i}">${esc(l.text || "♪")}</p>`;
+    return `<p data-l="${i}">${l.text ? esc(l.text) : icons.note}</p>`;
   };
   const foot = `<div class="lyr-foot">${esc(lyricsSourceLabel(ly))}</div>`;
   box.innerHTML = `${tools}<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map(line).join("")}${foot}</div>`;
@@ -4861,7 +5032,7 @@ async function volumeSheet() {
     <p class="muted vs-hint">${icons.pencil} enregistre le volume actuel dans le préréglage.</p>
     ${deskSettings ? `<div class="set-group">${toggleRow("vs-voice", "Mode vocal automatique",
       "Quand Discord (ou une autre app) utilise ton micro, Sona passe sur « En vocal », puis revient au volume d'avant à la fin de l'appel.", deskSettings.micWatch !== false)}</div>
-      ${vol.voice.active ? `<p class="muted vs-hint">🎧 En vocal en ce moment${vol.voice.apps.length ? ` (${esc(vol.voice.apps.join(", "))})` : ""}.</p>` : ""}` : ""}`);
+      ${vol.voice.active ? `<p class="muted vs-hint">${icons.headphones} En vocal en ce moment${vol.voice.apps.length ? ` (${esc(vol.voice.apps.join(", "))})` : ""}.</p>` : ""}` : ""}`);
   const range = $("#vs-range", wrap);
   range.oninput = () => setVolume(+range.value / 100);
   bindVolumeWheel($(".vs-main", wrap));
@@ -4887,7 +5058,7 @@ function micChanged({ inUse, apps }) {
     vol.voice = { active: true, before: vol.level, apps: vol.voice.apps };
     if (vol.level > level) {
       setVolume(level, { save: false });
-      toast(`🎧 En vocal${apps?.length ? ` sur ${apps[0]}` : ""} : volume baissé à ${volLabel(level)}`);
+      toast(`En vocal${apps?.length ? ` sur ${apps[0]}` : ""} : volume baissé à ${volLabel(level)}`);
     }
   } else if (!inUse && vol.voice.active) {
     const before = vol.voice.before;
@@ -4942,7 +5113,7 @@ async function recognizeSheet() {
         ${t ? `<button class="btn" data-rec-play>${icons.play} Écouter dans Sona</button><small class="muted" id="rec-saved"></small>` : `<small class="muted">Introuvable dans le catalogue de Sona.</small>`}`;
       if (t) {
         $("[data-rec-play]", box).onclick = () => { wrap.close(); playList([t], 0, "Entendu dehors"); };
-        saveHeard(t).then((ok) => { const el = $("#rec-saved", box); if (el && ok) el.textContent = "✓ Ajouté à « Entendu dehors »"; });
+        saveHeard(t).then((ok) => { const el = $("#rec-saved", box); if (el && ok) el.textContent = "Ajouté à « Entendu dehors »"; });
       }
     }
   } catch (e) {
@@ -5220,7 +5391,7 @@ function openVisualizer() {
   el.className = "viz";
   el.innerHTML = `<div class="viz-bg"><img alt=""></div><canvas></canvas>
     <div class="viz-meta"><img class="viz-art" alt=""><div><b></b><span></span></div></div>
-    <div class="viz-tools"><button data-viz="full" title="Plein écran (F)">⛶</button><button data-viz="close" title="Fermer (Échap)">${icons.close}</button></div>`;
+    <div class="viz-tools"><button data-viz="full" title="Plein écran (F)">${icons.expand}</button><button data-viz="close" title="Fermer (Échap)">${icons.close}</button></div>`;
   document.body.append(el);
   viz.el = el;
   const canvas = $("canvas", el);
@@ -6116,8 +6287,9 @@ function trackMenu(t, ctx = null, index = -1) {
     playing && { icon: icons.sparkles, label: "Réagir à cet instant", sub: "Tes amis verront ta réaction à ce moment du titre", run: () => addMoment(t) },
     playing && { icon: icons.moon, label: sleep.until ? `Minuteur : ${sleepLabel()}` : "Minuteur de sommeil", run: sleepMenu },
     playing && { icon: icons.tv, label: "Diffuser sur la TV ou la PS5", run: openCast },
-    playing && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
+    playing && account?.is_admin && t.source !== "upload" && { icon: icons.flag, label: "Mauvaise version ?", sub: "Clip, live, remix… : une autre source est cherchée", run: () => reportWrongVersion(t) },
     account?.is_admin && { icon: icons.pulse, label: "Diagnostic de lecture", sub: "Ce que le serveur trouve pour ce titre, et pourquoi il l'écarte", run: () => diagnoseTrack(t) },
+    t.source === "upload" && { icon: icons.trash, label: "Supprimer ce fichier", danger: true, run: () => deleteUpload(t) },
     entry && ctx.playlist?.can_edit && { icon: icons.trash, label: "Retirer de cette playlist", danger: true, run: async () => {
       await api(`/me/playlists/${ctx.playlist.id}/tracks/${entry.entry_id}`, { method: "DELETE" });
       toast("Retiré de la playlist"); route();
@@ -6156,12 +6328,12 @@ function trackLink(t) {
   return `https://music.youtube.com/search?q=${encodeURIComponent(`${t.artist} ${t.title}`)}`;
 }
 
-const shareText = (t) => `🎧 ${t.title} — ${t.artist}\n${trackLink(t)}`;
+const shareText = (t) => `${t.title} — ${t.artist}\n${trackLink(t)}`;
 
 async function shareTrack(t) {
   const text = shareText(t);
   try {
-    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `🎧 ${t.title} — ${t.artist} (via Sona)`, url: trackLink(t) });
+    if (navigator.share && !desktop) await navigator.share({ title: t.title, text: `${t.title} — ${t.artist} (via Sona)`, url: trackLink(t) });
     else { await navigator.clipboard.writeText(text); toast("Lien copié"); }
   } catch {}
 }
@@ -6203,7 +6375,7 @@ function sonaShareSheet(target) {
     }
     const url = result.dataset.url;
     if (e.target.closest("[data-share-copy]")) { try { await navigator.clipboard.writeText(url); haptic(); toast("Lien copié"); } catch { toast(url); } }
-    if (e.target.closest("[data-share-native]")) { try { await navigator.share({ title: target.title, text: `🎧 ${target.title}${target.subtitle ? ` — ${target.subtitle}` : ""}`, url }); } catch {} }
+    if (e.target.closest("[data-share-native]")) { try { await navigator.share({ title: target.title, text: `${target.title}${target.subtitle ? ` — ${target.subtitle}` : ""}`, url }); } catch {} }
   };
 }
 
@@ -6346,7 +6518,7 @@ function renderMoments() {
   const t = state.queue[state.index];
   if (!box || !t) return;
   const dur = audio.duration && isFinite(audio.duration) ? audio.duration : t.duration_seconds || 0;
-  box.innerHTML = dur ? moments.list.map((m) => `<span class="moment" style="left:${Math.min(100, (m.position / dur) * 100)}%" title="${esc(`${m.name} : ${m.text || m.emoji}`)}">${esc(m.emoji)}</span>`).join("") : "";
+  box.innerHTML = dur ? moments.list.map((m) => `<span class="moment" style="left:${Math.min(100, (m.position / dur) * 100)}%" title="${esc(`${m.name} : ${m.text || "réaction"}`)}">${emo(m.emoji)}</span>`).join("") : "";
 }
 
 /** Passage sur la réaction d'un ami : elle s'affiche un instant. */
@@ -6362,7 +6534,7 @@ function checkMoments() {
 function floatReaction(emoji, label = "") {
   const el = document.createElement("div");
   el.className = "float-reaction";
-  el.innerHTML = `<span class="e">${esc(emoji)}</span>${label ? `<span class="l">${esc(label)}</span>` : ""}`;
+  el.innerHTML = `<span class="e">${emo(emoji)}</span>${label ? `<span class="l">${esc(label)}</span>` : ""}`;
   el.style.left = `${20 + Math.random() * 60}%`;
   document.body.append(el);
   setTimeout(() => el.remove(), 3200);
@@ -6374,7 +6546,7 @@ function addMoment(t) {
   const position = Math.round(audio.currentTime * 10) / 10;
   const wrap = openSheet(`<h2 class="sheet-title">Réagis à ${fmt(position)}</h2>
     <p class="muted">Tes amis verront ta réaction à cet instant de « ${esc(t.title)} ».</p>
-    <div class="emoji-row">${MOMENT_EMOJIS.map((e) => `<button data-emoji="${e}">${e}</button>`).join("")}</div>
+    <div class="emoji-row">${MOMENT_EMOJIS.map((e) => `<button data-emoji="${e}" aria-label="${e}">${emo(e)}</button>`).join("")}</div>
     <input class="field" id="moment-text" maxlength="80" placeholder="Un petit mot (facultatif)">
     <div class="pill-row"><button class="btn" data-publish disabled>Publier</button></div>`);
   let emoji = null;
@@ -6407,7 +6579,7 @@ function setSleep(minutes) {
   if (minutes === "track") { sleep.endOfTrack = true; sleep.until = Infinity; toast("Pause à la fin du titre"); return; }
   if (!minutes) { toast("Minuteur arrêté"); return; }
   sleep.until = Date.now() + minutes * 60000;
-  sleep.timer = setTimeout(() => { audio.pause(); sleep.until = null; toast("Bonne nuit 🌙"); }, minutes * 60000);
+  sleep.timer = setTimeout(() => { audio.pause(); sleep.until = null; toast("Bonne nuit"); }, minutes * 60000);
   toast(`Pause dans ${minutes} min`);
 }
 
@@ -6492,7 +6664,7 @@ async function viewBlend(id) {
       <p class="page-sub">${b.compatibility != null ? `${b.compatibility} % d'affinité · ` : ""}${plural(b.shared_tracks, "titre")} en commun. Une playlist mélangée chaque jour, rien que pour vous deux.</p>
       <div class="pill-row center"><button class="btn" data-play="${list}">${icons.play} Lecture</button><button class="btn ghost" data-shuffle="${list}">${icons.shuffle} Aléatoire</button></div></div>
     ${b.shared_artists.length ? `<div class="chips center">${b.shared_artists.map((a) => `<span class="chip">${esc(a)}</span>`).join("")}</div>` : ""}
-    ${b.tracks.length ? trackTable(b.tracks, b.title) : empty("✦", "Pas encore de blend", "Écoutez encore un peu de musique tous les deux.")}`);
+    ${b.tracks.length ? trackTable(b.tracks, b.title) : empty(icons.sparkles, "Pas encore de blend", "Écoutez encore un peu de musique tous les deux.")}`);
 }
 
 // ── Stats ────────────────────────────────────────────────────────────────
@@ -6521,9 +6693,9 @@ function rankRows(items, kind) {
 
 /** Défis entre amis : les classements de la semaine. */
 function friendsBoards({ boards, champion }) {
-  const medal = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}.`;
+  const medal = (i) => (i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : `${i + 1}.`);
   return `<section class="section"><div class="section-head"><h2>Entre amis cette semaine</h2></div>
-    ${champion ? `<p class="champion">🏆 ${champion.me ? "Tu es" : `${esc(champion.name)} est`} champion de la semaine dernière · ${plural(champion.minutes, "minute")} de musique</p>` : ""}
+    ${champion ? `<p class="champion">${icons.trophy} ${champion.me ? "Tu es" : `${esc(champion.name)} est`} champion de la semaine dernière · ${plural(champion.minutes, "minute")} de musique</p>` : ""}
     <div class="boards">${boards.map((b) => `<div class="board"><div class="bt">${esc(b.title)}</div>
       ${b.ranking.map((r, i) => `<div class="brow ${r.me ? "me" : ""}"><span class="bm">${medal(i)}</span>${avatar(r.avatar_url, r.name, "bav")}<span class="bn">${r.me ? "Toi" : esc(r.name)}</span><b>${r.value.toLocaleString("fr-FR")} <small>${esc(b.unit)}</small></b></div>`).join("")}
     </div>`).join("")}</div></section>`;
@@ -6572,7 +6744,7 @@ async function viewStats() {
       <div class="habits">${barChart(r.hours, hourLabels, { highlight: r.top_hour ?? -1 })}${barChart(r.weekdays, weekLabels)}</div></section>
     ${r.discoveries.length ? `<section class="section"><div class="section-head"><h2>Découvertes</h2></div><p class="muted">Artistes écoutés pour la première fois sur cette période.</p>
       ${shelfInner(r.discoveries.map((a) => card({ href: a.source && a.source_id ? `#/artist/${a.source}/${a.source_id}` : `#/search/${encodeURIComponent(a.name)}`, cover: a.picture_url || a.cover_url, title: a.name, subtitle: plural(a.plays, "écoute"), round: true })), "round")}</section>` : ""}`
-    : empty("📊", "Aucune écoute sur cette période", "Écoute un peu de musique : tes stats se remplissent toutes seules.")}
+    : empty(icons.stats, "Aucune écoute sur cette période", "Écoute un peu de musique : tes stats se remplissent toutes seules.")}
     <section class="section"><div class="section-head"><h2>Récaps</h2></div>
       <div class="tiles">
         ${tile({ icon: icons.sparkles, title: "Ta semaine", subtitle: "Le récap de la semaine dernière", tone: "violet", data: 'data-recap="week"' })}
@@ -6583,10 +6755,10 @@ async function viewStats() {
     ${challenges ? `<section class="section"><div class="section-head"><h2>Défis de la semaine</h2><span class="muted">${challenges.ends_in_days ? `encore ${plural(challenges.ends_in_days, "jour")}` : "dernier jour"}</span></div>
       <div class="challenges">${challenges.challenges.map((c) => `<div class="challenge ${c.done ? "done" : ""}"><div class="ct">${esc(c.title)}${c.done ? ` ${icons.check}` : ""}</div>
         <div class="meter"><i style="width:${Math.round((c.value / c.goal) * 100)}%"></i></div><div class="cv">${c.value}/${c.goal} ${esc(c.unit)}</div></div>`).join("")}</div>
-      <div class="badges">${challenges.badges.map((b) => `<div class="badge ${b.earned ? "earned" : ""}" title="${esc(b.description)}"><span>${b.earned ? "🏅" : "🔒"}</span><b>${esc(b.title)}</b><small>${esc(b.description)}</small></div>`).join("")}</div></section>` : ""}
+      <div class="badges">${challenges.badges.map((b) => `<div class="achv ${b.earned ? "earned" : ""}" title="${esc(b.description)}"><span>${b.earned ? icons.medal : icons.lock}</span><b>${esc(b.title)}</b><small>${esc(b.description)}</small></div>`).join("")}</div></section>` : ""}
     ${live ? `<section class="section"><div class="section-head"><h2>En direct</h2><a class="more" href="#/recent">Écoutes récentes</a></div>
       <div class="live-card">
-        ${nowPlaying ? `<div class="lc-now"><img src="${esc(big(nowPlaying.cover_url, 120))}" alt=""><span><span class="eyebrow">${bars()} En cours</span><b>${esc(nowPlaying.title)}</b> · ${esc(nowPlaying.artist)}</span></div>` : ""}
+        ${nowPlaying ? `<div class="lc-now"><img src="${esc(big(nowPlaying.cover_url, 120))}" alt=""><span><span class="eyebrow">${bars()} En cours</span><b>${esc(nowPlaying.title)}</b><small>${esc(nowPlaying.artist)}</small></span></div>` : ""}
         <div class="lc-row"><span>Aujourd'hui</span><b>${minutesLabel(live.today_minutes)} · ${plural(live.today_plays, "écoute")}</b></div>
         <div class="lc-row"><span>Last.fm</span><b>${live.lastfm.connected ? (live.lastfm.enabled ? `Scrobbling actif${live.lastfm.scrobbled_at ? ` · dernier ${since(live.lastfm.scrobbled_at)}` : ""}` : "Scrobbling coupé (réglages)") : "Non connecté"}</b></div>
         ${live.lastfm.error ? `<div class="lc-row bad"><span>Erreur Last.fm</span><b>${esc(live.lastfm.error)}</b></div>` : ""}
@@ -6628,7 +6800,7 @@ async function viewRecent() {
   }
   return page(`<h1 class="page-title">Écoutes récentes</h1><p class="page-sub">Tout ce que tu as écouté, ici et dans l'app.</p>
     ${groups.map((g) => `<section class="section"><div class="section-head"><h2>${esc(g.day[0].toUpperCase() + g.day.slice(1))}</h2></div>
-      ${trackTable(g.plays.filter((p) => p.source && p.source_id), "Écoutes récentes", { numbers: false })}</section>`).join("") || empty("🎧", "Pas encore d'écoute", "Lance un titre : il apparaîtra ici.")}`);
+      ${trackTable(g.plays.filter((p) => p.source && p.source_id), "Écoutes récentes", { numbers: false })}</section>`).join("") || empty(icons.headphones, "Pas encore d'écoute", "Lance un titre : il apparaîtra ici.")}`);
 }
 
 // ── Récap en story (façon Wrapped) ───────────────────────────────────────
@@ -6648,11 +6820,11 @@ async function openRecap(period, offset) {
     r.top_artists.length > 1 && `<div class="eyebrow">Tes artistes</div><ol class="rc-list">${r.top_artists.map((a) => `<li><img class="round" src="${esc(a.picture_url || a.cover_url || "")}" alt=""><span>${esc(a.name)}</span></li>`).join("")}</ol>`,
     r.top_tracks.length && `<div class="eyebrow">Tes titres</div><ol class="rc-list">${r.top_tracks.map((t) => `<li><img src="${esc(big(t.cover_url, 120) || "")}" alt=""><span>${esc(t.name)}<small>${esc(t.subtitle || "")}</small></span></li>`).join("")}</ol>
       ${r.favourite_track ? `<button class="btn" data-rc-play>${icons.play} Écouter ton titre préféré</button>` : ""}`,
-    r.personality && `<div class="eyebrow">Ta personnalité d'écoute</div><div class="huge">${esc(r.personality.emoji)}</div><h2>${esc(r.personality.title)}</h2><p>${esc(r.personality.description)}</p>`,
+    r.personality && `<div class="eyebrow">Ta personnalité d'écoute</div><div class="huge">${emo(r.personality.emoji)}</div><h2>${esc(r.personality.title)}</h2><p>${esc(r.personality.description)}</p>`,
     r.biggest_day && `<div class="eyebrow">Ton plus gros jour</div><h2>${esc(r.biggest_day.label)}</h2><p>${minutesLabel(r.biggest_day.minutes)} de musique ce jour-là.</p>`,
     r.discovered_count && `<div class="eyebrow">Découvertes</div><div class="huge">${r.discovered_count}</div><p>nouveaux artistes, dont ${r.discoveries.slice(0, 3).map((d) => esc(d.name)).join(", ")}.</p>`,
-    r.friends_rank && `<div class="eyebrow">Parmi tes amis</div><div class="huge">${r.friends_rank.rank === 1 ? "🥇" : `${r.friends_rank.rank}e`}</div><p>sur ${r.friends_rank.total} au temps d'écoute.</p>`,
-    `<div class="eyebrow">C'est tout pour ${what}</div><h2>À la prochaine 👋</h2><button class="btn" data-rc-share>${icons.share} Partager mon récap</button>${r.first_track ? `<p class="muted">Ton premier son : ${esc(r.first_track.title)} — ${esc(r.first_track.artist)}</p>` : ""}`,
+    r.friends_rank && `<div class="eyebrow">Parmi tes amis</div><div class="huge">${r.friends_rank.rank === 1 ? "1er" : `${r.friends_rank.rank}e`}</div><p>sur ${r.friends_rank.total} au temps d'écoute.</p>`,
+    `<div class="eyebrow">C'est tout pour ${what}</div><h2>À la prochaine</h2><button class="btn" data-rc-share>${icons.share} Partager mon récap</button>${r.first_track ? `<p class="muted">Ton premier son : ${esc(r.first_track.title)} — ${esc(r.first_track.artist)}</p>` : ""}`,
   ].filter(Boolean);
   const cover = r.top_artists[0]?.picture_url || r.top_tracks[0]?.cover_url || "";
   const el = document.createElement("div");
@@ -6720,7 +6892,7 @@ async function shareRecapImage(r) {
     text("Tes titres", 80, y, 40, 700, accent); y += 70;
     r.top_tracks.slice(0, 5).forEach((t, i) => { text(`${i + 1}  ${t.name}`, 80, y, 50, 600); text(t.subtitle || "", 150, y + 46, 32, 400, "#ffffff99"); y += 112; });
   }
-  if (r.personality) text(`${r.personality.emoji}  ${r.personality.title}`, 80, H - 150, 54, 700);
+  if (r.personality) text(r.personality.title, 80, H - 150, 54, 700);
   text("Fait avec Sona", 80, H - 80, 32, 500, "#ffffff77");
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) return toast("Impossible de créer l'image");
@@ -6827,7 +6999,7 @@ function partyHandle(fresh, rtt = 0) {
   party.fetchedAt = Date.now();
   // Réponse d'une longue attente : seul le trajet retour compte.
   party.rtt = Math.min(rtt, 1500);
-  if (fresh.is_host && !wasHost) { toast("Tu es maintenant l'hôte de la session 👑"); party.sent = null; partyPublish(true); }
+  if (fresh.is_host && !wasHost) { toast("Tu es maintenant l'hôte de la session"); party.sent = null; partyPublish(true); }
   if (!fresh.is_host && wasHost) toast(`${fresh.host_name || "Quelqu'un"} est maintenant l'hôte`);
   for (const r of fresh.reactions.filter((x) => x.id > party.lastReaction)) {
     if (party.ownReactions > 0 && r.by === myName()) { party.ownReactions--; continue; }
@@ -6838,7 +7010,7 @@ function partyHandle(fresh, rtt = 0) {
   party.lastMessage = Math.max(party.lastMessage, ...(fresh.messages || []).map((m) => m.id));
   if (messages.length) {
     const onChat = location.hash.startsWith("#/party") && party.tab === "chat";
-    if (!onChat) { party.unread += messages.length; const m = messages.at(-1); toast(`💬 ${m.by} : ${m.text.slice(0, 80)}`); }
+    if (!onChat) { party.unread += messages.length; const m = messages.at(-1); toast(`${m.by} : ${m.text.slice(0, 80)}`); }
   }
   if (fresh.is_host) partyHostDuties(); else partyFollow();
   renderParty();
@@ -6894,7 +7066,7 @@ function partyHostDuties() {
   const key = s.track ? trackKey(s.track) : null;
   if (key && s.skip && s.skip.votes >= s.skip.needed && party.skippedFor !== key && sameTrack(s.track, state.queue[state.index])) {
     party.skippedFor = key;
-    toast("Titre passé à la demande des invités ⏭️");
+    toast("Titre passé à la demande des invités");
     next();
   }
   partyTakeProposals();
@@ -6967,7 +7139,7 @@ function partyFollow() {
 function partyToggleLocal() {
   party.localPause = !party.localPause;
   if (party.localPause) audio.pause();
-  else { unlockAudio(); partyFollow(); toast("De retour en synchro ✓"); }
+  else { unlockAudio(); partyFollow(); toast("De retour en synchro"); }
   renderParty();
 }
 
@@ -6981,7 +7153,7 @@ async function partyPropose(t) {
   if (party.state.is_host) return playNext(t);
   try {
     partyHandle(await api(partyPath("/queue"), { method: "POST", body: JSON.stringify({ track: cleanTrack(t) }) }));
-    toast("Proposé à la session ✓");
+    toast("Proposé à la session");
   } catch (e) { toast(e.message); }
 }
 
@@ -7065,16 +7237,16 @@ function renderParty() {
         <div class="pn-actions">
           ${canControl ? `<button class="btn ghost small" data-pc="${s.paused ? "play" : "pause"}">${s.paused ? icons.play : icons.pause} ${host ? (s.paused ? "Lecture" : "Pause") : (s.paused ? "Lecture pour tous" : "Pause pour tous")}</button><button class="btn ghost small" data-pc="next">${icons.next} ${host ? "Suivant" : "Suivant pour tous"}</button>` : ""}
           ${host ? "" : `<button class="btn ghost small ${party.localPause ? "on" : ""}" data-local>${party.localPause ? `${icons.play} Reprendre chez moi` : `${icons.pause} Pause chez moi`}</button>`}
-          ${host ? "" : `<button class="btn ghost small ${s.skip?.voted ? "on" : ""}" data-skip>⏭️ Passer ${s.skip ? `${s.skip.votes}/${s.skip.needed}` : ""}</button>`}
+          ${host ? "" : `<button class="btn ghost small ${s.skip?.voted ? "on" : ""}" data-skip>${icons.next} Passer ${s.skip ? `${s.skip.votes}/${s.skip.needed}` : ""}</button>`}
         </div></div>`
       : `<p class="muted party-wait">${host ? "Lance un titre (recherche, playlist, radio…) : il démarre chez tout le monde." : `En attente du premier titre de ${esc(s.host_name || "l'hôte")}…`}</p>`}
-    ${host && s.skip?.votes ? `<p class="muted">⏭️ ${s.skip.votes} vote${s.skip.votes > 1 ? "s" : ""} pour passer (${s.skip.needed} nécessaire${s.skip.needed > 1 ? "s" : ""}).</p>` : ""}
-    <div class="emoji-row">${PARTY_EMOJIS.map((e) => `<button data-react="${e}">${e}</button>`).join("")}</div>
+    ${host && s.skip?.votes ? `<p class="muted">${icons.next} ${s.skip.votes} vote${s.skip.votes > 1 ? "s" : ""} pour passer (${s.skip.needed} nécessaire${s.skip.needed > 1 ? "s" : ""}).</p>` : ""}
+    <div class="emoji-row">${PARTY_EMOJIS.map((e) => `<button data-react="${e}" aria-label="${e}">${emo(e)}</button>`).join("")}</div>
     ${host ? `<label class="switch-row card-row"><span><b>Les invités contrôlent la lecture</b><small>Pause, reprise et titre suivant pour tout le monde</small></span><input type="checkbox" data-open ${s.open_controls ? "checked" : ""}><i></i></label>` : ""}
     <div class="segmented party-tabs">${tabs.map(([k, l]) => `<button data-ptab="${k}" class="${party.tab === k ? "on" : ""}">${l}</button>`).join("")}</div>
     <div id="party-tab">${partyTabHtml(s)}</div>
     <section class="section"><div class="section-head"><h2>À l'écoute (${s.members.length})</h2></div>
-      <div class="members">${s.members.map((m) => `<button class="member" data-member="${m.id ?? ""}">${avatar(m.avatar_url, m.name)}${esc(m.name)}${m.is_host ? " 👑" : ""}${m.is_me ? " (toi)" : ""}</button>`).join("")}</div>
+      <div class="members">${s.members.map((m) => `<button class="member" data-member="${m.id ?? ""}">${avatar(m.avatar_url, m.name)}${esc(m.name)}${m.is_host ? ` ${icons.crown}` : ""}${m.is_me ? " (toi)" : ""}</button>`).join("")}</div>
       ${host && s.members.length > 1 ? `<p class="muted small-note">Touche un ami pour lui passer la main ou le retirer.</p>` : ""}</section>
     <button class="btn ghost danger" data-party-leave>${host ? "Terminer la session" : "Quitter la session"}</button>`;
   bindParty(root, s);
@@ -7090,7 +7262,7 @@ function partyTabHtml(s) {
     party.unread = 0;
     return `<div class="chat-list">${(s.messages || []).map((m, i) => `<div class="msg ${m.mine ? "mine" : ""}">${m.mine ? "" : avatar(m.avatar_url, m.by)}
         <div class="bubble">${m.mine ? "" : `<b>${esc(m.by)}</b>`}${esc(m.text)}</div>
-        ${m.mine ? "" : `<button class="msg-flag" data-msg-act="${i}" aria-label="Signaler ou supprimer ce message">⚑</button>`}</div>`).join("") || `<p class="muted">Pas encore de message. Lance la discussion !</p>`}</div>
+        ${m.mine ? "" : `<button class="msg-flag" data-msg-act="${i}" aria-label="Signaler ou supprimer ce message">${icons.flag}</button>`}</div>`).join("") || `<p class="muted">Pas encore de message. Lance la discussion !</p>`}</div>
       ${s.chat_enabled === false ? `<p class="muted">Le chat est coupé par l'hôte.</p>` : ""}
       <form class="chat-form" ${s.chat_enabled === false || s.can_chat === false ? "hidden" : ""}><input class="field" id="party-msg" maxlength="300" placeholder="Écris un message…" autocomplete="off" enterkeyhint="send"><button class="btn" type="submit">Envoyer</button></form>`;
   }
@@ -7100,7 +7272,7 @@ function partyTabHtml(s) {
   return `<button class="btn ghost small" data-party-add>${icons.plus} ${s.is_host ? "Ajouter un titre" : "Proposer un titre"}</button>
     ${s.queue.length ? `<div class="party-queue">${s.queue.map((q) => `<div class="pq"><img src="${esc(big(q.track.cover_url, 120))}" alt=""><span class="pt"><b>${esc(q.track.title)}</b><small>${esc(q.track.artist)} · par ${esc(q.by)}</small></span>
       <span class="pq-acts">${s.is_host ? `<button class="vote" data-playnow="${q.id}" title="Jouer maintenant">${icons.play}</button>` : ""}
-        <button class="vote ${q.voted ? "on" : ""}" data-vote="${q.id}">▲ ${q.votes}</button>
+        <button class="vote ${q.voted ? "on" : ""}" data-vote="${q.id}" aria-label="Voter (${q.votes})">${icons.up} ${q.votes}</button>
         ${s.is_host || q.mine ? `<button class="vote" data-unpropose="${q.id}" title="Retirer">${icons.close}</button>` : ""}</span></div>`).join("")}</div>`
       : `<p class="muted">Aucune proposition. ${s.is_host ? "Tes amis peuvent en faire depuis leur téléphone." : "Propose un titre : la plus votée passe après le titre en cours."}</p>`}`;
 }
@@ -7147,7 +7319,7 @@ function bindParty(root, s) {
     // Serveur à jour : rôles, expulsion, bannissement, signalement. Sinon : l'ancien menu de l'hôte.
     if (SonaParty.supported(s) || !s.is_host) return SonaParty.memberSheet(s, m);
     actionSheet(m.name, [
-      { icon: "👑", label: "Lui passer la main", sub: "Il ou elle choisira la musique", run: () => post("/transfer", { member_id: m.id }) },
+      { icon: icons.crown, label: "Lui passer la main", sub: "Il ou elle choisira la musique", run: () => post("/transfer", { member_id: m.id }) },
       { icon: icons.close, label: "Retirer de la session", danger: true, run: async () => {
         if (await confirmSheet(`Retirer ${m.name} de la session ?`, "Retirer")) post("/kick", { member_id: m.id });
       } },
@@ -7186,14 +7358,14 @@ function partyTick() {
   const drift = Math.abs(audio.currentTime - partyTarget());
   const ok = sameTrack(s.track, state.queue[state.index]) && (s.paused || party.localPause || (!audio.paused && drift <= 1.5));
   sync.className = `pn-sync ${ok ? "ok" : ""}`;
-  sync.textContent = party.localPause ? "En pause chez toi" : ok ? `✓ Synchronisé avec ${s.host_name || "l'hôte"}` : "Synchronisation…";
+  sync.textContent = party.localPause ? "En pause chez toi" : ok ? `Synchronisé avec ${s.host_name || "l'hôte"}` : "Synchronisation…";
 }
 
 /** Après un rechargement de la page : retour dans la session en cours. */
 async function partyRestore() {
   const code = store.get("sona.party");
   if (!code || party.state) return;
-  try { await partyEnter(await api(`/party/${encodeURIComponent(code)}/join`, { method: "POST" })); toast("De retour dans l'écoute ensemble 🎧"); }
+  try { await partyEnter(await api(`/party/${encodeURIComponent(code)}/join`, { method: "POST" })); toast("De retour dans l'écoute ensemble"); }
   catch { store.set("sona.party", null); }
 }
 
@@ -7222,7 +7394,7 @@ function partyPicker() {
   };
   const row = (t, i) => `<button class="menu-item pp-row ${taken(t) ? "done" : ""}" data-i="${i}"><img class="mi-thumb" src="${esc(big(t.cover_url, 120))}" alt="">
     <span class="mi-text"><span class="mi-label">${esc(t.title)}${t.exclusive ? ` <span class="tag-exclu">Exclu</span>` : ""}</span><span class="mi-sub">${esc(t.artist)}</span></span>
-    <span class="pp-add">${taken(t) ? "✓" : icons.plus}</span></button>`;
+    <span class="pp-add">${taken(t) ? icons.check : icons.plus}</span></button>`;
   const empty_ = (text) => `<p class="muted pp-empty">${esc(text)}</p>`;
   const paint = (items, { heads = false, note = "" } = {}) => {
     ui.rows = items;
@@ -7254,7 +7426,7 @@ function partyPicker() {
       if (ui.playlist) {
         const pl = await load(`pl:${ui.playlist.id}`, () => api(`/me/playlists/${ui.playlist.id}`));
         paint((pl.entries || []).map((e) => e.track), { note: "Playlist vide." });
-        list.insertAdjacentHTML("afterbegin", `<button class="menu-item pp-back" data-back>← ${esc(ui.playlist.name)}</button>`);
+        list.insertAdjacentHTML("afterbegin", `<button class="menu-item pp-back" data-back>${icons.left} ${esc(ui.playlist.name)}</button>`);
       } else {
         const pls = await load("playlists", () => api("/me/playlists"));
         ui.rows = [];
@@ -7285,7 +7457,7 @@ function partyPicker() {
     if (!t || taken(t)) return;
     await partyPropose(t);
     if (host) added.add(trackKey(t)); // l'hôte ajoute à sa propre file : pas de proposition à relire
-    if (b.isConnected) { b.classList.toggle("done", taken(t)); $(".pp-add", b).innerHTML = taken(t) ? "✓" : icons.plus; $("#pp-limit", wrap).textContent = limit(); }
+    if (b.isConnected) { b.classList.toggle("done", taken(t)); $(".pp-add", b).innerHTML = taken(t) ? icons.check : icons.plus; $("#pp-limit", wrap).textContent = limit(); }
   };
   setTimeout(() => input.focus(), 250);
   show();
@@ -7329,7 +7501,7 @@ async function openCast() {
     wrap.close();
     const code = await askText({ title: "Associer un écran", placeholder: "Code affiché sur la TV", confirm: "Associer", hint: "YouTube sur la TV ou la PS5 → Réglages → Associer à un téléphone → Associer avec un code TV." });
     if (!code) return;
-    try { const got = await api("/tv/pair", { method: "POST", body: JSON.stringify({ code: code.replace(/\s/g, "") }) }); toast(`${got.name} associé ✓`); openCast(); }
+    try { const got = await api("/tv/pair", { method: "POST", body: JSON.stringify({ code: code.replace(/\s/g, "") }) }); toast(`${got.name} associé`); openCast(); }
     catch (e) { toast(e.message); }
   };
   if (cast.screen) renderCastRemote(wrap);
@@ -7603,7 +7775,7 @@ audio.addEventListener("play", () => {
 audio.addEventListener("loadedmetadata", renderMoments);
 audio.addEventListener("ended", () => {
   if (isSilence()) return;
-  if (sleep.endOfTrack) { setSleep(0); toast("Bonne nuit 🌙"); return; }
+  if (sleep.endOfTrack) { setSleep(0); toast("Bonne nuit"); return; }
   next(true);
 });
 /** Pourquoi un titre ne se lance pas : on relit la réponse du serveur (une ligne de flux) au lieu d'un message générique. */
@@ -7752,7 +7924,7 @@ function desktopInit() {
   setTimeout(() => api("/me/public-link").then(({ token }) => { desk.publicUrl = token ? publicUrl(token) : null; desktopReport(true); }).catch(() => {}), 4000);
   let lastHeard = null;
   desktop.onVoice?.((v) => {
-    if (v.last && v.last !== lastHeard) toast(`🎙️ « ${v.last} »`);
+    if (v.last && v.last !== lastHeard) toast(`« ${v.last} »`);
     lastHeard = v.last;
   });
   desktop.onWindow(({ maximized, focused }) => {

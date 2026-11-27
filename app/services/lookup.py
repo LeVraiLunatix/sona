@@ -5,7 +5,7 @@ import random
 import time
 from collections.abc import Awaitable, Callable
 
-from app.bot.deps import Deps
+from app.api.state import ApiDeps as Deps
 from app.providers import youtube
 from app.providers.apple import AppleMusicClient, AppleMusicError
 from app.providers.base import AlbumInfo, ArtistInfo, TrackInfo

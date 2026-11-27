@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import hmac
+import json
 from dataclasses import replace
 
 from fastapi import Depends, HTTPException, Request, status
@@ -67,7 +69,16 @@ async def _identify_supabase(deps: ApiDeps, token: str) -> ApiDeps:
     account = await deps.repo.ensure_account_for_uid(
         who.uid, who.username, profiles.get("display_name") or who.username, profiles.get("avatar_url"), who.is_admin
     )
-    return replace(deps, account=account, is_admin=who.is_admin, user_id_override=account.user_id)
+    return replace(deps, account=account, is_admin=who.is_admin, user_id_override=account.user_id, is_guest=_anonymous(token))
+
+
+def _anonymous(token: str) -> bool:
+    """Réclamation `is_anonymous` du jeton. Lue seulement APRÈS sa vérification par le service de comptes."""
+    try:
+        part = token.split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))).get("is_anonymous") is True
+    except (IndexError, ValueError, AttributeError):
+        return False
 
 
 async def _profile_of(deps: ApiDeps, uid: str) -> dict:

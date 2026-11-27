@@ -13,15 +13,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
-from app.api.auth import require_token
+from app.api import limits
+from app.api.auth import require_admin, require_token
+from app.api.routers import uploads
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.providers.base import TrackInfo
 from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording
 from app.services.downloader import DownloadError, cleanup_download, download_and_tag
 from app.services.preview import complete_preview
-from app.services import audio_analysis, audio_vault, exclusives, karaoke, live_stream, local_library, stream_health
+from app.services import audio_analysis, audio_vault, exclusives, heavy, karaoke, live_stream, local_library, stream_health
 from app.services.resolver import (
     Candidate, ResolutionError, iter_audio_sources, rejection_reason, score_candidate,
 )
@@ -283,7 +285,7 @@ FAILURE_TTL = 120.0
 # empreinte) : sur une petite machine (1 Go), en lancer plusieurs en même
 # temps — lecture, préparation du suivant, mise en cache en arrière-plan —
 # saturait la mémoire au point de figer tout le serveur.
-_download_slots = asyncio.Semaphore(1)
+_download_slots = heavy.slot
 _failures: dict[tuple[str, str, str, str], tuple[float, int, str]] = {}
 
 
@@ -333,7 +335,7 @@ async def local_file(deps: ApiDeps, source: str, source_id: str, quality: str) -
     qualité « Lossless », un titre d'une autre source est remplacé par ton
     fichier s'il existe (ISRC, sinon artiste + titre)."""
     root = deps.settings.local_music_dir
-    if root is None:
+    if root is None or not deps.is_admin:
         return None
     row = None
     if source == "local":
@@ -388,6 +390,9 @@ async def _cached_file(deps: ApiDeps, source: str, source_id: str, fmt: str, qua
 async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, fmt: str) -> tuple[str, str]:
     """Chemin et type du fichier audio prêt à servir : depuis le cache, ou
     après téléchargement + vérification (un seul à la fois par morceau)."""
+    if source == uploads.SOURCE:  # fichier de la personne : rien à chercher nulle part
+        path, content_type = await uploads.own_file(deps, source_id)
+        return str(path), content_type
     cached = await _cached_file(deps, source, source_id, fmt, quality)
     if cached is not None:
         return cached
@@ -420,6 +425,7 @@ async def ensure_file(deps: ApiDeps, source: str, source_id: str, quality: str, 
         failure = _failures.get(key)
         if failure is not None and time.monotonic() - failure[0] < FAILURE_TTL:
             raise HTTPException(failure[1], failure[2])
+        limits.check(deps, "download", 40, 600)
         try:
             async with _download_slots:
                 dest = await _resolve_and_download(deps, source, source_id, quality, fmt)
@@ -500,6 +506,9 @@ async def prepare(
     vraie cause), et pour le morceau suivant pendant l'écoute du courant —
     l'enchaînement est alors instantané."""
     _check_params(quality, format)
+    if source == uploads.SOURCE:
+        await uploads.own_file(deps, source_id)
+        return {"ready": True, "local": True}
     if source == exclusives.SOURCE:
         await exclusive_file(deps, source_id, quality, version)
         return {"ready": True}
@@ -608,6 +617,9 @@ async def stream(
     deps: ApiDeps = Depends(require_token),
 ):
     _check_params(quality, format)
+    if source == uploads.SOURCE:
+        path, content_type = await uploads.own_file(deps, source_id)
+        return FileResponse(path, media_type=content_type, headers={"X-Content-Type-Options": "nosniff"})
     if source == exclusives.SOURCE:
         path, content_type = await exclusive_file(deps, source_id, quality, version)
         return FileResponse(path, media_type=content_type, filename=path.name)
@@ -653,7 +665,7 @@ async def stream(
 
 
 @router.post("/stream/{source}/{source_id}/wrong-version")
-async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+async def wrong_version(source: str, source_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
     """« Mauvaise version ? » dans l'app (clip avec bruitages, live, autre
     enregistrement...) : la source servie pour ce morceau est écartée pour
     de bon, son fichier en cache supprimé, et la prochaine lecture en

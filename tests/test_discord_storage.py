@@ -12,6 +12,7 @@ from app.services import discord_storage
 from app.services.discord_storage import Chunk, DiscordStorage, StorageError, cdn_expiry
 
 WEBHOOK = "https://discord.test/api/webhooks/1/abc"
+KEY = bytes(range(32))
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +24,7 @@ def _fast(monkeypatch):
 
 
 def _storage(handler) -> DiscordStorage:
-    return DiscordStorage(WEBHOOK, httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    return DiscordStorage(WEBHOOK, httpx.AsyncClient(transport=httpx.MockTransport(handler)), key=KEY)
 
 
 def _message(mid="10", att="20", ex="ffffffff") -> dict:
@@ -117,6 +118,43 @@ def test_fresh_link_is_used_without_asking_discord():
 
         chunk = Chunk(0, 2, "10", "20", "https://cdn.test/f", expires_at=time.time() + 3600)
         assert await _storage(handler).read(chunk) == b"OK"
+
+    asyncio.run(scenario())
+
+
+def test_what_reaches_discord_is_encrypted_and_comes_back_intact():
+    async def scenario():
+        posted: list[bytes] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "POST":
+                posted.append(request.content)
+                return httpx.Response(200, json=_message(ex=format(int(time.time()) + 3600, "x")))
+            return httpx.Response(200, content=stored)
+
+        storage = _storage(handler)
+        chunk = await storage.put_chunk(b"musique secrete" * 20, "Artiste - Titre.flac", 0)
+        assert b"musique secrete" not in posted[0] and b"Artiste - Titre" not in posted[0]
+        start = posted[0].index(discord_storage.MAGIC)
+        stored = posted[0][start:start + 4 + 12 + len(b"musique secrete" * 20) + 16]
+        assert chunk.size == 300 and await storage.read(chunk) == b"musique secrete" * 20
+
+        # Mauvaise clé, morceau déplacé ou modifié : refusé. Ancien morceau en clair : rendu tel quel.
+        for key, data, index in ((bytes(32), stored, 0), (KEY, stored, 1), (KEY, stored[:-1] + b"?", 0), (None, stored, 0)):
+            with pytest.raises(StorageError):
+                discord_storage.unseal(key, data, index)
+        assert discord_storage.unseal(KEY, b"fLaC ancien", 0) == b"fLaC ancien"
+
+    asyncio.run(scenario())
+
+
+def test_nothing_is_sent_without_a_key():
+    async def scenario():
+        def handler(request):
+            raise AssertionError("rien ne doit partir")
+
+        with pytest.raises(StorageError, match="STORAGE_KEY"):
+            await DiscordStorage(WEBHOOK, httpx.AsyncClient(transport=httpx.MockTransport(handler))).put_chunk(b"x", "f", 0)
 
     asyncio.run(scenario())
 

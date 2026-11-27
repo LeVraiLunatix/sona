@@ -335,6 +335,25 @@ async fn usernames_are_validated_server_side() {
 }
 
 #[tokio::test]
+async fn owned_names_are_for_their_owner_only() {
+    let db = db_or_skip!();
+    let me = db.named("moi").await;
+    let other = db.named("autre").await;
+    let mail = db.su_scalar(&format!("select email from auth.users where id = '{me}'")).await;
+    db.su(&format!("update private.forbidden_terms set owners = array[lower('{mail}')] where term in ('lunatix', 'lvnatixx')")).await;
+    let set = |id: &uuid::Uuid, name: &str| format!("update public.profiles set username = '{name}' where id = '{id}'");
+    for name in ["lunatix", "lvnatixx", "LVNatixx", "lun4tix"] {
+        let e = db.x(u(other), &set(&other, name)).await.unwrap_err();
+        assert_eq!(sqlstate(&e), "23514", "{name}");
+        let r = format!("select public.username_available('{name}') as r");
+        assert_eq!(db.q(Who::Anon, &r).await.unwrap()[0]["r"]["reason"], "reserved", "{name}");
+        assert_eq!(db.q(u(me), &r).await.unwrap()[0]["r"]["available"], true, "{name}");
+    }
+    db.x(u(me), &set(&me, "lunatix")).await.unwrap();
+    db.x(u(me), &set(&me, "lvnatixx")).await.unwrap();
+}
+
+#[tokio::test]
 async fn forced_profile_changes_are_cleared_by_the_user_only() {
     let db = db_or_skip!();
     let modo = staff(&db, "modo", "moderator").await;

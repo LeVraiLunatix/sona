@@ -56,7 +56,7 @@ const SonaParty = (() => {
     const canMod = staff(s) && !m.is_me && m.role !== "host" && !(me?.role === "moderator" && m.role === "moderator");
     const post = guard(async (path, body) => partyHandle(await call(path, body)));
     actionSheet(m.name, [
-      s.is_host && !m.is_me && { icon: "👑", label: "Lui passer la main", sub: "Il ou elle choisira la musique", run: () => post("/transfer", { member_id: m.id }) },
+      s.is_host && !m.is_me && { icon: icons.crown, label: "Lui passer la main", sub: "Il ou elle choisira la musique", run: () => post("/transfer", { member_id: m.id }) },
       s.is_host && !m.is_me && supported(s) && { icon: icons.sparkles, label: m.role === "moderator" ? "Retirer des modérateurs" : "Nommer modérateur", run: () => post("/moderator", { member_id: m.id, moderator: m.role !== "moderator" }) },
       canMod && { icon: icons.close, label: "Expulser", sub: "Peut revenir", run: async () => { if (await confirmSheet(`Expulser ${m.name} ?`, "Expulser")) post("/kick", { member_id: m.id }); } },
       canMod && supported(s) && { icon: icons.lock, label: "Bannir de la session", sub: "Ne pourra plus revenir", danger: true, run: async () => { if (await confirmSheet(`Bannir ${m.name} de cette session ?`, "Bannir")) post("/ban", { member_id: m.id }); } },

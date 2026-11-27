@@ -372,3 +372,17 @@ async fn function_privileges_are_an_exact_allow_list() {
         assert_eq!(sqlstate(&db.x(u(a), &sql).await.unwrap_err()), "42501", "{sql}");
     }
 }
+
+#[tokio::test]
+async fn a_user_can_replace_only_their_own_avatar() {
+    let db = db_or_skip!();
+    let (a, b) = (db.named("alice").await, db.named("bruno").await);
+    let upsert = |owner: uuid::Uuid| format!(
+        "insert into storage.objects (bucket_id, name) values ('avatars', '{owner}/avatar.webp') \
+         on conflict (bucket_id, name) do update set updated_at = now()"
+    );
+    db.x(u(a), &upsert(a)).await.expect("premier envoi");
+    db.x(u(a), &upsert(a)).await.expect("remplacement");
+    assert_eq!(sqlstate(&db.x(u(b), &upsert(a)).await.unwrap_err()), "42501");
+    assert_eq!(db.count(u(b), "select 1 from storage.objects").await, 0);
+}

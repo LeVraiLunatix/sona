@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.routers import share as share_router
-from app.bot import lookup
+from app.services import lookup
 from app.providers.base import AlbumInfo, TrackInfo
 from app.services import share
 
@@ -162,10 +162,3 @@ def test_public_pages_are_rate_limited(client, monkeypatch):
     assert client.get(f"/s/{token}", headers={"X-Forwarded-For": "198.51.100.7"}).status_code == 200
 
 
-def test_telegram_button_uses_the_bot_name(client, monkeypatch):
-    async def bot_username(settings):
-        return "SonaBot"
-
-    monkeypatch.setattr(share, "bot_username", bot_username)
-    token = create(client, kind="track", id="3135556").json()["token"]
-    assert f"https://t.me/SonaBot?start=s_{token}" in client.get(f"/s/{token}").text

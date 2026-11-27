@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
-from app.api.auth import get_deps, require_token
+from app.api.auth import get_deps, require_admin, require_token
 from app.api.schemas import Track
 from app.api.state import ApiDeps
 from app.services import local_library
@@ -38,14 +38,14 @@ def _track(request: Request, row: dict) -> dict:
 @router.get("/local/status")
 async def local_status(deps: ApiDeps = Depends(require_token)) -> dict:
     root = deps.settings.local_music_dir
-    if root is None:
+    if root is None or not deps.is_admin:  # la musique locale est celle du propriétaire
         return {"enabled": False, "tracks": 0}
     rows, total = await deps.repo.local_list(limit=1)
     return {"enabled": True, "available": root.is_dir(), "tracks": total}
 
 
 @router.post("/local/scan")
-async def local_scan(deps: ApiDeps = Depends(require_token)) -> dict:
+async def local_scan(deps: ApiDeps = Depends(require_admin)) -> dict:
     """Relit le dossier : nouveaux fichiers ajoutés, modifiés relus, disparus oubliés."""
     return await local_library.scan(deps.repo, _root(deps))
 
@@ -56,7 +56,7 @@ async def local_tracks(
     q: str = Query("", description="Artiste, titre ou album"),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    deps: ApiDeps = Depends(require_token),
+    deps: ApiDeps = Depends(require_admin),
 ) -> dict:
     _root(deps)
     rows, total = await deps.repo.local_list(q, offset, limit)
@@ -64,7 +64,7 @@ async def local_tracks(
 
 
 @router.get("/local/tracks/{track_id}")
-async def local_track(request: Request, track_id: str, deps: ApiDeps = Depends(require_token)) -> dict:
+async def local_track(request: Request, track_id: str, deps: ApiDeps = Depends(require_admin)) -> dict:
     row = await deps.repo.local_get(track_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Titre inconnu.")

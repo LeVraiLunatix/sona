@@ -59,13 +59,13 @@ otp_expiry = 3600
 
 # E-mails en français, avec le CODE (utile dans l'app installée) et le lien.
 [auth.email.template.confirmation]
-subject = "Confirme ton adresse pour Sona"
+subject = "{{ .Token }} est ton code Sona"
 content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.magic_link]
-subject = "Ton code de connexion Sona"
+subject = "{{ .Token }} est ton code Sona"
 content_path = "./supabase/templates/magic_link.html"
 [auth.email.template.recovery]
-subject = "Réinitialise ton mot de passe Sona"
+subject = "{{ .Token }} : nouveau mot de passe Sona"
 content_path = "./supabase/templates/recovery.html"
 [auth.email.template.email_change]
 subject = "Confirme ta nouvelle adresse pour Sona"
@@ -114,7 +114,8 @@ enabled = false
 # si le hook n'est pas branché. Le secret est de la forme `v1,whsec_<base64>`.
 [auth.hook.before_user_created]
 enabled = true
-uri = "env(ACCOUNTS_URL)/hooks/before-user-created"
+# Le CLI ne remplace env(...) que s'il forme TOUTE la valeur : exporter l'adresse complète du hook.
+uri = "env(AUTH_HOOK_URL)"
 secrets = "env(AUTH_HOOK_SECRET)"
 
 [storage]

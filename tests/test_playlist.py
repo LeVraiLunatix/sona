@@ -10,9 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.bot import errors, keyboards, lookup, navigation
-from app.bot.callbacks import AlbumCB, PlaylistCB
-from app.bot.handlers import links, playlist
+from app.services import lookup
 from app.providers import deezer as deezer_provider
 from app.providers.base import AlbumInfo, TrackInfo
 
@@ -98,23 +96,6 @@ def fake_callback(data="pl:view:deezer:908622995:1"):
     return callback, answers
 
 
-@pytest.fixture
-def ecrans(monkeypatch):
-    """Navigation neutralisée : on note les écrans demandés."""
-    vus = []
-
-    async def goto(deps, user_id, chat_id, screen, **_kwargs):
-        vus.append(screen)
-
-    async def replace_top(deps, user_id, screen):
-        vus.append(screen)
-
-    monkeypatch.setattr(navigation, "goto", goto)
-    monkeypatch.setattr(navigation, "replace_top", replace_top)
-    monkeypatch.setattr(navigation, "adopt_message", lambda *args, **kwargs: None)
-    return vus
-
-
 # -- Provider ---------------------------------------------------------
 
 
@@ -143,19 +124,6 @@ def test_a_deezer_playlist_reads_like_an_album(monkeypatch):
 # -- Identifiants séparés ---------------------------------------------
 
 
-def test_a_playlist_button_is_not_an_album_button():
-    """Même numéro, deux contenus sans rapport : les callbacks ne doivent pas
-    se confondre."""
-    playlist_cb = PlaylistCB(action="view", source="deezer", id="908622995").pack()
-    album_cb = AlbumCB(action="view", source="deezer", id="908622995").pack()
-
-    assert playlist_cb != album_cb
-    assert PlaylistCB.unpack(playlist_cb).id == "908622995"
-    with pytest.raises(ValueError):
-        AlbumCB.unpack(playlist_cb)
-    assert len(playlist_cb.encode()) <= 64
-
-
 def test_lookup_asks_the_playlist_endpoint():
     appels = []
 
@@ -181,150 +149,4 @@ def test_a_spotify_playlist_has_no_endpoint():
 # -- Écran -------------------------------------------------------------
 
 
-def test_the_screen_paginates_and_offers_to_play_everything(monkeypatch):
-    rendu = {}
-    tracks = [make_track(i) for i in range(1, 13)]
-
-    async def get_playlist(deps, source, source_id):
-        return make_playlist(tracks)
-
-    async def show_text(bot, target, text, markup):
-        rendu["text"], rendu["markup"] = text, markup
-        return target
-
-    monkeypatch.setattr(lookup, "get_playlist", get_playlist)
-    monkeypatch.setattr(playlist, "show_text", show_text)
-
-    asyncio.run(
-        playlist.render_playlist(
-            SimpleNamespace(bot=None), None, USER, {"source": "deezer", "id": "908622995", "page": 2}
-        )
-    )
-
-    assert "Playlist de Lunatix" in rendu["text"]
-    assert "12 titres" in rendu["text"]
-    # Page 2 : les titres 6 à 10, numérotés dans la playlist entière.
-    assert "6. Titre 6 — Artiste 6" in rendu["text"]
-    assert "Titre 1 " not in rendu["text"]
-
-    boutons = [b for row in rendu["markup"].inline_keyboard for b in row]
-    assert [b.text for b in boutons if b.text == "2/3"] == ["2/3"]
-    tout = [b for b in boutons if b.text == "Tout écouter"]
-    assert tout[0].callback_data == PlaylistCB(action="playall", source="deezer", id="908622995").pack()
-    # Les pages se suivent avec le callback de playlist, jamais celui d'album.
-    suivante = [b for b in boutons if b.text == "→"][0]
-    assert PlaylistCB.unpack(suivante.callback_data).page == 3
-
-
-def test_no_play_all_button_on_an_empty_playlist():
-    markup = keyboards.playlist_keyboard(make_playlist([]), 1, 1, [])
-    boutons = [b for row in markup.inline_keyboard for b in row]
-    assert not [b for b in boutons if b.text == "Tout écouter"]
-
-
-def test_playing_everything_sends_the_whole_playlist(monkeypatch, ecrans):
-    tracks = [make_track(1), make_track(2)]
-    envoyes = []
-
-    async def get_playlist(deps, source, source_id):
-        return make_playlist(tracks)
-
-    async def play_all_tracks(deps, user_id, chat_id, liste):
-        envoyes.extend(t.source_id for t in liste)
-        return 0
-
-    monkeypatch.setattr(lookup, "get_playlist", get_playlist)
-    monkeypatch.setattr(playlist, "play_all_tracks", play_all_tracks)
-    callback, answers = fake_callback("pl:playall:deezer:908622995:1")
-
-    asyncio.run(
-        playlist.on_playlist_playall(
-            callback, PlaylistCB(action="playall", source="deezer", id="908622995"), SimpleNamespace()
-        )
-    )
-
-    assert envoyes == ["1", "2"]
-    assert answers == [(None, False)]
-
-
-def test_an_empty_playlist_says_so(monkeypatch, ecrans):
-    async def get_playlist(deps, source, source_id):
-        return make_playlist([])
-
-    monkeypatch.setattr(lookup, "get_playlist", get_playlist)
-    callback, answers = fake_callback("pl:playall:deezer:908622995:1")
-
-    asyncio.run(
-        playlist.on_playlist_playall(
-            callback, PlaylistCB(action="playall", source="deezer", id="908622995"), SimpleNamespace()
-        )
-    )
-
-    assert answers == [("Aucun morceau à écouter.", True)]
-
-
 # -- Lien collé ---------------------------------------------------------
-
-
-def test_a_pasted_deezer_playlist_opens_the_playlist_screen(ecrans):
-    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER))
-    lien = SimpleNamespace(source="deezer", kind="playlist", ref="908622995")
-
-    asyncio.run(links._handle_detected_link(SimpleNamespace(), message, lien))
-
-    assert ecrans[-1].kind == "playlist"
-    assert ecrans[-1].params == {"source": "deezer", "id": "908622995", "page": 1}
-
-
-def test_a_youtube_playlist_still_works(ecrans):
-    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER))
-    lien = SimpleNamespace(source="youtube", kind="playlist", ref="PLabc")
-
-    asyncio.run(links._handle_detected_link(SimpleNamespace(), message, lien))
-
-    assert ecrans[-1].kind == "playlist"
-    assert ecrans[-1].params == {"source": "youtube", "id": "PLabc", "page": 1}
-
-
-def test_a_spotify_playlist_is_offered_for_import(monkeypatch, ecrans):
-    """Le bot n'affiche pas les playlists Spotify : il propose de l'importer
-    (plutôt qu'un « lien non reconnu » qui laisserait croire à un lien cassé)."""
-    from app.bot.handlers import imports
-
-    affiche = {}
-
-    async def show_text(bot, target, text, markup):
-        affiche["text"], affiche["markup"] = text, markup
-        return target
-
-    monkeypatch.setattr(links, "show_text", show_text)
-    monkeypatch.setattr(navigation, "current_target", lambda user_id: None)
-    monkeypatch.setattr(navigation, "set_target", lambda user_id, target: None)
-    url = "https://open.spotify.com/playlist/37i9dQ"
-    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER), text=url)
-    lien = SimpleNamespace(source="spotify", kind="playlist", ref="37i9dQ")
-
-    asyncio.run(links._handle_detected_link(SimpleNamespace(bot=None), message, lien))
-
-    assert "Playlist Spotify" in affiche["text"]
-    assert affiche["markup"].inline_keyboard[0][0].text == "📥 Importer"
-    assert imports._pending[USER] == url
-
-
-def test_soundcloud_likes_are_offered_for_import_too(monkeypatch, ecrans):
-    affiche = {}
-
-    async def show_text(bot, target, text, markup):
-        affiche["text"] = text
-        return target
-
-    monkeypatch.setattr(links, "show_text", show_text)
-    monkeypatch.setattr(navigation, "current_target", lambda user_id: None)
-    monkeypatch.setattr(navigation, "set_target", lambda user_id, target: None)
-    message = SimpleNamespace(from_user=SimpleNamespace(id=USER), chat=SimpleNamespace(id=USER),
-                              text="https://soundcloud.com/a/likes")
-    lien = SimpleNamespace(source="soundcloud", kind="likes", ref="https://soundcloud.com/a/likes")
-
-    asyncio.run(links._handle_detected_link(SimpleNamespace(bot=None), message, lien))
-
-    assert "Playlist SoundCloud" in affiche["text"]

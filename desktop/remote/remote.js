@@ -337,8 +337,8 @@ function paintLyrics() {
   S.lastLyric = -1;
   if (!st?.track) { box.innerHTML = empty(icons.quote, "Paroles", "Lance un titre pour voir ses paroles."); return; }
   if (!ly) { box.innerHTML = empty(icons.quote, "Chargement des paroles…", ""); return; }
-  if (!ly.lines.length) { box.innerHTML = empty(icons.note, ly.instrumental ? "♪ Instrumental" : "Pas de paroles", ly.instrumental ? "" : "Aucune parole trouvée pour ce titre."); return; }
-  box.innerHTML = `<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map((l, i) => `<p data-l="${i}">${esc(l.text || "♪")}</p>`).join("")}</div>`;
+  if (!ly.lines.length) { box.innerHTML = empty(icons.note, ly.instrumental ? "Instrumental" : "Pas de paroles", ly.instrumental ? "" : "Aucune parole trouvée pour ce titre."); return; }
+  box.innerHTML = `<div class="lyrics ${ly.synced ? "" : "plain"}" id="lyr">${ly.lines.map((l, i) => `<p data-l="${i}">${l.text ? esc(l.text) : icons.note}</p>`).join("")}</div>`;
   if (ly.synced) {
     $$("[data-l]", box).forEach((p) => (p.onclick = () => {
       const time = ly.lines[+p.dataset.l].time;

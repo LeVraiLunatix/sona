@@ -27,7 +27,7 @@ brancher : [INTEGRATION_SERVEUR_MUSIQUE.md](INTEGRATION_SERVEUR_MUSIQUE.md).
    supabase link --project-ref <ref>
    supabase db push          # applique supabase/migrations/*.sql, dans l'ordre
    ```
-   (Sans CLI : colle les 6 fichiers de `supabase/migrations/` dans **SQL Editor**, dans l'ordre des noms.)
+   (Sans CLI : colle les fichiers de `supabase/migrations/` dans **SQL Editor**, dans l'ordre des noms.)
 4. Vérifie : **Table Editor** montre `profiles`, `friendships`, `reports`… avec le cadenas « RLS enabled » partout. Le schéma
    `private` n'est pas exposé (il ne figure pas dans **Settings › API › Exposed schemas**).
 5. **Database › Extensions** : active **pg_cron** (optionnel mais recommandé : purge quotidienne, détection de pics d'inscriptions).
@@ -48,7 +48,7 @@ Le plus simple : `supabase config push` (lit `supabase/config.toml`, variables `
 | Password › minimum length / requirements | **10**, minuscules + majuscules + chiffres |
 | Sessions | rotation des jetons de rafraîchissement activée ; durée du jeton d'accès 3600 s |
 | **Redirect URLs** | voir la liste ci-dessous |
-| Templates d'e-mails | collés depuis `supabase/templates/*.html` (ils affichent **le code** et le lien) |
+| Templates d'e-mails | collés depuis `supabase/templates/*.html` (**le code** seul pour la connexion ; le lien reste pour le changement d'adresse) |
 | **Attack Protection › Captcha** | activé, fournisseur **Cloudflare Turnstile** (étape 6) |
 | **SMTP Settings** | ton SMTP (étape 7) |
 | **Hooks › Before user created** | HTTP : `https://<ton-accounts>/hooks/before-user-created`, secret `v1,whsec_…` **(à vérifier : l'emplacement de ce hook dans le tableau de bord)** |
@@ -175,7 +175,7 @@ Utilise le *pooler* Supabase (mode session) si ta connexion directe est en IPv6 
 |---|---|---|
 | Site (`index.html`, **publiques**) | `sona-supabase-url`, `sona-supabase-key`, `sona-accounts`, `sona-turnstile-sitekey` | configuration du client |
 | Vercel | *aucune requise* (site statique) | — |
-| Supabase (`config push` / tableau de bord) | `GOOGLE_CLIENT_ID/SECRET`, `DISCORD_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`, `SMTP_HOST/USER/PASS/FROM`, `TURNSTILE_SECRET`, `AUTH_HOOK_SECRET`, `ACCOUNTS_URL` | fournisseurs, e-mails, anti-robot, hook |
+| Supabase (`config push` / tableau de bord) | `GOOGLE_CLIENT_ID/SECRET`, `DISCORD_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`, `SMTP_HOST/USER/PASS/FROM`, `TURNSTILE_SECRET`, `AUTH_HOOK_SECRET`, `AUTH_HOOK_URL` (adresse complète : `https://<ton-accounts>/hooks/before-user-created`) | fournisseurs, e-mails, anti-robot, hook |
 | VPS `sona-accounts` | voir `rust/sona-accounts/.env.example` | base, Last.fm, chiffrement, alertes, passkeys |
 | VPS serveur musique (`.env`) | `SONA_ACCOUNTS_URL` (adresse interne de `sona-accounts`), `INTERNAL_API_SECRET` (le **même** que celui du service), `SUPABASE_URL` + `SUPABASE_ANON_KEY` (valeurs **publiques**, pour l'app iPhone) | jetons Supabase, amis, scrobbling, export / suppression |
 | VPS `sona-accounts` | `MUSIC_INTERNAL_URL` | adresse du serveur musique, pour l'export, la suppression et la modération |
@@ -241,7 +241,24 @@ avec un authentificateur logiciel. À essayer sur de vrais appareils (iPhone, Wi
   (`SanctionView`). Pas de « Se connecter avec Apple ». La connexion Last.fm d'avant reste disponible. **Cette partie n'a pas pu être compilée dans l'environnement de développement
   (Linux) : la CI macOS (`.github/workflows/ios.yml`) la compile ; teste la connexion sur un iPhone avant de la diffuser.**
 
-## 15. Dépannage
+## 15. Connexion d'une application par le navigateur
+
+L'application Windows ne se connecte plus dans sa fenêtre : « Se connecter dans le navigateur » ouvre le site, on s'y
+connecte comme on veut, on confirme, et l'application reprend toute seule. L'application Rust à venir reprendra ce contrat.
+
+1. L'application tire 32 octets au hasard (`verifier`, base64url), les garde, et ouvre
+   `<site>?connexion&app=<challenge>` avec `challenge` = base64url(SHA-256(texte du `verifier`)), sans `=`.
+2. Le site, une fois connecté (pas en invité) et après un clic de confirmation :
+   `POST {accounts}/app-link` `{ challenge }` avec le jeton → `{ code }` (une minute, usage unique, 10 par 10 min).
+3. Le site ouvre `sona://auth/callback?handoff=<code>`.
+4. L'application : `POST {accounts}/app-link/exchange` `{ code, verifier }`, sans jeton → `{ token_hash, type }`,
+   puis `verifyOtp({ token_hash, type })` : elle a sa propre session. Un mauvais secret détruit le code.
+
+À régler : migration `…800_app_links.sql` appliquée, `SUPABASE_SERVICE_ROLE_KEY` et `app://sona` dans `CORS_ORIGINS`
+du service. Le site visé est `https://www.trysona.fr/` ; `<meta name="sona-site">` dans `index.html` le remplace
+(essai local : `http://localhost:8000/web/`). Pas disponible dans la PWA iPhone (aucun lien profond) : e-mail + code.
+
+## 16. Dépannage
 
 | Symptôme | Cause probable |
 |---|---|

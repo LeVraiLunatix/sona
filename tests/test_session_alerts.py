@@ -12,7 +12,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.bot import broadcast
 from app.services import youtube_session
 
 HOUR = 3600
@@ -108,35 +107,6 @@ def test_an_undetermined_check_wakes_nobody():
 # -- Envoi effectif ---------------------------------------------------
 
 
-def test_the_check_sends_the_alert_to_every_admin(monkeypatch, tmp_path):
-    monkeypatch.setattr(youtube_session, "report_session", lambda path, reason: False)
-    deps, sent = fake_deps(admins=[1, 2])
-    youtube_session.register_notifier(lambda text: broadcast.notify_admins(deps, text))
-
-    verdict = asyncio.run(youtube_session.check_session(tmp_path / "cookies.txt", "démarrage"))
-
-    assert verdict is False
-    assert [chat_id for chat_id, _ in sent] == [1, 2]
-    assert all("Cookies YouTube expirés" in text for _, text in sent)
-
-
-def test_nothing_is_sent_while_the_session_holds(monkeypatch, tmp_path):
-    monkeypatch.setattr(youtube_session, "report_session", lambda path, reason: True)
-    deps, sent = fake_deps(admins=[1])
-    youtube_session.register_notifier(lambda text: broadcast.notify_admins(deps, text))
-
-    asyncio.run(youtube_session.check_session(tmp_path / "cookies.txt", "démarrage"))
-
-    assert sent == []
-
-
-def test_an_admin_blocking_the_bot_does_not_silence_the_others():
-    deps, sent = fake_deps(admins=[1, 2, 3], blocked={2})
-    delivered = asyncio.run(broadcast.notify_admins(deps, "coucou"))
-    assert delivered == 2
-    assert [chat_id for chat_id, _ in sent] == [1, 3]
-
-
 def test_a_failed_notification_never_breaks_the_check(monkeypatch, tmp_path, caplog):
     """La vérification tourne en tâche de fond : une exception y passerait
     inaperçue et emporterait la tâche avec elle."""
@@ -150,12 +120,3 @@ def test_a_failed_notification_never_breaks_the_check(monkeypatch, tmp_path, cap
 
     assert asyncio.run(youtube_session.check_session(tmp_path / "cookies.txt", "démarrage")) is False
     assert "non envoyée" in caplog.text
-
-
-def test_the_notifier_is_registered_at_startup():
-    """Le branchement se fait dans run.py : sans lui, l'alerte n'arrive nulle part."""
-    import run
-
-    source = inspect.getsource(run.main)
-    assert "register_notifier" in source
-    assert "notify_admins" in source

@@ -152,10 +152,8 @@ $domain {
     # environnement Python a pu être remplacé).
     pm2 delete sona-api >/dev/null 2>&1 || true
     pm2 start .venv/bin/python --name sona-api --cwd "$DIR" -- run_api.py >/dev/null
-    if grep -q '^BOT_TOKEN=.\+' .env; then
-        pm2 delete sona >/dev/null 2>&1 || true
-        pm2 start .venv/bin/python --name sona --cwd "$DIR" -- run.py >/dev/null
-    fi
+    # Bot Telegram retiré : on enlève son ancien processus s'il reste.
+    pm2 delete sona >/dev/null 2>&1 || true
     pm2 save >/dev/null
     sudo env PATH="$PATH:/usr/bin" "$(command -v pm2)" startup systemd -u "$USER" --hp "$HOME" >/dev/null
 

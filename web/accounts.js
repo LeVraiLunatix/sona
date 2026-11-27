@@ -167,12 +167,6 @@
     user: () => current?.user || null,
     isGuest: () => !!current?.user?.is_anonymous,
 
-    async signUp(email, password, name) {
-      const problem = passwordProblem(password, email);
-      if (problem) throw new Error(problem);
-      const captchaToken = await captcha();
-      return run(need().auth.signUp({ email, password, options: { emailRedirectTo: redirectTo(), captchaToken } }));
-    },
     async signIn(email, password) {
       const captchaToken = await captcha();
       return run(need().auth.signInWithPassword({ email, password, options: { captchaToken } }));
@@ -183,11 +177,10 @@
       const captchaToken = await captcha();
       return run(need().auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: redirectTo(), captchaToken } }));
     },
-    /** type : « email » (code de connexion) ou « signup » (confirmation d'inscription). */
+    /** type : « email » (connexion ou inscription) ou « recovery » (mot de passe oublié). */
     verifyCode(email, token, type = "email") {
       return run(need().auth.verifyOtp({ email, token: token.replace(/\s+/g, ""), type }));
     },
-    resendSignup(email) { return run(need().auth.resend({ type: "signup", email })); },
     async resetPassword(email) {
       const captchaToken = await captcha();
       return run(need().auth.resetPasswordForEmail(email, { redirectTo: redirectTo(), captchaToken }));
@@ -229,6 +222,8 @@
       let u;
       try { u = new URL(url); } catch { return false; }
       if (u.protocol !== "sona:" || u.host !== "auth") return false;
+      const handoff = u.searchParams.get("handoff");
+      if (handoff) { await appLink.finish(handoff); return true; }
       const code = u.searchParams.get("code");
       if (!code) throw new Error(friendly(u.searchParams.get("error_description") || "Connexion annulée."));
       await run(need().auth.exchangeCodeForSession(code));
@@ -258,6 +253,34 @@
   const SCOPES = { google: "openid email profile", discord: "identify email", github: "read:user user:email" };
 
   // ── Passkeys (WebAuthn) ──────────────────────────────────────────────────
+
+  // ── Connexion de l'application par le navigateur (docs/AUTH_SETUP.md) ──────
+  // L'application garde un secret, le site n'en voit que l'empreinte : un code
+  // intercepté ne sert à rien, et aucun jeton de session ne passe dans une adresse.
+  const SITE = meta("sona-site") || "https://www.trysona.fr/";
+  const APP_SECRET = "sona.appLink";
+  const appLink = {
+    /** Dans l'application : ouvre le site dans le navigateur du système. */
+    async start() {
+      const secret = b64.enc(crypto.getRandomValues(new Uint8Array(32)));
+      localStorage.setItem(APP_SECRET, secret);
+      const challenge = b64.enc(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret)));
+      desktop.openExternal(`${SITE}?connexion&app=${challenge}`);
+    },
+    /** Sur le site, une fois connecté et après confirmation : l'adresse qui rend la main à l'application. */
+    async approve(challenge) {
+      const { code } = await svc("/app-link", { method: "POST", body: { challenge } });
+      return `sona://auth/callback?handoff=${encodeURIComponent(code)}`;
+    },
+    /** Dans l'application : le code revenu du navigateur devient une session. */
+    async finish(code) {
+      const verifier = localStorage.getItem(APP_SECRET);
+      if (!verifier) throw new Error("Aucune connexion demandée depuis cette application : recommence.");
+      const out = await svc("/app-link/exchange", { method: "POST", anonymous: true, body: { code, verifier } });
+      localStorage.removeItem(APP_SECRET);
+      await run(need().auth.verifyOtp({ token_hash: out.token_hash, type: out.type || "email" }));
+    },
+  };
 
   const b64 = {
     enc: (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
@@ -453,7 +476,7 @@
   window.cpage = (inner) => `<div class="page compact">${inner}</div>`;
 
   window.Sona = {
-    configured, auth, passkeys, social, svc, download, b64,
+    configured, auth, passkeys, social, svc, download, b64, appLink,
     config: { accountsUrl: ACCOUNTS_URL, turnstile: !!TURNSTILE_KEY },
     onSanction(fn) { sanctionHandler = fn; },
   };

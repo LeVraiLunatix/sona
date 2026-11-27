@@ -117,10 +117,6 @@ const Sidebar = (() => {
       s.focus = false;
       paintOpen();
     });
-    // Un clic sur une page referme le survol (le contenu reprend la main).
-    el.addEventListener("click", (e) => {
-      if (e.target.closest("a[data-nav]") && s.hover && !pinned()) { s.hover = false; paintOpen(); }
-    });
   }
 
   // ── Info-bulle du rail ───────────────────────────────────────────────────
@@ -223,11 +219,15 @@ const Sidebar = (() => {
 
   /** Page courante : `aria-current`, état actif, liste de playlists à jour. */
   function mark() {
-    const current = location.hash.replace(/^#\//, "") || "home";
-    document.querySelectorAll("[data-nav]").forEach((a) => {
-      const on = current === a.dataset.nav || current.startsWith(`${a.dataset.nav}/`) || (a.dataset.nav === "admin" && current.startsWith("admin"));
+    const links = [...document.querySelectorAll("[data-nav]")];
+    const matches = (a, path) => path === a.dataset.nav || path.startsWith(`${a.dataset.nav}/`) || (a.dataset.nav === "admin" && path.startsWith("admin"));
+    const hash = location.hash.replace(/^#\//, "") || "home";
+    // Fiche (album, artiste…) sans entrée au menu : on garde allumée la rubrique d'où l'on vient.
+    const current = links.some((a) => matches(a, hash)) ? hash : nav?.tab || "home";
+    links.forEach((a) => {
+      const on = matches(a, current);
       a.classList.toggle("active", on);
-      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+      if (on) a.setAttribute("aria-current", current === hash ? "page" : "true"); else a.removeAttribute("aria-current");
     });
     // Barre du bas : « Plus » s'allume quand la page courante n'est pas l'un des 4 onglets.
     const tab = nav?.tab;

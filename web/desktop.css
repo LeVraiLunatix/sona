@@ -104,7 +104,8 @@ html.desktop .page { padding: 30px 40px 60px; }
    boutons. */
 html.desktop .grip { -webkit-app-region: drag; align-self: stretch; min-width: 12px; }
 html.desktop .drag-top { position: fixed; z-index: 150; top: 0; left: 0; right: 0; height: var(--gap); -webkit-app-region: drag; }
-html.desktop:not(:has(.app)) .drag-top { height: 48px; }
+/* La bande s'arrête avant les boutons de fenêtre (3 × 46px), sinon elle avale leurs clics. */
+html.desktop:not(:has(.app)) .drag-top { height: 48px; right: 138px; }
 html.desktop .brand { -webkit-app-region: drag; padding: 6px 10px 16px; }
 /* Une poignée reste active même cachée sous un calque : on les coupe quand
    le lecteur plein écran ou une feuille passe par-dessus. */
@@ -584,8 +585,9 @@ html.desktop .brand-icon { box-shadow: none; }
    Les règles plus haut (verre, puis « Windows 11 à plat ») supposaient une barre
    en haut et un menu de 260 px, et prennent le pas sur le web par leur priorité.
    Ce bloc, en dernier, remet sur PC la même mise en page que sur le web. */
-html.desktop { --topbar-h: 76px; --sidebar-w: 88px; --drawer-w: 380px; }
-html.desktop[data-menu="ouvert"] { --sidebar-w: 264px; }
+/* Mêmes largeurs que le web (sidebar.css) : la pastille « liquide » du menu se cale sur le bord de la page. */
+html.desktop:root { --topbar-h: 76px; --sidebar-w: calc(var(--sb-rail) + var(--sb-gap)); --drawer-w: 380px; }
+html.desktop[data-menu="ouvert"] { --sidebar-w: calc(var(--sb-open) + var(--sb-gap)); }
 html.desktop .app { grid-template-rows: minmax(0, 1fr); grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 0; }
 html.desktop.drawer-open .app { grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--drawer-w); }
 html.desktop .drag-top { height: 12px; }
@@ -627,7 +629,7 @@ html.desktop .lcd:hover .progress { height: 16px; border-radius: 8px; background
 html.desktop .lcd:hover .progress .fill { background: rgba(255, 255, 255, 0.28); border-radius: 8px; }
 
 /* Contenu et tiroir (paroles / À suivre) : panneaux arrondis, comme sur le web */
-html.desktop .content { grid-column: 2; grid-row: 1; margin: 12px 12px 12px 0; border-radius: var(--r-panel); background: var(--bg); border: 1px solid var(--hairline); }
+html.desktop .content { grid-column: 2; grid-row: 1; margin: 12px; border-radius: var(--r-panel); background: var(--bg); border: 1px solid var(--hairline); }
 html.desktop .drawer {
   grid-column: 3; grid-row: 1; margin: 12px 12px 12px 0; border-radius: var(--r-panel); background: var(--bg);
   border: 1px solid var(--hairline); -webkit-backdrop-filter: none; backdrop-filter: none;

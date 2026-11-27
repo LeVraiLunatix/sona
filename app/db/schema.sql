@@ -323,6 +323,22 @@ CREATE TABLE IF NOT EXISTS track_analysis (
 -- extraits de 30 s —, jamais l'audio complet. Jeton aléatoire de 128 bits,
 -- révocable, expiration facultative. Titre, sous-titre et pochette sont
 -- recopiés à la création : la page s'affiche sans rien redemander.
+-- Fichiers audio envoyés par une personne (réécrits au propre, voir services/uploads.py).
+CREATE TABLE IF NOT EXISTS uploads (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    duration_seconds INTEGER NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    chunks TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads (user_id);
+
 CREATE TABLE IF NOT EXISTS share_links (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,

@@ -1,6 +1,6 @@
 use crate::auth::AuthUser;
 use crate::state::AppState;
-use crate::{account, admin, alerts, hooks, internal, lastfm, passkey};
+use crate::{account, admin, alerts, app_link, hooks, internal, lastfm, passkey};
 use axum::extract::State;
 use axum::http::{header, HeaderName, HeaderValue, Method};
 use axum::routing::{delete, get, post};
@@ -40,6 +40,8 @@ pub fn router(state: AppState) -> Router {
         .route("/account/export", get(account::export))
         .route("/account", delete(account::delete))
         // Passkeys
+        .route("/app-link", post(app_link::create))
+        .route("/app-link/exchange", post(app_link::exchange))
         .route("/passkey/register/start", post(passkey::register_start))
         .route("/passkey/register/finish", post(passkey::register_finish))
         .route("/passkey/login/start", post(passkey::login_start))

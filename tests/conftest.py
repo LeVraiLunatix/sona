@@ -3,7 +3,7 @@
 import pytest
 
 from app.api.routers import friends, stats
-from app.bot import lookup
+from app.services import lookup
 from app.api.routers import share as share_router
 from app.services import artist_photos, connect, instrumental, karaoke, party, share, stream_health, tv_cast
 

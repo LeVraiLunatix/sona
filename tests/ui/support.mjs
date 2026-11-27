@@ -36,7 +36,7 @@ const MOCK_SUPABASE = `
     getUserIdentities: () => ok({ identities: M.identities }),
     signInWithPassword: async (a) => { const g = gate("signIn", a); if (g) return g; if (a.password === "wrong") return fail("Invalid login credentials"); M.session = true; emit("SIGNED_IN"); return { data: { session: sess() }, error: null }; },
     signUp: async (a) => { const g = gate("signUp", a); if (g) return g; M.pendingEmail = a.email; M.profile.onboarding_completed = false; return { data: { session: null, user: { id: "u1" } }, error: null }; },
-    signInWithOtp: async (a) => { const g = gate("otp", a); if (g) return g; M.pendingEmail = a.email; return { data: {}, error: null }; },
+    signInWithOtp: async (a) => { const g = gate("otp", a); if (g) return g; M.authCalls.push(["otp", a]); M.pendingEmail = a.email; return { data: {}, error: null }; },
     verifyOtp: async (a) => { const g = gate("verify", a); if (g) return g; if (a.token === "000000") return fail("Token has expired or is invalid"); if (a.type === "recovery") { M.session = true; return { data: { session: sess() }, error: null }; } M.session = true; emit("SIGNED_IN"); return { data: { session: sess() }, error: null }; },
     signInWithOAuth: async (a) => { M.authCalls.push(["oauth", a]); return { data: { url: "https://example.org/oauth" }, error: null }; },
     linkIdentity: async (a) => { M.authCalls.push(["link", a]); return { data: { url: "x" }, error: null }; },
@@ -98,7 +98,7 @@ const MOCK_SUPABASE = `
 })();
 `;
 
-export const METAS = { "sona-supabase-url": "https://abcdefgh.supabase.co", "sona-supabase-key": "anon-key-anon-key-anon-key-anon", "sona-accounts": "http://accounts.test" };
+export const METAS = { "sona-supabase-url": "https://abcdefgh.supabase.co", "sona-supabase-key": "anon-key-anon-key-anon-key-anon", "sona-accounts": "http://accounts.test", "sona-turnstile-sitekey": "" };
 
 export function startServer({ configured = true } = {}) {
   const server = createServer((req, res) => {
@@ -109,7 +109,8 @@ export function startServer({ configured = true } = {}) {
     let body = readFileSync(file);
     if (file.endsWith("index.html")) {
       let html = body.toString();
-      if (configured) for (const [name, value] of Object.entries(METAS)) html = html.replace(new RegExp(`(<meta name="${name}" content=")[^"]*`), `$1${value}`);
+      // Toujours réécrites : la page du dépôt porte les valeurs de production, que les essais ne doivent jamais joindre.
+      for (const [name, value] of Object.entries(METAS)) html = html.replace(new RegExp(`(<meta name="${name}" content=")[^"]*`), `$1${configured ? value : ""}`);
       body = Buffer.from(html);
     }
     res.writeHead(200, { "Content-Type": types[extname(file)] || "text/plain" });

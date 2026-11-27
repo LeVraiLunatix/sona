@@ -160,7 +160,12 @@ def test_browse_radios_are_curated(client):
     assert not any("test" in t or "festival" in t for t in titles)
 
 
-def test_radio_tracks(client):
+def test_radio_tracks(client, monkeypatch):
+    async def no_playlists(deps, radio_id):
+        return []
+
+    monkeypatch.setattr("app.services.radio_mix.pool", no_playlists)
+
     async def fake_radio_tracks(radio_id, limit=25):
         assert radio_id == "39021"
         return [track("5")]
@@ -196,7 +201,7 @@ def test_youtube_artist_without_albums_shows_its_exact_deezer_homonym_discograph
         return [AlbumInfo("deezer", "1119883012", "Grand Theft Auto VI: The Album", "Grand Theft Auto VI", artist_id,
                           "2020", "https://img/c.jpg", 34, None, release_date="2020-11-20", record_type="album")], []
 
-    monkeypatch.setattr("app.bot.lookup.resolver.get_artist_info", fake_artist_info)
+    monkeypatch.setattr("app.services.lookup.resolver.get_artist_info", fake_artist_info)
     deps.deezer.search_artists = fake_search_artists
     deps.deezer.get_artist_albums = fake_albums
     got = client.get("/artists/youtube/UCjta/albums", headers=AUTH)
@@ -212,7 +217,7 @@ def test_youtube_artist_without_deezer_homonym_stays_empty(client, monkeypatch):
     async def fake_search_artists(query, limit=10):
         return [artist("Underground Kings", "9", fans=5)]
 
-    monkeypatch.setattr("app.bot.lookup.resolver.get_artist_info", fake_artist_info)
+    monkeypatch.setattr("app.services.lookup.resolver.get_artist_info", fake_artist_info)
     client.app_state.deps.deezer.search_artists = fake_search_artists
     got = client.get("/artists/youtube/UCnone/albums", headers=AUTH)
     assert got.status_code == 200 and got.json()["albums"] == [] and got.json()["singles"] == []
