@@ -121,7 +121,7 @@ const SonaUI = (() => {
         </form>`;
     } else if (window.sonaDesktop?.onDeepLink && window.Sona.config.accountsUrl) {
       body = `${head("Bienvenue", "La connexion se fait dans ton navigateur, puis tu reviens ici tout seul.")}
-        <button class="btn big wide-btn" data-browser ${busy}>Se connecter dans le navigateur</button>
+        <button class="btn big wide-btn" data-browser aria-label="Se connecter dans le navigateur" ${busy}>${rolling("Se connecter dans le navigateur")}<svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></button>
         ${guestOk ? `<button class="guest" data-guest>Essayer sans compte</button>` : ""}`;
     } else {
       const oauth = `<div class="auth-providers">${PROVIDERS.map(([id, name, svg]) => `<button class="provider" data-provider="${id}" aria-label="Continuer avec ${name}" ${busy}>${svg}<span>${name}</span></button>`).join("")}</div>`;
@@ -147,6 +147,9 @@ const SonaUI = (() => {
     bindAuth();
   }
 
+  // Une lettre par élément, pour les faire basculer l'une après l'autre au survol.
+  const rolling = (text) => `<span class="roll" aria-hidden="true">${[...text].map((c, i) => `<i style="--i:${i}">${c}</i>`).join("")}</span>`;
+
   const meter = () => `<div class="pw-meter" id="pw-meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <p class="pw-hint" id="pw-hint">10 caractères minimum, avec minuscules, majuscules et chiffres.</p>`;
 
@@ -169,6 +172,12 @@ const SonaUI = (() => {
     const $r = (s) => document.querySelector(s);
     $r("[data-back]")?.addEventListener("click", () => authScreen({ step: "form" }));
     document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => attempt(() => auth.oauth(b.dataset.provider))));
+    // Le noir part de l'endroit où la souris entre.
+    $r("[data-browser]")?.addEventListener("pointerenter", (e) => {
+      const box = e.currentTarget.getBoundingClientRect();
+      e.currentTarget.style.setProperty("--x", `${e.clientX - box.left}px`);
+      e.currentTarget.style.setProperty("--y", `${e.clientY - box.top}px`);
+    });
     $r("[data-browser]")?.addEventListener("click", async () => {
       if (await attempt(() => window.Sona.appLink.start())) { ui.notice = "Continue dans ton navigateur : Sona reprendra ici."; paintAuth(); }
     });
