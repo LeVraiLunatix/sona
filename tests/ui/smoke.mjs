@@ -2,14 +2,12 @@
 // feat cliquables, barres animées, crédits, paroles, hors ligne, aide clavier.
 //   npm i playwright-core && CHROMIUM_PATH=/chemin/vers/chrome node tests/ui/smoke.mjs
 // Sort avec un code non nul au moindre échec ou à la moindre erreur JavaScript.
-import { chromium } from "playwright-core";
-import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+let chromium;
+try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require("playwright-core")); }
+import { startServer } from "./support.mjs";
 
-const WEB = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web");
-const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".webmanifest": "application/json" };
 // WAV de 3 s de silence
 function wav(sec = 3) {
   const rate = 8000, n = rate * sec, buf = Buffer.alloc(44 + n * 2);
@@ -18,15 +16,7 @@ function wav(sec = 3) {
   buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 2, 40);
   return buf;
 }
-const server = createServer((req, res) => {
-  let p = req.url.split("?")[0];
-  const isWeb = p.startsWith("/web");
-  p = p.replace(/^\/web/, "") || "/";
-  const file = join(WEB, p === "/" ? "index.html" : p);
-  if (isWeb && existsSync(file)) { res.writeHead(200, { "Content-Type": types[extname(file)] || "text/plain" }); res.end(readFileSync(file)); }
-  else { res.writeHead(404); res.end("{}"); }
-}).listen(0);
-const port = server.address().port;
+const { port, close: closeServer } = startServer();
 
 const artist = { name: "Favé", role: "main", source_id: "10" };
 const track = (i, extra = {}) => ({ source: "deezer", source_id: String(i), title: `Titre ${i}`, artist: "Favé", album: "Double", year: "2024", duration_seconds: 3, cover_url: null,
@@ -65,7 +55,8 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage();
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message} @ ${(e.stack||"").split("\n").slice(1,3).join(" | ")}`));
 page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|404/.test(m.text())) errors.push(`console: ${m.text()}`); });
-await ctx.addInitScript(() => { localStorage.setItem("sona.token", "test"); });
+// Compte : faux Supabase (voir support.mjs), connecté et en règle.
+await ctx.addInitScript(() => { window.__mock = { session: true, profile: { id: "u1", username: "t", display_name: "Test", avatar_url: null, bio: null, role: "user", status: "active", onboarding_completed: true, force_username_change: false, force_avatar_change: false, friend_code: "x", created_at: "2026-01-01T00:00:00Z" } }; });
 await page.route("**/*", async (route) => {
   const url = new URL(route.request().url());
   if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return route.fulfill({ status: 200, body: "" });
@@ -178,4 +169,4 @@ await page.goto(`http://localhost:${port}/web/#/library/downloads`);
 await page.waitForSelector(".tracks .tr", { timeout: 5000 }).then(() => out("page Téléchargés: ok"), () => out("page Téléchargés: vide"));
 out(errors.length ? `ERREURS:\n${errors.join("\n")}` : "aucune erreur JS");
 process.exitCode = errors.length || lines.some((l) => /: (false|ÉCHEC|vide|absents?)/.test(l)) ? 1 : 0;
-await browser.close(); server.close();
+await browser.close(); closeServer();

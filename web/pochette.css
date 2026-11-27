@@ -1,0 +1,177 @@
+/* ═══ Sona « Pochette » : réglages, menus ⋯, popups ══════════════════════════════════════════════════
+   Direction retenue (voir la planche de directions) : de très gros titres, aucun cadre, le « S » du logo en filigrane,
+   des menus teintés par la pochette du titre, des popups qui montent du bas, des interrupteurs blancs.
+   Ce fichier vient après app.css, accounts.css et sidebar.css : il ne reprend que des variables du thème (donc les
+   thèmes « archive » et « GTA VI », plus précis, gardent la main). */
+
+/* ── Interrupteurs : blancs, plus de vert ── */
+.switch-row input:checked + i { background: var(--accent); }
+.switch-row input:checked + i::after { background: var(--on-accent, #0a0a0b); }
+
+/* ── Titres et réglages : sans boîtes ── */
+.page-title { font-size: clamp(34px, 6.4vw, 48px); letter-spacing: -0.045em; line-height: 1.02; }
+.set-head { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: .02em; color: var(--text-3); margin: 34px 0 2px; }
+.set-group, .set-account { background: none; border-radius: 0; max-width: 720px; overflow: visible; }
+.set-group > * + * { border-top: 1px solid var(--hairline); }
+.set-group > :first-child { border-top: 1px solid var(--hairline); }
+.set-row { padding: 14px 0; min-height: 0; gap: 14px; border-radius: 0; }
+.set-row .mi-icon { display: none; }
+.set-text b { font-size: 19px; font-weight: 600; letter-spacing: -.02em; line-height: 1.25; }
+.set-text small { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+.set-row > .icon, .set-row > svg:last-child { color: var(--text-3); }
+.switch-row { padding: 14px 0; }
+.switch-row > span b { font-size: 17px; font-weight: 600; letter-spacing: -.015em; }
+.set-account { display: flex; align-items: center; gap: 14px; padding: 6px 0 4px; color: var(--text-2); text-decoration: none; }
+.set-account b { color: var(--text); font-size: 17px; }
+.set-account .profile-avatar { width: 44px; height: 44px; }
+.btn.wide.danger { background: rgba(255, 107, 107, .12); color: #ff6b6b; }
+
+/* Le « S » du logo en filigrane, en haut à droite des pages de réglages. */
+.page:has(.set-group, .set-account) { position: relative; isolation: isolate; }
+.page:has(.set-group, .set-account)::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none; right: -70px; top: -50px; width: 280px; height: 280px; opacity: .05;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='88.42 88.25 223.5 223.5'%3E%3Cpath fill='%23d2d1d8' d='M271.23,120 L133,120 A15,15 0 0 0 118,135 L118,146.83 A15,15 0 0 0 121.19,156.07 L173.56,222.99 A13,13 0 0 1 163.32,244 L133,244 A15,15 0 0 0 118,259 L118,265 A15,15 0 0 0 133,280 L260.23,280 A15,15 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13,13 0 0 1 236.77,156 L259.97,156 A15,15 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120 Z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+@media (max-width: 760px) { .page:has(.set-group, .set-account)::before { right: -90px; top: -30px; width: 230px; height: 230px; } }
+
+/* ── Feuilles et popups ── */
+.sheet { border-radius: 32px; }
+.sheet-title { font-size: 28px; font-weight: 700; letter-spacing: -.035em; line-height: 1.08; margin: 8px 0 12px; }
+.sheet .muted { font-size: 15px; color: var(--text-2); }
+@media (max-width: 760px) {
+  .sheet { border-radius: 32px 32px 0 0; }
+}
+
+/* Confirmation : grand titre, boutons pleine largeur l'un sous l'autre (le geste destructeur en rouge doux). */
+.confirm-sheet .sheet-title { font-size: 30px; margin: 10px 0 22px; }
+.confirm-sheet .pill-row { flex-direction: column-reverse; gap: 8px; margin: 0; }
+.confirm-sheet .pill-row .btn { flex: none; width: 100%; height: 52px; font-size: 16px; }
+.confirm-sheet .btn.danger:not(.ghost) { background: rgba(255, 107, 107, .14); color: #ff6b6b; }
+.confirm-sheet .btn.ghost { background: var(--fill-strong); color: var(--text); }
+
+/* Menus d'actions : texte large, séparés par un simple filet, icône à droite. */
+.menu-item { grid-template-columns: 1fr auto; padding: 13px 2px; font-size: 17.5px; font-weight: 600; letter-spacing: -.01em; }
+.menu-item .mi-icon { order: 3; font-size: 20px; color: var(--text-3); }
+.menu-item .mi-text { order: 1; }
+.menu-item .mi-check { order: 2; }
+.menu-item .mi-sub { font-weight: 500; font-size: 13px; color: var(--text-3); }
+.menu-item.danger, .menu-item.danger .mi-icon { color: #ff7b7b; }
+
+/* ═══ Masonry (direction retenue) ═══ */
+
+/* Pages de réglages : les sections deviennent des tuiles qui s'emboîtent en colonnes. */
+.mas { columns: 2; column-gap: 10px; margin-top: 8px; max-width: 1100px; }
+@media (min-width: 761px) { .mas { columns: 3 300px; column-gap: 12px; } }
+.mas .tile { break-inside: avoid; margin: 0 0 10px; border-radius: 22px; background: var(--fill); padding: 14px 16px; display: block; }
+@media (min-width: 761px) { .mas .tile { margin-bottom: 12px; padding: 18px 20px; } }
+@media (max-width: 760px) { .mas .tile.wide { column-span: all; } }
+.mas .tile .set-head { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -.015em; color: var(--text); text-transform: none; }
+.mas .tile .set-group { max-width: none; }
+.mas .tile .set-group > :first-child { border-top: 0; }
+.mas .tile .set-row { padding: 11px 0; }
+.mas .tile .set-text b { font-size: 15px; }
+.mas .tile .set-text small { font-size: 12.5px; }
+.mas .tile .switch-row { padding: 11px 0; gap: 12px; }
+.mas .tile .switch-row > span b { font-size: 15px; }
+.mas .tile .switch-row small { font-size: 12.5px; color: var(--text-3); }
+.mas .tile.hero { background: var(--accent); color: var(--on-accent, #0a0a0b); }
+.mas .tile.hero .set-account { color: inherit; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; padding: 0; }
+.mas .tile.hero .set-account b { color: inherit; font-size: 18px; }
+.mas .tile.hero .set-account small { color: rgba(10, 10, 11, .6); }
+.mas .tile.hero .profile-avatar { width: 56px; height: 56px; background: rgba(10, 10, 11, .12); color: var(--on-accent, #0a0a0b); }
+@media (max-width: 760px) { .mas .tile.hero { column-span: all; } }
+/* Réglages à choix (Formes, Menu…) : le texte au-dessus, les boutons dessous, au lieu d'écraser le texte. */
+.mas .tile .look-seg { flex-wrap: wrap; }
+.mas .tile .look-seg .set-text { flex: 1 1 100%; }
+.mas .tile .look-seg .chips { margin-top: 2px; }
+.page:has(.mas)::before { display: none; }
+
+/* Menu d'actions d'un titre : tuiles de hauteurs différentes en deux colonnes. */
+.sheet-wrap.mas-menu .menu { display: block; columns: 2; column-gap: 8px; }
+.sheet-wrap.mas-menu .menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 0; width: 100%; break-inside: avoid; margin: 0 0 8px; padding: 14px; text-align: left; position: relative;
+  background: var(--fill-strong); border: 0; border-radius: 20px; font-size: 15.5px; font-weight: 650; }
+.sheet-wrap.mas-menu .menu-item:hover { background: rgba(255, 255, 255, .13); }
+.sheet-wrap.mas-menu .menu-item .mi-icon { order: 0; width: 34px; height: 34px; border-radius: 11px; background: var(--fill-strong); color: var(--text); font-size: 18px; margin-bottom: 10px; }
+.sheet-wrap.mas-menu .menu-item .mi-text { order: 1; min-width: 0; max-width: 100%; }
+.sheet-wrap.mas-menu .menu-item .mi-label { white-space: normal; }
+.sheet-wrap.mas-menu .menu-item .mi-sub { white-space: normal; font-weight: 500; font-size: 12.5px; margin-top: 2px; }
+.sheet-wrap.mas-menu .menu-item .mi-check { position: absolute; right: 12px; top: 12px; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child { background: var(--accent); color: var(--on-accent, #0a0a0b); padding-bottom: 22px; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child .mi-icon { background: rgba(10, 10, 11, .1); color: inherit; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child .mi-sub { color: rgba(10, 10, 11, .6); }
+.sheet-wrap.mas-menu .menu-item.danger { background: rgba(255, 107, 107, .12); color: #ff7b7b; }
+.sheet-wrap.mas-menu .menu-item.danger .mi-icon { background: rgba(255, 107, 107, .16); color: #ff7b7b; }
+.sheet-wrap.mas-menu .menu-head { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; padding: 4px 4px 14px; border-bottom: 0; }
+.sheet-wrap.mas-menu .menu-head img { width: 52px; height: 52px; border-radius: 12px; }
+.sheet-wrap.mas-menu .menu-head .t { font-size: 17px; letter-spacing: -.015em; }
+@media (min-width: 761px) { .sheet-wrap.mas-menu .sheet { width: min(480px, 92vw); } }
+
+/* ═══ Téléphone : un bouton + un menu de bulles pour choisir la catégorie de réglages ═══ */
+.cat-btn { display: none; }
+@media (max-width: 760px) {
+  .cat-btn { display: inline-flex; align-items: center; gap: 10px; position: sticky; top: 8px; z-index: 6; height: 48px; padding: 0 14px 0 8px; margin: 6px 0 14px; border-radius: 999px; border: 1px solid var(--hairline);
+    background: color-mix(in srgb, var(--bg-elevated, #19191c) 88%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); color: var(--text); font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+  .cat-btn:active { transform: scale(.97); }
+  .cat-ic { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent, #0a0a0b); display: grid; place-items: center; }
+  .cat-ic svg { width: 16px; height: 16px; fill: currentColor; }
+  .cat-chev svg { width: 18px; height: 18px; fill: none; stroke: var(--text-2); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; display: block; transition: transform .25s; }
+  .cat-btn[aria-expanded="true"] .cat-chev svg { transform: rotate(180deg); }
+  .mas.cats { columns: 1; margin-top: 0; }
+  .mas.cats .tile.off { display: none; }
+  .mas.cats .tile.hero { margin-bottom: 18px; }
+}
+.cat-sheet { position: fixed; inset: 0; z-index: 95; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px)); }
+.cat-sheet[hidden] { display: none; }
+.cat-back { position: absolute; inset: 0; background: rgba(6, 6, 8, .72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); opacity: 0; transition: opacity .3s; }
+.cat-sheet.open .cat-back { opacity: 1; }
+.cat-list { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.cat-bubble { min-width: 62%; max-width: 100%; padding: 17px 30px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--fill-strong); color: var(--text); font-size: 22px; font-weight: 650; letter-spacing: -.02em;
+  opacity: 0; transform: translateY(34px) scale(.55) rotate(var(--r, 0deg)); transition: transform .55s cubic-bezier(.34, 1.56, .64, 1) calc(var(--i) * 55ms), opacity .25s calc(var(--i) * 55ms), background .2s; }
+.cat-sheet.open .cat-bubble { opacity: 1; transform: translateY(0) scale(1) rotate(var(--r, 0deg)); }
+.cat-bubble.on { background: var(--accent); color: var(--on-accent, #0a0a0b); border-color: transparent; }
+.cat-bubble:active { transform: scale(.96) rotate(0deg); }
+.cat-x { position: relative; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent, #0a0a0b); display: grid; place-items: center; opacity: 0; transform: scale(.4) rotate(-90deg); transition: transform .5s cubic-bezier(.34, 1.56, .64, 1) .12s, opacity .25s .12s; }
+.cat-x svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.cat-sheet.open .cat-x { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .cat-bubble, .cat-x, .cat-back { transition: opacity .15s; transform: none !important; } }
+@media (min-width: 761px) { .cat-sheet { display: none !important; } }
+
+/* ═══ Aération : plus d'espace entre les tuiles, les lignes et les éléments (retour : « trop collé ») ═══ */
+.page-title { margin-bottom: 28px; }
+.mas { column-gap: 16px; }
+.mas .tile { margin-bottom: 16px; padding: 20px 22px; border-radius: 26px; }
+@media (min-width: 761px) { .mas { column-gap: 20px; } .mas .tile { margin-bottom: 20px; padding: 24px 26px; } }
+.mas .tile .set-head { margin-bottom: 12px; font-size: 17px; }
+.mas .tile .set-row, .mas .tile .switch-row { padding: 16px 0; gap: 16px; }
+.mas .tile .set-text small, .mas .tile .switch-row small { margin-top: 5px; line-height: 1.45; }
+.mas .tile .look-seg .chips { margin-top: 10px; gap: 8px; }
+.mas .tile .look-accents { gap: 18px 14px; padding: 4px 0 6px; }
+.mas .tile.hero { padding: 22px; margin-bottom: 20px; }
+.mas .tile.hero .set-account { gap: 18px; }
+.cat-btn { margin: 14px 0 26px; }
+.page-sub, .page-title + .page-sub { line-height: 1.55; }
+.btn.wide { margin-top: 34px; }
+
+/* Menu de bulles : des bulles bien séparées. */
+.cat-sheet { gap: 40px; }
+.cat-list { gap: 20px; }
+.cat-bubble { padding: 20px 34px; min-width: 68%; }
+.cat-x { width: 62px; height: 62px; }
+
+/* Menu d'un titre en tuiles. */
+.sheet-wrap.mas-menu .menu { column-gap: 12px; padding-bottom: 8px; }
+.sheet-wrap.mas-menu .menu-item { margin-bottom: 12px; padding: 18px 16px; gap: 2px; }
+.sheet-wrap.mas-menu .menu-item .mi-icon { margin-bottom: 14px; }
+.sheet-wrap.mas-menu .menu-item .mi-sub { margin-top: 4px; line-height: 1.4; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child { padding-bottom: 28px; }
+.sheet-wrap.mas-menu .menu-head { padding: 8px 4px 20px; gap: 16px; }
+
+/* Feuilles et popups. */
+.sheet { padding-top: 10px; padding-bottom: 22px; }
+.sheet-title { margin: 12px 0 18px; }
+.sheet .muted { margin-bottom: 22px; line-height: 1.5; }
+.confirm-sheet .sheet-title { margin: 14px 0 28px; }
+.confirm-sheet .pill-row { gap: 12px; }
+.menu-item { padding-block: 16px; }
+
+.mas .tile.hero .set-account { width: 100%; }

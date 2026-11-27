@@ -20,3 +20,6 @@ desktop/dist/
 
 # Scripts locaux de déploiement
 *-oracle.bat
+
+# Rust
+rust/target/

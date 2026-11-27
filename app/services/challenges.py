@@ -81,12 +81,11 @@ async def _week_scores(repo, user_id: int, tz_name: str | None, offset: int, now
     return {"minutes": report.minutes, "discoveries": len(report.discoveries), "artists": report.artists, "night": night}
 
 
-async def friends_boards(repo, user_id: int, tz_name: str | None, now: datetime | None = None) -> dict:
-    """Classements de la semaine entre amis (comptes qui partagent leur
-    écoute), et le champion de la semaine dernière (le plus de musique)."""
+async def friends_boards(repo, user_id: int, tz_name: str | None, now: datetime | None = None, people: list | None = None) -> dict:
+    """Classements de la semaine entre amis (`people` : toi et tes amis dont les stats te sont visibles — décidé
+    par le service de comptes), et le champion de la semaine dernière (le plus de musique)."""
     now = now or datetime.now(timezone.utc)
-    people = [a for a in await repo.list_accounts()
-              if a.status == "approved" and (a.share_listening or a.user_id == user_id)]
+    people = list(people or [])
     if not any(a.user_id != user_id for a in people):
         return {"boards": [], "champion": None}
     scores = {a.user_id: await _week_scores(repo, a.user_id, tz_name, 0, now) for a in people}

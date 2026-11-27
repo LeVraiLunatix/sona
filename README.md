@@ -24,7 +24,7 @@ Word-by-word lyrics, your own lossless files, listening together, and playback t
 | **iPhone / iPad** | Open [the site](https://trysona.fr/presentation) in Safari, **Share**, **Add to Home Screen** (a native `.ipa` for sideloading is in [Releases](https://github.com/trysona/sona/releases)) |
 | **Windows** | [Download the installer](https://github.com/trysona/sona/releases/tag/windows) |
 
-Sign-in uses a Last.fm account. On the hosted server, new accounts wait for an admin's approval.
+Open to everyone: create an account with e-mail, Google, Discord or GitHub (or a passkey), or try it without an account. Last.fm is optional. Nobody is friends with anyone by default. Setup for self-hosters: [docs/AUTH_SETUP.md](docs/AUTH_SETUP.md).
 
 ## Features
 

@@ -166,6 +166,8 @@ class Account:
     decided_at: str | None
     # Visible des autres comptes : « en train d'écouter », écoutes, profil.
     share_listening: bool = True
+    # UUID du compte Supabase rattaché (None : ancien compte Last.fm jamais rattaché).
+    supabase_uid: str | None = None
 
 
 PLAYLIST_VISIBILITIES = ("private", "friends", "collaborative")
@@ -646,16 +648,129 @@ class Repository:
 
     async def account_for_session(self, token: str) -> Account | None:
         cursor = await self._db.conn.execute(
-            """SELECT a.* FROM app_sessions s JOIN app_accounts a ON a.id = s.account_id
+            """SELECT a.*, (SELECT uid FROM supabase_links WHERE account_id = a.id) AS supabase_uid
+               FROM app_sessions s JOIN app_accounts a ON a.id = s.account_id
                WHERE s.token_hash=?""",
             (_hash_token(token),),
         )
         row = await cursor.fetchone()
         return _account(row) if row else None
 
+    async def delete_sessions_of(self, account_id: int) -> None:
+        await self._db.conn.execute("DELETE FROM app_sessions WHERE account_id=?", (account_id,))
+        await self._db.conn.commit()
+
     async def delete_session(self, token: str) -> None:
         await self._db.conn.execute("DELETE FROM app_sessions WHERE token_hash=?", (_hash_token(token),))
         await self._db.conn.commit()
+
+    # -- Comptes Supabase ------------------------------------------------
+
+    async def account_for_uid(self, uid: str) -> Account | None:
+        cursor = await self._db.conn.execute(
+            "SELECT a.*, l.uid AS supabase_uid FROM supabase_links l JOIN app_accounts a ON a.id = l.account_id WHERE l.uid=?",
+            (uid,),
+        )
+        row = await cursor.fetchone()
+        return _account(row) if row else None
+
+    async def accounts_for_uids(self, uids: list[str]) -> list[Account]:
+        if not uids:
+            return []
+        marks = ",".join("?" for _ in uids)
+        cursor = await self._db.conn.execute(
+            f"SELECT a.*, l.uid AS supabase_uid FROM supabase_links l JOIN app_accounts a ON a.id = l.account_id WHERE l.uid IN ({marks})",
+            uids,
+        )
+        return [_account(r) for r in await cursor.fetchall()]
+
+    async def ensure_account_for_uid(
+        self, uid: str, username: str, display_name: str | None, avatar_url: str | None, is_admin: bool
+    ) -> Account:
+        """Compte de données d'une personne Supabase, créé à sa première requête (accepté d'office : la modération
+        est faite par sona-accounts). Le pseudo Last.fm (obligatoire dans l'ancienne table) devient `sb:<uuid>`."""
+        existing = await self.account_for_uid(uid)
+        if existing is not None:
+            if (existing.display_name, existing.avatar_url, existing.is_admin) != (display_name, avatar_url, is_admin):
+                await self._db.conn.execute(
+                    "UPDATE app_accounts SET display_name=?, avatar_url=?, is_admin=? WHERE id=?",
+                    (display_name, avatar_url, int(is_admin), existing.id),
+                )
+                await self._db.conn.commit()
+                return await self.account_for_uid(uid)
+            return existing
+        cursor = await self._db.conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM app_accounts")
+        next_id = (await cursor.fetchone())["n"]
+        now = _now()
+        cursor = await self._db.conn.execute(
+            """INSERT INTO app_accounts (lastfm_username, display_name, avatar_url, status, is_admin, user_id, created_at, decided_at)
+               VALUES (?, ?, ?, 'approved', ?, ?, ?, ?)""",
+            (f"sb:{uid}", display_name or username, avatar_url, int(is_admin), ACCOUNT_USER_ID_BASE + next_id, now, now),
+        )
+        await self._db.conn.execute(
+            "INSERT INTO supabase_links (uid, account_id, created_at) VALUES (?, ?, ?)", (uid, cursor.lastrowid, now)
+        )
+        await self._db.conn.commit()
+        return await self.account_for_uid(uid)
+
+    async def relink_uid(self, uid: str, account_id: int) -> None:
+        """Rattache un compte Supabase à un ancien compte (et donc à toutes ses données). Le compte vide créé à la
+        première requête est supprimé s'il n'a rien d'autre."""
+        cursor = await self._db.conn.execute("SELECT account_id FROM supabase_links WHERE uid=?", (uid,))
+        row = await cursor.fetchone()
+        await self._db.conn.execute("DELETE FROM supabase_links WHERE uid=?", (uid,))
+        await self._db.conn.execute(
+            "INSERT INTO supabase_links (uid, account_id, created_at) VALUES (?, ?, ?)", (uid, account_id, _now())
+        )
+        if row is not None and row["account_id"] != account_id:
+            await self._db.conn.execute("DELETE FROM app_accounts WHERE id=? AND lastfm_username LIKE 'sb:%'", (row["account_id"],))
+            await self._db.conn.execute("DELETE FROM app_sessions WHERE account_id=?", (row["account_id"],))
+        await self._db.conn.commit()
+
+    # -- Export et suppression d'un compte (RGPD) -----------------------
+
+    _USER_TABLES = ("users", "library", "history", "plays", "playlists", "track_moments", "tv_screens", "public_links", "connect_saved", "share_links")
+    _SECRET_COLUMNS = {"tv_screens": ("lounge_token",)}
+
+    async def export_user_data(self, user_id: int) -> dict:
+        """Toutes les données musicales de la personne, en JSON (sans jetons ni clés)."""
+        out: dict[str, list] = {}
+        for table in self._USER_TABLES:
+            cursor = await self._db.conn.execute(f"SELECT * FROM {table} WHERE user_id=?", (user_id,))
+            hidden = self._SECRET_COLUMNS.get(table, ())
+            out[table] = [{k: v for k, v in dict(r).items() if k not in hidden} for r in await cursor.fetchall()]
+        cursor = await self._db.conn.execute(
+            "SELECT t.* FROM playlist_tracks t JOIN playlists p ON p.id = t.playlist_id WHERE p.user_id=? ORDER BY t.playlist_id, t.position",
+            (user_id,),
+        )
+        out["playlist_tracks"] = [dict(r) for r in await cursor.fetchall()]
+        return out
+
+    async def delete_user_data(self, user_id: int) -> None:
+        """Supprime TOUT ce que le serveur musique garde sur la personne (le compte lui-même compris)."""
+        conn = self._db.conn
+        await conn.execute("DELETE FROM playlist_import_items WHERE playlist_id IN (SELECT id FROM playlists WHERE user_id=?)", (user_id,))
+        await conn.execute("DELETE FROM playlist_tracks WHERE playlist_id IN (SELECT id FROM playlists WHERE user_id=?)", (user_id,))
+        for table in self._USER_TABLES:
+            await conn.execute(f"DELETE FROM {table} WHERE user_id=?", (user_id,))
+        cursor = await conn.execute("SELECT id FROM app_accounts WHERE user_id=?", (user_id,))
+        for row in await cursor.fetchall():
+            await conn.execute("DELETE FROM app_sessions WHERE account_id=?", (row["id"],))
+            await conn.execute("DELETE FROM supabase_links WHERE account_id=?", (row["id"],))
+        await conn.execute("DELETE FROM app_accounts WHERE user_id=?", (user_id,))
+        await conn.commit()
+
+    async def playlist_set_visibility(self, playlist_id: int, owner_user_id: int, visibility: str) -> bool:
+        cursor = await self._db.conn.execute(
+            "UPDATE playlists SET visibility=? WHERE id=? AND user_id=?", (visibility, playlist_id, owner_user_id)
+        )
+        await self._db.conn.commit()
+        return cursor.rowcount > 0
+
+    async def uid_linked_to(self, account_id: int) -> str | None:
+        cursor = await self._db.conn.execute("SELECT uid FROM supabase_links WHERE account_id=?", (account_id,))
+        row = await cursor.fetchone()
+        return row["uid"] if row else None
 
     # -- Cache audio Telegram -----------------------------------------
 

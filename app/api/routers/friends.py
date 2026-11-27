@@ -2,9 +2,10 @@
 leurs dernières écoutes, leurs goûts comparés aux siens et leurs playlists
 partagées.
 
-« Amis » = tous les comptes acceptés qui partagent leur écoute (réglage
-`share_listening`) : l'app est privée, chaque compte a été validé par un
-admin — pas besoin de demandes d'ami en plus.
+« Amis » = les demandes d'ami ACCEPTÉES, rien d'autre. Chaque information
+(en train d'écouter, dernière écoute, goûts, playlists) n'est montrée que si le
+réglage de la personne, les blocages et l'état de son compte le permettent :
+la règle est calculée par le service de comptes (`services/social.py`), jamais ici.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ from app.api.auth import require_token
 from app.api.schemas import PlaylistOut, Track
 from app.api.state import ApiDeps
 from app.db.repository import Account, Play
-from app.services import blend, presence
+from app.services import blend, presence, social
+from app.services.sona_accounts import Relation
 from app.services import stats as stats_service
 
 router = APIRouter(prefix="/friends", tags=["amis"])
@@ -120,21 +122,22 @@ async def _taste_of(deps: ApiDeps, user_id: int) -> Counter:
     return taste
 
 
-async def _friends(deps: ApiDeps) -> list[Account]:
-    return [
-        a for a in await deps.repo.list_accounts()
-        if a.status == "approved" and a.share_listening and a.user_id != deps.user_id
-    ]
+async def _friends(deps: ApiDeps) -> list[tuple[Account, Relation]]:
+    """Amis acceptés, visibles, avec ce que chacun autorise."""
+    return await social.circle(deps, "profile")
 
 
-async def _friend_out(deps: ApiDeps, friend: Account, my_taste: Counter, cls=FriendOut, **extra):
-    playing = presence.get(friend.user_id)
-    last = await deps.repo.plays_recent(friend.user_id, 1)
+async def _friend_out(deps: ApiDeps, friend: Account, rel: Relation, my_taste: Counter, cls=FriendOut, **extra):
+    playing = presence.get(friend.user_id) if rel.presence else None
+    last = await deps.repo.plays_recent(friend.user_id, 1) if rel.history else []
     theirs = extra.pop("_their_plays", None)
-    their_taste = _taste(theirs) if theirs is not None else await _taste_of(deps, friend.user_id)
+    if not rel.stats:
+        their_taste = Counter()
+    else:
+        their_taste = _taste(theirs) if theirs is not None else await _taste_of(deps, friend.user_id)
     return cls(
         account_id=friend.id,
-        username=friend.lastfm_username,
+        username=friend.display_name if friend.lastfm_username.startswith("sb:") and friend.display_name else friend.lastfm_username,
         display_name=friend.display_name,
         avatar_url=friend.avatar_url,
         now_playing=NowPlayingOut(
@@ -149,7 +152,7 @@ async def _friend_out(deps: ApiDeps, friend: Account, my_taste: Counter, cls=Fri
 @router.get("", response_model=list[FriendOut])
 async def list_friends(deps: ApiDeps = Depends(require_token)) -> list[FriendOut]:
     my_taste = await _taste_of(deps, deps.user_id)
-    friends = [await _friend_out(deps, f, my_taste) for f in await _friends(deps)]
+    friends = [await _friend_out(deps, f, rel, my_taste) for f, rel in await _friends(deps)]
     # En train d'écouter d'abord, puis par écoute la plus récente (tris
     # stables : le second garde l'ordre du premier à égalité).
     friends.sort(key=lambda f: f.last_play.played_at if f.last_play else "", reverse=True)
@@ -160,9 +163,10 @@ async def list_friends(deps: ApiDeps = Depends(require_token)) -> list[FriendOut
 @router.get("/{account_id}/blend")
 async def friend_blend(account_id: int, deps: ApiDeps = Depends(require_token)) -> dict:
     """Blend : playlist commune du jour avec cet ami (voir services/blend.py)."""
-    friend = next((f for f in await _friends(deps) if f.id == account_id), None)
-    if friend is None:
+    found = next(((f, r) for f, r in await _friends(deps) if f.id == account_id), None)
+    if found is None or not found[1].history:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Profil introuvable ou privé.")
+    friend = found[0]
     mine = await _recent_plays(deps, deps.user_id, TASTE_WINDOW_DAYS)
     theirs = await _recent_plays(deps, friend.user_id, TASTE_WINDOW_DAYS)
     tracks, shared, total = blend.mix(mine, theirs, blend.seed_for(deps.user_id, friend.user_id))
@@ -183,14 +187,15 @@ async def friend_blend(account_id: int, deps: ApiDeps = Depends(require_token)) 
 
 @router.get("/{account_id}", response_model=FriendProfileOut)
 async def friend_profile(account_id: int, deps: ApiDeps = Depends(require_token)) -> FriendProfileOut:
-    friend = next((f for f in await _friends(deps) if f.id == account_id), None)
-    if friend is None:
+    found = next(((f, r) for f, r in await _friends(deps) if f.id == account_id), None)
+    if found is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Profil introuvable ou privé.")
+    friend, rel = found
     my_plays = await _recent_plays(deps, deps.user_id, TASTE_WINDOW_DAYS)
-    their_plays = await _recent_plays(deps, friend.user_id, TASTE_WINDOW_DAYS)
+    their_plays = await _recent_plays(deps, friend.user_id, TASTE_WINDOW_DAYS) if rel.stats else []
     my_top = {a.name.casefold() for a in stats_service.top_artists(my_plays, limit=50)}
     shared = [a.name for a in stats_service.top_artists(their_plays, limit=50) if a.name.casefold() in my_top][:12]
-    month = await _recent_plays(deps, friend.user_id, 30)
+    month = await _recent_plays(deps, friend.user_id, 30) if rel.stats else []
 
     def ranked(items):
         return [
@@ -201,14 +206,14 @@ async def friend_profile(account_id: int, deps: ApiDeps = Depends(require_token)
             for i in items
         ]
 
-    playlists = await deps.repo.playlists_shared_by(friend.user_id)
+    playlists = await deps.repo.playlists_shared_by(friend.user_id) if rel.playlists else []
     owner = friend.display_name or friend.lastfm_username
     return await _friend_out(
-        deps, friend, _taste(my_plays), FriendProfileOut,
+        deps, friend, rel, _taste(my_plays), FriendProfileOut,
         _their_plays=their_plays,
         shared_artists=shared,
         top_artists=ranked(stats_service.top_artists(month, limit=10)),
         top_tracks=ranked(stats_service.top_tracks(month, limit=10)),
-        recent=[FriendPlayOut.from_play(p) for p in await deps.repo.plays_recent(friend.user_id, 20)],
+        recent=[FriendPlayOut.from_play(p) for p in await deps.repo.plays_recent(friend.user_id, 20)] if rel.history else [],
         playlists=[PlaylistOut.from_playlist(p, deps.user_id, owner) for p in playlists],
     )

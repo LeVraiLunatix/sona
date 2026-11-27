@@ -7,6 +7,13 @@
 <meta name="description" content="Sona : ta musique, tes playlists, tes paroles et tes stats, sur ordinateur et sur ton téléphone.">
 <!-- Adresse du serveur (API). À changer ici si le serveur change d'adresse. -->
 <meta name="sona-server" content="https://141-253-108-13.sslip.io">
+<!-- Comptes : projet Supabase (adresse et clé « anon » PUBLIQUES par conception ; voir docs/AUTH_SETUP.md),
+     service de comptes Sona (Rust), clé de site Cloudflare Turnstile (anti-robot invisible, facultative).
+     Aucun secret ici. À renseigner une fois les services créés. -->
+<meta name="sona-supabase-url" content="">
+<meta name="sona-supabase-key" content="">
+<meta name="sona-accounts" content="">
+<meta name="sona-turnstile-sitekey" content="">
 <meta name="theme-color" content="#000000">
 <!-- Appli installable : « Sur l'écran d'accueil » (iPhone) ou « Installer l'appli » (Android). -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -20,12 +27,25 @@
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="accounts.css">
+<link rel="stylesheet" href="sidebar.css">
+<link rel="stylesheet" href="pochette.css">
 </head>
 <body>
 <!-- Logo de Sona (utilisé avec <use href="#sona-mark">) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><symbol id="sona-mark" viewBox="88.42 88.25 223.50 223.50"><path d="M271.23,120.00 L133.00,120.00 A15.00,15.00 0 0 0 118.00,135.00 L118.00,146.83 A15.00,15.00 0 0 0 121.19,156.07 L173.56,222.99 A13.00,13.00 0 0 1 163.32,244.00 L133.00,244.00 A15.00,15.00 0 0 0 118.00,259.00 L118.00,265.00 A15.00,15.00 0 0 0 133.00,280.00 L260.23,280.00 A15.00,15.00 0 0 0 274.25,259.66 L269.52,247.24 A212.16,212.16 0 0 0 237.99,191.57 L226.56,177.04 A13.00,13.00 0 0 1 236.77,156.00 L259.97,156.00 A15.00,15.00 0 0 0 272.45,149.32 L280.48,137.28 A11.11,11.11 0 0 0 271.23,120.00 Z" fill="#d2d1d8"/></symbol></svg>
 <div id="root"></div>
 <audio id="audio" preload="auto"></audio>
+<script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="accounts.js"></script>
+<script src="accounts-ui.js"></script>
+<script src="accounts-settings.js"></script>
+<script src="accounts-social.js"></script>
+<script src="accounts-admin.js"></script>
+<script src="accounts-party.js"></script>
+<script src="sidebar.js"></script>
+<script src="masonry.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

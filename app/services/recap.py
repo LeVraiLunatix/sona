@@ -109,10 +109,12 @@ async def compute(deps, user_id: int, period: str, offset: int, tz_name: str | N
         )
         previous_minutes = sum(seconds_of(p) for p in previous) // 60
 
-    # Classement parmi les amis qui partagent leur écoute, au temps d'écoute.
+    # Classement parmi les amis dont les statistiques te sont visibles (règle du service de comptes), au temps d'écoute.
+    from app.services import social
+
     board = []
-    for account in await deps.repo.list_accounts():
-        if account.status != "approved" or (account.user_id != user_id and not account.share_listening):
+    for account in await social.friend_accounts(deps, "stats"):
+        if account.user_id == user_id:
             continue
         theirs = await deps.repo.plays_between(account.user_id, report.start, report.end)
         board.append((account.user_id, sum(seconds_of(p) for p in theirs) // 60))

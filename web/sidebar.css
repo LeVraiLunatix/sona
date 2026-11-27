@@ -1,0 +1,211 @@
+/* Sona : menu latéral « Rail ↔ Panneau » (variante B « Flottante », voir docs/sidebar-variants/).
+
+   Carte arrondie flottante, à 12 px des bords. Fermé : rail de 72 px, icônes de 24 px dans des zones
+   de 48 × 48. Ouvert : panneau de 264 px. Le panneau a TOUJOURS sa largeur ouverte ; ce qu'on voit est découpé par
+   `clip-path` : aucune largeur animée, donc aucun recalcul de mise en page, aucun texte
+   écrasé (les libellés ont leur place entière, ils apparaissent en fondu une fois le
+   panneau commencé à s'ouvrir et disparaissent avant qu'il ne se referme).
+   Les icônes ne bougent jamais : même colonne de 48 px dans les deux états. */
+
+:root {
+  --sb-rail: 72px;
+  --sb-open: 264px;
+  --sb-gap: 12px;            /* marge autour de la carte flottante */
+  --sb-dur: 230ms;
+  --sb-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --sb-line: rgba(255, 255, 255, 0.1);
+  --sb-face: #0e0e10;
+}
+
+.sb-spacer { display: none; }
+
+@media (min-width: 761px) {
+  :root { --sidebar-w: calc(var(--sb-rail) + var(--sb-gap)); }
+  html[data-menu="ouvert"] { --sidebar-w: calc(var(--sb-open) + var(--sb-gap)); }
+  .app { grid-template-columns: var(--sidebar-w) 1fr; }
+  .sb-spacer { display: block; grid-row: 1 / -1; grid-column: 1; }
+  .content { grid-column: 2; margin-left: var(--s-3, 12px); }
+
+  /* Carte flottante, détachée des bords. Deux calques rognés ensemble : l'anneau (1 px, couleur de
+     bordure) et la face (fond). Ils se replient de la même façon, donc le contour suit le bord visible. */
+  .sb {
+    position: fixed; z-index: 30; width: var(--sb-open); border-radius: 28px;
+    top: max(var(--sb-gap), env(safe-area-inset-top)); bottom: max(var(--sb-gap), env(safe-area-inset-bottom)); left: var(--sb-gap);
+    display: flex; flex-direction: column; padding: 12px; color: var(--text);
+    background: var(--sb-line);
+    clip-path: inset(0 calc(var(--sb-open) - var(--sb-rail)) 0 0 round 28px);
+    /* Fermeture : les libellés s'effacent d'abord (70 ms), puis la carte se replie. */
+    transition: clip-path var(--sb-dur) var(--sb-ease) 70ms;
+    contain: layout paint; user-select: none; -webkit-user-select: none;
+  }
+  .sb-face {
+    position: absolute; inset: 1px; border-radius: 27px; background: var(--sb-face); pointer-events: none;
+    clip-path: inset(0 calc(var(--sb-open) - var(--sb-rail)) 0 0 round 27px);
+    transition: clip-path var(--sb-dur) var(--sb-ease) 70ms;
+  }
+  .sb[data-open="true"] { clip-path: inset(0 0 0 0 round 28px); transition-delay: 0ms; }
+  .sb[data-open="true"] .sb-face { clip-path: inset(0 0 0 0 round 27px); transition-delay: 0ms; }
+  .sb > *:not(.sb-face):not(.sb-liquid) { position: relative; }
+}
+
+/* ── Contenu : mêmes dimensions fermé et ouvert ───────────────────────── */
+
+.sb-top { display: flex; align-items: center; height: 48px; flex: none; }
+/* Logo : le S et « ona » forment « Sona », sur la même ligne de base (le S, de 34 px, a la hauteur de
+   capitale du texte de 34 px ; sa base est à ~14 % du bas de son carré, d'où le décalage de 4,8 px).
+   Au repos seul le S est visible, centré dans la colonne des icônes (7 + 34 / 2 + 12 = 36 px). */
+.sb-logo { display: flex; align-items: center; height: 48px; padding-left: 7px; border-radius: 16px; color: var(--accent); flex: none; }
+.sb-brand { display: inline-flex; align-items: baseline; }
+.sb-logo svg { width: 34px; height: 34px; flex: none; transform: translateY(4.8px); }
+.sb-word { font-size: 34px; line-height: 1; font-weight: 700; letter-spacing: -0.05em; color: var(--text); margin-left: -2px; padding-right: 4px; opacity: 0; transition: opacity 90ms; }
+.sb[data-open="true"] .sb-word { opacity: 1; transition: opacity 150ms 100ms; }
+
+.sb-scroll {
+  flex: 1; min-height: 0; margin: 0 -12px; padding: 4px 12px 8px;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+}
+.sb-scroll::-webkit-scrollbar { display: none; }
+
+.sb-title {
+  display: flex; align-items: flex-end; height: 36px; margin: 0; padding: 0 14px 6px; flex: none;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3);
+  white-space: nowrap; position: relative;
+}
+.sb-title span { opacity: 0; transition: opacity 90ms; }
+.sb[data-open="true"] .sb-title span { opacity: 1; transition: opacity 150ms 100ms; }
+/* Au repos, un petit trait tient la place du titre. */
+.sb-title::after { content: ""; position: absolute; left: 26px; bottom: 12px; width: 20px; height: 1px; background: var(--sb-line); opacity: 1; transition: opacity 90ms; }
+.sb[data-open="true"] .sb-title::after { opacity: 0; }
+
+.sb-link {
+  position: relative; display: flex; align-items: center; width: 100%; height: 48px; margin: 0 0 4px; border-radius: 16px; flex: none;
+  color: var(--text-2); font-size: 14.5px; font-weight: 500; text-align: left; line-height: 1.2;
+  transition: background 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease);
+}
+.sb-link:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.sb-link:active { transform: scale(0.98); }
+.sb-link:focus-visible, .sb-toggle:focus-visible, .sb-profile:focus-visible, .sb-logo:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Page active : pastille pleine de la couleur d'accent (la seule chose colorée du menu). */
+.sb-link.active { background: var(--accent); color: var(--on-accent, #0a0a0b); }
+.sb-link.active:hover { background: var(--accent); color: var(--on-accent, #0a0a0b); }
+
+.sb-ico { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: none; font-size: 24px; }
+.sb-ico .icon { width: 24px; height: 24px; }
+.sb-label {
+  flex: 1; min-width: 0; padding-right: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; transform: translateX(-4px); pointer-events: none;
+  transition: opacity 90ms, transform 90ms;
+}
+.sb[data-open="true"] .sb-label { opacity: 1; transform: none; transition: opacity 150ms 100ms, transform 150ms 100ms; }
+
+/* Pastille de notification : point ou compteur sur l'icône. */
+.sb-badge {
+  position: absolute; top: 6px; right: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #ff453a; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 3px var(--sb-face);
+}
+.sb-badge.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 10px; right: 10px; }
+.sb-badge[hidden] { display: none; }
+
+/* Playlists : seulement ouvert, défilement interne. */
+.sb-pl { display: none; }
+@media (min-width: 761px) {
+  .sb-pl { display: block; visibility: hidden; opacity: 0; transition: opacity 90ms, visibility 0s 90ms; }
+  .sb[data-open="true"] .sb-pl { visibility: visible; opacity: 1; transition: opacity 150ms 100ms; }
+}
+.sb-pl .sb-link { height: 44px; margin-bottom: 2px; }
+.sb-pl .thumb { width: 32px; height: 32px; border-radius: 9px; object-fit: cover; background: var(--fill); margin: 0 8px 0 8px; flex: none; }
+.sb-pl .sb-label { opacity: 1; transform: none; padding-left: 0; }
+.sb-empty { margin: 0; padding: 8px 14px; font-size: 13px; color: var(--text-3); }
+
+.sb-foot { flex: none; padding-top: 8px; }
+.sb-profile { display: flex; align-items: center; width: 100%; height: 56px; border-radius: 16px; text-align: left; transition: background 150ms; }
+.sb-profile:hover { background: rgba(255, 255, 255, 0.07); }
+.sb-profile .sb-ico { position: relative; }
+.sb-profile .avatar { width: 36px; height: 36px; font-size: 15px; }
+.sb-name { flex: 1; min-width: 0; padding-right: 4px; line-height: 1.25; opacity: 0; transform: translateX(-4px); transition: opacity 90ms, transform 90ms; }
+.sb[data-open="true"] .sb-name { opacity: 1; transform: none; transition: opacity 150ms 100ms, transform 150ms 100ms; }
+.sb-name b { display: block; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-name small { display: block; font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-gear { flex: none; width: 44px; height: 44px; margin-right: 4px; display: grid; place-items: center; border-radius: 14px; color: var(--text-3); font-size: 20px; opacity: 0; transition: opacity 90ms, color 150ms, background 150ms; }
+.sb[data-open="true"] .sb-gear { opacity: 1; transition: opacity 150ms 100ms, color 150ms, background 150ms; }
+.sb-gear:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+
+/* Info-bulle du rail : nom de la page et raccourci, après un léger délai. */
+.sb-tip {
+  position: fixed; z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px;
+  background: #1a1a1d; color: var(--text); border: 1px solid var(--sb-line); font-size: 13px; font-weight: 500; white-space: nowrap;
+  pointer-events: none; opacity: 0; transform: translateX(-4px); transition: opacity 120ms, transform 120ms; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.sb-tip.show { opacity: 1; transform: none; }
+.sb-tip kbd { font: 600 11px/1 var(--font, system-ui); color: var(--text-2); background: rgba(255, 255, 255, 0.08); padding: 3px 6px; border-radius: 6px; }
+
+/* ── Mobile : pas de menu latéral, barre du bas + « Plus » ──────────────── */
+@media (max-width: 760px) {
+  .sb { display: none; }
+  .tabbar button { min-height: 48px; }
+  .tabbar button[aria-current="page"], .tabbar button.active { color: var(--accent); }
+}
+.more-sheet .sb-link { height: 52px; color: var(--text); }
+.more-sheet .sb-title { height: 32px; }
+.more-sheet .sb-title::after { display: none; }
+.more-sheet .sb-title span { opacity: 1; }
+.more-sheet .sb-label { opacity: 1; transform: none; pointer-events: auto; }
+.more-sheet .sb-pl { display: block; visibility: visible; opacity: 1; }
+.more-sheet .sb-link.active::before { display: none; }
+.more-sheet .more-profile { display: flex; align-items: center; gap: 12px; padding: 12px 8px; margin-bottom: 4px; }
+.more-sheet .more-profile .avatar { width: 44px; height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb, .sb-face, .sb-label, .sb-name, .sb-title span, .sb-title::after, .sb-gear, .sb-word, .sb-pl, .sb-tip, .sb-link { transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+}
+
+/* Le halo de couleur des pages dépasse de quelques pixels : on le rogne à la fenêtre (aucun défilement horizontal). */
+.app { overflow: clip; }
+
+/* Rail : la pastille d'une page ne dépasse pas la zone de 48 px (sinon elle serait coupée net au bord de la carte).
+   Même courbe et même délai que la carte : elle s'élargit avec elle. */
+@media (min-width: 761px) {
+  .sb-link:not(.sb-pl .sb-link), .sb-profile {
+    clip-path: inset(0 calc(100% - 48px) 0 0 round 16px);
+    transition: background 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease), clip-path var(--sb-dur) var(--sb-ease) 70ms;
+  }
+  .sb[data-open="true"] .sb-link, .sb[data-open="true"] .sb-profile { clip-path: inset(0 0 0 0 round 16px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  /* Liste des playlists : se fond en bas plutôt que d'être coupée net. */
+  .sb-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
+}
+
+/* ── Pastille « liquide » ─────────────────────────────────────────────────
+   La page active est une pastille claire dans le menu. En face, la BORDURE DE L'ÉCRAN D'ÉCOUTE (la page) s'agrandit à
+   la même hauteur : son trait s'épaissit en une lentille claire qui s'effile en haut et en bas, et une lueur l'entoure,
+   vive à la bordure, qui s'éteint avec la distance. RIEN ne dépasse : tout est rogné au bord de la page (ni dans l'espace
+   du menu, ni sur la carte). Quand on change de page, tout glisse en s'étirant (un bord part avant l'autre), puis le
+   trait s'épaissit un instant et la lueur gonfle (voir sidebar.js). */
+.sb-liquid, .sb-bridge, .sb-glow { display: none; }
+@media (min-width: 761px) {
+  .sb-liquid { display: block; position: absolute; left: 12px; top: 0; bottom: 0; width: calc(var(--sb-rail) - 24px); opacity: 0; pointer-events: none;
+    transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), width var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
+  .sb[data-open="true"] .sb-liquid { width: calc(var(--sb-open) - 24px); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-liquid i { position: absolute; inset: 0; background: var(--accent); border-radius: 18px; }
+  .sb[data-liquid="on"] .sb-link.active, .sb[data-liquid="on"] .sb-link.active:hover { background: transparent; color: var(--on-accent, #0a0a0b); }
+  .sb[data-liquid="on"] .sb-link.active { clip-path: none; }
+
+  /* Col + trait de la bordure : UN SEUL dessin (svg), posé sur le bord gauche de la page, qui part de l'intérieur de la pastille,
+     traverse le bord de la carte et s'évase en courbe douce jusqu'au trait épaissi de la bordure de la page. */
+  .sb-bridge { display: block; position: fixed; z-index: 31; pointer-events: none; opacity: 0; width: 24px;
+    left: calc(var(--sb-gap) * 2 + var(--sb-rail)); clip-path: inset(-200px -60px -200px calc(var(--sb-gap) * -3 - 24px));
+    transition: top 260ms var(--sb-ease), bottom 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
+  .sb[data-open="true"] ~ .sb-bridge { left: calc(var(--sb-gap) * 2 + var(--sb-open)); transition-delay: 0ms, 0ms, 0ms, 0ms; }
+  .sb-bridge svg { position: absolute; left: -44px; top: 0; height: 100%; overflow: visible; }
+  .sb-bridge svg path { fill: var(--accent); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 45%, transparent)); }
+  /* voile le long de la bordure : plus vif à la hauteur de la pastille, éteint à ~130 px */
+  .sb-bridge u { position: absolute; left: 0; width: 7px; top: -130px; bottom: -130px; filter: blur(3px); opacity: .9;
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--accent) 6%, transparent) 14%, color-mix(in srgb, var(--accent) 36%, transparent) 38%, color-mix(in srgb, var(--accent) 50%, transparent) 50%, color-mix(in srgb, var(--accent) 36%, transparent) 62%, color-mix(in srgb, var(--accent) 6%, transparent) 86%, transparent 100%); }
+
+  /* Lueur autour : un disque doux centré sur la bordure ; on n'en garde que la moitié qui est dans la page
+     (rognée à 120 px du bord gauche du disque = le bord de la page) : forte au contact, presque éteinte à 120 px. */
+  .sb-glow { display: block; position: fixed; z-index: 32; pointer-events: none; opacity: 0; width: 240px; height: 240px; clip-path: inset(0 0 0 120px);
+    left: calc(var(--sb-gap) * 2 + var(--sb-rail) - 120px);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 30%, transparent) 0%, color-mix(in srgb, var(--accent) 13%, transparent) 42%, transparent 100%);
+    transition: top 260ms var(--sb-ease), left var(--sb-dur) var(--sb-ease) 70ms, opacity 150ms; }
+  .sb[data-open="true"] ~ .sb-glow { left: calc(var(--sb-gap) * 2 + var(--sb-open) - 120px); transition-delay: 0ms, 0ms, 0ms; }
+}

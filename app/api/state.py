@@ -13,6 +13,7 @@ from app.providers.soundcloud import SoundcloudClient
 from app.providers.spotify import SpotifyClient
 from app.services.discord_storage import DiscordStorage
 from app.services.lyrics import LyricsService
+from app.services.sona_accounts import SonaAccounts
 
 
 @dataclass(slots=True)
@@ -38,6 +39,8 @@ class ApiDeps:
     vault_storage: DiscordStorage | None = None
     # SoundCloud (import de playlists et de likes) ; sinon le client commun.
     soundcloud: SoundcloudClient | None = None
+    # Service de comptes (Rust) : jetons Supabase, amis, scrobbling. Absent = anciens jetons seulement, aucun ami.
+    accounts: SonaAccounts | None = None
     account: Account | None = None
     is_admin: bool = False
     user_id_override: int | None = None

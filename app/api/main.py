@@ -10,12 +10,14 @@ from pathlib import Path
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+
+from app.api.auth import SanctionedError
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
     accounts, device_login, browse, connect, exclusives, extras, catalog, friends, history, home, karaoke, library, lyrics, party,
-    public,
+    public, internal,
     playlists,
     local, search, share, stats, stream, tv, user_settings,
 )
@@ -32,6 +34,7 @@ from app.logging_config import setup_logging
 from app.providers.apple import AppleMusicClient
 from app.providers.deezer import DeezerClient
 from app.providers.lastfm_auth import LastfmAuthClient
+from app.services.sona_accounts import SonaAccounts
 from app.providers.lrclib import LrclibClient
 from app.providers.musicbrainz import MusicBrainzClient
 from app.providers.musixmatch import MusixmatchClient
@@ -82,6 +85,12 @@ async def lifespan(app: FastAPI):
         else None
     )
 
+    accounts = (
+        SonaAccounts(settings.sona_accounts_url, settings.sona_internal_secret)
+        if settings.sona_accounts_url and settings.sona_internal_secret
+        else None
+    )
+
     # Un import de playlist coupé par un redémarrage ne reprendra pas.
     await Repository(db).playlists_fail_interrupted_imports()
 
@@ -93,6 +102,7 @@ async def lifespan(app: FastAPI):
         spotify=spotify,
         lrclib=lrclib,
         lastfm_auth=lastfm_auth,
+        accounts=accounts,
         musicbrainz=musicbrainz,
         lyrics=LyricsService(Repository(db), lrclib, netease, musixmatch, genius),
         exclusive_storage=DiscordStorage(settings.exclusives_webhook),
@@ -135,6 +145,8 @@ async def lifespan(app: FastAPI):
         await musicbrainz.aclose()
         if lastfm_auth is not None:
             await lastfm_auth.aclose()
+        if accounts is not None:
+            await accounts.aclose()
         await db.close()
 
 
@@ -192,6 +204,10 @@ def create_app() -> FastAPI:
         description="API privée servant de backend à l'app iOS de Sona.",
         lifespan=lifespan,
     )
+    @app.exception_handler(SanctionedError)
+    async def _sanctioned(_request, exc: SanctionedError):
+        return JSONResponse(exc.body, status_code=403)
+
     app.add_middleware(GZipExceptStream)
     # Sona web hébergé ailleurs (Vercel) : appels de l'API depuis une autre
     # adresse. Sans risque ici : l'authentification passe par un jeton
@@ -201,6 +217,7 @@ def create_app() -> FastAPI:
         expose_headers=["Content-Length", "Content-Range", "Accept-Ranges"],
     )
     app.include_router(accounts.router)
+    app.include_router(internal.router)
     app.include_router(search.router)
     app.include_router(catalog.router)
     app.include_router(stream.router)
@@ -247,6 +264,14 @@ def create_app() -> FastAPI:
                  # Appli installable (écran d'accueil du téléphone).
                  "sw.js": ("sw.js", "application/javascript"),
                  "manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json")}
+    # Comptes (Supabase) : scripts et styles de l'interface.
+    for script in ("accounts.js", "accounts-ui.js", "accounts-settings.js", "accounts-social.js", "accounts-admin.js", "accounts-party.js", "sidebar.js", "masonry.js"):
+        web_files[script] = (script, "application/javascript")
+    web_files["accounts.css"] = ("accounts.css", "text/css")
+    web_files["sidebar.css"] = ("sidebar.css", "text/css")
+    web_files["pochette.css"] = ("pochette.css", "text/css")
+    web_files["vendor/supabase.js"] = ("vendor/supabase.js", "application/javascript")
+    web_files["vendor/qrcode.js"] = ("vendor/qrcode.js", "application/javascript")
     for icon in ("icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png", "favicon-64.png"):
         web_files[f"icons/{icon}"] = (f"icons/{icon}", "image/png")
     web_files["icons/favicon.svg"] = ("icons/favicon.svg", "image/svg+xml")

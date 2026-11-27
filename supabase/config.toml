@@ -1,0 +1,125 @@
+# Sona : configuration Supabase (CLI : `supabase start`, `supabase db push`, `supabase config push`).
+#
+# Ouvert à TOUT LE MONDE : inscriptions activées, aucune liste d'invités, aucune validation manuelle.
+# Aucun secret ici : les valeurs `env(...)` sont lues dans l'environnement (voir docs/AUTH_SETUP.md).
+# Les noms de clés suivent le CLI Supabase v2 ; vérifie-les avec `supabase config push --dry-run`
+# (je n'ai pas pu consulter la documentation officielle depuis l'environnement où ce fichier a été écrit).
+
+project_id = "sona"
+
+[api]
+enabled = true
+schemas = ["public"]          # `private` n'est JAMAIS exposé
+extra_search_path = ["public", "extensions"]
+max_rows = 200
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "https://trysona.fr"
+# Toutes les adresses de retour autorisées (pas de redirection ouverte). Voir docs/AUTH_SETUP.md.
+additional_redirect_urls = [
+  "https://trysona.fr/**",
+  "https://www.trysona.fr/**",
+  "https://141-253-108-13.sslip.io/web/**",
+  "http://localhost:8000/**",
+  "http://127.0.0.1:8000/**",
+  "sona://auth/callback",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+# Inscriptions ouvertes à tout le monde.
+enable_signup = true
+# Mode invité (connexion anonyme) : protégé par le captcha ci-dessous.
+enable_anonymous_sign_ins = true
+# Lier / délier des méthodes dans Réglages › Compte.
+enable_manual_linking = true
+# Force minimale : 10 caractères avec minuscules, majuscules et chiffres.
+minimum_password_length = 10
+password_requirements = "lower_upper_letters_digits"
+
+[auth.rate_limit]
+email_sent = 30              # e-mails par heure (SMTP personnalisé : monte-le si besoin)
+sign_in_sign_ups = 30        # connexions + inscriptions par 5 min et par IP
+token_verifications = 30
+anonymous_users = 10         # invités créés par heure et par IP
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true  # confirmation de l'adresse par code ou lien
+secure_password_change = true
+max_frequency = "60s"
+otp_length = 6
+otp_expiry = 3600
+
+# E-mails en français, avec le CODE (utile dans l'app installée) et le lien.
+[auth.email.template.confirmation]
+subject = "Confirme ton adresse pour Sona"
+content_path = "./supabase/templates/confirmation.html"
+[auth.email.template.magic_link]
+subject = "Ton code de connexion Sona"
+content_path = "./supabase/templates/magic_link.html"
+[auth.email.template.recovery]
+subject = "Réinitialise ton mot de passe Sona"
+content_path = "./supabase/templates/recovery.html"
+[auth.email.template.email_change]
+subject = "Confirme ta nouvelle adresse pour Sona"
+content_path = "./supabase/templates/email_change.html"
+
+# SMTP personnalisé : le SMTP par défaut de Supabase est très limité (quelques e-mails par heure).
+[auth.email.smtp]
+enabled = true
+host = "env(SMTP_HOST)"
+port = 587
+user = "env(SMTP_USER)"
+pass = "env(SMTP_PASS)"
+admin_email = "env(SMTP_FROM)"
+sender_name = "Sona"
+
+# Anti-robot invisible sur inscription, connexion, code par e-mail et mode invité.
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "env(TURNSTILE_SECRET)"
+
+# ── Fournisseurs OAuth : applications PUBLIQUES, scopes minimaux, sans liste d'utilisateurs de test ──
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
+
+[auth.external.discord]
+enabled = true
+client_id = "env(DISCORD_CLIENT_ID)"
+secret = "env(DISCORD_CLIENT_SECRET)"
+
+[auth.external.github]
+enabled = true
+client_id = "env(GITHUB_CLIENT_ID)"
+secret = "env(GITHUB_CLIENT_SECRET)"
+
+# Pas de « Se connecter avec Apple » (pas de compte développeur Apple payant), pas de Spotify
+# (mode développeur limité à quelques utilisateurs, approbation requise).
+[auth.external.apple]
+enabled = false
+
+# Hook « avant création d'un utilisateur » : appelle le service `sona-accounts` (Rust), seul endroit
+# qui connaît l'adresse IP de l'inscription. Le déclencheur SQL sur auth.users reste le dernier rempart
+# si le hook n'est pas branché. Le secret est de la forme `v1,whsec_<base64>`.
+[auth.hook.before_user_created]
+enabled = true
+uri = "env(ACCOUNTS_URL)/hooks/before-user-created"
+secrets = "env(AUTH_HOOK_SECRET)"
+
+[storage]
+enabled = true
+file_size_limit = "1MiB"
+
+[studio]
+enabled = true

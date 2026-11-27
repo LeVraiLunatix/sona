@@ -79,6 +79,14 @@
     },
     "portable": {
       "artifactName": "Sona-Portable-${version}.${ext}"
-    }
+    },
+    "protocols": [
+      {
+        "name": "Sona",
+        "schemes": [
+          "sona"
+        ]
+      }
+    ]
   }
 }

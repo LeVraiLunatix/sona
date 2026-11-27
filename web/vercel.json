@@ -6,11 +6,12 @@
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), geolocation=(self), publickey-credentials-get=(self), publickey-credentials-create=(self)" }
       ]
     },
     {
-      "source": "/(app.js|app.css|sw.js)",
+      "source": "/(app.js|app.css|sw.js|accounts.js|accounts-ui.js|accounts-settings.js|accounts-social.js|accounts-admin.js|accounts-party.js|accounts.css|sidebar.js|sidebar.css|pochette.css|masonry.js)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {

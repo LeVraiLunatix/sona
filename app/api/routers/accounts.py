@@ -45,6 +45,9 @@ class AuthConfigOut(BaseModel):
     # `<serveur>/auth/lastfm/callback` : Last.fm n'accepte que des adresses
     # http(s), pas `encre://`.
     api_key: str | None = None
+    # Compte Sona (Supabase) : adresse du projet et clé PUBLIQUE (« anon ») pour les apps natives. Jamais de clé secrète ici.
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
 
 
 class LastfmLoginIn(BaseModel):
@@ -72,10 +75,12 @@ def _legacy_account(deps: ApiDeps) -> AccountOut:
 @router.get("/auth/config", response_model=AuthConfigOut)
 async def auth_config(deps: ApiDeps = Depends(get_deps)) -> AuthConfigOut:
     """Publique : l'app en a besoin avant toute connexion."""
-    if deps.lastfm_auth is None or not deps.settings.lastfm_api_key:
-        return AuthConfigOut(lastfm_enabled=False, auth_url=None)
-    url = str(httpx.URL(AUTH_URL, params={"api_key": deps.settings.lastfm_api_key, "cb": APP_CALLBACK}))
-    return AuthConfigOut(lastfm_enabled=True, auth_url=url, api_key=deps.settings.lastfm_api_key)
+    s = deps.settings
+    public = {"supabase_url": s.supabase_url, "supabase_anon_key": s.supabase_anon_key} if s.supabase_url and s.supabase_anon_key else {}
+    if deps.lastfm_auth is None or not s.lastfm_api_key:
+        return AuthConfigOut(lastfm_enabled=False, auth_url=None, **public)
+    url = str(httpx.URL(AUTH_URL, params={"api_key": s.lastfm_api_key, "cb": APP_CALLBACK}))
+    return AuthConfigOut(lastfm_enabled=True, auth_url=url, api_key=s.lastfm_api_key, **public)
 
 
 @router.get("/auth/lastfm/callback", include_in_schema=False)
@@ -130,6 +135,37 @@ async def login_with_lastfm(payload: LastfmLoginIn, deps: ApiDeps = Depends(get_
         asyncio.create_task(_notify_admins(deps, account))
     token = await deps.repo.create_session(account.id)
     return LoginOut(session_token=token, account=AccountOut.from_account(account))
+
+
+@router.post("/auth/link-legacy", response_model=AccountOut)
+async def link_legacy(payload: LastfmLoginIn, deps: ApiDeps = Depends(identify)) -> AccountOut:
+    """Rattache un compte Sona d'avant (connexion Last.fm) au compte de la personne connectée, avec toutes ses données
+    (bibliothèque, playlists, historique). La preuve : autoriser Last.fm avec le pseudo de l'ancien compte. Un ancien
+    compte n'est rattaché qu'une fois, et seulement s'il était accepté."""
+    me = deps.account
+    if me is None or not me.supabase_uid:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Connecte-toi avec ton compte Sona pour rattacher un ancien compte.")
+    if deps.lastfm_auth is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Connexion Last.fm non configurée sur le serveur.")
+    try:
+        session = await deps.lastfm_auth.get_session(payload.token)
+    except LastfmAuthError as exc:
+        # 400 et non 401 : le site se déconnecterait sur un 401. Le plus courant : Last.fm n'a pas encore été autorisé.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Autorise d'abord Sona sur la page Last.fm, puis réessaie. ({exc})") from exc
+    legacy = await deps.repo.account_by_username(session.username)
+    if legacy is None or legacy.lastfm_username.startswith("sb:"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucun ancien compte Sona pour ce pseudo Last.fm.")
+    if legacy.status != "approved":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cet ancien compte n'a pas été accepté.")
+    owner = await deps.repo.uid_linked_to(legacy.id)
+    if owner == me.supabase_uid:
+        return AccountOut.from_account(await deps.repo.account_for_uid(me.supabase_uid))
+    if owner is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Cet ancien compte est déjà rattaché à une autre personne.")
+    await deps.repo.relink_uid(me.supabase_uid, legacy.id)
+    # Les anciennes sessions Last.fm ne doivent plus ouvrir ce compte : il appartient maintenant à la personne.
+    await deps.repo.delete_sessions_of(legacy.id)
+    return AccountOut.from_account(await deps.repo.account_for_uid(me.supabase_uid))
 
 
 @router.get("/auth/me", response_model=AccountOut)

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from app.providers.base import TrackInfo
 from app.providers.lastfm_auth import LastfmProfile, LastfmSession
 from app.services import party
+from tests import social_support
 
 LEGACY = {"Authorization": "Bearer test-token"}
 
@@ -47,6 +48,7 @@ def client(tmp_path: Path, monkeypatch):
     with TestClient(main_module.app) as test_client:
         main_module.app.state.deps.lastfm_auth = FakeLastfm()
         test_client.deps = main_module.app.state.deps
+        test_client.fake = social_support.install(test_client)
         yield test_client
 
 
@@ -54,7 +56,9 @@ def login(client, username):
     body = client.post("/auth/lastfm", json={"token": username}).json()
     if body["account"]["status"] != "approved":
         client.post(f"/admin/accounts/{body['account']['id']}/approve", headers=LEGACY)
-    return {"Authorization": f"Bearer {body['session_token']}"}
+    headers = {"Authorization": f"Bearer {body['session_token']}"}
+    social_support.befriend_all(client, client.fake, headers)  # ces tests parlent de la session, pas de la façon dont on devient ami
+    return headers
 
 
 TRACK = {"source": "deezer", "source_id": "1", "title": "Grabba", "artist": "Ziak"}
@@ -153,9 +157,9 @@ def test_party_host_handover_and_kick(client):
 
     # Retirer quelqu'un : il ne peut plus revenir.
     assert client.post(f"/party/{code}/kick", headers=bob, json={"member_id": members["Carol"]}).status_code == 403
-    client.post(f"/party/{code}/kick", headers=host, json={"member_id": members["Carol"]})
+    client.post(f"/party/{code}/ban", headers=host, json={"member_id": members["Carol"]})
     assert client.get(f"/party/{code}", headers=carol).status_code == 403
-    assert client.post(f"/party/{code}/join", headers=carol).status_code == 403
+    assert client.post(f"/party/{code}/join", headers=carol).status_code == 404  # banni : message neutre
 
     # Passer la main.
     state = client.post(f"/party/{code}/transfer", headers=host, json={"member_id": members["Bob"]}).json()

@@ -36,3 +36,48 @@ jobs:
 
       - name: Lancer les tests
         run: python -m pytest -q
+
+  # Comptes (service Rust) : migrations SQL, RLS, tests HTTP, Last.fm, passkeys… sur un vrai Postgres.
+  rust:
+    name: rust (sona-accounts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SONA_REQUIRE_DB: "1"   # sans base, les tests échouent au lieu d'être ignorés
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Démarrer un Postgres jetable
+        run: |
+          eval "$(scripts/test-postgres.sh start)"
+          echo "SONA_TEST_DATABASE_URL=$SONA_TEST_DATABASE_URL" >> "$GITHUB_ENV"
+
+      - name: Tests
+        working-directory: rust
+        run: cargo test --workspace
+
+  # Interface (navigateur réel, faux Supabase) : connexion, bienvenue, sanctions, amis, admin, menu latéral.
+  ui:
+    name: interface
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Installer Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Tests d'interface
+        run: node tests/ui/accounts.mjs

@@ -802,11 +802,16 @@ struct AuthConfig: Codable {
     var lastfmEnabled: Bool
     var authURL: String?
     var apiKey: String?
+    /// Compte Sona (Supabase) : adresse du projet et clé PUBLIQUE (« anon »). Absents : seule la connexion Last.fm existe.
+    var supabaseURL: String?
+    var supabaseAnonKey: String?
 
     enum CodingKeys: String, CodingKey {
         case lastfmEnabled = "lastfm_enabled"
         case authURL = "auth_url"
         case apiKey = "api_key"
+        case supabaseURL = "supabase_url"
+        case supabaseAnonKey = "supabase_anon_key"
     }
 }
 

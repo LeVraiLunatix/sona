@@ -54,7 +54,7 @@ final class APIConfig: ObservableObject {
 /// stocker/lire une chaîne, en `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`
 /// (accessible dès le premier déverrouillage après redémarrage, jamais
 /// synchronisé sur iCloud : ce jeton n'a rien à faire sur un autre appareil).
-private enum Keychain {
+enum Keychain {
     static func set(_ value: String, forKey key: String) {
         let data = Data(value.utf8)
         let query: [String: Any] = [

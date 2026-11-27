@@ -16,6 +16,7 @@ from app.api.routers.friends import compatibility
 from app.providers.base import ArtistInfo, TrackInfo
 from app.providers.lastfm_auth import LastfmProfile, LastfmSession, LovedTrack
 from app.services import mixes, presence
+from tests import social_support
 
 LEGACY = {"Authorization": "Bearer test-token"}
 
@@ -68,15 +69,18 @@ def client(tmp_path: Path, monkeypatch):
         main_module.app.state.deps.lastfm_auth = fake
         test_client.fake_lastfm = fake
         test_client.deps = main_module.app.state.deps
+        test_client.fake = social_support.install(test_client)
         yield test_client
 
 
-def login(client, username):
+def login(client, username, social=True):
     body = client.post("/auth/lastfm", json={"token": username}).json()
     headers = {"Authorization": f"Bearer {body['session_token']}"}
     account = body["account"]
     if account["status"] != "approved":
         client.post(f"/admin/accounts/{account['id']}/approve", headers=LEGACY)
+    if social:
+        social_support.befriend_all(client, client.fake, headers)
     return headers, account
 
 
@@ -133,9 +137,16 @@ def test_friends_now_playing_and_profile(client):
     client.delete("/plays/now", headers=bob)
     assert client.get("/friends", headers=alice).json()[0]["now_playing"] is None
 
-    # Écoute privée : Bob disparaît de la liste.
-    assert client.put("/auth/me", headers=bob, json={"share_listening": False}).json()["share_listening"] is False
-    assert "bob" not in [f["username"] for f in client.get("/friends", headers=alice).json()]
+    # Bob coupe la présence et l'historique pour ses amis : plus rien de ce qu'il écoute n'est montré, même à Alice.
+    client.fake.grant(f"uid-{bob_account['id']}", presence=False, history=False, stats=False)
+    client.post("/plays/now", headers=bob, json={"title": "Grabba", "artist": "Ziak", "duration_seconds": 180, "source": "deezer", "source_id": "42"})
+    shown = client.get("/friends", headers=alice).json()[0]
+    assert shown["now_playing"] is None and shown["last_play"] is None and shown["compatibility"] is None
+    assert client.get(f"/friends/{bob_account['id']}", headers=alice).json()["recent"] == []
+
+    # Bob bloque Alice : il disparaît entièrement.
+    client.fake.block(f"uid-{bob_account['id']}", f"uid-{client.get('/auth/me', headers=alice).json()['id']}")
+    assert client.get("/friends", headers=alice).json() == []
     assert client.get(f"/friends/{bob_account['id']}", headers=alice).status_code == 404
 
 
@@ -263,7 +274,7 @@ def test_mix_seed_picks_the_most_followed_homonym():
 
 
 def test_live_stats_show_now_playing_today_and_lastfm_sync(client):
-    me, _ = login(client, "alice")
+    me, _ = login(client, "alice", social=False)  # ancien compte, jamais rattaché : Last.fm direct
     client.post("/plays/now", headers=me, json={"title": "Grabba", "artist": "Ziak", "duration_seconds": 180})
     now = datetime.now(timezone.utc)
     client.post("/plays", headers=me, json={"plays": [

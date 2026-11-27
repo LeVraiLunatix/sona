@@ -1,0 +1,45 @@
+[package]
+name = "sona-accounts"
+version = "0.1.0"
+description = "Sona : comptes, social, administration et modération (remplace les Edge Functions Supabase)"
+edition.workspace = true
+publish = false
+
+[lib]
+name = "sona_accounts"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sona-accounts"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["json", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal", "sync"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "limit"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json", "macros"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+jsonwebtoken = "9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+aes-gcm = "0.10"
+base64 = "0.22"
+md-5 = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+rand = "0.8"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2"
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation", "resident-key-support", "conditional-ui"] }
+hex = "0.4"
+
+[dev-dependencies]
+serde_json = "1"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+webauthn-authenticator-rs = { version = "0.5", features = ["softtoken"] }

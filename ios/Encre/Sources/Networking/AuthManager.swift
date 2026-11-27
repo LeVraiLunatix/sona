@@ -14,6 +14,8 @@ final class AuthManager: ObservableObject {
         /// Session enregistrée mais serveur injoignable : on ne déconnecte
         /// pas pour autant, on réessaie.
         case unreachable(String)
+        /// Compte banni ou suspendu par la modération.
+        case sanctioned(APIError.Sanction)
         case pending(AppAccount)
         case rejected(AppAccount)
         case approved(AppAccount)
@@ -48,12 +50,23 @@ final class AuthManager: ObservableObject {
         if state == .checking, let cached = Self.cachedAccount, cached.status == "approved" {
             state = .approved(cached)
         }
+        await loadSupabaseConfig()
         do {
             apply(try await APIClient.shared.me())
+        } catch APIError.sanctioned(let sanction) {
+            // Le serveur relit le statut à CHAQUE requête : un bannissement ou une suspension s'applique tout de suite.
+            state = .sanctioned(sanction)
         } catch APIError.server(let status, _) where status == 401 {
             // Session expirée ou révoquée : on retombe sur l'ancien jeton s'il
             // y en a un, sinon retour à l'écran de connexion.
-            if !APIConfig.shared.sessionToken.isEmpty {
+            if SupabaseAuth.shared.hasSession {
+                // Session de compte Sona révoquée ou expirée pour de bon : retour à la connexion (ou à l'ancien jeton).
+                await SupabaseAuth.shared.signOut()
+                if !APIConfig.shared.token.isEmpty {
+                    await refresh()
+                    return
+                }
+            } else if !APIConfig.shared.sessionToken.isEmpty {
                 APIConfig.shared.sessionToken = ""
                 if !APIConfig.shared.token.isEmpty {
                     await refresh()
@@ -74,6 +87,40 @@ final class AuthManager: ObservableObject {
             default:
                 break
             }
+        }
+    }
+
+    /// Adresse du projet Supabase et clé publique, fournies par le serveur (rien n'est écrit en dur dans l'app).
+    @Published private(set) var supabaseEnabled = false
+
+    func loadSupabaseConfig() async {
+        guard APIConfig.shared.baseURL != nil, let config = try? await APIClient.shared.authConfig() else { return }
+        SupabaseAuth.shared.configure(url: config.supabaseURL, anonKey: config.supabaseAnonKey)
+        supabaseEnabled = SupabaseAuth.shared.config != nil
+    }
+
+    /// Compte Sona : e-mail + mot de passe.
+    func signIn(email: String, password: String) async {
+        await runSupabase { try await SupabaseAuth.shared.signIn(email: email, password: password) }
+    }
+
+    /// Compte Sona : Google, Discord ou GitHub (PKCE, feuille système).
+    func signIn(provider: String, using session: WebAuthenticationSession) async {
+        await runSupabase { try await SupabaseAuth.shared.signIn(provider: provider, using: session) }
+    }
+
+    private func runSupabase(_ action: () async throws -> Void) async {
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+        do {
+            await loadSupabaseConfig()
+            try await action()
+            await refresh()
+        } catch SupabaseAuth.AuthError.cancelled {
+            // Feuille fermée : rien à signaler.
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -121,7 +168,9 @@ final class AuthManager: ObservableObject {
     }
 
     func signOut() async {
-        if !APIConfig.shared.sessionToken.isEmpty {
+        if SupabaseAuth.shared.hasSession {
+            await SupabaseAuth.shared.signOut()
+        } else if !APIConfig.shared.sessionToken.isEmpty {
             try? await APIClient.shared.logout()
         }
         APIConfig.shared.sessionToken = ""

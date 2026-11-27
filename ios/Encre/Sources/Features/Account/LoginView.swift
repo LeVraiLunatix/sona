@@ -9,6 +9,8 @@ struct LoginView: View {
     @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @State private var showsServer = false
     @State private var showsToken = false
+    @State private var email = ""
+    @State private var password = ""
 
     var body: some View {
         ZStack {
@@ -33,6 +35,10 @@ struct LoginView: View {
                 if showsServer || config.baseURL == nil || config.baseURLString.isEmpty {
                     field("Adresse du serveur (https://…)", text: $config.baseURLString, secure: false)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+
+                if auth.supabaseEnabled {
+                    accountSection
                 }
 
                 Button {
@@ -90,12 +96,34 @@ struct LoginView: View {
         }
     }
 
-    private func field(_ placeholder: String, text: Binding<String>, secure: Bool) -> some View {
+    /// Compte Sona : e-mail + mot de passe, ou Google / Discord / GitHub. (Pas de « Se connecter avec Apple » : voir docs/AUTH_SETUP.md.)
+    private var accountSection: some View {
+        VStack(spacing: 10) {
+            field("Adresse e-mail", text: $email, secure: false, keyboard: .emailAddress)
+            field("Mot de passe", text: $password, secure: true)
+            PillButton(title: "Se connecter", systemImage: "person.fill", isLoading: auth.isWorking) {
+                Task { await auth.signIn(email: email, password: password) }
+            }
+            .disabled(auth.isWorking || email.isEmpty || password.isEmpty)
+            HStack(spacing: 10) {
+                ForEach(SupabaseAuth.providers, id: \.id) { provider in
+                    PillButton(title: provider.name, systemImage: provider.icon, kind: .secondary) {
+                        Task { await auth.signIn(provider: provider.id, using: webAuthenticationSession) }
+                    }
+                    .disabled(auth.isWorking)
+                }
+            }
+            Text("ou").font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary)
+        }
+        .padding(.bottom, 4)
+    }
+
+    private func field(_ placeholder: String, text: Binding<String>, secure: Bool, keyboard: UIKeyboardType = .URL) -> some View {
         Group {
             if secure {
                 SecureField(placeholder, text: text)
             } else {
-                TextField(placeholder, text: text).keyboardType(.URL)
+                TextField(placeholder, text: text).keyboardType(keyboard)
             }
         }
         .autocorrectionDisabled()
@@ -103,6 +131,44 @@ struct LoginView: View {
         .padding(.horizontal, 16)
         .frame(height: 50)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tone.surfaceStrong))
+    }
+}
+
+/// Compte banni ou suspendu : la raison, la date de fin éventuelle, et de quoi se déconnecter. (La contestation se fait
+/// depuis le site : trysona.fr.)
+struct SanctionView: View {
+    let sanction: APIError.Sanction
+    @EnvironmentObject private var auth: AuthManager
+
+    private var suspended: Bool { sanction.status == "suspended" }
+
+    var body: some View {
+        ZStack {
+            Tone.background.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Spacer()
+                Image(systemName: suspended ? "pause.circle.fill" : "hand.raised.fill")
+                    .font(.system(size: 52, weight: .semibold))
+                    .foregroundStyle(Tone.secondary)
+                Text(suspended ? "Compte suspendu" : "Compte banni")
+                    .font(Typo.largeTitle)
+                    .foregroundStyle(Tone.primary)
+                if let reason = sanction.reason, !reason.isEmpty {
+                    Text(reason).font(Typo.body).foregroundStyle(Tone.secondary).multilineTextAlignment(.center).padding(.horizontal, 32)
+                }
+                if suspended, let until = sanction.until, let date = ISO8601DateFormatter().date(from: until) {
+                    Text("Jusqu'au \(date.formatted(date: .long, time: .shortened))").font(Typo.body).foregroundStyle(Tone.secondary)
+                }
+                Text("Tu peux contester cette décision depuis le site, en te connectant sur trysona.fr.")
+                    .font(Typo.rowSubtitle).foregroundStyle(Tone.tertiary).multilineTextAlignment(.center).padding(.horizontal, 32)
+                Spacer()
+                PillButton(title: "Se déconnecter", systemImage: "rectangle.portrait.and.arrow.right", kind: .secondary) {
+                    Task { await auth.signOut() }
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 40)
+            }
+        }
     }
 }
 

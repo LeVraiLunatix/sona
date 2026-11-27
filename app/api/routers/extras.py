@@ -12,7 +12,7 @@ from app.api.schemas import Album, Track
 from app.api.state import ApiDeps
 from app.bot import lookup
 from app.providers.base import TrackInfo
-from app.services import challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists
+from app.services import social, challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists
 from app.services import stats as stats_service
 
 router = APIRouter(tags=["extras"])
@@ -124,12 +124,19 @@ class MomentIn(BaseModel):
     text: str | None = Field(None, max_length=80)
 
 
+async def _board_people(deps: ApiDeps) -> list:
+    """Classements : seulement les amis dont les statistiques sont visibles pour toi, et toi."""
+    people = list(await social.friend_accounts(deps, "stats"))
+    if deps.account is not None:
+        people.append(deps.account)
+    return people
+
+
 async def _circle(deps: ApiDeps) -> dict[int, tuple[str, str | None]]:
-    """Toi et tes amis (ceux qui partagent leur écoute) : nom et avatar."""
+    """Toi et tes amis acceptés : nom et avatar."""
     people = {}
-    for a in await deps.repo.list_accounts():
-        if a.status == "approved" and (a.share_listening or a.user_id == deps.user_id):
-            people[a.user_id] = (a.display_name or a.lastfm_username, a.avatar_url)
+    for a in await social.friend_accounts(deps, "profile"):
+        people[a.user_id] = (a.display_name or a.lastfm_username, a.avatar_url)
     people.setdefault(deps.user_id, ("Toi", None))
     return people
 
@@ -172,7 +179,7 @@ async def listening_places(deps: ApiDeps = Depends(require_token)) -> list[dict]
 @router.get("/challenges")
 async def weekly_challenges(tz: str | None = Query(None), deps: ApiDeps = Depends(require_token)) -> dict:
     out = await challenges.compute(deps.repo, deps.user_id, tz)
-    out["friends"] = await challenges.friends_boards(deps.repo, deps.user_id, tz)
+    out["friends"] = await challenges.friends_boards(deps.repo, deps.user_id, tz, people=await _board_people(deps))
     return out
 
 

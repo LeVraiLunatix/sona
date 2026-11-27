@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.services import social
 from app.api.auth import require_token
 from app.api.schemas import Track
 from app.api.state import ApiDeps
@@ -41,10 +44,31 @@ class CommandIn(BaseModel):
 
 class SettingsIn(BaseModel):
     open_controls: bool | None = None
+    access: str | None = None
+    locked: bool | None = None
+    chat_enabled: bool | None = None
+    max_participants: int | None = Field(None, ge=2, le=party_service.MAX_PARTICIPANTS_LIMIT)
+    permissions: dict[str, str] | None = None
 
 
 class MemberIn(BaseModel):
     member_id: int
+
+
+class MuteIn(MemberIn):
+    muted: bool = True
+
+
+class ModeratorIn(MemberIn):
+    moderator: bool = True
+
+
+class JoinIn(BaseModel):
+    invite: str | None = Field(None, max_length=200)
+
+
+class InviteIn(BaseModel):
+    ttl_seconds: int = Field(party_service.INVITE_DEFAULT_TTL, ge=60, le=party_service.INVITE_MAX_TTL)
 
 
 def _identity(deps: ApiDeps) -> tuple[str, str | None]:
@@ -52,6 +76,10 @@ def _identity(deps: ApiDeps) -> tuple[str, str | None]:
     if account is None:
         return "Admin", None
     return account.display_name or account.lastfm_username, account.avatar_url
+
+
+def _uid(deps: ApiDeps) -> str | None:
+    return deps.account.supabase_uid if deps.account else None
 
 
 def _party(code: str):
@@ -71,14 +99,14 @@ def _guard(call):
 @router.post("")
 async def create_party(deps: ApiDeps = Depends(require_token)) -> dict:
     name, avatar = _identity(deps)
-    party = party_service.create(deps.user_id, name, avatar)
+    party = party_service.create(deps.user_id, name, avatar, _uid(deps))
     return party_service.snapshot(party, deps.user_id)
 
 
 @router.get("/active")
 async def active_parties(deps: ApiDeps = Depends(require_token)) -> list[dict]:
     """Sessions en cours : celles des amis (à rejoindre) et la sienne."""
-    visible = {a.user_id for a in await deps.repo.list_accounts() if a.status == "approved" and a.share_listening}
+    visible = {a.user_id for a in await social.friend_accounts(deps, "presence")}
     visible.add(deps.user_id)
     out = []
     for party in party_service.all_parties():
@@ -114,10 +142,30 @@ async def party_state(
 
 
 @router.post("/{code}/join")
-async def join_party(code: str, deps: ApiDeps = Depends(require_token)) -> dict:
+async def join_party(code: str, payload: JoinIn | None = None, deps: ApiDeps = Depends(require_token)) -> dict:
     name, avatar = _identity(deps)
-    party = _guard(lambda: party_service.join(code, deps.user_id, name, avatar))
+    party = _party(code)
+    is_friend, blocked = await _relations_with(deps, party)
+    party = _guard(lambda: party_service.join(
+        code, deps.user_id, name, avatar, _uid(deps), is_friend=is_friend, blocked=blocked,
+        invite=payload.invite if payload else None,
+    ))
     return party_service.snapshot(party, deps.user_id)
+
+
+async def _relations_with(deps: ApiDeps, party) -> tuple[bool, bool]:
+    """(ami accepté de l'hôte ?, un blocage existe avec un membre ?) — calculés par le service de comptes. En cas de
+    doute (service injoignable, compte non rattaché) : ni ami, et refus si un blocage est possible."""
+    me = _uid(deps)
+    others = [m.uid for m in party.members.values() if m.uid and m.uid != me]
+    if deps.accounts is None or not me or not others:
+        return False, False
+    try:
+        rels = await deps.accounts.relations(me, others)
+    except Exception:
+        return False, True
+    host = party.host.uid if party.host else None
+    return bool(host and rels.get(host) and rels[host].friend), any(r.blocked for r in rels.values())
 
 
 @router.post("/{code}/leave")
@@ -173,6 +221,13 @@ async def remove_proposal(code: str, item_id: int, deps: ApiDeps = Depends(requi
 @router.post("/{code}/chat")
 async def chat(code: str, payload: ChatIn, deps: ApiDeps = Depends(require_token)) -> dict:
     party = _party(code)
+    if deps.accounts is not None:
+        try:
+            offensive = await deps.accounts.text_offensive(payload.text)
+        except Exception:
+            offensive = False  # filtre indisponible : le signalement et la modération restent
+        if offensive:
+            raise HTTPException(400, "Message refusé : il contient un terme interdit.")
     _guard(lambda: party_service.say(party, deps.user_id, payload.text))
     return party_service.snapshot(party, deps.user_id)
 
@@ -194,7 +249,53 @@ async def send_command(code: str, payload: CommandIn, deps: ApiDeps = Depends(re
 @router.post("/{code}/settings")
 async def party_settings(code: str, payload: SettingsIn, deps: ApiDeps = Depends(require_token)) -> dict:
     party = _party(code)
-    _guard(lambda: party_service.configure(party, deps.user_id, payload.open_controls))
+    _guard(lambda: party_service.configure(
+        party, deps.user_id, payload.open_controls, access=payload.access, locked=payload.locked,
+        chat_enabled=payload.chat_enabled, max_participants=payload.max_participants, permissions=payload.permissions,
+    ))
+    return party_service.snapshot(party, deps.user_id)
+
+
+@router.post("/{code}/invite")
+async def create_invite(code: str, payload: InviteIn | None = None, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    ttl = payload.ttl_seconds if payload else party_service.INVITE_DEFAULT_TTL
+    token, expires = _guard(lambda: party_service.create_invite(party, deps.user_id, ttl))
+    return {"token": token, "expires_at": datetime.fromtimestamp(expires, timezone.utc).isoformat()}
+
+
+@router.delete("/{code}/invite")
+async def revoke_invite(code: str, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    _guard(lambda: party_service.revoke_invite(party, deps.user_id))
+    return party_service.snapshot(party, deps.user_id)
+
+
+@router.post("/{code}/ban")
+async def ban_member(code: str, payload: MemberIn, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    _guard(lambda: party_service.ban(party, deps.user_id, payload.member_id))
+    return party_service.snapshot(party, deps.user_id)
+
+
+@router.post("/{code}/mute")
+async def mute_member(code: str, payload: MuteIn, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    _guard(lambda: party_service.mute(party, deps.user_id, payload.member_id, payload.muted))
+    return party_service.snapshot(party, deps.user_id)
+
+
+@router.post("/{code}/moderator")
+async def moderator(code: str, payload: ModeratorIn, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    _guard(lambda: party_service.set_moderator(party, deps.user_id, payload.member_id, payload.moderator))
+    return party_service.snapshot(party, deps.user_id)
+
+
+@router.delete("/{code}/chat/{message_id}")
+async def delete_chat_message(code: str, message_id: int, deps: ApiDeps = Depends(require_token)) -> dict:
+    party = _party(code)
+    _guard(lambda: party_service.delete_message(party, deps.user_id, message_id))
     return party_service.snapshot(party, deps.user_id)
 
 
