@@ -98,7 +98,7 @@ const MOCK_SUPABASE = `
 })();
 `;
 
-export const METAS = { "sona-supabase-url": "https://abcdefgh.supabase.co", "sona-supabase-key": "anon-key-anon-key-anon-key-anon", "sona-accounts": "http://accounts.test" };
+export const METAS = { "sona-supabase-url": "https://abcdefgh.supabase.co", "sona-supabase-key": "anon-key-anon-key-anon-key-anon", "sona-accounts": "http://accounts.test", "sona-turnstile-sitekey": "" };
 
 export function startServer({ configured = true } = {}) {
   const server = createServer((req, res) => {
@@ -109,7 +109,8 @@ export function startServer({ configured = true } = {}) {
     let body = readFileSync(file);
     if (file.endsWith("index.html")) {
       let html = body.toString();
-      if (configured) for (const [name, value] of Object.entries(METAS)) html = html.replace(new RegExp(`(<meta name="${name}" content=")[^"]*`), `$1${value}`);
+      // Toujours réécrites : la page du dépôt porte les valeurs de production, que les essais ne doivent jamais joindre.
+      for (const [name, value] of Object.entries(METAS)) html = html.replace(new RegExp(`(<meta name="${name}" content=")[^"]*`), `$1${configured ? value : ""}`);
       body = Buffer.from(html);
     }
     res.writeHead(200, { "Content-Type": types[extname(file)] || "text/plain" });
