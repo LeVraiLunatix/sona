@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import secrets
@@ -297,6 +298,18 @@ def _hash_token(token: str) -> str:
 class Repository:
     def __init__(self, db: Database) -> None:
         self._db = db
+        # Création de compte : vérifier puis écrire, une personne à la fois (l'interface envoie
+        # plusieurs requêtes d'un coup à la première connexion).
+        self._accounts_lock = asyncio.Lock()
+
+    async def _next_account_number(self) -> int:
+        """Jamais réutilisé, même après une suppression : sinon le compte suivant héritait des
+        données laissées sous ce numéro. `sqlite_sequence` garde le plus grand jamais attribué."""
+        cursor = await self._db.conn.execute(
+            """SELECT MAX(COALESCE((SELECT seq FROM sqlite_sequence WHERE name='app_accounts'), 0),
+                          COALESCE((SELECT MAX(id) FROM app_accounts), 0)) + 1 AS n"""
+        )
+        return (await cursor.fetchone())["n"]
 
     async def ensure_user(self, user_id: int) -> None:
         await self._db.conn.execute(
@@ -585,8 +598,7 @@ class Repository:
         # Le premier admin garde les données de l'ancien jeton unique.
         cursor = await self._db.conn.execute("SELECT 1 FROM app_accounts WHERE user_id=?", (legacy_user_id,))
         takes_legacy = is_admin and await cursor.fetchone() is None
-        cursor = await self._db.conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM app_accounts")
-        next_id = (await cursor.fetchone())["n"]
+        next_id = await self._next_account_number()
         user_id = legacy_user_id if takes_legacy else ACCOUNT_USER_ID_BASE + next_id
         now = _now()
         cursor = await self._db.conn.execute(
@@ -687,6 +699,12 @@ class Repository:
     async def ensure_account_for_uid(
         self, uid: str, username: str, display_name: str | None, avatar_url: str | None, is_admin: bool
     ) -> Account:
+        async with self._accounts_lock:
+            return await self._ensure_account_for_uid(uid, username, display_name, avatar_url, is_admin)
+
+    async def _ensure_account_for_uid(
+        self, uid: str, username: str, display_name: str | None, avatar_url: str | None, is_admin: bool
+    ) -> Account:
         """Compte de données d'une personne Supabase, créé à sa première requête (accepté d'office : la modération
         est faite par sona-accounts). Le pseudo Last.fm (obligatoire dans l'ancienne table) devient `sb:<uuid>`."""
         existing = await self.account_for_uid(uid)
@@ -699,8 +717,7 @@ class Repository:
                 await self._db.conn.commit()
                 return await self.account_for_uid(uid)
             return existing
-        cursor = await self._db.conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM app_accounts")
-        next_id = (await cursor.fetchone())["n"]
+        next_id = await self._next_account_number()
         now = _now()
         cursor = await self._db.conn.execute(
             """INSERT INTO app_accounts (lastfm_username, display_name, avatar_url, status, is_admin, user_id, created_at, decided_at)
@@ -714,8 +731,8 @@ class Repository:
         return await self.account_for_uid(uid)
 
     async def relink_uid(self, uid: str, account_id: int) -> None:
-        """Rattache un compte Supabase à un ancien compte (et donc à toutes ses données). Le compte vide créé à la
-        première requête est supprimé s'il n'a rien d'autre."""
+        """Rattache un compte Supabase à un ancien compte (et donc à toutes ses données). Ce qui a été fait avec
+        le compte provisoire créé à la première requête passe sur l'ancien, puis le provisoire est supprimé."""
         cursor = await self._db.conn.execute("SELECT account_id FROM supabase_links WHERE uid=?", (uid,))
         row = await cursor.fetchone()
         await self._db.conn.execute("DELETE FROM supabase_links WHERE uid=?", (uid,))
@@ -723,6 +740,14 @@ class Repository:
             "INSERT INTO supabase_links (uid, account_id, created_at) VALUES (?, ?, ?)", (uid, account_id, _now())
         )
         if row is not None and row["account_id"] != account_id:
+            ids = await (await self._db.conn.execute(
+                "SELECT (SELECT user_id FROM app_accounts WHERE id=? AND lastfm_username LIKE 'sb:%') AS old,"
+                " (SELECT user_id FROM app_accounts WHERE id=?) AS kept", (row["account_id"], account_id))).fetchone()
+            if ids["old"] is not None and ids["kept"] is not None:
+                for table in self._USER_TABLES:
+                    # En cas de doublon (même favori des deux côtés), celui de l'ancien compte reste.
+                    await self._db.conn.execute(f"UPDATE OR IGNORE {table} SET user_id=? WHERE user_id=?", (ids["kept"], ids["old"]))
+                    await self._db.conn.execute(f"DELETE FROM {table} WHERE user_id=?", (ids["old"],))
             await self._db.conn.execute("DELETE FROM app_accounts WHERE id=? AND lastfm_username LIKE 'sb:%'", (row["account_id"],))
             await self._db.conn.execute("DELETE FROM app_sessions WHERE account_id=?", (row["account_id"],))
         await self._db.conn.commit()
