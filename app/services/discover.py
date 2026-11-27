@@ -10,7 +10,7 @@ from datetime import datetime
 
 import httpx
 
-from app.bot import lookup
+from app.services import lookup
 from app.providers.base import TrackInfo
 from app.services import stats as stats_service
 

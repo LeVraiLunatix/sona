@@ -2,7 +2,6 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from app.bot.handlers.inline import _description
 from app.db.database import Database
 from app.db.repository import Repository
 from app.providers.base import TrackInfo
@@ -23,14 +22,6 @@ def _track(source="deezer", source_id="1", album="Random Access Memories", durat
         duration_seconds=duration,
         cover_url=None,
     )
-
-
-def test_description_lists_artist_album_and_duration():
-    assert _description(_track()) == "Daft Punk • Random Access Memories • 5:37"
-
-
-def test_description_without_album():
-    assert _description(_track(album=None)) == "Daft Punk • 5:37"
 
 
 def _with_repo(scenario):

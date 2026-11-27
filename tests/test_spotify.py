@@ -12,7 +12,6 @@ import logging
 import httpx
 import pytest
 
-from app.bot import errors
 from app.providers import spotify
 from app.providers.deezer import DeezerError
 from app.providers.spotify import SpotifyClient, SpotifyError, SpotifyNotConfigured, SpotifyRefused
@@ -198,18 +197,6 @@ def test_an_unknown_track_is_not_hidden_by_the_fallback():
     with pytest.raises(SpotifyError):
         run(fake, lambda c: c.get_track("inconnu"))
     assert fake.count("oembed") == 0
-
-
-def test_albums_and_artists_say_why_they_are_unavailable():
-    with pytest.raises(SpotifyRefused) as refused:
-        run(FakeSpotify(api_status=403), lambda c: c.get_album("4yP0hdKOZPNshxUOjY0cZj"))
-    assert errors.fetch_failed_text(refused.value) == errors.SPOTIFY_UNAVAILABLE
-
-    with pytest.raises(SpotifyNotConfigured) as missing:
-        run(FakeSpotify(), lambda c: c.get_artist("1Xyo4u8uXC1ZmMpatF05PJ"), configured=False)
-    assert errors.fetch_failed_text(missing.value) == errors.SPOTIFY_UNAVAILABLE
-
-    assert errors.fetch_failed_text(DeezerError("panne")) == errors.GENERIC_FETCH_FAILED
 
 
 def test_the_public_page_gives_deezer_something_to_search():

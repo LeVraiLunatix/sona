@@ -11,7 +11,7 @@ from app.api import limits
 from app.api.auth import require_token
 from app.api.schemas import Album, Track
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.providers.base import TrackInfo
 from app.services import social, challenges, discover, dj_voice, query_cache, recognize, instrumental, listening_map, memories, releases, smart_playlists
 from app.services import stats as stats_service

@@ -173,7 +173,7 @@ async def share_page(token: str, request: Request, deps: ApiDeps = Depends(get_d
     found = await share.tracks(deps, link)
     page = _share_page(
         link, found, share.public_url(deps.settings, token, _base(request)),
-        deps.settings.web_app_url, await share.bot_username(deps.settings),
+        deps.settings.web_app_url,
     )
     return HTMLResponse(page, headers={**_SECURITY_HEADERS, "Cache-Control": "public, max-age=60"})
 
@@ -302,7 +302,7 @@ def _cover(url: str | None, size: int) -> str:
     return resize_artwork_url(url, size) if url else ""
 
 
-def _share_page(link: ShareLink, found: list, url: str, web_app: str | None, bot: str | None) -> str:
+def _share_page(link: ShareLink, found: list, url: str, web_app: str | None) -> str:
     kind_label = share.KIND_LABELS.get(link.kind, "")
     cover = _cover(link.cover_url, 600)
     og_image = _cover(link.cover_url, 1000)
@@ -333,8 +333,6 @@ def _share_page(link: ShareLink, found: list, url: str, web_app: str | None, bot
     buttons = []
     if web_app:
         buttons.append(f'<a class="btn primary" href="{_e(web_app)}/#/s/{_e(link.token)}">Ouvrir dans Sona</a>')
-    if bot:
-        buttons.append(f'<a class="btn{"" if web_app else " primary"}" href="https://t.me/{_e(bot)}?start=s_{_e(link.token)}">Ouvrir dans Telegram</a>')
     buttons.append(f'<a class="btn" href="encre://share?token={_e(link.token)}">Ouvrir dans l\'app iPhone</a>')
     external = _external(link, found)
     if external:

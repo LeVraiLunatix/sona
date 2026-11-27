@@ -30,7 +30,8 @@ main() {
     done
     .venv/bin/pip install --quiet --upgrade -r requirements.txt
     install_nightly_update
-    for name in sona-api sona; do
+    # `sona` était le bot Telegram, retiré : seul le serveur de musique redémarre.
+    for name in sona-api; do
         if pm2 describe "$name" >/dev/null 2>&1; then
             pm2 restart "$name" --update-env >/dev/null
             echo "Redémarré : $name"

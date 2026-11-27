@@ -257,17 +257,6 @@ def test_deezer_being_down_changes_nothing(caplog):
     assert "impossible" in caplog.text
 
 
-def test_the_delivery_completes_the_preview_before_resolving():
-    """L'ordre compte : la vérification acoustique a besoin de l'extrait, et
-    le résolveur de la durée."""
-    import inspect
-
-    from app.bot.handlers import track as track_handler
-
-    source = inspect.getsource(track_handler.deliver_track_audio)
-    assert source.index("complete_preview") < source.index("iter_audio_sources")
-
-
 def test_the_search_keeps_the_main_artist_and_drops_the_guests():
     """Spotify écrit « Daft Punk, Pharrell Williams, Nile Rodgers » et
     « Get Lucky (feat. …) » : Deezer ne trouve rien avec tout ça."""

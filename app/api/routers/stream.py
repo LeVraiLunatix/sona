@@ -17,7 +17,7 @@ from app.api import limits
 from app.api.auth import require_admin, require_token
 from app.api.routers import uploads
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.providers.base import TrackInfo
 from app.db.repository import FORMAT_CHOICES, QUALITY_CHOICES
 from app.services.audio_match import verify_recording

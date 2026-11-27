@@ -11,7 +11,7 @@ import asyncio
 import logging
 
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.providers.deezer import DeezerError
 from app.providers.musicbrainz import MusicBrainzError
 

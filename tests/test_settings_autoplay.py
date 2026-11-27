@@ -7,9 +7,6 @@ from types import SimpleNamespace
 
 import aiosqlite
 
-from app.bot import keyboards, navigation
-from app.bot.callbacks import SettingsCB
-from app.bot.handlers import settings as settings_handler
 from app.db.database import Database
 from app.db.repository import Repository, UserSettings
 
@@ -106,57 +103,3 @@ def test_an_old_database_gets_the_column_and_keeps_playing():
 
 
 # -- Écran Paramètres --------------------------------------------------
-
-
-def test_the_settings_screen_offers_the_toggle():
-    markup = keyboards.settings_menu_keyboard(is_admin=False)
-    boutons = [b for row in markup.inline_keyboard for b in row]
-    bascule = [b for b in boutons if b.text == "Lecture automatique"]
-    assert len(bascule) == 1
-    assert bascule[0].callback_data == SettingsCB(action="autoplay_toggle").pack()
-
-
-def test_the_settings_screen_shows_the_current_state(monkeypatch):
-    rendered = {}
-
-    async def get_settings(_user_id):
-        return UserSettings("best", "auto", notifications=True, autoplay=False)
-
-    async def is_admin(_user_id):
-        return False
-
-    async def show_text(bot, target, text, markup):
-        rendered["text"] = text
-        return target
-
-    monkeypatch.setattr(settings_handler, "show_text", show_text)
-    deps = SimpleNamespace(
-        bot=None, repo=SimpleNamespace(get_settings=get_settings, is_admin=is_admin)
-    )
-
-    asyncio.run(settings_handler.render_settings_menu(deps, None, USER, {}))
-
-    assert "Lecture automatique : Désactivée" in rendered["text"]
-
-
-def test_toggling_from_the_screen_answers_and_redraws(monkeypatch):
-    answers, redraws = [], []
-
-    async def scenario():
-        async def toggle_autoplay(_user_id):
-            return False
-
-        async def answer(text=None, show_alert=False):
-            answers.append(text)
-
-        async def rerender(deps, user_id):
-            redraws.append(user_id)
-
-        monkeypatch.setattr(navigation, "rerender", rerender)
-        callback = SimpleNamespace(answer=answer, from_user=SimpleNamespace(id=USER))
-        deps = SimpleNamespace(repo=SimpleNamespace(toggle_autoplay=toggle_autoplay))
-        await settings_handler.on_settings_autoplay_toggle(callback, deps)
-
-    asyncio.run(scenario())
-    assert answers == ["Lecture automatique désactivée : utilise « Écouter »."]
-    assert redraws == [USER]

@@ -18,7 +18,7 @@ from app.services.sona_accounts import SonaAccounts
 
 @dataclass(slots=True)
 class ApiDeps:
-    """Équivalent de `app.bot.deps.Deps` pour l'API. Partagé par toutes les
+    """Services de l'API. Partagé par toutes les
     requêtes ; `require_token` en renvoie une copie rattachée au compte qui
     appelle (`account`, `user_id`)."""
 

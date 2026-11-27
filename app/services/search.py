@@ -4,7 +4,7 @@ import logging
 import re
 import unicodedata
 
-from app.bot.deps import Deps
+from app.api.state import ApiDeps as Deps
 from app.providers.apple import AppleMusicError
 from app.providers.base import TrackInfo
 from app.providers.deezer import DeezerError

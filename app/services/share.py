@@ -13,15 +13,12 @@ l'API.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
-from app.bot import lookup
+from app.services import lookup
 from app.db.repository import ShareLink
 from app.providers.base import TrackInfo
 from app.services.preview import complete_preview
@@ -36,7 +33,6 @@ MAX_PUBLIC_TRACKS = 50
 MAX_HOURS = 24 * 365
 _TRACKS_TTL = 300
 _tracks_cache: dict[str, tuple[float, list[TrackInfo]]] = {}
-_bot_username: tuple[float, str | None] | None = None
 
 
 class ShareError(Exception):
@@ -158,25 +154,8 @@ def public_url(settings, token: str, request_base: str | None = None) -> str:
     return f"{base}/s/{token}"
 
 
-async def bot_username(settings) -> str | None:
-    """Nom du bot Telegram (pour « Ouvrir dans Telegram »), demandé une fois."""
-    global _bot_username
-    if not settings.bot_token:
-        return None
-    if _bot_username and time.monotonic() - _bot_username[0] < (86400 if _bot_username[1] else 600):
-        return _bot_username[1]
-    name = None
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            data = (await client.get(f"https://api.telegram.org/bot{settings.bot_token}/getMe")).json()
-        name = (data.get("result") or {}).get("username")
-    except (httpx.HTTPError, ValueError, asyncio.TimeoutError) as exc:
-        logger.info("Nom du bot Telegram inconnu : %s", exc)
-    _bot_username = (time.monotonic(), name)
-    return name
 
 
 def reset() -> None:
-    global _bot_username
+    """Oublie les titres des liens partagés (après une révocation, et entre deux tests)."""
     _tracks_cache.clear()
-    _bot_username = None

@@ -11,7 +11,7 @@ from app.api.auth import require_token
 from app.api.routers import uploads
 from app.api.schemas import LibraryAddRequest, LibraryItemOut
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.db.repository import VALID_KINDS
 from app.providers.base import TrackInfo
 from app.providers.lastfm_auth import LastfmAuthError

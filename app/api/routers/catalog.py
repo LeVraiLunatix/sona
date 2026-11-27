@@ -9,7 +9,7 @@ from app.api.auth import require_token
 from app.api.schemas import Album, Artist, Track
 from app.api.routers.exclusives import track_for as exclusive_track
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.providers.base import AlbumInfo, TrackInfo
 from app.providers.deezer import DeezerError
 from app.services import album_versions, apple_motion, artist_bio, artist_search, credits, djradio, upcoming

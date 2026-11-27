@@ -33,13 +33,8 @@ main() {
     sed -i 's/^API_HOST=.*/API_HOST=127.0.0.1/' .env
 
     pm2 restart sona-api --update-env >/dev/null
-    if grep -q '^BOT_TOKEN=.\+' .env; then
-        if pm2 describe sona >/dev/null 2>&1; then
-            pm2 restart sona --update-env >/dev/null
-        else
-            pm2 start .venv/bin/python --name sona --cwd "$HOME/sona" -- run.py >/dev/null
-        fi
-    fi
+    # Bot Telegram retiré : on enlève son ancien processus s'il reste.
+    pm2 delete sona >/dev/null 2>&1 || true
     pm2 save >/dev/null
     ip=$(curl -fsS -4 https://api.ipify.org || curl -fsS -4 https://ifconfig.me)
     domain="${ip//./-}.sslip.io"

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from app.api.auth import require_token
 from app.api.schemas import Album, Artist, ResolvedLink, ResolveRequest, SearchResponse, Track
 from app.api.state import ApiDeps
-from app.bot import lookup
+from app.services import lookup
 from app.providers.deezer import DeezerError
 from app.providers.link_detect import resolve_link
 from app.services import query_cache
