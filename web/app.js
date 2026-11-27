@@ -972,6 +972,7 @@ const emo = (e) => icons[EMOJI_ICONS[e]] || esc(e);
 const empty = (icon, title, text) => `<div class="empty"><div class="big">${icon}</div><h3>${esc(title)}</h3><p>${esc(text)}</p></div>`;
 
 function bindPage(root) {
+  if (!root) return; // la page a changé avant la fin d'un affichage : plus rien à brancher
   $$(".rc", root).forEach((el) => radioSight.observe(el));
   $$("[data-shelf]", root).forEach((b) => (b.onclick = () => {
     const el = b.closest(".section").querySelector(".shelf, .track-grid");
