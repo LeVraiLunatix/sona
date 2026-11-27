@@ -118,7 +118,7 @@
   .cat-btn[aria-expanded="true"] .cat-chev svg { transform: rotate(180deg); }
   .mas.cats { columns: 1; margin-top: 0; }
   .mas.cats .tile.off { display: none; }
-  .mas.cats .tile.hero { margin-bottom: 4px; }
+  .mas.cats .tile.hero { margin-bottom: 18px; }
 }
 .cat-sheet { position: fixed; inset: 0; z-index: 95; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px)); }
 .cat-sheet[hidden] { display: none; }
@@ -135,3 +135,43 @@
 .cat-sheet.open .cat-x { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .cat-bubble, .cat-x, .cat-back { transition: opacity .15s; transform: none !important; } }
 @media (min-width: 761px) { .cat-sheet { display: none !important; } }
+
+/* ═══ Aération : plus d'espace entre les tuiles, les lignes et les éléments (retour : « trop collé ») ═══ */
+.page-title { margin-bottom: 28px; }
+.mas { column-gap: 16px; }
+.mas .tile { margin-bottom: 16px; padding: 20px 22px; border-radius: 26px; }
+@media (min-width: 761px) { .mas { column-gap: 20px; } .mas .tile { margin-bottom: 20px; padding: 24px 26px; } }
+.mas .tile .set-head { margin-bottom: 12px; font-size: 17px; }
+.mas .tile .set-row, .mas .tile .switch-row { padding: 16px 0; gap: 16px; }
+.mas .tile .set-text small, .mas .tile .switch-row small { margin-top: 5px; line-height: 1.45; }
+.mas .tile .look-seg .chips { margin-top: 10px; gap: 8px; }
+.mas .tile .look-accents { gap: 18px 14px; padding: 4px 0 6px; }
+.mas .tile.hero { padding: 22px; margin-bottom: 20px; }
+.mas .tile.hero .set-account { gap: 18px; }
+.cat-btn { margin: 14px 0 26px; }
+.page-sub, .page-title + .page-sub { line-height: 1.55; }
+.btn.wide { margin-top: 34px; }
+
+/* Menu de bulles : des bulles bien séparées. */
+.cat-sheet { gap: 40px; }
+.cat-list { gap: 20px; }
+.cat-bubble { padding: 20px 34px; min-width: 68%; }
+.cat-x { width: 62px; height: 62px; }
+
+/* Menu d'un titre en tuiles. */
+.sheet-wrap.mas-menu .menu { column-gap: 12px; padding-bottom: 8px; }
+.sheet-wrap.mas-menu .menu-item { margin-bottom: 12px; padding: 18px 16px; gap: 2px; }
+.sheet-wrap.mas-menu .menu-item .mi-icon { margin-bottom: 14px; }
+.sheet-wrap.mas-menu .menu-item .mi-sub { margin-top: 4px; line-height: 1.4; }
+.sheet-wrap.mas-menu .menu .menu-item:first-child { padding-bottom: 28px; }
+.sheet-wrap.mas-menu .menu-head { padding: 8px 4px 20px; gap: 16px; }
+
+/* Feuilles et popups. */
+.sheet { padding-top: 10px; padding-bottom: 22px; }
+.sheet-title { margin: 12px 0 18px; }
+.sheet .muted { margin-bottom: 22px; line-height: 1.5; }
+.confirm-sheet .sheet-title { margin: 14px 0 28px; }
+.confirm-sheet .pill-row { gap: 12px; }
+.menu-item { padding-block: 16px; }
+
+.mas .tile.hero .set-account { width: 100%; }
