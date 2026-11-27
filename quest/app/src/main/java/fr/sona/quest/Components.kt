@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -290,6 +291,10 @@ fun TrackItem(
             SonaText(listOfNotNull(track.artist, track.album).joinToString(" · "), 14.sp, tone = 1, maxLines = 1)
         }
         if (current && showCover) NowBars(playing)
+        val downloaded by Downloads.items.collectAsState()
+        if (downloaded.any { it.track.source == track.source && it.track.sourceId == track.sourceId }) {
+            Icon(Icons.Filled.DownloadDone, "Téléchargé", tint = look.accent, modifier = Modifier.size(20.dp))
+        }
         track.durationSeconds?.let { SonaText(formatTime(it * 1000L), 14.sp, tone = 2) }
     }
 }

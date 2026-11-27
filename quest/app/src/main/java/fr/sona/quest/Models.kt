@@ -243,3 +243,32 @@ data class RadioStation(
 
 @Serializable
 data class RadioGroup(val title: String, val radios: List<RadioStation> = emptyList())
+
+// ── Son, karaoké, radio DJ, réglages du compte ───────────────────────────────
+
+@Serializable
+data class Analysis(val loudness: Double? = null)
+
+@Serializable
+data class KaraokeStatus(
+    val status: String = "absent",
+    val progress: Double = 0.0,
+    val quality: String? = null,
+    val available: Boolean? = null,
+)
+
+@Serializable
+data class KaraokePrepareIn(val tracks: List<Track>)
+
+@Serializable
+data class DjIntro(val text: String = "", val audio: String? = null)
+
+@Serializable
+data class AccountSettings(
+    val quality: String = "best",
+    val format: String = "auto",
+    val autoplay: Boolean = false,
+)
+
+@Serializable
+data class AccountSettingsUpdate(val quality: String? = null, val autoplay: Boolean? = null)
