@@ -102,6 +102,7 @@
 .wide-btn .roll i { font-style: normal; text-shadow: 0 1.4em currentColor; transition: transform .5s var(--spring) calc(var(--i) * 11ms); }
 .wide-btn .go { position: absolute; right: 20px; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transform: translate(-14px, 14px); transition: opacity .25s, transform .5s var(--spring); }
 .auth .wide-btn[data-browser]:is(:hover, :focus-visible):enabled { --r: 480px; color: #fff; box-shadow: 0 12px 40px rgba(255, 255, 255, .14); }
+.auth .wide-btn[data-browser]:hover:not(:active) { transform: none; }
 .wide-btn[data-browser]:is(:hover, :focus-visible):enabled .roll { transform: translateX(-10px); }
 .wide-btn[data-browser]:is(:hover, :focus-visible):enabled .roll i { transform: translateY(-1.4em); }
 .wide-btn[data-browser]:is(:hover, :focus-visible):enabled .go { opacity: 1; transform: none; transition-delay: .18s; }
