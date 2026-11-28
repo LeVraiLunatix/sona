@@ -1080,115 +1080,52 @@ function tile({ href, icon, title, subtitle, tone = "", data = "" }) {
 
 async function viewHome() {
   $("#content").innerHTML = skeleton("Écouter");
-  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, daily, mood, exclusivesAll] = await Promise.all([
+  const [mixes, recent, releases, playlists, liveParties, exclusivesAll] = await Promise.all([
     api("/home/mixes").catch(() => []),
     api("/plays/recent?limit=80").catch(() => []),
     api("/releases").catch(() => []),
-    state.smart.length ? state.smart : api(`/smart?tz=${encodeURIComponent(tz())}`).catch(() => []),
-    api(`/memories?tz=${encodeURIComponent(tz())}`).catch(() => []),
     api("/me/playlists").catch(() => state.playlists),
-    radioGroups().catch(() => []),
     api("/party/active").catch(() => []),
-    api("/home/daily").catch(() => null),
-    loadMood(),
     api("/exclusives").then((r) => r.tracks).catch(() => []),
   ]);
-  const recentTracks = playsToTracks(recent);
+  const lists = { recent: playsToTracks(recent).slice(0, 20), excl: exclusivesAll.slice(0, 20) };
+  const mine = playlists.filter((p) => p.import_status !== "importing").slice(0, 20);
   const name = (account.display_name || account.username || "").split(" ")[0];
-  const heroTrack = recentTracks[0];
-  const heroList = heroTrack ? register(recentTracks, "Écoutés récemment") : "";
-  const seenArtists = new Set();
-  const artists = recentTracks.filter((t) => t.artist_source_id && !seenArtists.has(t.artist_source_id) && seenArtists.add(t.artist_source_id));
-  const memory = memories[0];
   const parties = liveParties.filter((p) => !p.joined);
+  const songs = (key) => lists[key].map((t, i) => `<button type="button" class="song-card" data-song="${key}:${i}">
+    <img src="${esc(big(t.cover_url, 300))}" alt=""><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></button>`);
+  const rows = [
+    shelf("Pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
+      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
+      play: register(m.tracks, m.title),
+    })), { kind: "large" }),
+    shelf("Écoutés récemment", songs("recent"), { more: `<a class="more" href="#/recent">Tout voir</a>` }),
+    shelf("Tes playlists", mine.map((p) => card({
+      href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
+    }))),
+    shelf("Nouvelles sorties", releases.map((r) => card({
+      href: `#/album/${r.source}/${r.source_id}`, cover: r.cover_url, title: r.title, subtitle: `${r.artist} · ${r.kind}`,
+    }))),
+    shelf("Exclus", songs("excl"), { more: `<a class="more" href="#/exclusives">Tout voir</a>` }),
+  ].join("");
   setTimeout(() => {
     $("[data-install]")?.addEventListener("click", installApp);
     $("[data-install-close]")?.addEventListener("click", () => { store.set("sona.installDismissed", "1"); $("#install").replaceChildren(); });
-    $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
-    $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
     $("[data-recognize]")?.addEventListener("click", (e) => { e.preventDefault(); recognizeSheet(); });
-    $("[data-mood-play]")?.addEventListener("click", () => playStation(mood.title, async () => (await loadMood()).tracks));
-    $("[data-mood-geo]")?.addEventListener("click", (e) => { e.stopPropagation(); askMoodLocation(); });
+    $$("[data-song]").forEach((b) => (b.onclick = () => {
+      const [key, i] = b.dataset.song.split(":");
+      playList(lists[key], +i, key === "recent" ? "Écoutés récemment" : "Exclus");
+    }));
   });
-  return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
+  // Accueil « Classique » (v2.5) : des rangées, rien à apprendre.
+  return page(`<header class="home-head"><h1 class="page-title">${greeting()}${name ? `, ${esc(name)}` : ""}</h1>
+      <div class="home-actions"><a class="btn ghost" href="#/party">${icons.headphones} Écoute ensemble</a>
+        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? `<button class="btn ghost" data-recognize>${icons.wave} Reconnaître un titre</button>` : ""}</div></header>
     <div id="install">${installBanner()}</div>
-    <div class="home-top"><div class="home-cards">
     <div id="resume">${resumeCard()}</div>
-    ${daily?.track ? dailyCard(daily) : ""}
-    ${mood?.tracks?.length ? moodCard(mood) : ""}
     ${party.state ? `<a class="live-pill" href="#/party">${bars()} Écoute ensemble en cours · ${esc(party.state.code)}</a>` : ""}
     ${parties.map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} ${esc(p.host_name || "Un ami")} écoute en groupe — rejoindre</a>`).join("")}
-    </div>
-    ${heroTrack ? `<button class="home-hero" data-play="${heroList}">
-      <img src="${esc(big(heroTrack.cover_url, 1000))}" alt=""><span class="shade"></span>
-      <span class="label"><span class="eyebrow">Reprendre</span><span class="t">${esc(heroTrack.title)}</span><span class="s">${esc(heroTrack.artist)}</span></span>
-      <span class="fab">${icons.play}</span></button>` : ""}
-    </div>
-    ${shelf("Faits pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
-      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
-      play: register(m.tracks, m.title),
-    })), { kind: "large" })}
-    ${exclusivesAll.length ? `<section class="section"><div class="section-head"><h2>Exclus</h2>
-      <div class="shelf-nav"><a class="more" href="#/exclusives">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
-      ${trackGrid(exclusivesAll.slice(0, 12), "Exclus")}</section>` : ""}
-    ${shelf("Nouvelles sorties", releases.map((r) => card({
-      href: `#/album/${r.source}/${r.source_id}`, cover: r.cover_url, title: r.title, subtitle: `${r.artist} · ${r.kind}`,
-    })))}
-    ${memory ? `<button class="memory" data-memory>
-      <span class="covers">${memory.tracks.slice(0, 3).map((t) => `<img src="${esc(big(t.cover_url, 200))}" alt="">`).join("")}</span>
-      <span class="memory-text"><span class="eyebrow">${icons.clock} ${esc(memory.label)}</span><span class="t">Ce que tu écoutais le ${esc(memory.date_label)}</span>
-      <span class="s">${plural(memory.plays, "écoute")} · touche pour réécouter</span></span></button>` : ""}
-    <section class="section"><div class="section-head"><h2>Jouer</h2></div>
-      <div class="tiles">
-        ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
-        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "Sona écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
-      </div></section>
-    ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
-      href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
-    })))}
-    ${recentTracks.length ? `<section class="section"><div class="section-head"><h2>Écouté récemment</h2>
-      <div class="shelf-nav"><a class="more" href="#/recent">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
-      ${trackGrid(recentTracks, "Écoutés récemment")}</section>` : ""}
-    ${shelf("Radios", radios.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` })}
-    ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
-    ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
-    ${!mixes.length && !recentTracks.length ? empty(icons.note, "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
-}
-
-/** Mix « selon la météo » : l'humeur du moment (heure, jour, météo si la position est connue). */
-function loadMood() {
-  const geo = JSON.parse(store.get("sona.geo") || "null");
-  const q = new URLSearchParams({ tz: tz() });
-  if (geo) { q.set("lat", geo.lat); q.set("lon", geo.lon); }
-  return api(`/home/mood?${q}`).catch(() => null);
-}
-
-function moodCard(m) {
-  const w = m.weather;
-  const weather = w ? `${w.label ? `${esc(w.label)} · ` : ""}${Math.round(w.temperature)} °C` : `<span class="link" data-mood-geo>${icons.pin} Selon ta météo</span>`;
-  return `<button class="mood mood-${esc(m.mood)}" data-mood-play>
-    <span class="mood-emoji">${emo(m.emoji)}</span>
-    <span class="mood-text"><span class="eyebrow">Selon le moment · ${weather}</span><span class="t">${esc(m.title)}</span><span class="s">${esc(m.subtitle)}</span></span>
-    <span class="fab">${icons.play}</span></button>`;
-}
-
-/** Position (arrondie à ~1 km, gardée sur cet appareil) pour la météo du mix. */
-function askMoodLocation() {
-  if (!navigator.geolocation) return toast("Position indisponible sur cet appareil");
-  navigator.geolocation.getCurrentPosition((pos) => {
-    store.set("sona.geo", JSON.stringify({ lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) }));
-    toast("Météo activée");
-    route();
-  }, () => toast("Position refusée : le mix suit l'heure et le jour"), { timeout: 8000, maximumAge: 3600000 });
-}
-
-/** « Titre du jour » : une découverte par jour, la même toute la journée. */
-function dailyCard({ track, reason }) {
-  return `<button class="daily" data-play="${register([track], "Titre du jour")}">
-    <img src="${esc(big(track.cover_url, 300))}" alt="">
-    <span class="daily-text"><span class="eyebrow">${icons.sparkles} Titre du jour</span><span class="t">${esc(track.title)}</span>
-    <span class="s">${esc(track.artist)}</span><span class="why">${esc(reason)}</span></span>
-    <span class="fab">${icons.play}</span></button>`;
+    ${rows || empty(icons.note, "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.")}`);
 }
 
 /** Gros « pixels » blancs, en trois calques qui respirent à tour de rôle (trois animations par cover,
@@ -2709,7 +2646,7 @@ function djLoader(seed) {
 
 async function startDJRadio(seed) {
   if (partyGuest()) return toast("Tu es dans une écoute ensemble : c'est l'hôte qui choisit la musique");
-  toast(`Radio DJ à partir de « ${seed.title} »…`);
+  toast(`Radio à partir de « ${seed.title} »…`);
   try {
     const tracks = await djLoader(seed)();
     state.shuffle = false;
@@ -2879,7 +2816,6 @@ function playAt(index, { position = 0 } = {}) {
     audio.src = streamUrl(t);
     seekTo();
   }
-  djAnnounce(t, state.queue[index - 1]);
   remotePlay();
   reportNowPlaying(t, position);
   if ("mediaSession" in navigator) {
@@ -6317,7 +6253,6 @@ function trackMenu(t, ctx = null, index = -1) {
     !playing && { icon: icons.queue, label: "Ajouter à la file d'attente", run: () => addToQueue(t) },
     { icon: icons.plus, label: "Ajouter à une playlist…", run: () => addToPlaylistSheet([t]) },
     { icon: liked ? icons.heartFill : icons.heart, label: liked ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque", run: () => toggleLike(t) },
-    { icon: icons.radio, label: "Lancer la radio DJ", sub: "Des titres qui s'enchaînent bien avec celui-ci", run: () => startDJRadio(t) },
     t.artist_source_id && { icon: icons.sparkles, label: "Si tu aimes ce titre…", sub: "Une radio d'artistes proches que tu n'as jamais écoutés", run: () => startDiscoverRadio(t) },
     party.state && { icon: icons.headphones, label: party.state.is_host ? "Jouer ensuite dans la session" : "Proposer à la session", run: () => partyPropose(t) },
     t.artist_source_id && { icon: icons.user, label: "Aller à l'artiste", run: () => { closeNowPlaying(); go(`#/artist/${artistSrc(t)}/${t.artist_source_id}`); } },
@@ -6631,38 +6566,6 @@ function sleepMenu() {
     { icon: icons.note, label: "Fin du titre", run: () => setSleep("track") },
     sleep.until && { icon: icons.close, label: "Arrêter le minuteur", danger: true, run: () => setSleep(0) },
   ]);
-}
-
-// ── DJ vocal : une voix annonce le titre, comme à la radio ───────────────
-
-const dj = { audio: null, seq: 0 };
-
-async function djAnnounce(t, previous) {
-  if (store.get("sona.dj") !== "1" || party.state && !party.state.is_host) return;
-  const seq = ++dj.seq;
-  const q = new URLSearchParams({ title: t.title, artist: t.artist, voice: store.get("sona.djVoice") || "remy", tz: tz() });
-  if (previous) { q.set("prev_title", previous.title); q.set("prev_artist", previous.artist); }
-  if (t.year) q.set("year", String(t.year).slice(0, 4));
-  try {
-    const intro = await api(`/dj/intro?${q}`);
-    if (seq !== dj.seq || !sameTrack(t, state.queue[state.index])) return;
-    const duck = () => { audio.volume = Math.min(volGain(), 0.25); };
-    const unduck = () => { audio.volume = volGain(); };
-    if (intro.audio) {
-      dj.audio?.pause();
-      dj.audio = new Audio(`data:audio/mpeg;base64,${intro.audio}`);
-      dj.audio.onended = unduck;
-      dj.audio.onerror = unduck;
-      duck();
-      dj.audio.play().catch(unduck);
-    } else if ("speechSynthesis" in window) {
-      const u = new SpeechSynthesisUtterance(intro.text);
-      u.lang = "fr-FR";
-      u.onend = unduck;
-      duck();
-      speechSynthesis.speak(u);
-    }
-  } catch {}
 }
 
 // ── Amis ─────────────────────────────────────────────────────────────────
@@ -7678,8 +7581,6 @@ async function viewSettings() {
 
     <h3 class="set-head">Lecture</h3><div class="set-group">
       ${settings ? toggleRow("autoplay", "Lecture automatique", "Des morceaux similaires seront lus quand la file se termine.", settings.autoplay) : ""}
-      ${toggleRow("dj", "DJ vocal", "Une voix annonce chaque titre, comme à la radio.", store.get("sona.dj") === "1")}
-      <a class="set-row" data-dj-voice><span class="set-text"><b>Voix du DJ</b><small>${esc({ remy: "Rémy", vivienne: "Vivienne", henri: "Henri", denise: "Denise" }[store.get("sona.djVoice") || "remy"])}</small></span>${icons.right}</a>
       ${settings ? `<a class="set-row" data-quality><span class="set-text"><b>Qualité audio</b><small>${{ lossless: "Lossless (tes fichiers et exclus)", standard: "Standard (débit réduit)" }[settings.quality] || "Meilleure disponible"}</small></span>${icons.right}</a>` : ""}
     </div>
 
@@ -7719,7 +7620,8 @@ async function viewSettings() {
       <div class="set-row"><span class="set-text"><b>Lecture</b><small>${esc({ ok: "Tout fonctionne", degraded: "Perturbée", down: "En panne" }[health?.streaming] || "—")}</small></span></div>
     </div>
 
-    <button class="btn ghost danger wide" data-signout>Se déconnecter</button>`);
+    <button class="btn ghost danger wide" data-signout>Se déconnecter</button>
+    <p class="set-note">Sona v2.5</p>`);
 }
 
 function bindSettings() {
@@ -7729,13 +7631,9 @@ function bindSettings() {
     haptic();
     try {
       if (key === "autoplay") state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ autoplay: on }) });
-      else if (key === "dj") store.set("sona.dj", on ? "1" : null);
       // (les réglages de compte sont dans Réglages › Compte, Confidentialité et Services connectés)
     } catch (e) { input.checked = !on; toast(e.message); }
   }));
-  $("[data-dj-voice]")?.addEventListener("click", () => actionSheet("Voix du DJ", [["remy", "Rémy"], ["vivienne", "Vivienne"], ["henri", "Henri"], ["denise", "Denise"]].map(([id, label]) => ({
-    icon: icons.mic, label, checked: (store.get("sona.djVoice") || "remy") === id, run: () => { store.set("sona.djVoice", id); route(); },
-  }))));
   $("[data-quality]")?.addEventListener("click", () => actionSheet("Qualité audio", [["lossless", "Lossless (tes fichiers et exclus)"], ["best", "Meilleure disponible"], ["standard", "Standard (débit réduit)"]].map(([q, label]) => ({
     label, checked: state.settings?.quality === q, run: async () => { state.settings = await api("/settings", { method: "PUT", body: JSON.stringify({ quality: q }) }); route(); },
   }))));

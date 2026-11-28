@@ -46,11 +46,11 @@ jobs:
             desktop/streamdeck/package-lock.json
 
       - name: Numéroter la version
-        # 1.0.<numéro d'exécution> : toujours plus grand que la version
+        # 2.5.<numéro d'exécution> : toujours plus grand que la version
         # installée, c'est ce que compare la recherche de mises à jour de l'app.
         shell: bash
         run: |
-          VERSION="1.0.${{ github.run_number }}"
+          VERSION="2.5.${{ github.run_number }}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
