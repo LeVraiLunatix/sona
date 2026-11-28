@@ -106,15 +106,16 @@
 .sb-badge.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 10px; right: 10px; }
 .sb-badge[hidden] { display: none; }
 
-/* Playlists : seulement ouvert, défilement interne. */
+/* Playlists : fermé, leurs pochettes tiennent dans la colonne des icônes ; les noms n'apparaissent qu'ouvert. */
 .sb-pl { display: none; }
 @media (min-width: 761px) {
-  .sb-pl { display: block; visibility: hidden; opacity: 0; transition: opacity 90ms, visibility 0s 90ms; }
-  .sb[data-open="true"] .sb-pl { visibility: visible; opacity: 1; transition: opacity 150ms 100ms; }
+  .sb-pl { display: block; }
+  .sb-empty { opacity: 0; transition: opacity 90ms; }
+  .sb[data-open="true"] .sb-empty { opacity: 1; transition: opacity 150ms 100ms; }
 }
 .sb-pl .sb-link { height: 44px; margin-bottom: 2px; }
 .sb-pl .thumb { width: 32px; height: 32px; border-radius: 9px; object-fit: cover; background: var(--fill); margin: 0 8px 0 8px; flex: none; }
-.sb-pl .sb-label { opacity: 1; transform: none; padding-left: 0; }
+.sb-pl .sb-label { padding-left: 0; }
 .sb-empty { margin: 0; padding: 8px 14px; font-size: 13px; color: var(--text-3); }
 
 .sb-foot { flex: none; padding-top: 8px; }
@@ -150,13 +151,14 @@
 .more-sheet .sb-title::after { display: none; }
 .more-sheet .sb-title span { opacity: 1; }
 .more-sheet .sb-label { opacity: 1; transform: none; pointer-events: auto; }
-.more-sheet .sb-pl { display: block; visibility: visible; opacity: 1; }
+.more-sheet .sb-pl { display: block; }
+.more-sheet .sb-empty { opacity: 1; }
 .more-sheet .sb-link.active::before { display: none; }
 .more-sheet .more-profile { display: flex; align-items: center; gap: 12px; padding: 12px 8px; margin-bottom: 4px; }
 .more-sheet .more-profile .avatar { width: 44px; height: 44px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sb, .sb-face, .sb-label, .sb-name, .sb-title span, .sb-title::after, .sb-gear, .sb-word, .sb-pl, .sb-tip, .sb-link { transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+  .sb, .sb-face, .sb-label, .sb-name, .sb-title span, .sb-title::after, .sb-gear, .sb-word, .sb-empty, .sb-tip, .sb-link { transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
 }
 
 /* Le halo de couleur des pages dépasse de quelques pixels : on le rogne à la fenêtre (aucun défilement horizontal). */
@@ -165,7 +167,7 @@
 /* Rail : la pastille d'une page ne dépasse pas la zone de 48 px (sinon elle serait coupée net au bord de la carte).
    Même courbe et même délai que la carte : elle s'élargit avec elle. */
 @media (min-width: 761px) {
-  .sb-link:not(.sb-pl .sb-link), .sb-profile {
+  .sb-link, .sb-profile {
     clip-path: inset(0 calc(100% - 48px) 0 0 round 16px);
     transition: background 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease), clip-path var(--sb-dur) var(--sb-ease) 70ms;
   }
