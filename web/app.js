@@ -1080,73 +1080,52 @@ function tile({ href, icon, title, subtitle, tone = "", data = "" }) {
 
 async function viewHome() {
   $("#content").innerHTML = skeleton("Écouter");
-  const [mixes, recent, releases, smart, memories, playlists, radios, liveParties, exclusivesAll] = await Promise.all([
+  const [mixes, recent, releases, playlists, liveParties, exclusivesAll] = await Promise.all([
     api("/home/mixes").catch(() => []),
     api("/plays/recent?limit=80").catch(() => []),
     api("/releases").catch(() => []),
-    state.smart.length ? state.smart : api(`/smart?tz=${encodeURIComponent(tz())}`).catch(() => []),
-    api(`/memories?tz=${encodeURIComponent(tz())}`).catch(() => []),
     api("/me/playlists").catch(() => state.playlists),
-    radioGroups().catch(() => []),
     api("/party/active").catch(() => []),
     api("/exclusives").then((r) => r.tracks).catch(() => []),
   ]);
-  const recentTracks = playsToTracks(recent);
+  const lists = { recent: playsToTracks(recent).slice(0, 20), excl: exclusivesAll.slice(0, 20) };
+  const mine = playlists.filter((p) => p.import_status !== "importing").slice(0, 20);
   const name = (account.display_name || account.username || "").split(" ")[0];
-  const heroTrack = recentTracks[0];
-  const heroList = heroTrack ? register(recentTracks, "Écoutés récemment") : "";
-  const seenArtists = new Set();
-  const artists = recentTracks.filter((t) => t.artist_source_id && !seenArtists.has(t.artist_source_id) && seenArtists.add(t.artist_source_id));
-  const memory = memories[0];
   const parties = liveParties.filter((p) => !p.joined);
+  const songs = (key) => lists[key].map((t, i) => `<button type="button" class="song-card" data-song="${key}:${i}">
+    <img src="${esc(big(t.cover_url, 300))}" alt=""><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></button>`);
+  const rows = [
+    shelf("Pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
+      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
+      play: register(m.tracks, m.title),
+    })), { kind: "large" }),
+    shelf("Écoutés récemment", songs("recent"), { more: `<a class="more" href="#/recent">Tout voir</a>` }),
+    shelf("Tes playlists", mine.map((p) => card({
+      href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
+    }))),
+    shelf("Nouvelles sorties", releases.map((r) => card({
+      href: `#/album/${r.source}/${r.source_id}`, cover: r.cover_url, title: r.title, subtitle: `${r.artist} · ${r.kind}`,
+    }))),
+    shelf("Exclus", songs("excl"), { more: `<a class="more" href="#/exclusives">Tout voir</a>` }),
+  ].join("");
   setTimeout(() => {
     $("[data-install]")?.addEventListener("click", installApp);
     $("[data-install-close]")?.addEventListener("click", () => { store.set("sona.installDismissed", "1"); $("#install").replaceChildren(); });
-    $$("[data-radio]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); startRadio(b.dataset.radio, b.dataset.title); }));
-    $("[data-memory]")?.addEventListener("click", () => playList(memory.tracks, 0, memory.label));
     $("[data-recognize]")?.addEventListener("click", (e) => { e.preventDefault(); recognizeSheet(); });
+    $$("[data-song]").forEach((b) => (b.onclick = () => {
+      const [key, i] = b.dataset.song.split(":");
+      playList(lists[key], +i, key === "recent" ? "Écoutés récemment" : "Exclus");
+    }));
   });
-  return page(`<h1 class="page-title">Écouter</h1><p class="page-sub">${greeting()}${name ? `, ${esc(name)}` : ""}. Voici ta musique du moment.</p>
+  // Accueil « Classique » (v2.5) : des rangées, rien à apprendre.
+  return page(`<header class="home-head"><h1 class="page-title">${greeting()}${name ? `, ${esc(name)}` : ""}</h1>
+      <div class="home-actions"><a class="btn ghost" href="#/party">${icons.headphones} Écoute ensemble</a>
+        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? `<button class="btn ghost" data-recognize>${icons.wave} Reconnaître un titre</button>` : ""}</div></header>
     <div id="install">${installBanner()}</div>
-    <div class="home-top"><div class="home-cards">
     <div id="resume">${resumeCard()}</div>
     ${party.state ? `<a class="live-pill" href="#/party">${bars()} Écoute ensemble en cours · ${esc(party.state.code)}</a>` : ""}
     ${parties.map((p) => `<a class="live-pill" href="#/party/${esc(p.code)}">${icons.headphones} ${esc(p.host_name || "Un ami")} écoute en groupe — rejoindre</a>`).join("")}
-    </div>
-    ${heroTrack ? `<button class="home-hero" data-play="${heroList}">
-      <img src="${esc(big(heroTrack.cover_url, 1000))}" alt=""><span class="shade"></span>
-      <span class="label"><span class="eyebrow">Reprendre</span><span class="t">${esc(heroTrack.title)}</span><span class="s">${esc(heroTrack.artist)}</span></span>
-      <span class="fab">${icons.play}</span></button>` : ""}
-    </div>
-    ${shelf("Faits pour toi", mixes.filter((m) => m.tracks.length).map((m) => feature({
-      href: `#/mix/${encodeURIComponent(m.id)}`, cover: m.covers[0], eyebrow: "Mix Sona", title: m.title, subtitle: m.subtitle,
-      play: register(m.tracks, m.title),
-    })), { kind: "large" })}
-    ${exclusivesAll.length ? `<section class="section"><div class="section-head"><h2>Exclus</h2>
-      <div class="shelf-nav"><a class="more" href="#/exclusives">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
-      ${trackGrid(exclusivesAll.slice(0, 12), "Exclus")}</section>` : ""}
-    ${shelf("Nouvelles sorties", releases.map((r) => card({
-      href: `#/album/${r.source}/${r.source_id}`, cover: r.cover_url, title: r.title, subtitle: `${r.artist} · ${r.kind}`,
-    })))}
-    ${memory ? `<button class="memory" data-memory>
-      <span class="covers">${memory.tracks.slice(0, 3).map((t) => `<img src="${esc(big(t.cover_url, 200))}" alt="">`).join("")}</span>
-      <span class="memory-text"><span class="eyebrow">${icons.clock} ${esc(memory.label)}</span><span class="t">Ce que tu écoutais le ${esc(memory.date_label)}</span>
-      <span class="s">${plural(memory.plays, "écoute")} · touche pour réécouter</span></span></button>` : ""}
-    <section class="section"><div class="section-head"><h2>Jouer</h2></div>
-      <div class="tiles">
-        ${tile({ href: "#/party", icon: icons.headphones, title: "Écoute ensemble", subtitle: "Le même son, au même moment", tone: "blue" })}
-        ${navigator.mediaDevices?.getUserMedia && window.MediaRecorder ? tile({ icon: icons.wave, title: "Reconnaître un titre", subtitle: "Sona écoute 8 s et le retrouve", tone: "blue", data: "data-recognize" }) : ""}
-      </div></section>
-    ${shelf("Tes playlists", playlists.filter((p) => p.import_status !== "importing").slice(0, 12).map((p) => card({
-      href: `#/playlist/${p.id}`, cover: p.cover_url || (p.covers || [])[0], covers: p.cover_url ? null : p.covers, title: p.name, subtitle: plural(p.track_count, "titre"),
-    })))}
-    ${recentTracks.length ? `<section class="section"><div class="section-head"><h2>Écouté récemment</h2>
-      <div class="shelf-nav"><a class="more" href="#/recent">Tout voir</a><button data-shelf="-1">${icons.left}</button><button data-shelf="1">${icons.right}</button></div></div>
-      ${trackGrid(recentTracks, "Écoutés récemment")}</section>` : ""}
-    ${shelf("Radios", radios.map((g) => g.radios[0]).filter(Boolean).map(radioCard), { more: `<a class="more" href="#/radios">Tout voir</a>` })}
-    ${shelf("Tes artistes", artists.map((t) => card({ href: `#/artist/${artistSrc(t)}/${t.artist_source_id}`, cover: t.cover_url, title: t.artist, round: true })), { kind: "round" })}
-    ${shelf("Playlists intelligentes", smart.map((s) => card({ href: `#/smart/${s.id}`, covers: s.covers, cover: s.covers[0], title: s.title, subtitle: plural(s.count, "titre") })))}
-    ${!mixes.length && !recentTracks.length ? empty(icons.note, "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.") : ""}`);
+    ${rows || empty(icons.note, "Rien encore ici", "Lance une radio ou cherche un titre : ton historique et tes mix apparaîtront ici.")}`);
 }
 
 /** Gros « pixels » blancs, en trois calques qui respirent à tour de rôle (trois animations par cover,
@@ -7641,7 +7620,8 @@ async function viewSettings() {
       <div class="set-row"><span class="set-text"><b>Lecture</b><small>${esc({ ok: "Tout fonctionne", degraded: "Perturbée", down: "En panne" }[health?.streaming] || "—")}</small></span></div>
     </div>
 
-    <button class="btn ghost danger wide" data-signout>Se déconnecter</button>`);
+    <button class="btn ghost danger wide" data-signout>Se déconnecter</button>
+    <p class="set-note">Sona v2.5</p>`);
 }
 
 function bindSettings() {

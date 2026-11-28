@@ -88,7 +88,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            MARKETING_VERSION="1.0.${{ github.run_number }}" \
+            MARKETING_VERSION="2.5.${{ github.run_number }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}"
 
       - name: Empaqueter en .ipa
@@ -144,7 +144,7 @@ jobs:
                   "iconURL": f"https://raw.githubusercontent.com/{repo}/master/ios/Encre/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
                   "tintColor": "8B5CF6",
                   "versions": [{
-                      "version": f"1.0.{run}",
+                      "version": f"2.5.{run}",
                       "buildVersion": run,
                       "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                       "localizedDescription": notes,
@@ -158,7 +158,7 @@ jobs:
           }
           json.dump(source, open("source.json", "w"), ensure_ascii=False, indent=2)
           PY
-          gh release create "$TAG" Sona.ipa source.json --repo "$REPO" --title "Sona 1.0.$RUN" --notes "$(printf '%s' "$MESSAGE" | head -n 1)" --latest
+          gh release create "$TAG" Sona.ipa source.json --repo "$REPO" --title "Sona 2.5.$RUN" --notes "$(printf '%s' "$MESSAGE" | head -n 1)" --latest
           # Garde les 5 dernières versions.
           gh release list --repo "$REPO" --limit 100 --json tagName --jq '.[].tagName' | grep '^build-' | sort -t- -k2 -n -r | tail -n +6 | while read -r old; do
             gh release delete "$old" --repo "$REPO" --yes --cleanup-tag || true
