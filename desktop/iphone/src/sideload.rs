@@ -238,7 +238,7 @@ pub fn humanize(chain: &str) -> String {
     } else if has(&["not provisioned", "-45061", "reprovision"]) {
         "Le serveur de connexion Apple ne reconnaît plus ce PC. Réessaie : Sona le redéclare tout seul (sinon, Réinitialiser l’appareil Apple)."
     } else if has(&["anisette"]) {
-        "Impossible de préparer la connexion à Apple. Vérifie ta connexion Internet, puis réessaie."
+        "Impossible de préparer la connexion à Apple. Installe iCloud pour Windows depuis le site d’Apple (pas le Microsoft Store), ouvre-le une fois, puis réessaie."
     } else if has(&["pairing file", "pair record", "invalidhostid", "passwordprotected", "not paired", "pairingdialog"]) {
         "L’iPhone ne fait pas encore confiance à ce PC : déverrouille-le et touche « Se fier »."
     } else if has(&["developer mode", "developermode"]) {
@@ -398,7 +398,10 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
             break;
         }
         log_error(&format!("Anisette : {server} a échoué, identité oubliée, essai du serveur suivant"));
-        forget_anisette_identity();
+        // L'anisette locale ne garde rien : l'identité enregistrée est celle d'un serveur, on la préserve.
+        if *server != LOCAL_ANISETTE {
+            forget_anisette_identity();
+        }
     }
     if result.is_ok() {
         emit("signed-in", json!({ "email": email }));
@@ -416,13 +419,16 @@ async fn login(email: String, password: String) -> Result<AppleAccount, String> 
     result
 }
 
-/// Serveurs d'anisette (protocole v3) essayés dans l'ordre : ceux de SideStore et de la communauté.
-const ANISETTE_SERVERS: [&str; 4] = [
+/// Anisette essayée dans l'ordre : les composants iCloud de ce PC, puis les serveurs de SideStore et de la communauté.
+const ANISETTE_SERVERS: [&str; 5] = [
+    LOCAL_ANISETTE,
     "https://ani.stikstore.app",
     "https://ani.sidestore.io",
     "https://ani.sidestore.zip",
     "https://ani.846969.xyz",
 ];
+
+const LOCAL_ANISETTE: &str = "ce PC";
 
 fn is_anisette_failure(message: &str) -> bool {
     let lower = message.to_lowercase();
@@ -468,9 +474,17 @@ fn set_apple_cooldown(email: &str, seconds: u64) {
 async fn login_attempt(email: String, password: String, anisette_server: &'static str) -> Result<AppleAccount, String> {
     on_own_thread(move || async move {
         let for_callback = email.clone();
-        let provider = isideload::anisette::remote_v3::RemoteV3AnisetteProvider::default()
-            .map_err(short_error)?
-            .set_url(anisette_server);
+        let provider = isideload::anisette::remote_v3::RemoteV3AnisetteProvider::default().map_err(short_error)?;
+        let provider = if anisette_server == LOCAL_ANISETTE {
+            crate::local_anisette::wire(provider).map_err(|e| {
+                let detail = format!("anisette locale : {e}");
+                log_error(&detail);
+                *LAST_RAW_ERROR.lock().unwrap() = detail.clone();
+                detail
+            })?
+        } else {
+            provider.set_url(anisette_server)
+        };
         isideload::auth::builder::AppleAccountBuilder::new(&email)
             .anisette_provider(provider)
             .login(&password, move |params: TwoFactorCallbackParams| {
