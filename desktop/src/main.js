@@ -44,7 +44,8 @@ protocol.registerSchemesAsPrivileged([{
 }]);
 
 if (!app.requestSingleInstanceLock()) app.quit();
-if (isWin) app.setAppUserModelId("app.sona.desktop");
+// Un lancement de développement garde sa propre identité : sinon Windows donne à Sona installé l'icône d'Electron.
+if (isWin) app.setAppUserModelId(app.isPackaged ? "app.sona.desktop" : "app.sona.desktop.dev");
 
 let win = null;
 let mini = null;
