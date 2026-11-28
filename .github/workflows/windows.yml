@@ -155,9 +155,8 @@ jobs:
             gh release edit windows --repo "$REPO" --notes "$NOTES"
           fi
           gh release upload windows "${FILES[@]}" --repo "$REPO" --clobber
-          # Les fichiers des versions précédentes s'en vont.
-          for asset in $(gh release view windows --repo "$REPO" --json assets --jq '.assets[].name'); do
-            keep=0
-            for f in "${FILES[@]}"; do [ "$asset" = "$(basename "$f")" ] && keep=1; done
-            [ $keep = 1 ] || gh release delete-asset windows "$asset" --repo "$REPO" --yes
-          done
+          # Les 5 dernières versions restent : une app qui connaît encore la précédente la télécharge sans 404.
+          gh release view windows --repo "$REPO" --json assets --jq '.assets[].name' \
+            | sed -nE 's/^Sona-(Setup|Portable)-([0-9.]+)\.exe$/\2/p' | sort -Vu | head -n -5 | while read -r old; do
+              for kind in Setup Portable; do gh release delete-asset windows "Sona-$kind-$old.exe" --repo "$REPO" --yes || true; done
+            done

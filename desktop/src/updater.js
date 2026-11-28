@@ -77,6 +77,9 @@ async function check({ manual = false } = {}) {
 async function install() {
   if (portable) { shell.openExternal(RELEASE_PAGE); return; }
   if (model.downloading != null) return;
+  // La version connue a pu être remplacée depuis la dernière recherche : on relit avant de télécharger (sinon 404).
+  await check({ manual: true });
+  if (model.downloading != null) return;
   const latest = model.latest;
   if (!latest?.setup?.url || !/^https:\/\//.test(latest.setup.url)) throw new Error("Aucune mise à jour à installer.");
   const dest = path.join(app.getPath("temp"), "Sona", `Sona-Setup-${latest.version}.exe`);
