@@ -12,6 +12,7 @@
 //! Les commandes tournent en parallèle : la réponse à la 2FA arrive pendant
 //! que la connexion l'attend.
 
+mod local_anisette;
 mod registry;
 mod sideload;
 mod wifi;
