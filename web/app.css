@@ -1763,8 +1763,14 @@ input[type="range"].slider::-webkit-slider-thumb { background: var(--accent); }
   .page { padding: var(--s-5) var(--page-x) var(--s-7); }
   .page-title { font-size: 34px; }
   .page-sub { font-size: 16px; margin-bottom: var(--s-6); }
-  .section { margin-top: var(--s-8); }
-  .shelf { gap: var(--s-4); }
+  .section { margin-top: var(--s-7); }
+  .section-head { margin-bottom: var(--s-4); }
+  /* À redire ici : les largeurs « bureau » plus haut dans le fichier écraseraient celles du téléphone. */
+  .shelf { gap: var(--s-4); grid-auto-columns: 44%; }
+  .shelf.large { grid-auto-columns: 82%; }
+  .shelf.round { grid-auto-columns: 31%; }
+  .track-grid { grid-auto-columns: 88%; gap: 0 var(--s-4); }
+  .radio-card .play-fab { display: none; }
   .hero { grid-template-columns: 1fr; gap: var(--s-5); }
   .hero-art { width: min(260px, 72vw); height: auto; aspect-ratio: 1; }
   .hero h1 { font-size: 34px; }
